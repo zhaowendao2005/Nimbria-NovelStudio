@@ -1,0 +1,7 @@
+{
+    "scripts": {
+        "dev": "cd Biology-Toolbox && quasar dev",
+        "build": "cd Biology-Toolbox && quasar build",
+        "dev:electron": "cd Biology-Toolbox && quasar dev -m electron"
+    }
+}

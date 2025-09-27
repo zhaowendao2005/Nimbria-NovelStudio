@@ -1,0 +1,6 @@
+# 后端依赖文件
+# TODO: 添加实际依赖
+
+fastapi>=0.68.0
+uvicorn>=0.15.0
+pydantic>=1.8.0

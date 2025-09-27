@@ -1,0 +1,29 @@
+// ErrorNotFound 页面样式
+// 与 ErrorNotFound.vue 布局组件对应
+
+.error-not-found-page {
+  // TODO: 实现404错误页面样式
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+  text-align: center;
+  
+  .error-code {
+    font-size: 8rem;
+    font-weight: bold;
+    color: #666;
+    margin-bottom: 1rem;
+  }
+  
+  .error-message {
+    font-size: 1.5rem;
+    color: #888;
+    margin-bottom: 2rem;
+  }
+  
+  .back-button {
+    // 返回按钮样式
+  }
+}

@@ -1,0 +1,154 @@
+---
+alwaysApply: true
+---
+
+英文规则文件名 (English Rule Filename)
+FileArchitectureModificationTree_zh.cursor_rule
+
+Cursor 规则内容 (Cursor Rule Content)
+<MARKDOWN>
+"""
+定义：文件架构修改树生成器
+
+**示例结构 (供参考)：**
+MyWebApp/
+├── src/
+│   ├── [重命名目录] controllers/ -> handlers/
+│   │   └── handlers/
+│   │       ├── userHandler.js [修改内容]
+│   │       │   └── 内部模块：更新用户密码哈希逻辑，由 SHA256 改为 BCrypt
+│   │       └── authHandler.js [修改内容]
+│   │           └── 内部模块：增加 JWT 刷新 token 接口
+│   ├── services/
+│   │   ├── [重命名文件] authService.js -> authenticationService.js
+│   │   ├── userService.js [修改内容]
+│   │   │   └── 内部模块：新增用户活动状态(isActive)查询方法
+│   │   └── [新增文件] notificationService.js
+│   │       └── 内部模块：实现邮件和短信通知发送逻辑
+│   ├── models/
+│   │   ├── User.js [修改内容]
+│   │   │   ├── 内部模块：新增字段 isActive (boolean, default false)
+│   │   │   └── 内部模块：修改 email 字段验证规则，支持国际化邮箱格式
+│   │   ├── [删除文件] Product.js
+│   │   └── [新增文件] Order.js
+│   │       └── 内部模块：定义订单数据结构及关联关系 (User, Item)
+│   ├── common/
+│   │   └── [移动文件] utils/helpers.js -> ../utils/helpers.js
+│   ├── [新增目录] api/
+│   │   └── v1/
+│   │       ├── [新增文件] users.js
+│   │       └── [新增文件] products.js
+│   ├── [新增目录] utils/
+│   │   └── helpers.js [修改内容]
+│   │       └── 内部模块：优化日期格式化函数性能
+│   └── app.js [修改内容]
+│       ├── 内部模块：新增 /api/v1/users 路由处理器注册
+│       ├── 内部模块：更新全局错误处理中间件，增加日志记录
+│       └── 内部模块：移除对旧 ProductService 的引用
+├── config/
+│   ├── default.json [修改内容]
+│   │   ├── 内部模块：修改 database.url 值，指向新的生产环境 DB
+│   │   └── 内部模块：新增 jwt.secret 配置项
+│   └── [新增文件] production.json
+│       └── 内部模块：定义生产环境特有的配置覆盖
+├── public/
+│   ├── [删除目录] css/
+│   ├── [新增目录] assets/
+│   │   └── images/
+│   │       └── [新增文件] logo.png
+│   ├── index.html [修改内容]
+│   │   ├── 内部模块：更新页面标题 <title>My New WebApp</title>
+│   │   └── 内部模块：新增对 bundle.js 的引用 (位于 /dist/bundle.js)
+│   └── [删除文件] old_landing_page.html
+├── tests/
+│   ├── [新增目录] e2e/
+│   │   └── users.test.js [新增文件]
+│   │       └── 内部模块：实现用户注册和登录的 E2E 测试
+│   └── unit/
+│       └── userService.test.js [修改内容]
+│           └── 内部模块：更新测试用例以覆盖 isActive 方法
+├── dist/
+│   └── [新增文件] bundle.js
+├── .gitignore [修改内容]
+│   └── 内部模块：新增 /.env 和 /node_modules/ 忽略规则
+├── package.json [修改内容]
+│   ├── 内部模块：更新依赖 express 版本至 ^4.18.2
+│   ├── 内部模块：新增依赖 bcrypt, jsonwebtoken
+│   └── 内部模块：移除依赖 mongodb@3
+└── README.md [修改内容]
+└── 内部模块：更新安装说明章节，增加新模块的介绍
+英文规则文件名 (English Rule Filename)
+FileArchitectureModificationTree_zh.cursor_rule
+
+Cursor 规则内容 (Cursor Rule Content)
+<MARKDOWN>
+"""
+定义：文件架构修改树生成器
+
+**示例结构 (供参考)：**
+MyWebApp/
+├── src/
+│   ├── [重命名目录] controllers/ -> handlers/
+│   │   └── handlers/
+│   │       ├── userHandler.js [修改内容]
+│   │       │   └── 内部模块：更新用户密码哈希逻辑，由 SHA256 改为 BCrypt
+│   │       └── authHandler.js [修改内容]
+│   │           └── 内部模块：增加 JWT 刷新 token 接口
+│   ├── services/
+│   │   ├── [重命名文件] authService.js -> authenticationService.js
+│   │   ├── userService.js [修改内容]
+│   │   │   └── 内部模块：新增用户活动状态(isActive)查询方法
+│   │   └── [新增文件] notificationService.js
+│   │       └── 内部模块：实现邮件和短信通知发送逻辑
+│   ├── models/
+│   │   ├── User.js [修改内容]
+│   │   │   ├── 内部模块：新增字段 isActive (boolean, default false)
+│   │   │   └── 内部模块：修改 email 字段验证规则，支持国际化邮箱格式
+│   │   ├── [删除文件] Product.js
+│   │   └── [新增文件] Order.js
+│   │       └── 内部模块：定义订单数据结构及关联关系 (User, Item)
+│   ├── common/
+│   │   └── [移动文件] utils/helpers.js -> ../utils/helpers.js
+│   ├── [新增目录] api/
+│   │   └── v1/
+│   │       ├── [新增文件] users.js
+│   │       └── [新增文件] products.js
+│   ├── [新增目录] utils/
+│   │   └── helpers.js [修改内容]
+│   │       └── 内部模块：优化日期格式化函数性能
+│   └── app.js [修改内容]
+│       ├── 内部模块：新增 /api/v1/users 路由处理器注册
+│       ├── 内部模块：更新全局错误处理中间件，增加日志记录
+│       └── 内部模块：移除对旧 ProductService 的引用
+├── config/
+│   ├── default.json [修改内容]
+│   │   ├── 内部模块：修改 database.url 值，指向新的生产环境 DB
+│   │   └── 内部模块：新增 jwt.secret 配置项
+│   └── [新增文件] production.json
+│       └── 内部模块：定义生产环境特有的配置覆盖
+├── public/
+│   ├── [删除目录] css/
+│   ├── [新增目录] assets/
+│   │   └── images/
+│   │       └── [新增文件] logo.png
+│   ├── index.html [修改内容]
+│   │   ├── 内部模块：更新页面标题 <title>My New WebApp</title>
+│   │   └── 内部模块：新增对 bundle.js 的引用 (位于 /dist/bundle.js)
+│   └── [删除文件] old_landing_page.html
+├── tests/
+│   ├── [新增目录] e2e/
+│   │   └── users.test.js [新增文件]
+│   │       └── 内部模块：实现用户注册和登录的 E2E 测试
+│   └── unit/
+│       └── userService.test.js [修改内容]
+│           └── 内部模块：更新测试用例以覆盖 isActive 方法
+├── dist/
+│   └── [新增文件] bundle.js
+├── .gitignore [修改内容]
+│   └── 内部模块：新增 /.env 和 /node_modules/ 忽略规则
+├── package.json [修改内容]
+│   ├── 内部模块：更新依赖 express 版本至 ^4.18.2
+│   ├── 内部模块：新增依赖 bcrypt, jsonwebtoken
+│   └── 内部模块：移除依赖 mongodb@3
+└── README.md [修改内容]
+└── 内部模块：更新安装说明章节，增加新模块的介绍

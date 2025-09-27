@@ -1,0 +1,28 @@
+{
+  "extends": "./.quasar/tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "src": ["Client"],
+      "src/*": ["Client/*"],
+      "layouts": ["Client/GUI/layouts"],
+      "pages": ["Client/GUI/PagesLayout"],
+      "components": ["Client/GUI/components"],
+      "assets": ["Client/GUI/assets"],
+      "boot": ["Client/boot"],
+      "@service": ["Client/Service"],
+      "@service/*": ["Client/Service/*"],
+      "@stores": ["Client/stores"],
+      "@stores/*": ["Client/stores/*"],
+      "@utils": ["Client/Utils"],
+      "@utils/*": ["Client/Utils/*"],
+      "@gui": ["Client/GUI"],
+      "@gui/*": ["Client/GUI/*"],
+      "@index": ["Client/GUI/Index"],
+      "@pages": ["Client/GUI/PagesLayout"],
+      "@shared": ["Client/Service/shared"],
+      "@shared-utils": ["Client/Utils/shared"],
+      "@shared-stores": ["Client/stores"]
+    }
+  }
+}
