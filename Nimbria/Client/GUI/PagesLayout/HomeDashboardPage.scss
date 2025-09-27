@@ -1,0 +1,41 @@
+.home-dashboard {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 24px;
+  box-sizing: border-box;
+  background: #f5f7fb;
+
+  &__main {
+    display: grid;
+    grid-template-columns: 280px 1fr 320px;
+    gap: 24px;
+    flex: 1;
+    min-height: 0;
+
+    @media (max-width: 1360px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  &__column {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+
+    &--left,
+    &--right {
+      @media (max-width: 1360px) {
+        order: 2;
+      }
+    }
+
+    &--center {
+      order: 1;
+      @media (max-width: 1360px) {
+        order: 0;
+      }
+    }
+  }
+}
+

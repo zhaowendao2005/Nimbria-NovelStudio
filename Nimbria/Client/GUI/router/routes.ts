@@ -4,15 +4,17 @@ import type { RouteRecordRaw } from 'vue-router'
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    component: () => import('layouts/MainLayout.vue'),
+    component: () => import('@index/HomeSystem.vue'),
     children: [
-      { path: '', component: () => import('@pages/IndexPage.vue') }
+      {
+        path: '',
+        component: () => import('layouts/MainLayout.vue'),
+        children: [
+          { path: '', component: () => import('@pages/HomeDashboardPage.vue') },
+          { path: 'module-a', component: () => import('@pages/ModuleAPage.vue') }
+        ]
+      }
     ]
-  },
-  // 抽象业务模块路由
-  {
-    path: '/module-a',
-    component: () => import('@pages/ModuleAPage.vue')
   },
   // 404 错误页面
   {
