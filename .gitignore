@@ -10,7 +10,6 @@ dist/
 .quasar/
 
 # IDE files
-.vscode/
 .idea/
 *.suo
 *.ntvs*

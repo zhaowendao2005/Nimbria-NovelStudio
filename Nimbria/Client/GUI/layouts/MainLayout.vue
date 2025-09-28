@@ -11,7 +11,7 @@
         size="sm" 
         icon="minimize" 
         @click="minimize" 
-        class="q-electron-drag--exception startup-titlebar__btn" 
+        class="q-electron-drag--exception startup-titlebar__btn startup-titlebar__btn--minimize" 
       />
       <q-btn 
         flat 
@@ -235,6 +235,18 @@ async function openProject() {
     
     &:hover {
       background: rgba(0, 0, 0, 0.05);
+    }
+  }
+
+  &__btn--minimize {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    :deep(.q-icon) {
+      margin: 0;
+      line-height: 1;
+      transform: translateY(-5px);
     }
   }
 }

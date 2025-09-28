@@ -9,9 +9,9 @@
   "scripts": {
     "lint": "eslint -c ./eslint.config.js \"./Client/**/*.{ts,js,cjs,mjs,vue}\" \"./src-electron/**/*.{ts,js,cjs,mjs}\"",
     "test": "echo \"No test specified\" && exit 0",
-    "dev": "quasar dev",
-    "build": "quasar build",
-    "dev:electron": "quasar dev -m electron",
+    "dev": "node Script/run-with-logger.mjs --name dev -- quasar dev",
+    "dev:electron": "node Script/run-with-logger.mjs --name dev:electron -- quasar dev -m electron",
+    "build": "node Script/run-with-logger.mjs --name build -- quasar build",
     "build:electron": "quasar build -m electron",
     "postinstall": "quasar prepare"
   },

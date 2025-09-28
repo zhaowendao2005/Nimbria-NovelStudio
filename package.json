@@ -1,7 +1,7 @@
 {
     "scripts": {
-        "dev": "cd Nimbria && quasar dev",
-        "build": "cd Nimbria && quasar build",
-        "dev:electron": "cd Nimbria && quasar dev -m electron"
+        "dev": "cd Nimbria && npm run dev",
+        "build": "cd Nimbria && npm run build",
+        "dev:electron": "cd Nimbria && npm run dev:electron"
     }
 }

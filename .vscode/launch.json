@@ -1,0 +1,57 @@
+{
+    "configurations": [
+    {
+        "name": "Dev: Electron",
+        "request": "launch",
+        "runtimeArgs": [
+            "run-script",
+            "dev:electron"
+        ],
+        "runtimeExecutable": "npm",
+        "skipFiles": [
+            "<node_internals>/**"
+        ],
+        "type": "node"
+    },
+    {
+        "name": "Dev",
+        "request": "launch",
+        "runtimeArgs": [
+            "run-script",
+            "dev"
+        ],
+        "runtimeExecutable": "npm",
+        "console": "integratedTerminal",
+        "skipFiles": [
+            "<node_internals>/**"
+        ],
+        "type": "node"
+    },
+    {
+        "name": "Build",
+        "request": "launch",
+        "runtimeArgs": [
+            "run-script",
+            "build"
+        ],
+        "runtimeExecutable": "npm",
+        "skipFiles": [
+            "<node_internals>/**"
+        ],
+        "type": "node"
+    },
+    {
+        "name": "Build: Electron",
+        "request": "launch",
+        "runtimeArgs": [
+            "run-script",
+            "build:electron"
+        ],
+        "runtimeExecutable": "npm",
+        "skipFiles": [
+            "<node_internals>/**"
+        ],
+        "type": "node"
+    },
+    ]
+}
