@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain } from 'electron';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url'
@@ -17,18 +17,26 @@ async function createWindow() {
   console.log('🏗️ 创建主窗口...');
   mainWindow = new BrowserWindow({
     icon: path.resolve(currentDir, 'icons/icon.png'), // tray icon
-    width: 1000,
-    height: 600,
+    width: 1024,     // 更大的默认宽度
+    height: 720,     // 更大的默认高度
+    minWidth: 900,   // 最小宽度限制
+    minHeight: 620,  // 最小高度限制
+    maxWidth: 1120,  // 最大宽度限制（固定窗口范围）
+    maxHeight: 820,  // 最大高度限制
+    resizable: false, // 固定大小，不允许调整
     useContentSize: true,
-  webPreferences: {
-    contextIsolation: true,
-    devTools: !!(process.env.DEV || process.env.DEBUGGING), // 明确启用开发者工具
-    // More info: https://v2.quasar.dev/quasar-cli-vite/developing-electron-apps/electron-preload-script
-    preload: path.resolve(
-      currentDir,
-      path.join(process.env.QUASAR_ELECTRON_PRELOAD_FOLDER, 'electron-preload' + process.env.QUASAR_ELECTRON_PRELOAD_EXTENSION)
-    ),
-  },
+    frame: false,    // 无边框窗口
+    titleBarStyle: 'hidden', // 隐藏标题栏
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      devTools: !!(process.env.DEV || process.env.DEBUGGING), // 明确启用开发者工具
+      // More info: https://v2.quasar.dev/quasar-cli-vite/developing-electron-apps/electron-preload-script
+      preload: path.resolve(
+        currentDir,
+        path.join(process.env.QUASAR_ELECTRON_PRELOAD_FOLDER, 'electron-preload' + process.env.QUASAR_ELECTRON_PRELOAD_EXTENSION)
+      ),
+    },
   });
 
   console.log('✅ 主窗口创建完成');
@@ -147,8 +155,67 @@ async function createWindow() {
   });
 }
 
+// 设置IPC处理器
+function setupIpcHandlers() {
+  // 窗口控制处理器
+  ipcMain.handle('window-minimize', () => {
+    console.log('📉 窗口最小化请求');
+    if (mainWindow) {
+      mainWindow.minimize();
+    }
+  });
+
+  ipcMain.handle('window-close', () => {
+    console.log('❌ 窗口关闭请求');
+    if (mainWindow) {
+      mainWindow.close();
+    }
+  });
+
+  ipcMain.handle('window-maximize', () => {
+    console.log('📈 窗口最大化请求');
+    if (mainWindow) {
+      mainWindow.maximize();
+    }
+  });
+
+  ipcMain.handle('window-unmaximize', () => {
+    console.log('📉 窗口还原请求');
+    if (mainWindow) {
+      mainWindow.unmaximize();
+    }
+  });
+
+  ipcMain.handle('window-is-maximized', () => {
+    console.log('❓ 检查窗口是否最大化');
+    return mainWindow ? mainWindow.isMaximized() : false;
+  });
+
+  // 项目管理处理器（暂时为空实现）
+  ipcMain.handle('project-create', (event, projectPath: string) => {
+    console.log('🏗️ 创建项目请求:', projectPath);
+    // TODO: 实现项目创建逻辑
+    return { success: true, message: '项目创建功能尚未实现' };
+  });
+
+  ipcMain.handle('project-open', (event, projectPath: string) => {
+    console.log('📂 打开项目请求:', projectPath);
+    // TODO: 实现项目打开逻辑
+    return { success: true, message: '项目打开功能尚未实现' };
+  });
+
+  ipcMain.handle('project-get-recent', () => {
+    console.log('📋 获取最近项目列表请求');
+    // TODO: 实现最近项目获取逻辑
+    return [];
+  });
+
+  console.log('✅ IPC处理器设置完成');
+}
+
 void app.whenReady().then(() => {
   console.log('🚀 Electron应用启动完成');
+  setupIpcHandlers();  // 设置IPC处理器
   void createWindow();
 });
 

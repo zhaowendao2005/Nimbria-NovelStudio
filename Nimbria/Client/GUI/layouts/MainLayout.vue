@@ -1,26 +1,338 @@
 <template>
-  <q-layout view="hHh lpR fFf">
-    <q-header elevated class="main-layout__header">
-      <home-topbar />
-    </q-header>
+  <q-layout view="lHh Lpr lFf" class="startup-layout">
+    <!-- 顶部自定义标题栏 -->
+    <q-bar class="startup-titlebar q-electron-drag">
+      <div class="startup-titlebar__title">Nimbria</div>
+      <q-space />
+      <q-btn 
+        flat 
+        dense 
+        round 
+        size="sm" 
+        icon="minimize" 
+        @click="minimize" 
+        class="q-electron-drag--exception startup-titlebar__btn" 
+      />
+      <q-btn 
+        flat 
+        dense 
+        round 
+        size="sm" 
+        icon="close" 
+        @click="closeApp" 
+        class="q-electron-drag--exception startup-titlebar__btn" 
+      />
+    </q-bar>
 
-    <q-page-container class="main-layout__container">
-      <router-view />
+    <!-- 左侧项目历史抽屉 -->
+    <q-drawer 
+      v-model="leftDrawerOpen"
+      side="left" 
+      :width="280"
+      class="startup-drawer"
+      bordered
+      show-if-above
+      :breakpoint="0"
+    >
+      <q-scroll-area class="startup-drawer__scroll" :style="drawerScrollStyle">
+        <q-list class="startup-project-list">
+          <q-item-label header class="text-grey-7 q-px-md">最近项目</q-item-label>
+          
+          <template v-if="recentProjects.length === 0">
+            <q-item class="startup-project-item--empty">
+              <q-item-section avatar>
+                <q-icon name="folder_open" color="grey-5" size="md" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="text-grey-6">暂无最近项目</q-item-label>
+                <q-item-label caption class="text-grey-5">创建或打开项目后将显示在这里</q-item-label>
+              </q-item-section>
+            </q-item>
+          </template>
+
+          <q-item 
+            v-for="project in recentProjects" 
+            :key="project.id"
+            clickable 
+            v-ripple
+            class="startup-project-item"
+          >
+            <q-item-section avatar>
+              <q-icon name="folder" color="primary" size="md" />
+            </q-item-section>
+            <q-item-section>
+              <q-item-label class="text-weight-medium">{{ project.name }}</q-item-label>
+              <q-item-label caption lines="1" class="text-grey-6">{{ project.path }}</q-item-label>
+              <q-item-label caption class="text-grey-5">{{ project.lastOpened }}</q-item-label>
+            </q-item-section>
+          </q-item>
+        </q-list>
+      </q-scroll-area>
+    </q-drawer>
+
+    <!-- 右侧主内容区 -->
+    <q-page-container class="startup-content">
+      <q-page class="startup-page" :style="pageContentStyle">
+        <div class="startup-actions">
+          <!-- Logo区域 -->
+          <div class="startup-logo text-center q-mb-xl">
+            <div class="startup-logo__icon">
+              <q-icon name="auto_stories" size="64px" color="primary" />
+            </div>
+            <div class="startup-logo__title text-h4 text-weight-light q-mt-md">Nimbria</div>
+            <div class="startup-logo__subtitle text-body2 text-grey-6">云墨澜书</div>
+          </div>
+
+          <!-- 操作卡片 -->
+          <div class="startup-cards">
+            <!-- 新建项目卡片 -->
+            <q-card class="startup-action-card" flat bordered>
+              <q-card-section class="q-pb-xs">
+                <div class="row items-center q-gutter-sm">
+                  <q-icon name="add_circle_outline" color="primary" size="md" />
+                  <div class="text-h6 text-weight-medium">新建项目</div>
+                </div>
+                <div class="text-body2 text-grey-7 q-mt-sm">在指定文件夹下创建一个新的项目工作区</div>
+              </q-card-section>
+              <q-card-actions align="right" class="q-pt-xs">
+                <q-btn color="primary" unelevated label="创建项目" @click="createProject" />
+              </q-card-actions>
+            </q-card>
+
+            <!-- 打开本地项目卡片 -->
+            <q-card class="startup-action-card" flat bordered>
+              <q-card-section class="q-pb-xs">
+                <div class="row items-center q-gutter-sm">
+                  <q-icon name="folder_open" color="primary" size="md" />
+                  <div class="text-h6 text-weight-medium">打开本地项目</div>
+                </div>
+                <div class="text-body2 text-grey-7 q-mt-sm">将一个本地文件夹作为项目在 Nimbria 中打开</div>
+              </q-card-section>
+              <q-card-actions align="right" class="q-pt-xs">
+                <q-btn color="primary" unelevated label="打开项目" @click="openProject" />
+              </q-card-actions>
+            </q-card>
+          </div>
+
+        </div>
+      </q-page>
     </q-page-container>
   </q-layout>
 </template>
 
 <script setup lang="ts">
-import HomeTopbar from 'components/shell/topbar/HomeTopbar.vue';
+import { computed, ref } from 'vue';
+
+// 抽屉状态控制
+const leftDrawerOpen = ref(true); // 默认打开左侧抽屉
+
+// 模拟数据
+const recentProjects = ref([
+  {
+    id: '1',
+    name: 'Nimbria 文档项目',
+    path: 'D:\\Projects\\Nimbria-Docs',
+    lastOpened: '2小时前'
+  },
+  {
+    id: '2', 
+    name: '个人知识库',
+    path: 'D:\\Personal\\Knowledge-Base',
+    lastOpened: '昨天'
+  },
+  {
+    id: '3',
+    name: '项目管理系统',
+    path: 'D:\\Work\\Project-Management',
+    lastOpened: '3天前'
+  }
+]);
+
+// 高度计算
+const TITLEBAR_HEIGHT = 48;
+const CONTENT_HEIGHT = `calc(100vh - ${TITLEBAR_HEIGHT}px)`;
+
+const drawerScrollStyle = computed(() => ({
+  height: CONTENT_HEIGHT
+}));
+
+const pageContentStyle = computed(() => ({
+  height: CONTENT_HEIGHT
+}));
+
+// 窗口控制函数
+async function minimize() {
+  console.log('最小化窗口');
+  try {
+    if (window.nimbria?.window?.minimize) {
+      await window.nimbria.window.minimize();
+    }
+  } catch (error) {
+    console.error('窗口最小化失败:', error);
+  }
+}
+
+async function closeApp() {
+  console.log('关闭应用');
+  try {
+    if (window.nimbria?.window?.close) {
+      await window.nimbria.window.close();
+    }
+  } catch (error) {
+    console.error('窗口关闭失败:', error);
+  }
+}
+
+// 项目操作函数
+async function createProject() {
+  console.log('创建新项目');
+  try {
+    if (window.nimbria?.project?.create) {
+      const result = await window.nimbria.project.create('');
+      console.log('创建项目结果:', result);
+    }
+  } catch (error) {
+    console.error('创建项目失败:', error);
+  }
+}
+
+async function openProject() {
+  console.log('打开本地项目');
+  try {
+    if (window.nimbria?.project?.open) {
+      const result = await window.nimbria.project.open('');
+      console.log('打开项目结果:', result);
+    }
+  } catch (error) {
+    console.error('打开项目失败:', error);
+  }
+}
 </script>
 
-<style scoped>
-.main-layout__header {
-  background: #ffffff;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+<style scoped lang="scss">
+.startup-layout {
+  height: 100vh;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-.main-layout__container {
-  background: #f5f7fb;
+// 顶部标题栏
+.startup-titlebar {
+  height: 48px;
+  background: #fafafa;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 0 16px;
+  
+  &__title {
+    font-weight: 600;
+    font-size: 14px;
+    color: #2c3e50;
+  }
+
+  &__btn {
+    width: 30px;
+    height: 30px;
+    
+    &:hover {
+      background: rgba(0, 0, 0, 0.05);
+    }
+  }
 }
+
+// 左侧抽屉
+.startup-drawer {
+  background: #f8f9fa;
+  
+  &__scroll {
+    height: v-bind(CONTENT_HEIGHT);
+  }
+}
+
+.startup-project-list {
+  padding: 8px 0;
+}
+
+.startup-project-item {
+  min-height: 72px;
+  margin: 2px 12px;
+  border-radius: 8px;
+  
+  &:hover {
+    background: rgba(25, 118, 210, 0.04);
+  }
+  
+  &--empty {
+    min-height: 80px;
+    margin: 16px 12px;
+    pointer-events: none;
+  }
+  
+  .q-item__section--avatar {
+    min-width: 48px;
+  }
+}
+
+// 右侧主内容区
+.startup-content {
+  background: #ffffff;
+}
+
+.startup-page {
+  height: v-bind(CONTENT_HEIGHT);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.startup-actions {
+  max-width: 480px;
+  width: 100%;
+}
+
+// Logo区域
+.startup-logo {
+  &__icon {
+    opacity: 0.8;
+  }
+
+  &__title {
+    color: #2c3e50;
+    margin: 0;
+  }
+
+  &__subtitle {
+    color: #6c757d;
+  }
+}
+
+// 操作卡片
+.startup-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.startup-action-card {
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    border-color: #1976d2;
+    box-shadow: 0 4px 12px rgba(25, 118, 210, 0.15);
+    transform: translateY(-1px);
+  }
+  
+  .q-card__section {
+    padding: 20px 24px 16px;
+  }
+  
+  .q-card__actions {
+    padding: 0 24px 20px;
+  }
+}
+
+// 语言设置区域
+//（语言切换已移除）
 </style>

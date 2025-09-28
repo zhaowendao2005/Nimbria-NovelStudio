@@ -1,20 +1,10 @@
 import type { RouteRecordRaw } from 'vue-router'
 
-// 抽象路由定义
+// 启动页路由定义
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    component: () => import('@index/HomeSystem.vue'),
-    children: [
-      {
-        path: '',
-        component: () => import('layouts/MainLayout.vue'),
-        children: [
-          { path: '', component: () => import('@pages/HomeDashboardPage.vue') },
-          { path: 'module-a', component: () => import('@pages/ModuleAPage.vue') }
-        ]
-      }
-    ]
+    component: () => import('layouts/MainLayout.vue')
   },
   // 404 错误页面
   {
