@@ -49,10 +49,6 @@ export class WindowManager {
     return process
   }
 
-  public getProcess(processId: string): WindowProcess | null {
-    return this.processManager.getProcess(processId)
-  }
-
   public async destroyProcess(processId: string): Promise<void> {
     this.messageRouter.closeChannel(processId)
     await this.processManager.destroyProcess(processId)

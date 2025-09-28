@@ -1,9 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
 import type { BroadcastMessage, ProjectData, ProjectResult, RecentProject, SaveResult } from '../../Client/Types/project'
-import type { IPCRequest, IPCResponse } from '../types/ipc'
+import type { IPCRequest, IPCResponse, IPCChannelMap } from '../types/ipc'
 
-const channelInvoke = async <T extends string>(channel: T, request: IPCRequest<T>): Promise<IPCResponse<T>> => {
+const channelInvoke = async <T extends keyof IPCChannelMap>(channel: T, request: IPCRequest<T>): Promise<IPCResponse<T>> => {
   return ipcRenderer.invoke(channel, request)
 }
 
@@ -11,8 +11,8 @@ let mainPort: MessagePort | null = null
 
 ipcRenderer.on('port', (event) => {
   const [port] = event.ports
-  mainPort = port
-  port.start()
+  mainPort = port ?? null
+  port?.start()
 })
 
 function ensurePort(): MessagePort {
@@ -58,6 +58,21 @@ contextBridge.exposeInMainWorld('nimbria', {
       })
     },
     createWorker: (scriptPath: string) => new Worker(scriptPath)
+  },
+
+  file: {
+    openDialog: (options: {
+      title?: string
+      defaultPath?: string
+      properties: Array<'openFile' | 'openDirectory' | 'multiSelections'>
+      filters?: Array<{ name: string; extensions: string[] }>
+    }) => channelInvoke('file:open-dialog', options),
+
+    saveDialog: (options: {
+      title?: string
+      defaultPath?: string
+      filters?: Array<{ name: string; extensions: string[] }>
+    }) => channelInvoke('file:save-dialog', options)
   }
 })
 

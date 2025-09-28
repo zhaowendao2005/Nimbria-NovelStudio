@@ -1,37 +1,13 @@
-export interface ProjectResult {
-  success: boolean
-  message?: string
-  processId?: string
-  errorCode?: string
-}
+// 重用 Client 端的类型定义
+import type { 
+  ProjectData, 
+  ProjectResult, 
+  SaveResult, 
+  RecentProject, 
+  BroadcastMessage 
+} from '../../Client/Types/project'
 
-export interface SaveResult {
-  success: boolean
-  error?: string
-}
-
-export interface ProjectData {
-  id: string
-  name: string
-  path: string
-  lastModified: string
-  payload: unknown
-}
-
-export interface RecentProject {
-  id: string
-  name: string
-  path: string
-  lastOpened: string
-  thumbnail?: string
-}
-
-export interface BroadcastMessage {
-  type: string
-  data: unknown
-  timestamp?: string
-  fromProcess: string
-}
+export { ProjectData, ProjectResult, SaveResult, RecentProject, BroadcastMessage }
 
 export interface DirectMessage {
   toProcessId: string
@@ -79,6 +55,31 @@ export interface IPCChannelMap {
   'process:direct': {
     request: DirectMessage
     response: void
+  }
+
+  // 文件对话框
+  'file:open-dialog': {
+    request: {
+      title?: string
+      defaultPath?: string
+      properties: Array<'openFile' | 'openDirectory' | 'multiSelections'>
+      filters?: Array<{ name: string; extensions: string[] }>
+    }
+    response: {
+      canceled: boolean
+      filePaths: string[]
+    }
+  }
+  'file:save-dialog': {
+    request: {
+      title?: string
+      defaultPath?: string
+      filters?: Array<{ name: string; extensions: string[] }>
+    }
+    response: {
+      canceled: boolean
+      filePath?: string
+    }
   }
 }
 

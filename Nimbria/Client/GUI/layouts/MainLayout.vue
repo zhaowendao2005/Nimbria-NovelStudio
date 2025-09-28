@@ -38,7 +38,7 @@
         <q-list class="startup-project-list">
           <q-item-label header class="text-grey-7 q-px-md">最近项目</q-item-label>
           
-          <template v-if="recentProjects.length === 0">
+          <template v-if="!projectStore.hasRecentProjects && !projectStore.isLoading">
             <q-item class="startup-project-item--empty">
               <q-item-section avatar>
                 <q-icon name="folder_open" color="grey-5" size="md" />
@@ -50,12 +50,24 @@
             </q-item>
           </template>
 
+          <template v-if="projectStore.isLoading">
+            <q-item class="startup-project-item--empty">
+              <q-item-section avatar>
+                <q-spinner color="primary" size="md" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="text-grey-6">加载最近项目...</q-item-label>
+              </q-item-section>
+            </q-item>
+          </template>
+
           <q-item 
-            v-for="project in recentProjects" 
+            v-for="project in projectStore.recentProjects" 
             :key="project.id"
             clickable 
             v-ripple
             class="startup-project-item"
+            @click="openRecentProject(project)"
           >
             <q-item-section avatar>
               <q-icon name="folder" color="primary" size="md" />
@@ -63,7 +75,7 @@
             <q-item-section>
               <q-item-label class="text-weight-medium">{{ project.name }}</q-item-label>
               <q-item-label caption lines="1" class="text-grey-6">{{ project.path }}</q-item-label>
-              <q-item-label caption class="text-grey-5">{{ project.lastOpened }}</q-item-label>
+              <q-item-label caption class="text-grey-5">{{ formatLastOpened(project.lastOpened) }}</q-item-label>
             </q-item-section>
           </q-item>
         </q-list>
@@ -95,7 +107,13 @@
                 <div class="text-body2 text-grey-7 q-mt-sm">在指定文件夹下创建一个新的项目工作区</div>
               </q-card-section>
               <q-card-actions align="right" class="q-pt-xs">
-                <q-btn color="primary" unelevated label="创建项目" @click="createProject" />
+                <q-btn 
+                  color="primary" 
+                  unelevated 
+                  label="创建项目" 
+                  :loading="isCreatingProject"
+                  @click="createProject" 
+                />
               </q-card-actions>
             </q-card>
 
@@ -109,7 +127,13 @@
                 <div class="text-body2 text-grey-7 q-mt-sm">将一个本地文件夹作为项目在 Nimbria 中打开</div>
               </q-card-section>
               <q-card-actions align="right" class="q-pt-xs">
-                <q-btn color="primary" unelevated label="打开项目" @click="openProject" />
+                <q-btn 
+                  color="primary" 
+                  unelevated 
+                  label="打开项目" 
+                  :loading="isOpeningProject"
+                  @click="openProject" 
+                />
               </q-card-actions>
             </q-card>
           </div>
@@ -121,32 +145,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue'
+import { useProjectSelectionStore } from '../../stores/projectSelection'
+import { Notify } from 'quasar'
+import type { RecentProject } from '../../Types/project'
 
 // 抽屉状态控制
-const leftDrawerOpen = ref(true); // 默认打开左侧抽屉
+const leftDrawerOpen = ref(true) // 默认打开左侧抽屉
 
-// 模拟数据
-const recentProjects = ref([
-  {
-    id: '1',
-    name: 'Nimbria 文档项目',
-    path: 'D:\\Projects\\Nimbria-Docs',
-    lastOpened: '2小时前'
-  },
-  {
-    id: '2', 
-    name: '个人知识库',
-    path: 'D:\\Personal\\Knowledge-Base',
-    lastOpened: '昨天'
-  },
-  {
-    id: '3',
-    name: '项目管理系统',
-    path: 'D:\\Work\\Project-Management',
-    lastOpened: '3天前'
-  }
-]);
+// 状态管理
+const projectStore = useProjectSelectionStore()
+
+// 项目操作状态
+const isCreatingProject = ref(false)
+const isOpeningProject = ref(false)
 
 // 高度计算
 const TITLEBAR_HEIGHT = 48;
@@ -183,28 +195,104 @@ async function closeApp() {
   }
 }
 
+// 组件挂载时加载最近项目
+onMounted(() => {
+  projectStore.loadRecentProjects()
+})
+
+// 时间格式化函数
+function formatLastOpened(lastOpened: string): string {
+  const date = new Date(lastOpened)
+  const now = new Date()
+  const diffInMs = now.getTime() - date.getTime()
+  const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60))
+  const diffInDays = Math.floor(diffInHours / 24)
+
+  if (diffInHours < 1) {
+    return '刚刚'
+  } else if (diffInHours < 24) {
+    return `${diffInHours}小时前`
+  } else if (diffInDays === 1) {
+    return '昨天'
+  } else if (diffInDays < 7) {
+    return `${diffInDays}天前`
+  } else {
+    return date.toLocaleDateString('zh-CN')
+  }
+}
+
 // 项目操作函数
 async function createProject() {
-  console.log('创建新项目');
+  if (isCreatingProject.value) return
+  
+  isCreatingProject.value = true
+  projectStore.clearError()
+
   try {
-    if (window.nimbria?.project?.create) {
-      const result = await window.nimbria.project.create('');
-      console.log('创建项目结果:', result);
-    }
+    await projectStore.createNewProject()
+    
+    Notify.create({
+      type: 'positive',
+      message: '项目创建成功',
+      position: 'top'
+    })
   } catch (error) {
-    console.error('创建项目失败:', error);
+    console.error('创建项目失败:', error)
+    
+    Notify.create({
+      type: 'negative',
+      message: error instanceof Error ? error.message : '创建项目失败',
+      position: 'top'
+    })
+  } finally {
+    isCreatingProject.value = false
   }
 }
 
 async function openProject() {
-  console.log('打开本地项目');
+  if (isOpeningProject.value) return
+  
+  isOpeningProject.value = true
+  projectStore.clearError()
+
   try {
-    if (window.nimbria?.project?.open) {
-      const result = await window.nimbria.project.open('');
-      console.log('打开项目结果:', result);
-    }
+    await projectStore.openExistingProject()
+    
+    Notify.create({
+      type: 'positive',
+      message: '项目打开成功',
+      position: 'top'
+    })
   } catch (error) {
-    console.error('打开项目失败:', error);
+    console.error('打开项目失败:', error)
+    
+    Notify.create({
+      type: 'negative',
+      message: error instanceof Error ? error.message : '打开项目失败',
+      position: 'top'
+    })
+  } finally {
+    isOpeningProject.value = false
+  }
+}
+
+async function openRecentProject(project: RecentProject) {
+  try {
+    await projectStore.openProjectWindow(project.path)
+    
+    Notify.create({
+      type: 'positive',
+      message: `项目 "${project.name}" 打开成功`,
+      position: 'top'
+    })
+  } catch (error) {
+    console.error('打开最近项目失败:', error)
+    
+    Notify.create({
+      type: 'negative',
+      message: error instanceof Error ? error.message : '打开项目失败',
+      position: 'top'
+    })
   }
 }
 </script>

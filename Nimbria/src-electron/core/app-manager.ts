@@ -1,5 +1,9 @@
-import { app, ipcMain } from 'electron'
+import { app, ipcMain, dialog } from 'electron'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 import type { WindowTemplate } from '../types/window'
 import type { WindowProcess, ProjectWindowProcess, MainWindowProcess } from '../types/process'
@@ -63,10 +67,10 @@ export class AppManager {
     this.windowManager = new WindowManager({
       templates,
       lifecycleHooks: {
-        onReady: (process) => {
-          if (process.type === 'main') {
-            this.mainProcess = process
-            this.loadMainWindow(process)
+        onReady: (windowProcess) => {
+          if (windowProcess.type === 'main') {
+            this.mainProcess = windowProcess
+            this.loadMainWindow(windowProcess)
           }
         }
       }
@@ -98,13 +102,13 @@ export class AppManager {
     })
   }
 
-  private loadMainWindow(process: WindowProcess) {
+  private loadMainWindow(windowProcess: WindowProcess) {
     if (process.env.DEV || process.env.DEBUGGING) {
       const url = process.env.APP_URL as string
-      process.window.loadURL(url)
-      process.window.webContents.openDevTools()
+      void windowProcess.window.loadURL(url)
+      windowProcess.window.webContents.openDevTools()
     } else {
-      process.window.loadFile(path.join(__dirname, '../../index.html'))
+      void windowProcess.window.loadFile(path.join(__dirname, '../../index.html'))
     }
   }
 
@@ -181,6 +185,34 @@ export class AppManager {
     ipcMain.handle('process:broadcast', async (_event, request: IPCRequest<'process:broadcast'>) => {
       this.windowManager?.broadcast(request.message)
       return undefined
+    })
+
+    // 文件对话框处理器
+    ipcMain.handle('file:open-dialog', async (_event, request: IPCRequest<'file:open-dialog'>) => {
+      const result = await dialog.showOpenDialog({
+        title: request.title || '选择文件或文件夹',
+        defaultPath: request.defaultPath,
+        properties: request.properties,
+        filters: request.filters
+      })
+
+      return {
+        canceled: result.canceled,
+        filePaths: result.filePaths
+      } satisfies IPCResponse<'file:open-dialog'>
+    })
+
+    ipcMain.handle('file:save-dialog', async (_event, request: IPCRequest<'file:save-dialog'>) => {
+      const result = await dialog.showSaveDialog({
+        title: request.title || '保存文件',
+        defaultPath: request.defaultPath,
+        filters: request.filters
+      })
+
+      return {
+        canceled: result.canceled,
+        filePath: result.filePath
+      } satisfies IPCResponse<'file:save-dialog'>
     })
   }
 

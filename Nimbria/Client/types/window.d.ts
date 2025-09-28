@@ -23,6 +23,27 @@ export interface NimbriaWindowAPI {
     onBroadcast(callback: (message: BroadcastMessage) => void): void
     createWorker(scriptPath: string): Worker
   }
+
+  file: {
+    openDialog(options: {
+      title?: string
+      defaultPath?: string
+      properties: Array<'openFile' | 'openDirectory' | 'multiSelections'>
+      filters?: Array<{ name: string; extensions: string[] }>
+    }): Promise<{
+      canceled: boolean
+      filePaths: string[]
+    }>
+    
+    saveDialog(options: {
+      title?: string
+      defaultPath?: string
+      filters?: Array<{ name: string; extensions: string[] }>
+    }): Promise<{
+      canceled: boolean
+      filePath?: string
+    }>
+  }
 }
 
 declare global {
