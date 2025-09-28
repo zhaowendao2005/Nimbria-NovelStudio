@@ -1,9 +1,18 @@
-/**
- * 主进程-渲染进程通信相关类型定义
- */
+import type { IpcMainInvokeEvent } from 'electron/main'
 
-// TODO: 定义IPC通信相关类型
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface IPCMessage {
-  // 预留IPC消息类型
+import type { IPCChannelName, IPCRequest, IPCResponse } from '../../types/ipc'
+
+export interface IpcHandler<TRequest = unknown, TResponse = unknown> {
+  channel: string
+  handle(event: IpcMainInvokeEvent, request: TRequest): Promise<TResponse> | TResponse
+}
+
+export type TypedIpcHandler<TChannel extends IPCChannelName> = IpcHandler<
+  IPCRequest<TChannel>,
+  IPCResponse<TChannel>
+>
+
+export interface InvokeHandlerRegistry {
+  registerHandler<TChannel extends IPCChannelName>(handler: TypedIpcHandler<TChannel>): void
+  unregisterHandler(channel: IPCChannelName): void
 }

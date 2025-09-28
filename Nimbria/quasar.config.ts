@@ -171,7 +171,7 @@ export default configure((/* ctx */) => {
       router: 'src/GUI/router/index',
       store: 'Client/stores/index',
       electronMain: 'src-electron/core/electron-main',
-      electronPreload: 'src-electron/core/electron-preload'
+      electronPreload: 'src-electron/core/main-preload'
     },
 
     // https://v2.quasar.dev/quasar-cli-vite/developing-ssr/configuring-ssr
@@ -234,7 +234,7 @@ export default configure((/* ctx */) => {
       // extendPackageJson (json) {},
 
       // Electron preload scripts (if any) from /src-electron, WITHOUT file extension
-      preloadScripts: [ 'core/electron-preload' ],
+      preloadScripts: [ 'core/main-preload', 'core/project-preload' ],
 
       // specify the debugging port to use for the Electron app when running in development mode
       inspectPort: 5858,
