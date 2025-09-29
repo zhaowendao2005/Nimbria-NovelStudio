@@ -297,9 +297,14 @@ async function openRecentProject(project: RecentProject) {
 // 对话框事件处理
 function onProjectCreated(projectPath: string) {
   console.log('项目创建成功:', projectPath)
-  // 这里可以添加打开项目窗口的逻辑
-  // 或者刷新最近项目列表
+  
+  // 刷新最近项目列表
   projectStore.loadRecentProjects()
+  
+  // TODO: 这里应该打开项目页面，但因为项目页面还未开发完成，
+  // 暂时只是刷新项目列表并停留在主界面。后续需要替换为：
+  // await openProjectWindow(projectPath)
+  console.log('项目创建成功，暂时停留在主界面，等待项目页面开发完成')
 }
 
 function onProjectOpened(projectPath: string) {

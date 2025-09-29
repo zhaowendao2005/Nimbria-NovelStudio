@@ -22,7 +22,10 @@ export class ProjectInitializer {
    */
   async createProject(options: ProjectCreationOptions): Promise<ProjectInitializationResult> {
     try {
-      logger.info(`Creating project: ${options.projectName} at ${options.directoryPath}`)
+      // 构建完整项目路径：父目录 + 项目名
+      const fullProjectPath = path.join(options.parentDirectory, options.projectName)
+      
+      logger.info(`Creating project: ${options.projectName} at ${fullProjectPath}`)
 
       const result: ProjectInitializationResult = {
         success: false,
@@ -30,8 +33,19 @@ export class ProjectInitializer {
         createdDirectories: []
       }
 
-      // 确保目录存在
-      await fs.ensureDir(options.directoryPath)
+      // 检查父目录是否存在且有写权限
+      await this.validateParentDirectory(options.parentDirectory)
+      
+      // 检查项目目录是否已存在
+      if (await fs.pathExists(fullProjectPath)) {
+        return {
+          success: false,
+          error: `项目目录已存在: ${fullProjectPath}`
+        }
+      }
+
+      // 创建项目目录
+      await fs.ensureDir(fullProjectPath)
 
       // 生成项目配置
       const configOptions = {
@@ -58,7 +72,7 @@ export class ProjectInitializer {
       }
 
       const initResult = await this.initializeFromTemplate(
-        options.directoryPath,
+        fullProjectPath,
         template,
         config
       )
@@ -68,8 +82,8 @@ export class ProjectInitializer {
       }
 
       result.success = true
-      result.projectPath = options.directoryPath
-      result.configPath = path.join(options.directoryPath, 'nimbria.config.json')
+      result.projectPath = fullProjectPath
+      result.configPath = path.join(fullProjectPath, 'nimbria.config.json')
       result.createdFiles = initResult.createdFiles || []
       result.createdDirectories = initResult.createdDirectories || []
 
@@ -86,10 +100,43 @@ export class ProjectInitializer {
   }
 
   /**
+   * 验证父目录是否存在且可写
+   */
+  private async validateParentDirectory(parentPath: string): Promise<void> {
+    try {
+      // 检查父目录是否存在
+      const parentExists = await fs.pathExists(parentPath)
+      if (!parentExists) {
+        throw new Error(`父目录不存在: ${parentPath}`)
+      }
+
+      // 检查是否为目录
+      const stats = await fs.stat(parentPath)
+      if (!stats.isDirectory()) {
+        throw new Error(`指定路径不是目录: ${parentPath}`)
+      }
+
+      // 尝试测试写权限（通过创建和删除临时文件）
+      const testFile = path.join(parentPath, '.nimbria_write_test')
+      try {
+        await fs.writeFile(testFile, 'test')
+        await fs.remove(testFile)
+      } catch (error) {
+        throw new Error(`父目录无写权限: ${parentPath}`)
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error(`验证父目录失败: ${error}`)
+    }
+  }
+
+  /**
    * 初始化现有目录为项目
    */
   async initializeExistingDirectory(options: {
-    directoryPath: string
+    directoryPath: string  // 这里仍然是directoryPath，因为是初始化现有目录
     projectName: string
     novelTitle: string
     author: string
@@ -112,8 +159,20 @@ export class ProjectInitializer {
         }
       }
 
-      // 使用创建项目的逻辑，但跳过目录创建
-      return await this.createProject(options)
+      // 将现有目录作为项目目录，需要转换选项格式
+      const createOptions: ProjectCreationOptions = {
+        parentDirectory: path.dirname(options.directoryPath),
+        projectName: path.basename(options.directoryPath),
+        novelTitle: options.novelTitle,
+        author: options.author,
+        genre: options.genre,
+        description: options.description,
+        timestamp: options.timestamp,
+        customConfig: options.customConfig
+      }
+      
+      // 使用创建项目的逻辑，但目录已存在
+      return await this.createProject(createOptions)
 
     } catch (error) {
       logger.error('Failed to initialize existing directory:', error)

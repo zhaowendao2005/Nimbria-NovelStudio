@@ -95,12 +95,12 @@ export interface ProjectTemplate {
 }
 
 export interface ProjectCreationOptions {
-  directoryPath: string
+  parentDirectory: string  // 改为父目录，项目将在此目录下创建子文件夹
   projectName: string
   novelTitle: string
   author: string
   genre: string[]
-  description?: string
+  description?: string  // 可选字段
   timestamp: string
   customConfig?: Partial<NimbriaProjectConfig>
 }
@@ -370,7 +370,15 @@ declare global {
        * 每个项目窗口拥有独立的文件系统上下文
        */
       fs: FileSystemAPI
-
+      
+      /**
+       * 文件对话框 API
+       */
+      file: {
+        openDialog(options: any): Promise<{ canceled: boolean; filePaths: string[] }>
+        saveDialog(options: any): Promise<{ canceled: boolean; filePath?: string }>
+      }
+      
       /**
        * 项目管理 API
        * 

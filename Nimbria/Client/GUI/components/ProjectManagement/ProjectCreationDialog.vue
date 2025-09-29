@@ -32,16 +32,17 @@
             <div class="form-section">
               <div class="form-section__title">基本信息</div>
               
-              <!-- 项目目录选择 -->
+              <!-- 项目存放位置选择 -->
               <div class="form-field">
                 <q-input
-                  v-model="formData.directoryPath"
-                  label="项目目录"
+                  v-model="formData.parentDirectory"
+                  label="项目存放位置"
                   outlined
                   readonly
-                  :error="!!errors.directoryPath"
-                  :error-message="errors.directoryPath"
+                  :error="!!errors.parentDirectory"
+                  :error-message="errors.parentDirectory"
                   class="q-mb-md"
+                  hint="选择一个文件夹来存放新项目"
                 >
                   <template v-slot:append>
                     <q-btn
@@ -52,10 +53,20 @@
                       :disable="isCreating"
                       color="primary"
                     >
-                      <q-tooltip>选择目录</q-tooltip>
+                      <q-tooltip>选择存放位置</q-tooltip>
                     </q-btn>
                   </template>
                 </q-input>
+              </div>
+
+              <!-- 项目路径预览 -->
+              <div v-if="projectFullPath" class="form-field">
+                <q-banner inline-actions class="text-primary bg-primary-1 q-mb-md">
+                  <template v-slot:avatar>
+                    <q-icon name="info" color="primary" />
+                  </template>
+                  项目将创建在：<strong>{{ projectFullPath }}</strong>
+                </q-banner>
               </div>
 
               <!-- 项目名称 -->
@@ -159,8 +170,14 @@
                 <q-card-section>
                   <div class="preview-item">
                     <q-icon name="folder" color="primary" size="sm" class="q-mr-sm" />
-                    <span class="preview-label">项目目录：</span>
-                    <span class="preview-value">{{ formData.directoryPath || '未选择' }}</span>
+                    <span class="preview-label">存放位置：</span>
+                    <span class="preview-value">{{ formData.parentDirectory || '未选择' }}</span>
+                  </div>
+
+                  <div v-if="projectFullPath" class="preview-item">
+                    <q-icon name="create_new_folder" color="secondary" size="sm" class="q-mr-sm" />
+                    <span class="preview-label">项目路径：</span>
+                    <span class="preview-value">{{ projectFullPath }}</span>
                   </div>
                   
                   <div class="preview-item">
@@ -300,10 +317,11 @@ const dialogVisible = computed({
 })
 
 const isCreating = ref(false)
+const shouldCloseAfterCreate = ref(false) // 标志位：创建成功后是否应关闭对话框
 
 // 表单数据
 const formData = reactive({
-  directoryPath: '',
+  parentDirectory: '',  // 改为父目录
   projectName: '',
   novelTitle: '',
   author: '',
@@ -313,7 +331,7 @@ const formData = reactive({
 
 // 表单验证错误
 const errors = reactive({
-  directoryPath: '',
+  parentDirectory: '',  // 改为父目录
   projectName: '',
   novelTitle: '',
   author: '',
@@ -330,14 +348,22 @@ const genreOptions = [
   '修真', '洪荒', '网游', '竞技', '二次元'
 ]
 
+// 项目完整路径预览
+const projectFullPath = computed(() => {
+  if (formData.parentDirectory && formData.projectName) {
+    return `${formData.parentDirectory}\\${formData.projectName}`
+  }
+  return ''
+})
+
 // 表单验证
 const isFormValid = computed(() => {
-  return formData.directoryPath &&
+  return formData.parentDirectory &&
          formData.projectName &&
          formData.novelTitle &&
          formData.author &&
          formData.genre.length > 0 &&
-         !errors.directoryPath &&
+         !errors.parentDirectory &&
          !errors.projectName &&
          !errors.novelTitle &&
          !errors.author &&
@@ -348,10 +374,52 @@ const isFormValid = computed(() => {
 function validateProjectName() {
   if (!formData.projectName.trim()) {
     errors.projectName = '项目名称不能为空'
-  } else if (!/^[\u4e00-\u9fa5a-zA-Z0-9_\-\s]+$/.test(formData.projectName)) {
+    return
+  }
+  
+  if (formData.projectName.trim().length < 2) {
+    errors.projectName = '项目名称至少需要2个字符'
+    return
+  }
+  
+  if (!/^[\u4e00-\u9fa5a-zA-Z0-9_\-\s]+$/.test(formData.projectName)) {
     errors.projectName = '项目名称只能包含中文、英文、数字、下划线、连字符和空格'
-  } else {
-    errors.projectName = ''
+    return
+  }
+  
+  // 检查是否包含Windows文件名禁用字符
+  const invalidChars = /[<>:"|?*]/
+  if (invalidChars.test(formData.projectName.trim())) {
+    errors.projectName = '项目名称不能包含特殊字符 < > : " | ? *'
+    return
+  }
+  
+  errors.projectName = ''
+  
+  // 如果父目录已选择，检查项目目录是否已存在
+  if (formData.parentDirectory) {
+    validateProjectDirectory()
+  }
+}
+
+// 验证项目目录是否已存在
+async function validateProjectDirectory() {
+  if (!formData.parentDirectory || !formData.projectName) return
+  
+  try {
+    const fullPath = `${formData.parentDirectory}\\${formData.projectName}`
+    const exists = await window.nimbria?.fs?.pathExists(fullPath)
+    
+    if (exists) {
+      errors.projectName = '该项目名称对应的文件夹已存在，请选择其他名称'
+    } else {
+      // 只有当没有其他错误时才清空错误信息
+      if (errors.projectName === '该项目名称对应的文件夹已存在，请选择其他名称') {
+        errors.projectName = ''
+      }
+    }
+  } catch (error) {
+    console.warn('验证项目目录失败:', error)
   }
 }
 
@@ -386,23 +454,18 @@ async function selectDirectory() {
       throw new Error('文件对话框API不可用')
     }
 
-    const result = await window.nimbria.file.openDialog({
+    const result = await window.nimbria?.file?.openDialog({
       title: '选择项目创建位置',
       properties: ['openDirectory']
     })
 
     if (!result.canceled && result.filePaths.length > 0) {
-      formData.directoryPath = result.filePaths[0]
-      errors.directoryPath = ''
+      formData.parentDirectory = result.filePaths[0]
+      errors.parentDirectory = ''
       
-      // 如果项目名称为空，尝试从路径中提取
-      if (!formData.projectName) {
-        const pathParts = formData.directoryPath.split(/[\\/]/)
-        const folderName = pathParts[pathParts.length - 1]
-        if (folderName) {
-          formData.projectName = folderName
-          validateProjectName()
-        }
+      // 验证项目名称是否有冲突
+      if (formData.projectName) {
+        await validateProjectDirectory()
       }
     }
   } catch (error) {
@@ -442,7 +505,7 @@ async function createProject() {
     }
 
     const options: ProjectCreationOptions = {
-      directoryPath: formData.directoryPath.trim(),
+      parentDirectory: formData.parentDirectory.trim(),  // 改为父目录
       projectName: formData.projectName.trim(),
       novelTitle: formData.novelTitle.trim(),
       author: formData.author.trim(),
@@ -454,18 +517,34 @@ async function createProject() {
     const result = await window.nimbria.project.createProject({ ...options })
 
     if (result.success) {
-      if ($q.notify) {
-        $q.notify({
-          type: 'positive',
-          message: '项目创建成功！',
-          position: 'top'
-        })
-      } else {
-        console.info('项目创建成功！')
-      }
+      // 设置标志位，表示创建成功后需要关闭对话框
+      shouldCloseAfterCreate.value = true
+      
+      // 显示成功通知
+      $q.notify({
+        type: 'positive',
+        message: `项目创建成功！`,
+        caption: `位置：${result.projectPath}`,
+        position: 'top',
+        timeout: 5000,
+        actions: [
+          { 
+            label: '知道了', 
+            color: 'white',
+            handler: () => {
+              // 通知会自动关闭，用户确认项目创建成功
+              console.log('用户确认项目创建成功')
+            }
+          }
+        ]
+      })
+      
+      // TODO: 这里应该打开项目页面，但因为项目页面还未开发完成，
+      // 暂时只是通知成功并停留在主界面。后续需要替换为：
+      // router.push({ name: 'project', params: { projectPath: result.projectPath } })
+      console.log('项目创建成功，暂时停留在主界面，等待项目页面开发完成')
       
       emit('created', result.projectPath!)
-      closeDialog()
     } else {
       throw new Error(result.error || '项目创建失败')
     }
@@ -473,17 +552,19 @@ async function createProject() {
   } catch (error) {
     console.error('创建项目失败:', error)
     const message = error instanceof Error ? error.message : '创建项目失败'
-    if ($q.notify) {
-      $q.notify({
-        type: 'negative',
-        message,
-        position: 'top'
-      })
-    } else {
-      console.error(message)
-    }
+    $q.notify({
+      type: 'negative',
+      message,
+      position: 'top'
+    })
   } finally {
     isCreating.value = false
+    
+    // 如果创建成功，在 finally 块中关闭对话框（此时 isCreating 已复位为 false）
+    if (shouldCloseAfterCreate.value) {
+      shouldCloseAfterCreate.value = false // 重置标志位
+      closeDialog()
+    }
   }
 }
 
@@ -496,7 +577,7 @@ function closeDialog() {
 // 重置表单
 function resetForm() {
   Object.assign(formData, {
-    directoryPath: '',
+    parentDirectory: '',  // 改为父目录
     projectName: '',
     novelTitle: '',
     author: '',
@@ -505,7 +586,7 @@ function resetForm() {
   })
   
   Object.assign(errors, {
-    directoryPath: '',
+    parentDirectory: '',  // 改为父目录
     projectName: '',
     novelTitle: '',
     author: '',

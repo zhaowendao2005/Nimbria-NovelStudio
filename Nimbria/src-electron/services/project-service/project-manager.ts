@@ -3,6 +3,8 @@
  * 统一管理项目的创建、验证、初始化等操作
  */
 
+import * as path from 'path'
+import * as fs from 'fs-extra'
 import { ProjectValidator } from './project-validator'
 import { ProjectInitializer } from './project-initializer'
 import { getAvailableTemplates } from './project-config'
@@ -34,7 +36,10 @@ export class ProjectManager {
    */
   async createProject(options: ProjectCreationOptions): Promise<ProjectInitializationResult> {
     try {
-      logger.info(`Creating project: ${options.projectName} at ${options.directoryPath}`)
+      // 构建完整项目路径：父目录 + 项目名
+      const fullProjectPath = path.join(options.parentDirectory, options.projectName)
+      
+      logger.info(`Creating project: ${options.projectName} at ${fullProjectPath}`)
       
       // 验证创建选项
       const validationError = this.validateCreationOptions(options)
@@ -45,12 +50,20 @@ export class ProjectManager {
         }
       }
 
-      // 检查目录是否可以创建项目
-      const canInit = await this.validator.canInitialize(options.directoryPath)
-      if (!canInit.canInitialize) {
+      // 检查父目录是否存在和可写
+      const parentCanInit = await this.validator.canInitialize(options.parentDirectory)
+      if (!parentCanInit.canInitialize) {
         return {
           success: false,
-          error: canInit.reason || '无法在此目录创建项目'
+          error: `父目录问题: ${parentCanInit.reason || '无法在此目录创建项目'}`
+        }
+      }
+
+      // 检查项目子目录是否已存在
+      if (await fs.pathExists(fullProjectPath)) {
+        return {
+          success: false,
+          error: `项目目录已存在: ${fullProjectPath}`
         }
       }
 
@@ -58,7 +71,7 @@ export class ProjectManager {
       const result = await this.initializer.createProject(options)
       
       if (result.success) {
-        logger.info(`Project created successfully: ${options.projectName}`)
+        logger.info(`Project created successfully: ${options.projectName} at ${result.projectPath}`)
       } else {
         logger.error(`Failed to create project: ${result.error}`)
       }
@@ -69,7 +82,7 @@ export class ProjectManager {
       logger.error('Project creation error:', error)
       return {
         success: false,
-        error: `创建项目时发生错误: ${error}`
+        error: `创建项目时发生错误: ${error instanceof Error ? error.message : String(error)}`
       }
     }
   }
@@ -88,7 +101,7 @@ export class ProjectManager {
         isProject: false,
         missingFiles: [],
         missingDirectories: [],
-        issues: [`验证项目时发生错误: ${error}`],
+        issues: [`验证项目时发生错误: ${error instanceof Error ? error.message : String(error)}`],
         canInitialize: false
       }
     }
@@ -106,7 +119,7 @@ export class ProjectManager {
       return {
         isProject: false,
         isValid: false,
-        majorIssues: [`快速验证时发生错误: ${error}`]
+        majorIssues: [`快速验证时发生错误: ${error instanceof Error ? error.message : String(error)}`]
       }
     }
   }
@@ -122,7 +135,7 @@ export class ProjectManager {
       logger.error('Can initialize check error:', error)
       return {
         canInitialize: false,
-        reason: `检查初始化能力时发生错误: ${error}`
+        reason: `检查初始化能力时发生错误: ${error instanceof Error ? error.message : String(error)}`
       }
     }
   }
@@ -138,7 +151,7 @@ export class ProjectManager {
     genre: string[]
     description?: string
     timestamp: string
-    customConfig?: any
+    customConfig?: Record<string, unknown>
   }): Promise<ProjectInitializationResult> {
     try {
       logger.info(`Initializing existing directory: ${options.directoryPath}`)
@@ -178,7 +191,7 @@ export class ProjectManager {
       logger.error('Directory initialization error:', error)
       return {
         success: false,
-        error: `初始化目录时发生错误: ${error}`
+        error: `初始化目录时发生错误: ${error instanceof Error ? error.message : String(error)}`
       }
     }
   }
@@ -189,7 +202,7 @@ export class ProjectManager {
   async getTemplates(): Promise<{ templates: ProjectTemplate[] }> {
     try {
       logger.debug('Getting available templates')
-      const templates = getAvailableTemplates()
+      const templates = await Promise.resolve(getAvailableTemplates())
       return { templates }
     } catch (error) {
       logger.error('Get templates error:', error)
@@ -228,7 +241,7 @@ export class ProjectManager {
       logger.error('Project repair error:', error)
       return {
         success: false,
-        error: `修复项目时发生错误: ${error}`
+        error: `修复项目时发生错误: ${error instanceof Error ? error.message : String(error)}`
       }
     }
   }
@@ -265,7 +278,7 @@ export class ProjectManager {
       logger.error('Get project stats error:', error)
       return {
         success: false,
-        error: `获取项目统计信息时发生错误: ${error}`
+        error: `获取项目统计信息时发生错误: ${error instanceof Error ? error.message : String(error)}`
       }
     }
   }
@@ -274,8 +287,8 @@ export class ProjectManager {
    * 私有方法：验证创建选项
    */
   private validateCreationOptions(options: ProjectCreationOptions): string | null {
-    if (!options.directoryPath?.trim()) {
-      return '项目目录路径不能为空'
+    if (!options.parentDirectory?.trim()) {
+      return '项目存放位置不能为空'
     }
 
     if (!options.projectName?.trim()) {
@@ -301,6 +314,12 @@ export class ProjectManager {
     // 验证项目名称格式
     if (!/^[\u4e00-\u9fa5a-zA-Z0-9_\-\s]+$/.test(options.projectName)) {
       return '项目名称只能包含中文、英文、数字、下划线、连字符和空格'
+    }
+
+    // 检查是否包含Windows文件名禁用字符
+    const invalidChars = /[<>:"|?*]/
+    if (invalidChars.test(options.projectName.trim())) {
+      return '项目名称不能包含特殊字符 < > : " | ? *'
     }
 
     // 验证小说标题格式

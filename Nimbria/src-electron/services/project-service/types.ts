@@ -41,7 +41,7 @@ export interface ProjectTemplate {
 }
 
 export interface ProjectCreationOptions {
-  directoryPath: string
+  parentDirectory: string  // 改为父目录，项目将在此目录下创建子文件夹
   projectName: string
   novelTitle: string
   author: string

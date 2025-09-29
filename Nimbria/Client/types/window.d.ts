@@ -43,7 +43,7 @@ export interface NimbriaWindowAPI {
   }
 
   /**
-   * 项目管理 API
+   * 项目窗口管理 API
    * 
    * 负责项目窗口的创建、管理和数据操作。每个项目运行在独立的渲染进程中，
    * 实现真正的进程级隔离。支持同时打开多个项目，彼此不相互影响。
@@ -102,6 +102,24 @@ export interface NimbriaWindowAPI {
      * @param message 要广播的消息
      */
     broadcastToProjects(message: BroadcastMessage): void
+
+    // 新增项目管理API
+    /** 创建项目 */
+    createProject(options: any): Promise<any>
+    /** 初始化现有目录为项目 */
+    initializeExistingDirectory(options: any): Promise<any>
+    /** 验证项目 */
+    validateProject(projectPath: string): Promise<any>
+    /** 快速验证项目 */
+    quickValidateProject(projectPath: string): Promise<any>
+    /** 检查是否可以初始化 */
+    canInitialize(directoryPath: string): Promise<any>
+    /** 获取项目模板 */
+    getTemplates(): Promise<any>
+    /** 修复项目 */
+    repairProject(projectPath: string): Promise<any>
+    /** 获取项目统计 */
+    getProjectStats(projectPath: string): Promise<any>
   }
 
   /**
@@ -229,6 +247,15 @@ export interface NimbriaWindowAPI {
       /** 选择的保存路径（如果未取消） */
       filePath?: string
     }>
+  }
+
+  /**
+   * 文件系统 API
+   */
+  fs: {
+    /** 检查路径是否存在 */
+    pathExists(path: string): Promise<boolean>
+    // 其他fs方法可以后续补充
   }
 }
 
