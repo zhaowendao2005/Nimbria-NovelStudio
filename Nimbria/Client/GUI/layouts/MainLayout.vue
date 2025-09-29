@@ -141,18 +141,38 @@
         </div>
       </q-page>
     </q-page-container>
+
+    <!-- 项目创建对话框 -->
+    <ProjectCreationDialog
+      v-model="showProjectCreationDialog"
+      @created="onProjectCreated"
+    />
+
+    <!-- 项目验证对话框 -->
+    <ProjectValidationDialog
+      v-model="showProjectValidationDialog"
+      :project-path="validationProjectPath"
+      @project-opened="onProjectOpened"
+    />
   </q-layout>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
 import { useProjectSelectionStore } from '../../stores/projectSelection'
+import ProjectCreationDialog from '../components/ProjectManagement/ProjectCreationDialog.vue'
+import ProjectValidationDialog from '../components/ProjectManagement/ProjectValidationDialog.vue'
 import type { RecentProject } from '../../Types/project'
 
 const leftDrawerOpen = ref(true)
 const projectStore = useProjectSelectionStore()
 const isCreatingProject = ref(false)
 const isOpeningProject = ref(false)
+
+// 对话框控制
+const showProjectCreationDialog = ref(false)
+const showProjectValidationDialog = ref(false)
+const validationProjectPath = ref('')
 
 // 高度计算
 const TITLEBAR_HEIGHT = 48;
@@ -223,7 +243,11 @@ async function createProject() {
   projectStore.clearError()
 
   try {
-    await projectStore.createNewProject()
+    const result = await projectStore.createNewProject()
+    
+    if (result === 'show-creation-dialog') {
+      showProjectCreationDialog.value = true
+    }
     
   } catch (error) {
     console.error('创建项目失败:', error)
@@ -240,7 +264,12 @@ async function openProject() {
   projectStore.clearError()
 
   try {
-    await projectStore.openExistingProject()
+    const result = await projectStore.openExistingProject()
+    
+    if (result && typeof result === 'object' && result.action === 'show-validation-dialog') {
+      validationProjectPath.value = result.projectPath
+      showProjectValidationDialog.value = true
+    }
     
   } catch (error) {
     console.error('打开项目失败:', error)
@@ -254,10 +283,30 @@ async function openRecentProject(project: RecentProject) {
   projectStore.clearError()
 
   try {
-    await projectStore.openRecentProject(project)
+    const result = await projectStore.openRecentProject(project)
+    
+    if (result && typeof result === 'object' && result.action === 'show-validation-dialog') {
+      validationProjectPath.value = result.projectPath
+      showProjectValidationDialog.value = true
+    }
   } catch (error) {
     console.error('打开最近项目失败:', error)
   }
+}
+
+// 对话框事件处理
+function onProjectCreated(projectPath: string) {
+  console.log('项目创建成功:', projectPath)
+  // 这里可以添加打开项目窗口的逻辑
+  // 或者刷新最近项目列表
+  projectStore.loadRecentProjects()
+}
+
+function onProjectOpened(projectPath: string) {
+  console.log('项目打开成功:', projectPath)
+  // 这里可以添加打开项目窗口的逻辑
+  // 或者刷新最近项目列表
+  projectStore.loadRecentProjects()
 }
 </script>
 

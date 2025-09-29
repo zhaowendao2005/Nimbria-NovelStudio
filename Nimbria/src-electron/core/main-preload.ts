@@ -45,7 +45,15 @@ contextBridge.exposeInMainWorld('nimbria', {
     updateRecent: (payload: { projectPath: string; projectName?: string }) => channelInvoke('project:update-recent', payload),
     broadcastToProjects: (message: BroadcastMessage) => {
       void channelInvoke('process:broadcast', { message })
-    }
+    },
+    createProject: (options: IPCRequest<'project-mgmt:create'>) => channelInvoke('project-mgmt:create', options),
+    validateProject: (projectPath: string) => channelInvoke('project-mgmt:validate', { projectPath }),
+    quickValidateProject: (projectPath: string) => channelInvoke('project-mgmt:quick-validate', { projectPath }),
+    getTemplates: () => channelInvoke('project-mgmt:get-templates', undefined as never),
+    canInitialize: (directoryPath: string, templateId?: string) => channelInvoke('project-mgmt:can-initialize', { directoryPath, templateId }),
+    initializeExistingDirectory: (options: IPCRequest<'project-mgmt:initialize-existing'>) => channelInvoke('project-mgmt:initialize-existing', options),
+    repairProject: (projectPath: string) => channelInvoke('project-mgmt:repair', { projectPath }),
+    getProjectStats: (projectPath: string) => channelInvoke('project-mgmt:get-stats', { projectPath })
   },
 
   process: {

@@ -1,10 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useQuasar } from 'quasar'
+import { useProjectManagementStore } from './projectManagement'
 import type { RecentProject } from '../Types/project'
 
 export const useProjectSelectionStore = defineStore('projectSelection', () => {
   const $q = useQuasar()
+  const projectMgmt = useProjectManagementStore()
   const recentProjects = ref<RecentProject[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
@@ -82,22 +84,10 @@ export const useProjectSelectionStore = defineStore('projectSelection', () => {
 
   async function createNewProject() {
     clearError()
-
-    try {
-      const projectPath = await selectDirectory('选择项目创建位置')
-      if (!projectPath) {
-        return
-      }
-
-      await openProjectWindow(projectPath)
-      $q.notify({ type: 'positive', message: '项目创建成功', position: 'top' })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : '创建项目失败'
-      error.value = message
-      console.error('创建项目失败:', err)
-      $q.notify({ type: 'negative', message, position: 'top' })
-      throw err
-    }
+    
+    // 使用新的项目管理功能，这里只是触发创建流程
+    // 实际的创建逻辑将在对话框中处理
+    return 'show-creation-dialog'
   }
 
   async function openExistingProject() {
@@ -106,11 +96,25 @@ export const useProjectSelectionStore = defineStore('projectSelection', () => {
     try {
       const projectPath = await selectDirectory('选择项目文件夹')
       if (!projectPath) {
-        return
+        return null
       }
 
-      await openProjectWindow(projectPath)
-      $q.notify({ type: 'positive', message: '项目打开成功', position: 'top' })
+      // 先快速验证项目
+      const validationResult = await projectMgmt.quickValidateProject(projectPath)
+      if (!validationResult) {
+        throw new Error('验证项目失败')
+      }
+
+      if (validationResult.isValid) {
+        // 项目有效，直接打开
+        await openProjectWindow(projectPath)
+        $q.notify({ type: 'positive', message: '项目打开成功', position: 'top' })
+        return 'opened'
+      } else {
+        // 项目无效或需要验证，返回路径以便显示验证对话框
+        return { action: 'show-validation-dialog', projectPath }
+      }
+
     } catch (err) {
       const message = err instanceof Error ? err.message : '打开项目失败'
       error.value = message
@@ -124,8 +128,27 @@ export const useProjectSelectionStore = defineStore('projectSelection', () => {
     clearError()
 
     try {
-      await openProjectWindow(project.path)
-      $q.notify({ type: 'positive', message: `项目 "${project.name}" 打开成功`, position: 'top' })
+      // 先快速验证最近项目
+      const validationResult = await projectMgmt.quickValidateProject(project.path)
+      if (!validationResult) {
+        throw new Error('验证项目失败')
+      }
+
+      if (validationResult.isValid) {
+        // 项目有效，直接打开
+        await openProjectWindow(project.path)
+        $q.notify({ type: 'positive', message: `项目 "${project.name}" 打开成功`, position: 'top' })
+        return 'opened'
+      } else {
+        // 项目无效或需要验证
+        $q.notify({ 
+          type: 'warning', 
+          message: `项目 "${project.name}" 需要验证`, 
+          position: 'top' 
+        })
+        return { action: 'show-validation-dialog', projectPath: project.path }
+      }
+
     } catch (err) {
       const message = err instanceof Error ? err.message : '打开项目失败'
       error.value = message

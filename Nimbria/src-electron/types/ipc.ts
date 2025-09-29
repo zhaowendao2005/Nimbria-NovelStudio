@@ -14,7 +14,21 @@ import type {
   WatchOptions
 } from '../services/file-service/types'
 
-export { ProjectData, ProjectResult, SaveResult, RecentProject, BroadcastMessage, FileSystemItem, GlobOptions, WatchOptions }
+// 项目管理相关类型
+import type {
+  ProjectTemplate,
+  ProjectCreationOptions,
+  ProjectValidationResult,
+  ProjectInitializationResult,
+  ProjectQuickValidation,
+  CanInitializeResult
+} from '../services/project-service/types'
+
+export { 
+  ProjectData, ProjectResult, SaveResult, RecentProject, BroadcastMessage, 
+  FileSystemItem, GlobOptions, WatchOptions,
+  ProjectTemplate, ProjectCreationOptions, ProjectValidationResult, ProjectInitializationResult, ProjectQuickValidation, CanInitializeResult
+}
 
 export interface DirectMessage {
   toProcessId: string
@@ -141,6 +155,49 @@ export interface IPCChannelMap {
   'fs:project-cleanup': {
     request: { windowId: string }
     response: { success: boolean; error?: string }
+  }
+
+  // 项目管理操作
+  'project-mgmt:create': {
+    request: ProjectCreationOptions
+    response: ProjectInitializationResult
+  }
+  'project-mgmt:validate': {
+    request: { projectPath: string }
+    response: ProjectValidationResult
+  }
+  'project-mgmt:quick-validate': {
+    request: { projectPath: string }
+    response: ProjectQuickValidation
+  }
+  'project-mgmt:get-templates': {
+    request: void
+    response: { templates: ProjectTemplate[] }
+  }
+  'project-mgmt:can-initialize': {
+    request: { directoryPath: string; templateId?: string }
+    response: CanInitializeResult
+  }
+  'project-mgmt:initialize-existing': {
+    request: {
+      directoryPath: string
+      projectName: string
+      novelTitle: string
+      author: string
+      genre: string[]
+      description?: string
+      timestamp: string
+      customConfig?: Record<string, unknown>
+    }
+    response: ProjectInitializationResult
+  }
+  'project-mgmt:repair': {
+    request: { projectPath: string }
+    response: ProjectInitializationResult
+  }
+  'project-mgmt:get-stats': {
+    request: { projectPath: string }
+    response: { success: boolean; data?: unknown; error?: string }
   }
 }
 

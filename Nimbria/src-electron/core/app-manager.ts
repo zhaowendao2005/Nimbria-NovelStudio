@@ -12,6 +12,7 @@ import type { IPCRequest, IPCResponse, WindowOperationResult } from '../types/ip
 
 import { WindowManager } from '../services/window-service/window-manager'
 import { ProjectFileSystem } from '../services/file-service/project-fs'
+import { ProjectManager } from '../services/project-service/project-manager'
 import { getLogger } from '../utils/shared/logger'
 import { getRecentProjects, upsertRecentProject } from '../store/recent-projects-store'
 
@@ -20,7 +21,8 @@ const logger = getLogger('AppManager')
 export class AppManager {
   private windowManager: WindowManager | null = null
   private mainProcess: WindowProcess | null = null
-  private projectFileSystem: ProjectFileSystem
+  private projectFileSystem!: ProjectFileSystem
+  private projectManager!: ProjectManager
 
   async boot() {
     logger.info('Starting Nimbria application...')
@@ -38,7 +40,8 @@ export class AppManager {
 
   private initializeFileSystem() {
     this.projectFileSystem = new ProjectFileSystem()
-    logger.info('File system service initialized')
+    this.projectManager = new ProjectManager()
+    logger.info('File system and project management services initialized')
   }
 
   private async initializeWindowManager() {
@@ -206,12 +209,17 @@ export class AppManager {
 
     // 文件对话框处理器
     ipcMain.handle('file:open-dialog', async (_event, request: IPCRequest<'file:open-dialog'>) => {
-      const result = await dialog.showOpenDialog({
+      const dialogOptions: Electron.OpenDialogOptions = {
         title: request.title || '选择文件或文件夹',
-        defaultPath: request.defaultPath,
-        properties: request.properties,
-        filters: request.filters
-      })
+        properties: request.properties
+      }
+      if (request.defaultPath) {
+        dialogOptions.defaultPath = request.defaultPath
+      }
+      if (request.filters) {
+        dialogOptions.filters = request.filters
+      }
+      const result = await dialog.showOpenDialog(dialogOptions)
 
       return {
         canceled: result.canceled,
@@ -220,11 +228,16 @@ export class AppManager {
     })
 
     ipcMain.handle('file:save-dialog', async (_event, request: IPCRequest<'file:save-dialog'>) => {
-      const result = await dialog.showSaveDialog({
-        title: request.title || '保存文件',
-        defaultPath: request.defaultPath,
-        filters: request.filters
-      })
+      const dialogOptions: Electron.SaveDialogOptions = {
+        title: request.title || '保存文件'
+      }
+      if (request.defaultPath) {
+        dialogOptions.defaultPath = request.defaultPath
+      }
+      if (request.filters) {
+        dialogOptions.filters = request.filters
+      }
+      const result = await dialog.showSaveDialog(dialogOptions)
 
       return {
         canceled: result.canceled,
@@ -234,6 +247,9 @@ export class AppManager {
 
     // 文件系统处理器
     this.registerFileSystemHandlers()
+
+    // 项目管理处理器
+    this.registerProjectManagementHandlers()
   }
 
   private registerFileSystemHandlers() {
@@ -301,6 +317,72 @@ export class AppManager {
     })
 
     logger.info('File system IPC handlers registered')
+  }
+
+  private registerProjectManagementHandlers() {
+    // 创建项目
+    ipcMain.handle('project-mgmt:create', async (_event, request: IPCRequest<'project-mgmt:create'>) => {
+      const result = await this.projectManager.createProject(request)
+      return result
+    })
+
+    // 验证项目
+    ipcMain.handle('project-mgmt:validate', async (_event, request: IPCRequest<'project-mgmt:validate'>) => {
+      const result = await this.projectManager.validateProject(request.projectPath)
+      return result
+    })
+
+    // 快速验证项目
+    ipcMain.handle('project-mgmt:quick-validate', async (_event, request: IPCRequest<'project-mgmt:quick-validate'>) => {
+      const result = await this.projectManager.quickValidateProject(request.projectPath)
+      return result
+    })
+
+    // 获取项目模板
+    ipcMain.handle('project-mgmt:get-templates', async () => {
+      const result = await this.projectManager.getTemplates()
+      return result
+    })
+
+    // 检查是否可以初始化
+    ipcMain.handle('project-mgmt:can-initialize', async (_event, request: IPCRequest<'project-mgmt:can-initialize'>) => {
+      const result = await this.projectManager.canInitialize(request.directoryPath, request.templateId)
+      return result
+    })
+
+    // 初始化现有目录
+    ipcMain.handle('project-mgmt:initialize-existing', async (_event, request: IPCRequest<'project-mgmt:initialize-existing'>) => {
+      const initOptions = {
+        directoryPath: request.directoryPath,
+        projectName: request.projectName,
+        novelTitle: request.novelTitle,
+        author: request.author,
+        genre: request.genre,
+        timestamp: request.timestamp
+      }
+      if (request.description) {
+        Object.assign(initOptions, { description: request.description })
+      }
+      if (request.customConfig) {
+        Object.assign(initOptions, { customConfig: request.customConfig })
+      }
+      const result = await this.projectManager.initializeExistingDirectory(initOptions)
+      return result
+    })
+
+    // 修复项目
+    ipcMain.handle('project-mgmt:repair', async (_event, request: IPCRequest<'project-mgmt:repair'>) => {
+      const result = await this.projectManager.repairProject(request.projectPath)
+      return result
+    })
+
+    // 获取项目统计
+    ipcMain.handle('project-mgmt:get-stats', async (_event, request: IPCRequest<'project-mgmt:get-stats'>) => {
+      const result = await this.projectManager.getProjectStats(request.projectPath)
+      return result
+    })
+
+    logger.info('Project management IPC handlers registered')
   }
 
   private handleWindowOperation(

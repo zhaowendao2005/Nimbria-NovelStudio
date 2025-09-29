@@ -1,8 +1,9 @@
 /**
- * 文件系统 API 类型声明
+ * 文件系统和项目管理 API 类型声明
  * 
- * 扩展 window.nimbria 对象，添加文件系统相关功能
+ * 扩展 window.nimbria 对象，添加文件系统和项目管理相关功能
  * 基于 fs-extra, chokidar, fast-glob 提供高性能文件操作
+ * 基于 Electron 主进程提供项目管理功能
  */
 
 export interface FileSystemItem {
@@ -52,6 +53,123 @@ export interface FileChangeEvent {
     mtime: Date
   }
   projectId?: string
+}
+
+// 项目管理相关类型
+export interface NimbriaProjectConfig {
+  projectName: string
+  createdAt: string
+  lastModified: string
+  version: string
+  type: 'nimbria-novel-project'
+  
+  novel: {
+    title: string
+    author: string
+    genre: string[]
+    description: string
+    language: 'zh-CN' | 'en-US'
+    targetWordCount?: number
+  }
+  
+  settings: {
+    autoBackup: boolean
+    backupInterval: number
+    theme: 'light' | 'dark' | 'system'
+    fontSize: number
+    fontFamily: string
+    defaultChapterTemplate: string
+  }
+}
+
+export interface ProjectTemplate {
+  id: string
+  name: string
+  description: string
+  defaultFiles: Array<{
+    path: string
+    content?: string
+    isDirectory?: boolean
+  }>
+  requiredDirectories: string[]
+}
+
+export interface ProjectCreationOptions {
+  directoryPath: string
+  projectName: string
+  novelTitle: string
+  author: string
+  genre: string[]
+  description?: string
+  timestamp: string
+  customConfig?: Partial<NimbriaProjectConfig>
+}
+
+export interface ProjectValidationResult {
+  isValid: boolean
+  isProject: boolean
+  config?: NimbriaProjectConfig
+  missingFiles: string[]
+  missingDirectories: string[]
+  issues: string[]
+  canInitialize: boolean
+}
+
+export interface ProjectQuickValidation {
+  isProject: boolean
+  isValid: boolean
+  config?: NimbriaProjectConfig
+  majorIssues: string[]
+}
+
+export interface CanInitializeResult {
+  canInitialize: boolean
+  reason?: string
+  hasExistingProject?: boolean
+  existingConfigPath?: string
+  directoryInfo?: {
+    exists: boolean
+    isEmpty: boolean
+    fileCount: number
+    hasNimbriaConfig: boolean
+  }
+}
+
+export interface ProjectInitializationResult {
+  success: boolean
+  error?: string
+  projectPath?: string
+  configPath?: string
+  createdFiles?: string[]
+  createdDirectories?: string[]
+}
+
+/**
+ * 项目管理 API 接口
+ */
+export interface ProjectManagementAPI {
+  // 项目创建和初始化
+  createProject(options: ProjectCreationOptions): Promise<ProjectInitializationResult>
+  initializeExistingDirectory(options: {
+    directoryPath: string
+    projectName: string
+    novelTitle: string
+    author: string
+    genre: string[]
+    description?: string
+    timestamp: string
+    customConfig?: Record<string, unknown>
+  }): Promise<ProjectInitializationResult>
+
+  // 项目验证
+  validateProject(projectPath: string): Promise<ProjectValidationResult>
+  quickValidateProject(projectPath: string): Promise<ProjectQuickValidation>
+  canInitialize(directoryPath: string, templateId?: string): Promise<CanInitializeResult>
+
+  // 项目管理
+  getTemplates(): Promise<{ templates: ProjectTemplate[] }>
+  repairProject(projectPath: string): Promise<ProjectInitializationResult>
+  getProjectStats(projectPath: string): Promise<{ success: boolean; data?: unknown; error?: string }>
 }
 
 /**
@@ -252,6 +370,19 @@ declare global {
        * 每个项目窗口拥有独立的文件系统上下文
        */
       fs: FileSystemAPI
+
+      /**
+       * 项目管理 API
+       * 
+       * 提供完整的项目管理功能，包括：
+       * - 项目创建和初始化
+       * - 项目验证和修复
+       * - 项目模板管理
+       * - 项目统计信息
+       * 
+       * 基于 Electron 主进程实现，支持多窗口独立管理
+       */
+      project: ProjectManagementAPI
     }
   }
 }
