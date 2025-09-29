@@ -147,16 +147,10 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
 import { useProjectSelectionStore } from '../../stores/projectSelection'
-import { Notify } from 'quasar'
 import type { RecentProject } from '../../Types/project'
 
-// 抽屉状态控制
-const leftDrawerOpen = ref(true) // 默认打开左侧抽屉
-
-// 状态管理
+const leftDrawerOpen = ref(true)
 const projectStore = useProjectSelectionStore()
-
-// 项目操作状态
 const isCreatingProject = ref(false)
 const isOpeningProject = ref(false)
 
@@ -231,19 +225,9 @@ async function createProject() {
   try {
     await projectStore.createNewProject()
     
-    Notify.create({
-      type: 'positive',
-      message: '项目创建成功',
-      position: 'top'
-    })
   } catch (error) {
     console.error('创建项目失败:', error)
     
-    Notify.create({
-      type: 'negative',
-      message: error instanceof Error ? error.message : '创建项目失败',
-      position: 'top'
-    })
   } finally {
     isCreatingProject.value = false
   }
@@ -258,41 +242,21 @@ async function openProject() {
   try {
     await projectStore.openExistingProject()
     
-    Notify.create({
-      type: 'positive',
-      message: '项目打开成功',
-      position: 'top'
-    })
   } catch (error) {
     console.error('打开项目失败:', error)
     
-    Notify.create({
-      type: 'negative',
-      message: error instanceof Error ? error.message : '打开项目失败',
-      position: 'top'
-    })
   } finally {
     isOpeningProject.value = false
   }
 }
 
 async function openRecentProject(project: RecentProject) {
+  projectStore.clearError()
+
   try {
-    await projectStore.openProjectWindow(project.path)
-    
-    Notify.create({
-      type: 'positive',
-      message: `项目 "${project.name}" 打开成功`,
-      position: 'top'
-    })
+    await projectStore.openRecentProject(project)
   } catch (error) {
     console.error('打开最近项目失败:', error)
-    
-    Notify.create({
-      type: 'negative',
-      message: error instanceof Error ? error.message : '打开项目失败',
-      position: 'top'
-    })
   }
 }
 </script>

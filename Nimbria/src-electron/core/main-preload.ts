@@ -38,10 +38,11 @@ contextBridge.exposeInMainWorld('nimbria', {
   },
 
   project: {
-    createWindow: (projectPath: string) => channelInvoke('project:create-window', { projectPath }) as Promise<ProjectResult>,
-    closeWindow: (projectPath: string) => channelInvoke('project:close-window', { projectPath }) as Promise<ProjectResult>,
-    save: (projectData: ProjectData) => channelInvoke('project:save', { projectData }) as Promise<SaveResult>,
-    getRecent: () => channelInvoke('project:get-recent', undefined) as Promise<RecentProject[]>,
+    createWindow: (projectPath: string) => channelInvoke('project:create-window', { projectPath }),
+    closeWindow: (projectPath: string) => channelInvoke('project:close-window', { projectPath }),
+    save: (projectData: ProjectData) => channelInvoke('project:save', { projectData }),
+    getRecent: () => channelInvoke('project:get-recent', undefined),
+    updateRecent: (payload: { projectPath: string; projectName?: string }) => channelInvoke('project:update-recent', payload),
     broadcastToProjects: (message: BroadcastMessage) => {
       void channelInvoke('process:broadcast', { message })
     }

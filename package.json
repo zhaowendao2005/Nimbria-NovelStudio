@@ -2,6 +2,7 @@
     "scripts": {
         "dev": "cd Nimbria && npm run dev",
         "build": "cd Nimbria && npm run build",
-        "dev:electron": "cd Nimbria && npm run dev:electron"
+        "dev:electron": "cd Nimbria && npm run dev:electron",
+        "install": "cd Nimbria && npm install"
     }
 }

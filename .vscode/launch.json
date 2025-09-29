@@ -54,5 +54,19 @@
         ],
         "type": "node"
     },
+    {
+        "name": "npm install",
+        "request": "launch",
+        "runtimeArgs": [
+            "run-script",
+            "install"
+        ],
+        "runtimeExecutable": "npm",
+        "skipFiles": [
+            "<node_internals>/**"
+        ],
+        "type": "node",
+        "console": "integratedTerminal" 
+    }
     ]
 }

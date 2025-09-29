@@ -265,8 +265,17 @@ export class ProcessManager {
   }
 
   private resolvePreloadPath(type: WindowType): string {
-    const preloadName = type === 'main' ? 'main-preload.js' : 'project-preload.js'
-    return path.join(app.getAppPath(), 'src-electron', 'core', preloadName)
+    const isDev = !!process.env.DEV || !!process.env.DEBUGGING
+    const preloadBaseName = type === 'main' ? 'main-preload' : 'project-preload'
+
+    if (isDev) {
+      return path.join(app.getAppPath(), 'preload', `${preloadBaseName}.cjs`)
+    }
+
+    const preloadFolder = process.env.QUASAR_ELECTRON_PRELOAD_FOLDER || 'electron-preload'
+    const preloadExtension = process.env.QUASAR_ELECTRON_PRELOAD_EXTENSION || '.cjs'
+
+    return path.join(app.getAppPath(), preloadFolder, `${preloadBaseName}${preloadExtension}`)
   }
 
   private async persistProcess(process: WindowProcess): Promise<void> {

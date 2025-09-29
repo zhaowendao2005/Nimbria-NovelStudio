@@ -1,10 +1,10 @@
 // 重用 Client 端的类型定义
-import type { 
-  ProjectData, 
-  ProjectResult, 
-  SaveResult, 
-  RecentProject, 
-  BroadcastMessage 
+import type {
+  ProjectData,
+  ProjectResult,
+  SaveResult,
+  RecentProject,
+  BroadcastMessage
 } from '../../Client/Types/project'
 
 export { ProjectData, ProjectResult, SaveResult, RecentProject, BroadcastMessage }
@@ -46,6 +46,10 @@ export interface IPCChannelMap {
   'project:get-recent': {
     request: void
     response: RecentProject[]
+  }
+  'project:update-recent': {
+    request: { projectPath: string; projectName?: string }
+    response: { success: boolean }
   }
 
   'process:broadcast': {

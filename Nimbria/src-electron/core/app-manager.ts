@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+const isDevEnvironment = !!process.env.DEV || !!process.env.DEBUGGING
 
 import type { WindowTemplate } from '../types/window'
 import type { WindowProcess, ProjectWindowProcess, MainWindowProcess } from '../types/process'
@@ -11,6 +12,7 @@ import type { IPCRequest, IPCResponse, WindowOperationResult } from '../types/ip
 
 import { WindowManager } from '../services/window-service/window-manager'
 import { getLogger } from '../utils/shared/logger'
+import { getRecentProjects, upsertRecentProject } from '../store/recent-projects-store'
 
 const logger = getLogger('AppManager')
 
@@ -103,13 +105,14 @@ export class AppManager {
   }
 
   private loadMainWindow(windowProcess: WindowProcess) {
-    if (process.env.DEV || process.env.DEBUGGING) {
+    if (isDevEnvironment) {
       const url = process.env.APP_URL as string
       void windowProcess.window.loadURL(url)
       windowProcess.window.webContents.openDevTools()
-    } else {
-      void windowProcess.window.loadFile(path.join(__dirname, '../../index.html'))
+      return
     }
+
+    void windowProcess.window.loadFile(path.join(__dirname, '../../index.html'))
   }
 
   private registerIpcHandlers() {
@@ -178,8 +181,12 @@ export class AppManager {
     })
 
     ipcMain.handle('project:get-recent', async () => {
-      // TODO: 调用持久化存储获取最近项目列表
-      return [] satisfies IPCResponse<'project:get-recent'>
+      return getRecentProjects()
+    })
+
+    ipcMain.handle('project:update-recent', async (_event, payload: { projectPath: string; projectName?: string }) => {
+      upsertRecentProject(payload.projectPath, payload.projectName)
+      return { success: true }
     })
 
     ipcMain.handle('process:broadcast', async (_event, request: IPCRequest<'process:broadcast'>) => {
