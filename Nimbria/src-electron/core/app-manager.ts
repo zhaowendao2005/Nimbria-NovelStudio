@@ -11,6 +11,7 @@ import type { WindowProcess, ProjectWindowProcess, MainWindowProcess } from '../
 import type { IPCRequest, IPCResponse, WindowOperationResult } from '../types/ipc'
 
 import { WindowManager } from '../services/window-service/window-manager'
+import { ProjectFileSystem } from '../services/file-service/project-fs'
 import { getLogger } from '../utils/shared/logger'
 import { getRecentProjects, upsertRecentProject } from '../store/recent-projects-store'
 
@@ -19,16 +20,25 @@ const logger = getLogger('AppManager')
 export class AppManager {
   private windowManager: WindowManager | null = null
   private mainProcess: WindowProcess | null = null
+  private projectFileSystem: ProjectFileSystem
 
   async boot() {
     logger.info('Starting Nimbria application...')
+    this.initializeFileSystem()
     await this.initializeWindowManager()
     this.registerIpcHandlers()
   }
 
   async shutdown() {
     logger.info('Shutting down Nimbria application...')
-    // 预留后续资源释放逻辑
+    if (this.projectFileSystem) {
+      await this.projectFileSystem.cleanup()
+    }
+  }
+
+  private initializeFileSystem() {
+    this.projectFileSystem = new ProjectFileSystem()
+    logger.info('File system service initialized')
   }
 
   private async initializeWindowManager() {
@@ -221,6 +231,76 @@ export class AppManager {
         filePath: result.filePath
       } satisfies IPCResponse<'file:save-dialog'>
     })
+
+    // 文件系统处理器
+    this.registerFileSystemHandlers()
+  }
+
+  private registerFileSystemHandlers() {
+    // 项目文件系统初始化和清理
+    ipcMain.handle('fs:project-init', async (_event, request: IPCRequest<'fs:project-init'>) => {
+      const result = await this.projectFileSystem.initProject(request.projectPath, request.windowId)
+      return result
+    })
+
+    ipcMain.handle('fs:project-cleanup', async (_event, request: IPCRequest<'fs:project-cleanup'>) => {
+      const result = await this.projectFileSystem.cleanupProject(request.windowId)
+      return result
+    })
+
+    // 基础文件操作
+    ipcMain.handle('fs:read-file', async (_event, request: IPCRequest<'fs:read-file'>) => {
+      const result = await this.projectFileSystem.readFile(request.path, request.projectId, request.encoding as BufferEncoding)
+      return result
+    })
+
+    ipcMain.handle('fs:write-file', async (_event, request: IPCRequest<'fs:write-file'>) => {
+      const result = await this.projectFileSystem.writeFile(request.path, request.content, request.projectId, request.encoding as BufferEncoding)
+      return result
+    })
+
+    ipcMain.handle('fs:read-dir', async (_event, request: IPCRequest<'fs:read-dir'>) => {
+      const result = await this.projectFileSystem.readDir(request.path, request.projectId)
+      return result
+    })
+
+    ipcMain.handle('fs:create-dir', async (_event, request: IPCRequest<'fs:create-dir'>) => {
+      const result = await this.projectFileSystem.createDir(request.path, request.projectId)
+      return result
+    })
+
+    ipcMain.handle('fs:delete', async (_event, request: IPCRequest<'fs:delete'>) => {
+      const result = await this.projectFileSystem.delete(request.path, request.projectId, request.recursive)
+      return result
+    })
+
+    ipcMain.handle('fs:copy', async (_event, request: IPCRequest<'fs:copy'>) => {
+      const result = await this.projectFileSystem.copy(request.source, request.dest, request.projectId)
+      return result
+    })
+
+    ipcMain.handle('fs:move', async (_event, request: IPCRequest<'fs:move'>) => {
+      const result = await this.projectFileSystem.move(request.source, request.dest, request.projectId)
+      return result
+    })
+
+    // 高级功能
+    ipcMain.handle('fs:glob', async (_event, request: IPCRequest<'fs:glob'>) => {
+      const result = await this.projectFileSystem.glob(request.pattern, request.projectId, request.options)
+      return result
+    })
+
+    ipcMain.handle('fs:watch-start', async (_event, request: IPCRequest<'fs:watch-start'>) => {
+      const result = await this.projectFileSystem.startWatch(request.path, request.projectId, request.options)
+      return result
+    })
+
+    ipcMain.handle('fs:watch-stop', async (_event, request: IPCRequest<'fs:watch-stop'>) => {
+      const result = await this.projectFileSystem.stopWatch(request.watcherId)
+      return result
+    })
+
+    logger.info('File system IPC handlers registered')
   }
 
   private handleWindowOperation(

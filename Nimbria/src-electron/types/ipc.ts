@@ -7,7 +7,14 @@ import type {
   BroadcastMessage
 } from '../../Client/Types/project'
 
-export { ProjectData, ProjectResult, SaveResult, RecentProject, BroadcastMessage }
+// 文件系统相关类型
+import type {
+  FileSystemItem,
+  GlobOptions,
+  WatchOptions
+} from '../services/file-service/types'
+
+export { ProjectData, ProjectResult, SaveResult, RecentProject, BroadcastMessage, FileSystemItem, GlobOptions, WatchOptions }
 
 export interface DirectMessage {
   toProcessId: string
@@ -84,6 +91,56 @@ export interface IPCChannelMap {
       canceled: boolean
       filePath?: string
     }
+  }
+
+  // 文件系统操作
+  'fs:read-file': {
+    request: { path: string; projectId?: string; encoding?: string }
+    response: { success: boolean; content?: string; error?: string }
+  }
+  'fs:write-file': {
+    request: { path: string; content: string; projectId?: string; encoding?: string }
+    response: { success: boolean; error?: string }
+  }
+  'fs:read-dir': {
+    request: { path: string; projectId?: string }
+    response: { success: boolean; items?: FileSystemItem[]; error?: string }
+  }
+  'fs:create-dir': {
+    request: { path: string; projectId?: string }
+    response: { success: boolean; error?: string }
+  }
+  'fs:delete': {
+    request: { path: string; projectId?: string; recursive?: boolean }
+    response: { success: boolean; error?: string }
+  }
+  'fs:copy': {
+    request: { source: string; dest: string; projectId?: string }
+    response: { success: boolean; error?: string }
+  }
+  'fs:move': {
+    request: { source: string; dest: string; projectId?: string }
+    response: { success: boolean; error?: string }
+  }
+  'fs:glob': {
+    request: { pattern: string; projectId?: string; options?: GlobOptions }
+    response: { success: boolean; matches?: string[]; error?: string }
+  }
+  'fs:watch-start': {
+    request: { path: string; projectId?: string; options?: WatchOptions }
+    response: { success: boolean; watcherId?: string; error?: string }
+  }
+  'fs:watch-stop': {
+    request: { watcherId: string }
+    response: { success: boolean; error?: string }
+  }
+  'fs:project-init': {
+    request: { projectPath: string; windowId: string }
+    response: { success: boolean; error?: string }
+  }
+  'fs:project-cleanup': {
+    request: { windowId: string }
+    response: { success: boolean; error?: string }
   }
 }
 
