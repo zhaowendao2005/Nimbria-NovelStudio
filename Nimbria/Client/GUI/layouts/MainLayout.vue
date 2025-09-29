@@ -74,7 +74,7 @@
             </q-item-section>
             <q-item-section>
               <q-item-label class="text-weight-medium">{{ project.name }}</q-item-label>
-              <q-item-label caption lines="1" class="text-grey-6">{{ project.path }}</q-item-label>
+              <q-item-label caption class="text-grey-6 project-path">{{ project.path }}</q-item-label>
               <q-item-label caption class="text-grey-5">{{ formatLastOpened(project.lastOpened) }}</q-item-label>
             </q-item-section>
           </q-item>
@@ -387,6 +387,15 @@ function onProjectOpened(projectPath: string) {
   
   .q-item__section--avatar {
     min-width: 48px;
+  }
+  
+  // 项目路径自动换行样式
+  .project-path {
+    word-break: break-all;
+    word-wrap: break-word;
+    white-space: normal !important;
+    line-height: 1.4;
+    max-width: 100%;
   }
 }
 

@@ -98,6 +98,13 @@ export interface NimbriaWindowAPI {
     getRecent(): Promise<RecentProject[]>
     
     /** 
+     * 更新最近打开的项目列表
+     * @param payload 项目路径和可选的项目名称
+     * @returns 更新结果
+     */
+    updateRecent(payload: { projectPath: string; projectName?: string }): Promise<{ success: boolean }>
+    
+    /** 
      * 向所有项目窗口广播消息
      * @param message 要广播的消息
      */

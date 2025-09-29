@@ -520,6 +520,17 @@ async function createProject() {
       // 设置标志位，表示创建成功后需要关闭对话框
       shouldCloseAfterCreate.value = true
       
+      // 添加到最近打开列表
+      try {
+        await window.nimbria.project.updateRecent({
+          projectPath: result.projectPath!,
+          projectName: formData.projectName
+        })
+        console.log('项目已添加到最近打开列表')
+      } catch (error) {
+        console.warn('添加到最近列表失败，但不影响项目创建:', error)
+      }
+      
       // 显示成功通知
       $q.notify({
         type: 'positive',
