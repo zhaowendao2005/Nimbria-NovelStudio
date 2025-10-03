@@ -1,0 +1,492 @@
+// Obsidian 风格主题配色
+:root {
+  // Obsidian 配色方案
+  --obsidian-bg-primary: #ffffff;
+  --obsidian-bg-secondary: #f5f6f8;
+  --obsidian-bg-tertiary: #ebedef;
+  --obsidian-border: #e3e5e8;
+  --obsidian-text-primary: #2e3338;
+  --obsidian-text-secondary: #6c6f7c;
+  --obsidian-text-muted: #999999;
+  --obsidian-accent: #7c3aed;
+  --obsidian-accent-hover: #6d28d9;
+  --obsidian-hover-bg: #f0f0f0;
+  --obsidian-active-bg: #e9e9e9;
+  
+  // 覆盖 Element Plus 主题变量
+  --el-color-primary: #7c3aed;
+  --el-color-primary-light-3: #9d7ff5;
+  --el-color-primary-light-5: #b899f7;
+  --el-color-primary-light-7: #d3b3f9;
+  --el-color-primary-light-9: #eedcfc;
+  
+  --el-bg-color: #ffffff;
+  --el-bg-color-page: #f5f6f8;
+  --el-bg-color-overlay: #ffffff;
+  
+  --el-text-color-primary: #2e3338;
+  --el-text-color-regular: #6c6f7c;
+  --el-text-color-secondary: #999999;
+  --el-text-color-placeholder: #c0c4cc;
+  
+  --el-border-color: #e3e5e8;
+  --el-border-color-light: #ebedef;
+  --el-border-color-lighter: #f2f3f5;
+  
+  --el-fill-color-blank: #ffffff;
+  --el-fill-color: #f5f6f8;
+  --el-fill-color-light: #fafafa;
+  
+  // 组件特定变量
+  --el-button-border-color: transparent;
+  --el-button-hover-border-color: transparent;
+  --el-button-active-border-color: transparent;
+}
+
+// 全局重置
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+#app {
+  height: 100%;
+}
+
+// Obsidian 应用容器
+.obsidian-app {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  background-color: var(--obsidian-bg-primary);
+  color: var(--obsidian-text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  overflow: hidden;
+}
+
+// ==================== 左侧窄导航栏 ====================
+.sidebar-left {
+  width: 48px;
+  background-color: var(--obsidian-bg-secondary);
+  border-right: 1px solid var(--obsidian-border);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 8px 0;
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+.sidebar-actions,
+.sidebar-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 6px;
+}
+
+// 侧边栏图标按钮样式
+.sidebar-icon-btn {
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 6px !important;
+  background-color: transparent !important;
+  color: var(--obsidian-text-secondary) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.15s ease;
+  
+  // 确保内部元素居中
+  span {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100%;
+    height: 100%;
+  }
+  
+  .el-icon {
+    font-size: 18px;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 18px;
+    height: 18px;
+    
+    svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+  }
+  
+  &:hover {
+    background-color: var(--obsidian-hover-bg) !important;
+    color: var(--obsidian-text-primary) !important;
+  }
+  
+  &.active {
+    background-color: var(--obsidian-active-bg) !important;
+    color: var(--obsidian-accent) !important;
+  }
+  
+  &:focus {
+    background-color: transparent !important;
+  }
+}
+
+// ==================== 主容器 ====================
+.main-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  
+  // 移除 Element Plus 默认样式
+  &.el-container {
+    background-color: transparent;
+  }
+}
+
+// ==================== 顶部栏 ====================
+.top-header {
+  height: 44px !important;
+  background-color: var(--obsidian-bg-primary);
+  border-bottom: 1px solid var(--obsidian-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  flex-shrink: 0;
+  
+  &.el-header {
+    padding: 0 12px;
+  }
+}
+
+.header-left,
+.header-center,
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.header-btn {
+  padding: 6px !important;
+  border-radius: 4px !important;
+  color: var(--obsidian-text-secondary) !important;
+  transition: all 0.15s ease;
+  
+  .el-icon {
+    font-size: 16px;
+  }
+  
+  &:hover {
+    background-color: var(--obsidian-hover-bg) !important;
+    color: var(--obsidian-text-primary) !important;
+  }
+}
+
+.file-path {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  
+  .path-icon {
+    font-size: 14px;
+    color: var(--obsidian-text-secondary);
+  }
+  
+  .path-text {
+    font-size: 13px;
+    color: var(--obsidian-text-primary);
+  }
+}
+
+// ==================== 内容容器 ====================
+.content-container {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+  
+  &.el-container {
+    background-color: transparent;
+  }
+}
+
+// ==================== 左侧面板 ====================
+.left-panel {
+  background-color: var(--obsidian-bg-secondary);
+  border-right: 1px solid var(--obsidian-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  
+  &.el-aside {
+    overflow: hidden;
+  }
+}
+
+// ==================== 右侧面板 ====================
+.right-panel {
+  background-color: var(--obsidian-bg-secondary);
+  border-left: 1px solid var(--obsidian-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  
+  &.el-aside {
+    overflow: hidden;
+  }
+}
+
+// ==================== 面板通用样式 ====================
+.panel-header {
+  height: 40px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--obsidian-border);
+  flex-shrink: 0;
+  
+  .panel-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--obsidian-text-primary);
+  }
+  
+  .panel-close-btn {
+    padding: 4px !important;
+    color: var(--obsidian-text-secondary) !important;
+    
+    .el-icon {
+      font-size: 14px;
+    }
+    
+    &:hover {
+      background-color: var(--obsidian-hover-bg) !important;
+      color: var(--obsidian-text-primary) !important;
+    }
+  }
+}
+
+.panel-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px;
+}
+
+// ==================== 分隔器 ====================
+.resizer,
+.resizer-right {
+  width: 1px;
+  background-color: var(--obsidian-border);
+  cursor: col-resize;
+  position: relative;
+  flex-shrink: 0;
+  
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -2px;
+    right: -2px;
+  }
+  
+  &:hover {
+    background-color: var(--obsidian-accent);
+  }
+  
+  &:active {
+    background-color: var(--obsidian-accent);
+  }
+}
+
+// ==================== 文件树 ====================
+.file-tree {
+  background-color: transparent !important;
+  
+  // 覆盖 Element Plus Tree 样式
+  .el-tree-node__content {
+    height: 28px;
+    padding: 0 8px !important;
+    border-radius: 4px;
+    color: var(--obsidian-text-primary);
+    transition: background-color 0.15s ease;
+    
+    &:hover {
+      background-color: var(--obsidian-hover-bg) !important;
+    }
+  }
+  
+  .el-tree-node.is-current > .el-tree-node__content {
+    background-color: var(--obsidian-active-bg) !important;
+    color: var(--obsidian-accent) !important;
+  }
+  
+  .el-tree-node__expand-icon {
+    font-size: 12px;
+    color: var(--obsidian-text-secondary);
+    
+    &.is-leaf {
+      color: transparent;
+    }
+  }
+  
+  .tree-node {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    
+    .node-icon {
+      font-size: 14px;
+      color: var(--obsidian-text-secondary);
+    }
+    
+    .node-label {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+}
+
+// ==================== 主编辑区 ====================
+.editor-main {
+  flex: 1;
+  background-color: var(--obsidian-bg-primary);
+  overflow-y: auto;
+  overflow-x: hidden;
+  
+  &.el-main {
+    padding: 0;
+  }
+}
+
+.editor-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 40px 60px;
+}
+
+.editor-title {
+  margin-bottom: 24px;
+  
+  h1 {
+    font-size: 32px;
+    font-weight: 600;
+    color: var(--obsidian-text-primary);
+    margin: 0;
+  }
+}
+
+.editor-content {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--obsidian-text-primary);
+  
+  .welcome-text {
+    color: var(--obsidian-text-secondary);
+    font-size: 14px;
+  }
+}
+
+// ==================== 大纲为空状态 ====================
+.outline-empty {
+  padding: 40px 20px;
+  text-align: center;
+  
+  p {
+    font-size: 13px;
+    color: var(--obsidian-text-muted);
+  }
+}
+
+// ==================== Element Plus 组件覆盖 ====================
+
+// Tooltip 样式
+.el-tooltip__popper {
+  background-color: var(--obsidian-text-primary) !important;
+  border: 1px solid var(--obsidian-border) !important;
+  font-size: 12px !important;
+  padding: 4px 8px !important;
+  
+  .el-popper__arrow::before {
+    background-color: var(--obsidian-text-primary) !important;
+    border: 1px solid var(--obsidian-border) !important;
+  }
+}
+
+// Button 样式重置
+.el-button {
+  &.is-link {
+    border: none !important;
+    
+    &:hover,
+    &:focus {
+      border: none !important;
+      outline: none !important;
+    }
+  }
+}
+
+// 滚动条样式
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.15);
+  }
+}
+
+// ==================== 响应式调整 ====================
+@media (max-width: 768px) {
+  .left-panel,
+  .right-panel {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 50;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  }
+  
+  .left-panel {
+    left: 48px;
+  }
+  
+  .right-panel {
+    right: 0;
+  }
+}
+

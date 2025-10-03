@@ -10,15 +10,19 @@
     "dev": "vite",
     "dev:example1": "vite --open /src/pages/example1/index.html",
     "dev:example2": "vite --open /src/pages/example2/index.html",
+    "dev:project-page": "vite --open /src/pages/project-page/index.html",
     "build": "cross-env BUILD_PAGE=all vite build",
     "build:example1": "cross-env BUILD_PAGE=example1 vite build",
     "build:example2": "cross-env BUILD_PAGE=example2 vite build",
+    "build:project-page": "cross-env BUILD_PAGE=project-page vite build",
     "preview": "vite preview",
     "type-check": "vue-tsc --build",
     "lint": "eslint . --fix",
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.1",
+    "element-plus": "^2.9.1",
     "pinia": "^3.0.3",
     "vue": "^3.5.22",
     "vue-router": "^4.5.1"
@@ -44,6 +48,7 @@
     "jsdom": "^27.0.0",
     "npm-run-all2": "^8.0.4",
     "prettier": "3.6.2",
+    "sass-embedded": "^1.83.0",
     "typescript": "~5.9.0",
     "vite": "^7.1.7",
     "vite-plugin-singlefile": "^2.0.2",
