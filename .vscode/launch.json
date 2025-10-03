@@ -29,6 +29,20 @@
         "type": "node"
     },
     {
+        "name": "Dev: Reference:Project Page",
+        "request": "launch",
+        "runtimeArgs": [
+            "run-script",
+            "dev:project-page"
+        ],
+        "runtimeExecutable": "npm",
+        "console": "integratedTerminal",
+        "skipFiles": [
+            "<node_internals>/**"
+        ],
+        "type": "node"
+    },
+    {
         "name": "Build",
         "request": "launch",
         "runtimeArgs": [
