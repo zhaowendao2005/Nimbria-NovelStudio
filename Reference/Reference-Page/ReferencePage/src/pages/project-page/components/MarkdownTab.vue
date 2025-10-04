@@ -256,8 +256,7 @@ defineExpose({
 .tab-main {
   flex: 1;
   min-height: 0;
-  overflow-y: auto; /* 允许垂直滚动 */
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 .tab-empty {

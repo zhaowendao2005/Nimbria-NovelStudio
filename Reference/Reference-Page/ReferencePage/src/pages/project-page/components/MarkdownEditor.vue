@@ -31,52 +31,19 @@ onMounted(() => {
   if (!editorContainer.value) return
 
   vditor = new Vditor(editorContainer.value, {
-    height: window.innerHeight - 200, // 使用具体像素高度，减去顶部栏等高度
+    height: 360,
     mode: 'ir', // Instant Rendering模式，类似Obsidian
     placeholder: '开始编写...',
     theme: 'classic',
-    resize: {
-      enable: false // 禁用resize，使用容器控制高度
+    
+    // 使用默认工具栏并固定
+    toolbarConfig: {
+      pin: true,
     },
     
-    // 工具栏配置 - 精简版
-    toolbar: [
-      'emoji',
-      'headings',
-      'bold',
-      'italic',
-      'strike',
-      '|',
-      'line',
-      'quote',
-      'list',
-      'ordered-list',
-      'check',
-      '|',
-      'code',
-      'inline-code',
-      'link',
-      'table',
-      '|',
-      'undo',
-      'redo'
-    ],
-    
-    // 预览配置
-    preview: {
-      markdown: {
-        toc: true,
-        mark: true,
-        footnotes: true,
-        autoSpace: true
-      },
-      math: {
-        engine: 'KaTeX'
-      },
-      hljs: {
-        style: 'github',
-        lineNumber: false
-      }
+    // 关闭缓存，避免干扰测试滚动/布局
+    cache: {
+      enable: false,
     },
     
     // 输入回调
@@ -131,33 +98,5 @@ defineExpose({
 })
 </script>
 
-<style scoped>
-.markdown-editor {
-  width: 100%;
-  height: 100%;
-}
 
-/* 覆盖Vditor默认样式，使其更符合Obsidian风格 */
-:deep(.vditor) {
-  border: none;
-}
-
-:deep(.vditor-toolbar) {
-  background-color: var(--obsidian-bg-secondary, #f5f6f8);
-  border-bottom: 1px solid var(--obsidian-border, #e3e5e8);
-  padding: 4px 8px;
-}
-
-:deep(.vditor-ir) {
-  background-color: var(--obsidian-bg-primary, #ffffff);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
-  font-size: 14px;
-  line-height: 1.6;
-  padding: 20px;
-}
-
-:deep(.vditor-ir pre.vditor-reset) {
-  background-color: transparent;
-}
-</style>
 

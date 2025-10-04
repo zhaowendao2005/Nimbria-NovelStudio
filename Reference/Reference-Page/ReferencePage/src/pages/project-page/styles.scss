@@ -285,7 +285,6 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  height: 100vh; // 占满整个视口高度
   
   &.el-aside {
     overflow: hidden;
@@ -417,11 +416,10 @@ body {
 .tree-container {
   align-self: stretch;
   flex: 1;
-  overflow-y: auto; // 内容溢出时显示垂直滚动条
+  overflow-y: auto;
   overflow-x: hidden;
   padding: 8px;
   position: relative;
-  min-height: 0; // 允许 flex 子元素收缩并启用滚动
 }
 
 // ==================== 右侧面板通用样式 ====================
@@ -543,9 +541,9 @@ body {
 // ==================== 主编辑区 ====================
 .editor-main {
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
   background-color: var(--obsidian-bg-primary);
-  overflow: hidden; // 不在这里滚动，让内部组件处理
-  height: 100vh; // 占满整个视口高度
   
   &.el-main {
     padding: 0;
@@ -661,21 +659,21 @@ body {
 // ==================== Markdown标签页样式 ====================
 .markdown-tabs {
   height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   
-  :deep(.el-tabs__header) {
+  .el-tabs__header {
     margin: 0;
     border-bottom: 1px solid var(--obsidian-border);
     background-color: var(--obsidian-bg-secondary);
-    flex-shrink: 0; // 防止头部被压缩
   }
   
-  :deep(.el-tabs__nav) {
+  .el-tabs__nav {
     border: none;
   }
   
-  :deep(.el-tabs__item) {
+  .el-tabs__item {
     height: 40px;
     line-height: 40px;
     border: none;
@@ -695,15 +693,15 @@ body {
     }
   }
   
-  :deep(.el-tabs__content) {
+  .el-tabs__content {
     flex: 1;
+    min-height: 0 !important;
     overflow: hidden;
-    min-height: 0; // 允许 flex 子元素收缩并启用滚动
   }
   
-  :deep(.el-tab-pane) {
+  .el-tab-pane {
     height: 100%;
-    overflow: hidden; // 让内部的 MarkdownTab 组件处理滚动
+    min-height: 0 !important;
   }
 }
 
