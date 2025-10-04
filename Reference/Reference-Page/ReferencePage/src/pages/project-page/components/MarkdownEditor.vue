@@ -31,7 +31,7 @@ onMounted(() => {
   if (!editorContainer.value) return
 
   vditor = new Vditor(editorContainer.value, {
-    height: 360,
+    height: '100%',
     mode: 'ir', // Instant Rendering模式，类似Obsidian
     placeholder: '开始编写...',
     theme: 'classic',
@@ -98,5 +98,10 @@ defineExpose({
 })
 </script>
 
-
-
+<style scoped>
+.markdown-editor {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+</style>
