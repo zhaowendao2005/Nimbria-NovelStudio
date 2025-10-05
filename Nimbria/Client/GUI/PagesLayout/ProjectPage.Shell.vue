@@ -17,7 +17,7 @@
 </template>
 
 <script setup lang="ts">
-import { defineProps } from 'vue'
+import { defineProps, provide, reactive } from 'vue'
 import ProjectNavbar from '@components/ProjectPage.Shell/Navbar/ProjectNavbar.vue'
 import FileTreeToolbar from '@components/ProjectPage.Shell/FileTree/FileTreeToolbar.vue'
 import FileTreeContent from '@components/ProjectPage.Shell/FileTree/FileTreeContent.vue'
@@ -34,6 +34,11 @@ import OutlineContent from '@components/ProjectPage.Shell/Outline/OutlineContent
 defineProps<{
   type: 'left' | 'right'
 }>()
+
+// ==================== 提供展开/折叠状态给子组件 ====================
+// 使用reactive对象包装，确保响应式
+const expandAllState = reactive({ value: true })
+provide('expandAllState', expandAllState)
 </script>
 
 <style scoped lang="scss">

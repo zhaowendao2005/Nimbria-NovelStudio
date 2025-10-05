@@ -1,13 +1,18 @@
 <template>
   <div class="outline-content">
-    <div class="outline-header">
-      <span class="header-title">大纲</span>
+    <!-- 右侧面板标题栏（带关闭按钮） -->
+    <div class="panel-header">
+      <span class="panel-title">大纲</span>
+      <el-button class="panel-close-btn" link @click="handleClose">
+        <el-icon><Close /></el-icon>
+      </el-button>
     </div>
     
-    <div class="outline-body">
+    <!-- 大纲内容 -->
+    <div class="panel-content">
       <el-empty 
         v-if="outlineItems.length === 0"
-        description="暂无大纲"
+        description="当前文档没有标题"
         :image-size="80"
       />
       <div v-else class="outline-list">
@@ -28,10 +33,12 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { Close } from '@element-plus/icons-vue'
 
 /**
  * OutlineContent
- * 大纲面板
+ * 大纲面板（完整版）
+ * 包含：标题栏、关闭按钮、大纲内容
  * TODO: 实现自动提取Markdown标题、滚动定位功能
  */
 
@@ -44,6 +51,13 @@ interface OutlineItem {
 // Mock数据（TODO: 从当前打开的Markdown文件提取）
 const outlineItems = ref<OutlineItem[]>([])
 
+// ==================== 关闭面板 ====================
+const handleClose = () => {
+  console.log('关闭右侧大纲面板')
+  // TODO: 调用store方法关闭右侧面板
+}
+
+// ==================== 大纲功能 ====================
 const getMarker = (level: number): string => {
   return '#'.repeat(level)
 }
@@ -55,6 +69,7 @@ const scrollToHeading = (id: string) => {
 </script>
 
 <style scoped>
+/* ==================== 容器 ==================== */
 .outline-content {
   height: 100%;
   display: flex;
@@ -62,32 +77,55 @@ const scrollToHeading = (id: string) => {
   overflow: hidden;
 }
 
-.outline-header {
+/* ==================== 右侧面板标题栏 ==================== */
+.panel-header {
   height: 40px;
   min-height: 40px;
+  padding: 0 12px;
   display: flex;
   align-items: center;
-  padding: 0 12px;
+  justify-content: space-between;
   border-bottom: 1px solid var(--obsidian-border);
   background: var(--obsidian-bg-secondary);
   flex-shrink: 0;
+  
+  .panel-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--obsidian-text-primary);
+    font-family: 'Segoe UI', sans-serif;
+  }
+  
+  .panel-close-btn {
+    width: 22px !important;
+    height: 22px !important;
+    min-width: 22px !important;
+    padding: 0 !important;
+    border-radius: 4px !important;
+    color: var(--obsidian-text-secondary) !important;
+    
+    .el-icon {
+      font-size: 14px;
+    }
+    
+    &:hover {
+      background-color: var(--obsidian-hover-bg) !important;
+      color: var(--obsidian-text-primary) !important;
+    }
+  }
 }
 
-.header-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--obsidian-text-primary);
-}
-
-.outline-body {
+/* ==================== 大纲内容区 ==================== */
+.panel-content {
   flex: 1;
-  overflow-y: auto;  /* ✅ 大纲可滚动 */
-  padding: 8px 0;
-  min-height: 0; /* 🔑 关键！ */
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px;
+  min-height: 0; /* 🔑 关键！允许flex压缩 */
 }
 
 .outline-list {
-  padding: 0 4px;
+  padding: 0;
 }
 
 .outline-item {

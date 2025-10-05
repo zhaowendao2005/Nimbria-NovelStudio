@@ -1,10 +1,12 @@
 <template>
   <div class="file-tree-content">
     <el-tree
+      ref="treeRef"
       :data="fileTree"
       :props="treeProps"
       node-key="id"
       :expand-on-click-node="false"
+      default-expand-all
       @node-click="handleNodeClick"
     >
       <template #default="{ node, data }">
@@ -22,7 +24,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, inject, watch, nextTick } from 'vue'
+import type { ElTree } from 'element-plus'
 import { Folder, FolderOpened, Document } from '@element-plus/icons-vue'
 import { useMarkdownStore } from '@stores/projectPage'
 
@@ -33,6 +36,9 @@ import { useMarkdownStore } from '@stores/projectPage'
  */
 
 const markdownStore = useMarkdownStore()
+
+// el-tree实例引用
+const treeRef = ref<InstanceType<typeof ElTree>>()
 
 // 文件树数据
 const fileTree = computed(() => markdownStore.fileTree)
@@ -50,6 +56,29 @@ const handleNodeClick = (data: any) => {
     markdownStore.openFile(data.path)
   }
 }
+
+// ==================== 展开/折叠功能 ====================
+// 注入工具栏提供的展开状态
+const expandAllState = inject<{ value: boolean }>('expandAllState', { value: true })
+
+// 监听展开状态变化
+watch(() => expandAllState.value, (shouldExpand) => {
+  nextTick(() => {
+    if (!treeRef.value) return
+    
+    // 获取所有节点
+    const nodes = treeRef.value.store.nodesMap
+    
+    // 遍历所有节点，设置展开/折叠状态
+    for (const key in nodes) {
+      const node = nodes[key]
+      // 只操作有子节点的节点（文件夹）
+      if (node && node.childNodes && node.childNodes.length > 0) {
+        node.expanded = shouldExpand
+      }
+    }
+  })
+}, { immediate: false })
 </script>
 
 <style scoped>
