@@ -44,6 +44,20 @@
             </el-button>
           </el-tooltip>
         </el-button-group>
+
+        <!-- 大纲切换按钮 -->
+        <el-tooltip 
+          :content="showRightPanel ? '隐藏大纲' : '显示大纲'" 
+          placement="bottom"
+        >
+          <el-button 
+            class="outline-toggle-btn"
+            :type="showRightPanel ? 'primary' : ''"
+            @click="toggleOutline"
+          >
+            <el-icon><List /></el-icon>
+          </el-button>
+        </el-tooltip>
       </div>
     </div>
 
@@ -66,8 +80,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue'
-import { ArrowLeft, ArrowRight, Folder, Edit, View } from '@element-plus/icons-vue'
+import { computed, watch, inject, readonly, type Ref } from 'vue'
+import { ArrowLeft, ArrowRight, Folder, Edit, View, List } from '@element-plus/icons-vue'
 import MarkdownEditor from './MarkdownEditor.vue'
 import MarkdownViewer from './MarkdownViewer.vue'
 import { useMarkdownStore } from '@stores/projectPage'
@@ -113,6 +127,20 @@ const goForward = () => {
 const switchMode = (newMode: 'edit' | 'view') => {
   if (currentTab.value) {
     markdownStore.switchTabMode(props.tabId, newMode)
+  }
+}
+
+// ==================== 大纲面板控制 ====================
+// 注入右侧面板状态和控制函数
+const showRightPanel = inject<Readonly<Ref<boolean>>>('showRightPanel', readonly(computed(() => true)))
+const toggleRightPanel = inject<(show?: boolean) => void>('toggleRightPanel')
+
+// 切换大纲面板
+const toggleOutline = () => {
+  if (toggleRightPanel) {
+    toggleRightPanel()  // 不传参数，自动切换
+  } else {
+    console.warn('未找到 toggleRightPanel 函数，请检查 ProjectMainLayout 是否正确 provide')
   }
 }
 
@@ -172,7 +200,7 @@ defineExpose({
 .header-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;  /* 增加间距，分隔按钮组和大纲按钮 */
   flex-shrink: 0;
 }
 
@@ -252,6 +280,34 @@ defineExpose({
 :deep(.el-button-group .el-button:last-child) {
   border-top-right-radius: 4px;
   border-bottom-right-radius: 4px;
+}
+
+/* 大纲切换按钮 */
+.outline-toggle-btn {
+  width: 36px !important;
+  height: 32px !important;
+  min-width: 36px !important;
+  padding: 0 !important;
+  border-radius: 4px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s ease;
+  
+  /* hover 状态优化 */
+  &:hover {
+    transform: translateY(-1px);
+  }
+  
+  /* active 状态（大纲显示时）高亮 */
+  &.el-button--primary {
+    background-color: var(--obsidian-accent, #5b7fff);
+    border-color: var(--obsidian-accent, #5b7fff);
+  }
+  
+  .el-icon {
+    font-size: 18px;
+  }
 }
 
 /* Main内容区域 */

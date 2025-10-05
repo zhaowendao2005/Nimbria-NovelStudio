@@ -32,7 +32,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, inject } from 'vue'
 import { Close } from '@element-plus/icons-vue'
 
 /**
@@ -52,9 +52,16 @@ interface OutlineItem {
 const outlineItems = ref<OutlineItem[]>([])
 
 // ==================== 关闭面板 ====================
+// 注入右侧面板控制函数
+const toggleRightPanel = inject<(show?: boolean) => void>('toggleRightPanel')
+
 const handleClose = () => {
   console.log('关闭右侧大纲面板')
-  // TODO: 调用store方法关闭右侧面板
+  if (toggleRightPanel) {
+    toggleRightPanel(false)
+  } else {
+    console.warn('未找到 toggleRightPanel 函数')
+  }
 }
 
 // ==================== 大纲功能 ====================

@@ -114,9 +114,16 @@ const expandAllState = inject<{ value: boolean }>('expandAllState', { value: tru
 const isExpanded = computed(() => expandAllState.value)
 
 // ==================== 关闭面板 ====================
+// 注入左侧面板控制函数
+const toggleLeftPanel = inject<(show?: boolean) => void>('toggleLeftPanel')
+
 const handleClose = () => {
   console.log('关闭左侧面板')
-  // TODO: 调用store方法关闭左侧面板
+  if (toggleLeftPanel) {
+    toggleLeftPanel(false)
+  } else {
+    console.warn('未找到 toggleLeftPanel 函数')
+  }
 }
 
 // ==================== 新建文件/文件夹 ====================
