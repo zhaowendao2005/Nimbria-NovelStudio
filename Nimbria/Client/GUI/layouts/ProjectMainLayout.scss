@@ -62,6 +62,13 @@
       color: #2e3338;
     }
 
+    /* 最小化按钮垂直偏移调整 */
+    &--minimize {
+      position: relative;
+      top: -5px;  /* 👈 调整这个值：正值向下，负值向上 */
+      /* 或者使用 transform: translateY(0px); */
+    }
+
     &--close:hover {
       background: #e53935;
       color: white;

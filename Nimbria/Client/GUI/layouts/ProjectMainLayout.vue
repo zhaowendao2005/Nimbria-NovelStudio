@@ -14,7 +14,7 @@
         size="sm" 
         icon="minimize" 
         @click="minimizeWindow" 
-        class="q-electron-drag--exception project-titlebar__btn" 
+        class="q-electron-drag--exception project-titlebar__btn project-titlebar__btn--minimize" 
       />
       <q-btn 
         flat 
