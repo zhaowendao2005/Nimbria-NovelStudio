@@ -1,3 +1,6 @@
+/**
+ * Node.js 环境变量类型声明
+ */
 declare namespace NodeJS {
   interface ProcessEnv {
     NODE_ENV: string;
@@ -6,21 +9,11 @@ declare namespace NodeJS {
   }
 }
 
-declare interface NimbriaWindowAPI {
-  window: {
-    minimize(): Promise<void>;
-    close(): Promise<void>;
-    maximize(): Promise<void>;
-    unmaximize(): Promise<void>;
-    isMaximized(): Promise<boolean>;
-  };
-  project: {
-    create(projectPath: string): Promise<{ success: boolean; message: string }>;
-    open(projectPath: string): Promise<{ success: boolean; message: string }>;
-    getRecent(): Promise<Array<{ id: string; name: string; path: string; lastOpened: string }>>;
-  };
-}
-
-declare interface Window {
-  nimbria?: NimbriaWindowAPI;
-}
+/**
+ * Nimbria Window API 类型声明
+ * 
+ * 注意：完整的 API 类型定义在 types/core/window.d.ts 中
+ * 这里只是为了确保全局类型可用
+ */
+/// <reference types="./types/core/window" />
+/// <reference types="./types/core/nimbria" />

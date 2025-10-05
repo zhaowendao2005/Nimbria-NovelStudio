@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useQuasar } from 'quasar'
-import { useProjectManagementStore } from './projectManagement'
-import type { RecentProject } from '../Types/project'
+import { useProjectManagementStore } from './project.management.store'
+import { ProjectDataSource } from './DataSource'
+import type { RecentProject } from '../../types/domain/project'
 
 export const useProjectSelectionStore = defineStore('projectSelection', () => {
   const $q = useQuasar()
@@ -19,16 +20,11 @@ export const useProjectSelectionStore = defineStore('projectSelection', () => {
   )
 
   async function loadRecentProjects() {
-    if (!window.nimbria?.project?.getRecent) {
-      console.warn('项目API不可用')
-      return
-    }
-
     isLoading.value = true
     error.value = null
 
     try {
-      const projects = await window.nimbria.project.getRecent()
+      const projects = await ProjectDataSource.getRecentProjects()
       recentProjects.value = projects
     } catch (err) {
       error.value = err instanceof Error ? err.message : '加载最近项目失败'
@@ -47,33 +43,16 @@ export const useProjectSelectionStore = defineStore('projectSelection', () => {
   }
 
   async function selectDirectory(dialogTitle: string): Promise<string | null> {
-    if (!window.nimbria?.file?.openDialog) {
-      throw new Error('文件对话框API不可用')
-    }
-
-    const result = await window.nimbria.file.openDialog({
-      title: dialogTitle,
-      properties: ['openDirectory']
-    })
-
-    if (result.canceled || result.filePaths.length === 0) {
-      return null
-    }
-
-    return result.filePaths[0]
+    return await ProjectDataSource.selectDirectory(dialogTitle)
   }
 
   async function updateRecentProject(projectPath: string) {
-    await window.nimbria.project.updateRecent({ projectPath })
+    await ProjectDataSource.updateRecentProject(projectPath)
     await refreshRecentProjects()
   }
 
   async function openProjectWindow(projectPath: string) {
-    if (!window.nimbria?.project?.createWindow) {
-      throw new Error('项目窗口API不可用')
-    }
-
-    const result = await window.nimbria.project.createWindow(projectPath)
+    const result = await ProjectDataSource.createProjectWindow(projectPath)
 
     if (!result.success) {
       throw new Error(result.message || '创建项目窗口失败')

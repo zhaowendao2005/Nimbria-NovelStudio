@@ -10,7 +10,7 @@ import type {
   ProjectInitializationResult,
   CanInitializeResult,
   ProjectTemplate
-} from '../../types/filesystem'
+} from '../../types/domain/filesystem'
 
 export class ProjectService {
   /**

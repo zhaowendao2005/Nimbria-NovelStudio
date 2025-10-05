@@ -1,9 +1,3 @@
-好的boss，我先深入了解这个原型项目，然后给出详细的集成计划。
-
-[9 tools called]
-
-好的boss，我已经深入分析了原型项目和主程序架构。现在给您制定详细的集成计划。
-
 ## 📋 **Nimbria主程序集成Obsidian风格Markdown编辑器计划**
 
 ---
@@ -41,12 +35,12 @@ Nimbria/Client/GUI/
 │   └── ProjectMainLayout.vue                   # ⭐ 新增：三栏容器布局
 ├── PagesLayout/
 │   ├── HomeDashboardPage.vue                   # 主窗口页面（已存在）
-│   ├── ProjectPage/                            # ⭐ 新增：项目页的Page目录
+│   ├── ProjectPage/                            # ⭐ 新增：项目页的Page目录    //我们别新增项目页的page目录，直接放PagesLayouts
 │   │   ├── ProjectLeftPanel.vue                # 左栏：导航栏+文件树
 │   │   ├── ProjectMainPanel.vue                # 中栏：Markdown标签页
 │   │   └── ProjectRightPanel.vue               # 右栏：大纲面板
 │   └── ErrorNotFound.vue
-├── components/
+├── components/         //这里也一样，不要套一层ProjectPage的目录，直接就components下面放Markdown  filetree navbar......
 │   ├── ProjectPage/                            # ⭐ 新增：项目页组件目录
 │   │   ├── Markdown/                           # Markdown组件
 │   │   │   ├── MarkdownEditor.vue              # 编辑器（从原型迁移）
@@ -66,7 +60,7 @@ Nimbria/Client/GUI/
     └── element-plus.ts                         # ⭐ 新增：Element Plus全局注册
 
 Nimbria/Client/stores/
-├── projectPage/                                # ⭐ 新增：项目页状态目录
+├── projectPage/                                # ⭐ 新增：项目页状态目录  //这个状态管理，我们按照业务模块来划store的目录，比如这里很明显就应该是projectPage下面放一个Markdown的目录，然后是index markdown
 │   ├── index.ts                                # 统一导出
 │   ├── markdown.store.ts                       # Markdown状态（从原型迁移）
 │   ├── markdown.mock.ts                        # Mock数据（从原型迁移）

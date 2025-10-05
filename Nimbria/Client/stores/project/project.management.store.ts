@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useQuasar } from 'quasar'
-import { projectService } from '../Service/ProjectManagement/ProjectService'
+import { projectService } from '../../Service/ProjectManagement/ProjectService'
 import type {
   ProjectCreationOptions,
   ProjectValidationResult,
@@ -9,7 +9,7 @@ import type {
   ProjectInitializationResult,
   ProjectTemplate,
   NimbriaProjectConfig
-} from '../types/filesystem'
+} from '../../types/domain/filesystem'
 
 export const useProjectManagementStore = defineStore('projectManagement', () => {
   const $q = useQuasar()

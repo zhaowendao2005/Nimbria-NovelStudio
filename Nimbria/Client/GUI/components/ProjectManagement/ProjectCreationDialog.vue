@@ -293,7 +293,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue'
 import { useQuasar } from 'quasar'
-import type { ProjectCreationOptions } from '../../../types/filesystem'
+import type { ProjectCreationOptions } from '../../../types/domain/filesystem'
 
 // Props & Emits
 interface Props {

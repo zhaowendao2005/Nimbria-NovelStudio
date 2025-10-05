@@ -159,10 +159,10 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
-import { useProjectSelectionStore } from '../../stores/projectSelection'
+import { useProjectSelectionStore } from '../../stores/project'
 import ProjectCreationDialog from '../components/ProjectManagement/ProjectCreationDialog.vue'
 import ProjectValidationDialog from '../components/ProjectManagement/ProjectValidationDialog.vue'
-import type { RecentProject } from '../../Types/project'
+import type { RecentProject } from '../../types/domain/project'
 
 const leftDrawerOpen = ref(true)
 const projectStore = useProjectSelectionStore()

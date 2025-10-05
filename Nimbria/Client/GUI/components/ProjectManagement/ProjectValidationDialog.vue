@@ -283,7 +283,7 @@ import type {
   ProjectValidationResult, 
   ProjectQuickValidation, 
   NimbriaProjectConfig 
-} from '../../../types/filesystem'
+} from '../../../types/domain/filesystem'
 
 // Props & Emits
 interface Props {
