@@ -7,6 +7,8 @@
 .project-main-layout {
   width: 100%;
   height: 100vh;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;  /* 🔑 根容器禁止滚动 */
   
   /* Obsidian CSS变量（只在项目页生效） */
@@ -27,11 +29,55 @@
     --obsidian-text-primary: #dcddde;
     --obsidian-text-secondary: #b9bbbe;
   }
+}
+
+/* 标题栏样式 */
+.project-titlebar {
+  height: 32px;
+  min-height: 32px;
+  flex-shrink: 0;
+  background: #ffffff;
+  color: #2e3338;
+  padding: 0 12px;
+  border-bottom: 1px solid #e3e5e8;
+  -webkit-user-select: none;
+  user-select: none;
+
+  &__left {
+    display: flex;
+    align-items: center;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  &__title {
+    line-height: 32px;
+  }
+
+  &__btn {
+    color: #6a6d74;
+    
+    &:hover {
+      background: rgba(0, 0, 0, 0.05);
+      color: #2e3338;
+    }
+
+    &--close:hover {
+      background: #e53935;
+      color: white;
+    }
+  }
+}
+
+/* 主内容区容器 */
+.project-content {
+  flex: 1;
+  min-height: 0;  /* 🔑 关键！允许flex压缩 */
+  overflow: hidden;  /* 🔑 容器禁止滚动 */
   
   /* Element Plus容器 */
-  .el-container {
+  &.el-container {
     height: 100%;
-    overflow: hidden;  /* 🔑 容器禁止滚动 */
   }
   
   /* 三栏共同样式 */

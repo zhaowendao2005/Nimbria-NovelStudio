@@ -166,6 +166,18 @@ export class ProcessManager {
     return null
   }
 
+  /**
+   * 通过BrowserWindow.id查找对应的WindowProcess
+   */
+  public getProcessByWindowId(windowId: number): WindowProcess | null {
+    for (const entry of this.processes.values()) {
+      if (entry.process.window.id === windowId) {
+        return entry.process
+      }
+    }
+    return null
+  }
+
   public getMainProcess(): MainWindowProcess | null {
     const process = this.processes.get('main')?.process
     return process && process.type === 'main' ? process : null

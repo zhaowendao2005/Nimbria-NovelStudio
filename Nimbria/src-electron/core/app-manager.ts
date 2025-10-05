@@ -1,4 +1,4 @@
-import { app, ipcMain, dialog } from 'electron'
+import { app, ipcMain, dialog, BrowserWindow } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -146,28 +146,28 @@ export class AppManager {
   }
 
   private registerIpcHandlers() {
-    ipcMain.handle('window:minimize', async (_event, request: IPCRequest<'window:minimize'>) => {
-      return this.handleWindowOperation('minimize', request)
+    ipcMain.handle('window:minimize', async (event, request: IPCRequest<'window:minimize'>) => {
+      return this.handleWindowOperationFromEvent(event, 'minimize', request)
     })
 
-    ipcMain.handle('window:maximize', async (_event, request: IPCRequest<'window:maximize'>) => {
-      return this.handleWindowOperation('maximize', request)
+    ipcMain.handle('window:maximize', async (event, request: IPCRequest<'window:maximize'>) => {
+      return this.handleWindowOperationFromEvent(event, 'maximize', request)
     })
 
-    ipcMain.handle('window:unmaximize', async (_event, request: IPCRequest<'window:unmaximize'>) => {
-      return this.handleWindowOperation('unmaximize', request)
+    ipcMain.handle('window:unmaximize', async (event, request: IPCRequest<'window:unmaximize'>) => {
+      return this.handleWindowOperationFromEvent(event, 'unmaximize', request)
     })
 
-    ipcMain.handle('window:close', async (_event, request: IPCRequest<'window:close'>) => {
-      return this.handleWindowOperation('close', request)
+    ipcMain.handle('window:close', async (event, request: IPCRequest<'window:close'>) => {
+      return this.handleWindowOperationFromEvent(event, 'close', request)
     })
 
-    ipcMain.handle('window:focus', async (_event, request: IPCRequest<'window:focus'>) => {
-      return this.handleWindowOperation('focus', request)
+    ipcMain.handle('window:focus', async (event, request: IPCRequest<'window:focus'>) => {
+      return this.handleWindowOperationFromEvent(event, 'focus', request)
     })
 
-    ipcMain.handle('window:is-maximized', async (_event, request: IPCRequest<'window:is-maximized'>) => {
-      const process = this.resolveWindowProcess(request.windowId)
+    ipcMain.handle('window:is-maximized', async (event, request: IPCRequest<'window:is-maximized'>) => {
+      const process = this.resolveWindowProcessFromEvent(event, request.windowId)
       if (!process) {
         return { success: false, value: false }
       }
@@ -402,6 +402,43 @@ export class AppManager {
     logger.info('Project management IPC handlers registered')
   }
 
+  /**
+   * 从event.sender识别窗口并执行操作（推荐方式）
+   */
+  private handleWindowOperationFromEvent(
+    event: Electron.IpcMainInvokeEvent,
+    operation: 'minimize' | 'maximize' | 'unmaximize' | 'close' | 'focus',
+    request: { windowId?: string }
+  ): WindowOperationResult {
+    const process = this.resolveWindowProcessFromEvent(event, request.windowId)
+    if (!process) {
+      return { success: false, error: 'Window not found' }
+    }
+
+    switch (operation) {
+      case 'minimize':
+        process.window.minimize()
+        break
+      case 'maximize':
+        process.window.maximize()
+        break
+      case 'unmaximize':
+        process.window.unmaximize()
+        break
+      case 'close':
+        process.window.close()
+        break
+      case 'focus':
+        process.window.focus()
+        break
+    }
+
+    return { success: true }
+  }
+
+  /**
+   * 旧版本：使用request.windowId识别窗口（保留用于兼容）
+   */
   private handleWindowOperation(
     operation: 'minimize' | 'maximize' | 'unmaximize' | 'close' | 'focus',
     request: { windowId?: string }
@@ -432,6 +469,34 @@ export class AppManager {
     return { success: true }
   }
 
+  /**
+   * 从event.sender识别窗口进程（推荐方式）
+   * 优先使用windowId，如果没有则通过event.sender查找
+   */
+  private resolveWindowProcessFromEvent(
+    event: Electron.IpcMainInvokeEvent,
+    windowId?: string
+  ): WindowProcess | null {
+    if (!this.windowManager) return null
+
+    // 如果提供了windowId，优先使用
+    if (windowId) {
+      return this.windowManager.getProcess(windowId)
+    }
+
+    // 从event.sender获取发送请求的窗口
+    const senderWindow = BrowserWindow.fromWebContents(event.sender)
+    if (!senderWindow) {
+      return null
+    }
+
+    // 通过窗口ID查找对应的进程
+    return this.windowManager.getProcessByWindowId(senderWindow.id)
+  }
+
+  /**
+   * 旧版本：使用windowId识别窗口（保留用于兼容）
+   */
   private resolveWindowProcess(windowId?: string): WindowProcess | null {
     if (!this.windowManager) return null
     if (!windowId) {

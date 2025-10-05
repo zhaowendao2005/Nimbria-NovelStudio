@@ -73,4 +73,11 @@ export class WindowManager {
   public sendMessageToProcess(processId: string, data: unknown): void {
     this.processManager.sendMessageToProcess(processId, data)
   }
+
+  /**
+   * 通过BrowserWindow.id查找对应的WindowProcess
+   */
+  public getProcessByWindowId(windowId: number): WindowProcess | null {
+    return this.processManager.getProcessByWindowId(windowId)
+  }
 }
