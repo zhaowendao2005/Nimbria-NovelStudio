@@ -1,0 +1,11 @@
+/**
+ * ProjectPage.MainPanel视觉样式
+ * 专注于视觉样式：颜色、背景、边框、字体等
+ * 布局样式（flex、overflow）在组件内部定义
+ */
+
+.project-page-main-panel {
+  background: var(--obsidian-bg-primary);
+  color: var(--obsidian-text-primary);
+  font-family: var(--obsidian-font-text);
+}

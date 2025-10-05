@@ -86,6 +86,8 @@ export class AppManager {
           if (windowProcess.type === 'main') {
             this.mainProcess = windowProcess
             this.loadMainWindow(windowProcess)
+          } else if (windowProcess.type === 'project') {
+            this.loadProjectWindow(windowProcess)
           }
         }
       }
@@ -126,6 +128,21 @@ export class AppManager {
     }
 
     void windowProcess.window.loadFile(path.join(__dirname, '../../index.html'))
+  }
+
+  private loadProjectWindow(windowProcess: WindowProcess) {
+    if (isDevEnvironment) {
+      const baseUrl = process.env.APP_URL as string
+      const projectUrl = `${baseUrl}#/project`  // 导航到项目页路由
+      void windowProcess.window.loadURL(projectUrl)
+      windowProcess.window.webContents.openDevTools()
+      return
+    }
+
+    // 生产环境：加载index.html并导航到/project
+    void windowProcess.window.loadFile(path.join(__dirname, '../../index.html'), {
+      hash: '/project'
+    })
   }
 
   private registerIpcHandlers() {

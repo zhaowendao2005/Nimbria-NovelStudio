@@ -1,0 +1,29 @@
+/**
+ * ProjectPage.Shell视觉样式
+ * 专注于视觉样式：颜色、背景、边框、字体等
+ * 布局样式（flex、overflow）由layouts/ProjectMainLayout.scss负责
+ */
+
+.project-page-shell {
+  background: var(--obsidian-bg-secondary);
+  
+  // 左栏样式
+  &.shell-left {
+    border-right: 1px solid var(--obsidian-border);
+    
+    .navbar {
+      background: var(--obsidian-bg-primary);
+      border-right: 1px solid var(--obsidian-border);
+    }
+    
+    .file-tree-container {
+      background: var(--obsidian-bg-secondary);
+    }
+  }
+  
+  // 右栏样式
+  &.shell-right {
+    border-left: 1px solid var(--obsidian-border);
+    background: var(--obsidian-bg-secondary);
+  }
+}

@@ -28,7 +28,8 @@ export default configure((/* ctx */) => {
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
     boot: [
       'axios',
-      'framework-init'
+      'framework-init',
+      'element-plus'  // ⭐ 新增：Element Plus支持
     ],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#css
@@ -109,11 +110,14 @@ export default configure((/* ctx */) => {
           { find: '@service', replacement: path.resolve(__dirname, 'Client/Service') },
           { find: '@stores', replacement: path.resolve(__dirname, 'Client/stores') },
           { find: '@utils', replacement: path.resolve(__dirname, 'Client/Utils') },
+          { find: '@types', replacement: path.resolve(__dirname, 'Client/types') },
           { find: '@gui', replacement: path.resolve(__dirname, 'Client/GUI') },
           
           // 系统入口别名
           { find: '@index', replacement: path.resolve(__dirname, 'Client/GUI/Index') },
           { find: '@pages', replacement: path.resolve(__dirname, 'Client/GUI/PagesLayout') },
+          { find: '@components', replacement: path.resolve(__dirname, 'Client/GUI/components') },
+          { find: '@layouts', replacement: path.resolve(__dirname, 'Client/GUI/layouts') },
           
           // 共享资源别名
           { find: '@shared', replacement: path.resolve(__dirname, 'Client/Service/shared') },

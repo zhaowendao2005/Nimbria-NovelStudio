@@ -16,9 +16,11 @@
     "postinstall": "quasar prepare"
   },
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.1",
     "@quasar/extras": "^1.16.4",
     "axios": "^1.2.1",
     "chokidar": "^3.5.3",
+    "element-plus": "^2.9.1",
     "electron-store": "^8.1.0",
     "fast-glob": "^3.3.2",
     "fs-extra": "^11.2.0",
@@ -26,6 +28,7 @@
     "nanoid": "^5.0.4",
     "pinia": "^3.0.1",
     "quasar": "^2.16.0",
+    "vditor": "^3.10.7",
     "vue": "^3.4.18",
     "vue-router": "^4.0.12"
   },

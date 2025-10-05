@@ -1,0 +1,63 @@
+/**
+ * ProjectMainLayout布局样式
+ * 专注于结构性样式：flex链路、overflow、高度控制
+ * 视觉样式（颜色、背景等）由PagesLayout/*.scss负责
+ */
+
+.project-main-layout {
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;  /* 🔑 根容器禁止滚动 */
+  
+  /* Obsidian CSS变量（只在项目页生效） */
+  --obsidian-bg-primary: #ffffff;
+  --obsidian-bg-secondary: #f5f6f8;
+  --obsidian-border: #e3e5e8;
+  --obsidian-text-primary: #2e3338;
+  --obsidian-text-secondary: #6a6d74;
+  --obsidian-accent: #5b7fff;
+  --obsidian-hover-bg: #e9e9e9;
+  --obsidian-font-text: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  
+  /* 暗色主题（可选） */
+  &.dark-mode {
+    --obsidian-bg-primary: #1e1e1e;
+    --obsidian-bg-secondary: #252525;
+    --obsidian-border: #3a3a3a;
+    --obsidian-text-primary: #dcddde;
+    --obsidian-text-secondary: #b9bbbe;
+  }
+  
+  /* Element Plus容器 */
+  .el-container {
+    height: 100%;
+    overflow: hidden;  /* 🔑 容器禁止滚动 */
+  }
+  
+  /* 三栏共同样式 */
+  .left-panel,
+  .center-panel,
+  .right-panel {
+    height: 100%;
+    overflow: hidden;  /* 🔑 禁止滚动 */
+    min-height: 0;     /* 🔑 关键！允许flex压缩 */
+  }
+  
+  /* 分隔器样式 */
+  .splitter {
+    width: 4px;
+    background: var(--obsidian-border);
+    cursor: col-resize;
+    transition: background 0.2s ease;
+    flex-shrink: 0;  /* 不允许分隔器被压缩 */
+    
+    &:hover {
+      background: var(--obsidian-accent);
+    }
+    
+    &:active {
+      background: var(--obsidian-accent);
+      opacity: 0.8;
+    }
+  }
+}
