@@ -16,7 +16,7 @@ export function registerOutlinePanel() {
     component: defineAsyncComponent(() => 
       import('@components/ProjectPage.Shell/RightSidebar/panels/OutlinePanel.vue')
     ),
-    closable: false,  // 不可关闭
+    closable: true,   // 可关闭
     order: 1          // 排序权重
   })
   

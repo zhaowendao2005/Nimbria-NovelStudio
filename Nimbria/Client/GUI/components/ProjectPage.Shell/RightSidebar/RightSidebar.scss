@@ -30,7 +30,7 @@
       border: none;
       border-radius: 4px 4px 0 0;
       margin-right: 2px;
-      padding: 0 16px;
+      padding: 0 12px;
       height: 36px;
       line-height: 36px;
       font-size: 13px;
@@ -46,6 +46,20 @@
       &:hover:not(.is-active) {
         background: var(--el-fill-color-light);
         color: var(--el-text-color-regular);
+      }
+    }
+
+    /* 关闭按钮样式 */
+    :deep(.el-tabs__item .el-icon-close) {
+      margin-left: 6px;
+      font-size: 12px;
+      border-radius: 3px;
+      padding: 2px;
+      transition: all 0.2s ease;
+
+      &:hover {
+        background: var(--el-fill-color-dark);
+        color: var(--el-color-danger);
       }
     }
 

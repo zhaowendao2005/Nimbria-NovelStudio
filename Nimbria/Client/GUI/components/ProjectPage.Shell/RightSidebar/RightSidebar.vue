@@ -40,6 +40,11 @@ const rightSidebarStore = useRightSidebarStore()
 
 const handleRemove = (panelId: string) => {
   rightSidebarStore.unregister(panelId)
+  
+  // 如果没有面板了，自动隐藏右栏
+  if (!rightSidebarStore.hasPanels) {
+    rightSidebarStore.hide()
+  }
 }
 </script>
 
