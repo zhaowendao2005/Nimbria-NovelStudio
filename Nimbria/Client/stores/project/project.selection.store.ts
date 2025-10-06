@@ -61,7 +61,7 @@ export const useProjectSelectionStore = defineStore('projectSelection', () => {
     await updateRecentProject(projectPath)
   }
 
-  function createNewProject() {
+  async function createNewProject() {
     clearError()
     
     // 使用新的项目管理功能，这里只是触发创建流程

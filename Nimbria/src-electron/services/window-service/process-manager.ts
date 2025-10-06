@@ -37,7 +37,7 @@ export class ProcessManager {
     this.dependencies = dependencies
   }
 
-  public createMainProcess(): MainWindowProcess {
+  public async createMainProcess(): Promise<MainWindowProcess> {
     const template = this.dependencies.defaultTemplates.main
     const processId = 'main'
 
@@ -70,7 +70,7 @@ export class ProcessManager {
     return process
   }
 
-  public createProjectProcess(projectPath: string, options?: CreateProcessOptions): ProjectWindowProcess {
+  public async createProjectProcess(projectPath: string, options?: CreateProcessOptions): Promise<ProjectWindowProcess> {
     const existingProcessId = this.projectPathIndex.get(projectPath)
     if (existingProcessId) {
       const existingProcess = this.processes.get(existingProcessId)?.process as ProjectWindowProcess | undefined
