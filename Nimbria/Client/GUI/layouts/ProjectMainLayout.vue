@@ -52,10 +52,28 @@
         @mousedown="startDragLeft"
       ></div>
       
-      <!-- 中栏：主内容区（包含右侧栏） -->
+      <!-- 中栏：主内容区 -->
       <el-main class="center-panel">
         <router-view name="center" />
       </el-main>
+      
+      <!-- 右侧分隔器（仅在右侧栏可见时显示） -->
+      <div 
+        v-if="rightSidebarStore.visible && rightSidebarStore.hasPanels"
+        class="splitter right-splitter" 
+        @mousedown="startDragRight"
+      ></div>
+      
+      <!-- 右栏：RightSidebar -->
+      <transition name="slide-left">
+        <el-aside 
+          v-if="rightSidebarStore.visible && rightSidebarStore.hasPanels"
+          :width="rightSidebarStore.width" 
+          class="right-panel"
+        >
+          <RightSidebar />
+        </el-aside>
+      </transition>
     </el-container>
   </div>
 </template>
@@ -63,7 +81,9 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import CommandPalette from '@components/ProjectPage.Shell/CommandPalette/CommandPalette.vue'
+import RightSidebar from '@components/ProjectPage.Shell/RightSidebar/RightSidebar.vue'
 import { useCommandPaletteStore } from '@stores/projectPage/commandPalette'
+import { useRightSidebarStore } from '@stores/projectPage/rightSidebar'
 
 /**
  * ProjectMainLayout
@@ -73,6 +93,7 @@ import { useCommandPaletteStore } from '@stores/projectPage/commandPalette'
  */
 
 const commandStore = useCommandPaletteStore()
+const rightSidebarStore = useRightSidebarStore()
 
 // ==================== 窗口控制状态 ====================
 const isMaximized = ref(false)
@@ -139,14 +160,30 @@ const leftWidth = ref('328px')  // 48px导航 + 280px文件树
 
 // ==================== 拖拽状态 ====================
 let isDragging = false
+let dragType: 'left' | 'right' | null = null
 let startX = 0
 let startWidth = 0
 
 // ==================== 左侧分隔器拖拽 ====================
 const startDragLeft = (e: MouseEvent) => {
   isDragging = true
+  dragType = 'left'
   startX = e.clientX
   startWidth = parseInt(leftWidth.value)
+  
+  document.addEventListener('mousemove', handleDrag)
+  document.addEventListener('mouseup', stopDrag)
+  
+  // 防止文本选中
+  e.preventDefault()
+}
+
+// ==================== 右侧分隔器拖拽 ====================
+const startDragRight = (e: MouseEvent) => {
+  isDragging = true
+  dragType = 'right'
+  startX = e.clientX
+  startWidth = parseInt(rightSidebarStore.width)
   
   document.addEventListener('mousemove', handleDrag)
   document.addEventListener('mouseup', stopDrag)
@@ -161,14 +198,21 @@ const handleDrag = (e: MouseEvent) => {
   
   const deltaX = e.clientX - startX
   
-  // 左栏拖拽（向右增大，向左减小）
-  const newWidth = Math.max(200, Math.min(600, startWidth + deltaX))
-  leftWidth.value = `${newWidth}px`
+  if (dragType === 'left') {
+    // 左栏拖拽（向右增大，向左减小）
+    const newWidth = Math.max(200, Math.min(600, startWidth + deltaX))
+    leftWidth.value = `${newWidth}px`
+  } else if (dragType === 'right') {
+    // 右栏拖拽（向左增大，向右减小）
+    const newWidth = Math.max(200, Math.min(600, startWidth - deltaX))
+    rightSidebarStore.setWidth(`${newWidth}px`)
+  }
 }
 
 // ==================== 停止拖拽 ====================
 const stopDrag = () => {
   isDragging = false
+  dragType = null
   
   document.removeEventListener('mousemove', handleDrag)
   document.removeEventListener('mouseup', stopDrag)
