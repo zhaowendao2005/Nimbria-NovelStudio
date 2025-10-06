@@ -39,13 +39,12 @@
     <!-- 主内容区：三栏布局 -->
     <el-container class="project-content">
       <!-- 左栏：导航+文件树 -->
-      <el-aside v-show="showLeftPanel" :width="leftWidth" class="left-panel">
+      <el-aside :width="leftWidth" class="left-panel">
         <router-view name="left" />
       </el-aside>
       
       <!-- 左侧分隔器 -->
       <div 
-        v-show="showLeftPanel"
         class="splitter left-splitter" 
         @mousedown="startDragLeft"
       ></div>
@@ -57,13 +56,12 @@
       
       <!-- 右侧分隔器 -->
       <div 
-        v-show="showRightPanel"
         class="splitter right-splitter" 
         @mousedown="startDragRight"
       ></div>
       
       <!-- 右栏：大纲 -->
-      <el-aside v-show="showRightPanel" :width="rightWidth" class="right-panel">
+      <el-aside :width="rightWidth" class="right-panel">
         <router-view name="right" />
       </el-aside>
     </el-container>
@@ -71,7 +69,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, provide, readonly } from 'vue'
+import { ref, onMounted } from 'vue'
 
 /**
  * ProjectMainLayout
@@ -143,30 +141,6 @@ async function closeWindow() {
 // ==================== 面板宽度状态 ====================
 const leftWidth = ref('328px')  // 48px导航 + 280px文件树
 const rightWidth = ref('280px')
-
-// ==================== 面板显示状态 ====================
-const showLeftPanel = ref(true)
-const showRightPanel = ref(true)
-
-// 切换左侧面板
-const toggleLeftPanel = (show?: boolean) => {
-  showLeftPanel.value = show ?? !showLeftPanel.value
-  console.log('左侧面板状态:', showLeftPanel.value)
-}
-
-// 切换右侧面板
-const toggleRightPanel = (show?: boolean) => {
-  showRightPanel.value = show ?? !showRightPanel.value
-  console.log('右侧面板状态:', showRightPanel.value)
-}
-
-// ==================== 提供给子组件 ====================
-// 提供只读状态，防止子组件直接修改
-provide('showLeftPanel', readonly(showLeftPanel))
-provide('showRightPanel', readonly(showRightPanel))
-// 提供控制函数
-provide('toggleLeftPanel', toggleLeftPanel)
-provide('toggleRightPanel', toggleRightPanel)
 
 // ==================== 拖拽状态 ====================
 let isDragging = false
