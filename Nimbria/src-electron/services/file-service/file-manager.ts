@@ -3,7 +3,7 @@
  * 基于fs-extra提供文件系统操作，支持多项目隔离
  */
 
-import * as fs from 'fs-extra'
+import fs from 'fs-extra'
 import * as path from 'path'
 import { lookup } from 'mime-types'
 import fg from 'fast-glob'

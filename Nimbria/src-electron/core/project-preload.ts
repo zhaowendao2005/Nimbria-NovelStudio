@@ -4,6 +4,7 @@ import type { BroadcastMessage, ProjectData, SaveResult } from '../../Client/Typ
 
 let projectPort: MessagePort | null = null
 let projectProcessId: string | null = null
+let currentProjectPath: string | null = null
 
 const broadcastListeners = new Set<(message: BroadcastMessage) => void>()
 
@@ -22,6 +23,7 @@ ipcRenderer.on('port', (event) => {
 
 ipcRenderer.on('process-info', (_event, payload) => {
   projectProcessId = payload.processId
+  currentProjectPath = payload.projectPath
   if (projectPort) {
     projectPort.postMessage({ type: 'project-ready', processId: projectProcessId })
   }
@@ -35,6 +37,9 @@ function ensurePort(): MessagePort {
 }
 
 contextBridge.exposeInMainWorld('nimbria', {
+  // 获取当前项目路径
+  getCurrentProjectPath: () => currentProjectPath,
+  
   window: {
     minimize: () => ipcRenderer.invoke('window:minimize', {}),
     close: () => ipcRenderer.invoke('window:close', {}),

@@ -93,7 +93,10 @@ export class ProcessManager {
 
     window.webContents.once('did-finish-load', () => {
       window.webContents.postMessage('port', null, [port1])
-      window.webContents.postMessage('process-info', { processId })
+      window.webContents.postMessage('process-info', { 
+        processId,
+        projectPath 
+      })
     })
 
     const process: ProjectWindowProcess = {

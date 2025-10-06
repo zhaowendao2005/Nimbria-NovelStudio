@@ -3,7 +3,7 @@
  * 负责读取 Markdown 文件内容，支持编码检测
  */
 
-import * as fs from 'fs-extra'
+import fs from 'fs-extra'
 import * as path from 'path'
 import type { ReadOptions, FileOperationResult } from './types'
 import { getLogger } from '../../utils/shared/logger'

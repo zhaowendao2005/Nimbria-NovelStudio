@@ -63,10 +63,7 @@ const markdownStore = useMarkdownStore()
 
 // 初始化文件树
 onMounted(async () => {
-  // TODO: 从项目管理获取当前项目路径
-  // const projectPath = useProjectSelectionStore().currentProject?.path
-  // markdownStore.setProjectPath(projectPath)
-  
+  // 项目路径会自动从当前项目窗口获取
   await markdownStore.initializeFileTree()
 })
 

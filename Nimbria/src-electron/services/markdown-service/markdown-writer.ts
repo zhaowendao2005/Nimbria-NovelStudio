@@ -3,7 +3,7 @@
  * 负责安全地写入 Markdown 文件，支持原子性操作和备份
  */
 
-import * as fs from 'fs-extra'
+import fs from 'fs-extra'
 import * as path from 'path'
 import type { WriteOptions, FileOperationResult, BatchSaveResult } from './types'
 import { getLogger } from '../../utils/shared/logger'

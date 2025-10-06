@@ -8,6 +8,17 @@ import type { BroadcastMessage, ProjectData, ProjectResult, RecentProject, SaveR
  */
 export interface NimbriaWindowAPI {
   /**
+   * 获取当前项目窗口的项目路径
+   * 
+   * @returns 当前项目路径，如果不在项目窗口中则返回null
+   * 
+   * @example
+   * const projectPath = window.nimbria.getCurrentProjectPath()
+   * console.log('Current project:', projectPath)
+   */
+  getCurrentProjectPath(): string | null
+
+  /**
    * 窗口控制 API
    * 
    * 提供当前窗口的基本操作能力，包括最小化、关闭、最大化等。

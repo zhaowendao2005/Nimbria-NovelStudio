@@ -4,7 +4,7 @@
  */
 
 import * as path from 'path'
-import * as fs from 'fs-extra'
+import fs from 'fs-extra'
 import { ProjectValidator } from './project-validator'
 import { ProjectInitializer } from './project-initializer'
 import { getAvailableTemplates } from './project-config'

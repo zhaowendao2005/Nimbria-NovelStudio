@@ -3,7 +3,7 @@
  * 递归扫描项目目录，构建 Markdown 文件树结构
  */
 
-import * as fs from 'fs-extra'
+import fs from 'fs-extra'
 import * as path from 'path'
 import { nanoid } from 'nanoid'
 import type { MarkdownFile, MarkdownTreeOptions, FileOperationResult } from './types'
@@ -30,6 +30,8 @@ export class MarkdownScanner {
    */
   async scanMarkdownTree(options: MarkdownTreeOptions): Promise<MarkdownFile[]> {
     try {
+      logger.debug('scanMarkdownTree called with options:', options)
+
       const { projectPath, excludeDirs = [], maxDepth = 10 } = options
 
       // 检查项目路径是否存在
@@ -67,6 +69,9 @@ export class MarkdownScanner {
       return tree
     } catch (error) {
       logger.error('Failed to scan markdown tree:', error)
+      if (error instanceof Error && error.stack) {
+        logger.error('MarkdownScanner stack trace:', error.stack)
+      }
       throw error
     }
   }

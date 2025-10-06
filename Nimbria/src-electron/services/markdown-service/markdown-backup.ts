@@ -3,7 +3,7 @@
  * 负责创建、管理和恢复 Markdown 文件的备份
  */
 
-import * as fs from 'fs-extra'
+import fs from 'fs-extra'
 import * as path from 'path'
 import type { BackupInfo, FileOperationResult } from './types'
 import { getLogger } from '../../utils/shared/logger'

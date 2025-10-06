@@ -82,10 +82,20 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
    */
   const initializeFileTree = async (path?: string) => {
     try {
-      const targetPath = path || projectPath.value
+      // 尝试从参数、store、或者当前项目窗口获取路径
+      let targetPath = path || projectPath.value
       
       if (!targetPath) {
-        console.error('Project path not set')
+        // 从当前项目窗口获取项目路径
+        targetPath = (window as any).nimbria.getCurrentProjectPath?.() || null
+        if (targetPath) {
+          projectPath.value = targetPath
+          console.log('Auto-detected project path:', targetPath)
+        }
+      }
+      
+      if (!targetPath) {
+        console.warn('Project path not set, using mock data')
         // 降级到Mock数据
         fileTree.value = mockMarkdownFiles
         return
@@ -254,7 +264,7 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     
     // 设置保存中状态
     tab.isSaving = true
-    tab.saveError = undefined
+    delete tab.saveError
     
     try {
       // 调用 Electron API 保存文件
