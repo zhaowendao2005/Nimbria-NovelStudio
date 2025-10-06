@@ -152,8 +152,11 @@ export class AppManager {
     registerMarkdownHandlers()
     logger.info('Markdown IPC handlers registered')
     
-    // 注册文件/目录创建 IPC 处理器
-    registerFileHandlers()
+    // 注册文件/目录创建 IPC 处理器（传入依赖）
+    registerFileHandlers({
+      projectFileSystem: this.projectFileSystem,
+      processManager: this.windowManager!.getProcessManager()
+    })
     logger.info('File IPC handlers registered')
 
     ipcMain.handle('window:minimize', async (event, request: IPCRequest<'window:minimize'>) => {
@@ -194,6 +197,13 @@ export class AppManager {
       }
 
       const process = await this.windowManager.createProjectWindow(request.projectPath)
+      
+      // 自动初始化项目文件系统上下文
+      if (process.type === 'project') {
+        await this.projectFileSystem.initProject(process.projectPath, process.id)
+        logger.info(`Auto-initialized project filesystem for ${process.projectPath}`)
+      }
+      
       return {
         success: true,
         processId: process.id

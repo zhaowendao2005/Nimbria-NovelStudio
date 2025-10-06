@@ -16,11 +16,13 @@ export class WindowManager {
   private readonly messageRouter: MessageRouter
 
   constructor(options: WindowManagerOptions) {
-    this.processManager = new ProcessManager({
+    const pmDeps = {
       defaultTemplates: options.templates,
-      lifecycleHooks: options.lifecycleHooks,
-      persistenceAdapter: options.persistenceAdapter
-    })
+      ...(options.lifecycleHooks && { lifecycleHooks: options.lifecycleHooks }),
+      ...(options.persistenceAdapter && { persistenceAdapter: options.persistenceAdapter })
+    }
+    
+    this.processManager = new ProcessManager(pmDeps)
 
     this.messageRouter = new MessageRouter({
       onRoute: (from, to, data) => {
@@ -79,5 +81,13 @@ export class WindowManager {
    */
   public getProcessByWindowId(windowId: number): WindowProcess | null {
     return this.processManager.getProcessByWindowId(windowId)
+  }
+
+  /**
+   * 获取 ProcessManager 实例
+   * 用于需要直接访问进程管理器的场景
+   */
+  public getProcessManager(): ProcessManager {
+    return this.processManager
   }
 }

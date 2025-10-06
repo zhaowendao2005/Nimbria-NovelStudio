@@ -150,27 +150,35 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
       return existingTab
     }
     
-    // 查找文件
+    // 查找文件（允许不在树中的文件，可能是刚创建的）
     const file = findFileByPath(fileTree.value, filePath)
-    if (!file || file.isFolder) {
-      console.error('文件未找到或是文件夹:', filePath)
+    if (file && file.isFolder) {
+      console.error('目标是文件夹，无法打开:', filePath)
       Notify.create({
         type: 'negative',
-        message: '文件未找到或是文件夹',
+        message: '无法打开文件夹',
         timeout: 2000
       })
       return null
+    }
+    
+    // 如果文件不在树中，尝试直接读取（可能是刚创建的文件）
+    if (!file) {
+      console.warn('文件未在树中找到，尝试直接读取:', filePath)
     }
     
     try {
       // 从 Electron API 读取文件内容
       const content = await (window as any).nimbria.markdown.readFile(filePath)
       
+      // 从文件路径提取文件名
+      const fileName = file?.name || filePath.split(/[/\\]/).pop() || 'Untitled'
+      
       // 创建新标签页
       const newTab: MarkdownTab = {
         id: `tab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        filePath: file.path,
-        fileName: file.name,
+        filePath: file?.path || filePath,
+        fileName,
         content,
         mode: 'edit',
         isDirty: false,
@@ -697,7 +705,7 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
       return { valid: false, error: '名称不能为空' }
     }
     
-    if (/[\/\\:*?"<>|]/.test(name)) {
+    if (/[/\\:*?"<>|]/.test(name)) {
       return { valid: false, error: '名称不能包含特殊字符: / \\ : * ? " < > |' }
     }
     
