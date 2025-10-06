@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
+    "@headlessui/vue": "^1.7.22",
     "@quasar/extras": "^1.16.4",
     "axios": "^1.2.1",
     "chokidar": "^3.5.3",

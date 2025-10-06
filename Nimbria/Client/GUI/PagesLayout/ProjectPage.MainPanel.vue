@@ -56,9 +56,9 @@ import { onMounted } from 'vue'
 import MarkdownTab from '@components/ProjectPage.MainPanel/Markdown/MarkdownTab.vue'
 import AutoSaveIndicator from '@components/ProjectPage.MainPanel/AutoSave/AutoSaveIndicator.vue'
 import SaveStatusBadge from '@components/ProjectPage.MainPanel/AutoSave/SaveStatusBadge.vue'
-import RightSidebar from '@/GUI/components/ProjectPage.Shell/RightSidebar/RightSidebar.vue'
+import RightSidebar from '@components/ProjectPage.Shell/RightSidebar/RightSidebar.vue'
 import { useMarkdownStore } from '@stores/projectPage'
-import { useRightSidebarStore } from '@/stores/projectPage/rightSidebar'
+import { useRightSidebarStore } from '@stores/projectPage/rightSidebar'
 
 /**
  * ProjectPage.MainPanel

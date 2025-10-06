@@ -3,8 +3,8 @@
  * 封装对右侧栏状态的所有操作
  */
 
-import { useRightSidebarStore } from '@/stores/projectPage/rightSidebar'
-import type { RightSidebarPanel } from '@/stores/projectPage/rightSidebar/types'
+import { useRightSidebarStore } from '@stores/projectPage/rightSidebar'
+import type { RightSidebarPanel } from '@stores/projectPage/rightSidebar/types'
 
 /**
  * 右侧栏API服务类

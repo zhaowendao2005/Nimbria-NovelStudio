@@ -34,7 +34,7 @@
 </template>
 
 <script setup lang="ts">
-import { useRightSidebarStore } from '@/stores/projectPage/rightSidebar'
+import { useRightSidebarStore } from '@stores/projectPage/rightSidebar'
 
 const rightSidebarStore = useRightSidebarStore()
 

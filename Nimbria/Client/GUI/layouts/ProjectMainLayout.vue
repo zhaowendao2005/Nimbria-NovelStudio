@@ -62,8 +62,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import CommandPalette from '@/GUI/components/ProjectPage.Shell/CommandPalette/CommandPalette.vue'
-import { useCommandPaletteStore } from '@/stores/projectPage/commandPalette'
+import CommandPalette from '@components/ProjectPage.Shell/CommandPalette/CommandPalette.vue'
+import { useCommandPaletteStore } from '@stores/projectPage/commandPalette'
 
 /**
  * ProjectMainLayout

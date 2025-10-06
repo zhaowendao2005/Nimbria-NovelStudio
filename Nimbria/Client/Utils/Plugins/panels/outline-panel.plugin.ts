@@ -3,7 +3,7 @@
  * 负责注册大纲面板到右侧栏
  */
 
-import { rightSidebarApi } from '@/Service/CommandPanelRightSidebar/rightSidebar.api'
+import { rightSidebarApi } from '@service/CommandPanelRightSidebar/rightSidebar.api'
 import { defineAsyncComponent } from 'vue'
 
 /**
@@ -14,7 +14,7 @@ export function registerOutlinePanel() {
     id: 'outline',
     label: '大纲',
     component: defineAsyncComponent(() => 
-      import('@/GUI/components/ProjectPage.Shell/RightSidebar/panels/OutlinePanel.vue')
+      import('@components/ProjectPage.Shell/RightSidebar/panels/OutlinePanel.vue')
     ),
     closable: false,  // 不可关闭
     order: 1          // 排序权重

@@ -87,8 +87,8 @@ import {
   ComboboxOption,
 } from '@headlessui/vue'
 import { Search } from '@element-plus/icons-vue'
-import { useCommandPaletteStore } from '@/stores/projectPage/commandPalette'
-import type { Command, CommandCategory } from '@/stores/projectPage/commandPalette/types'
+import { useCommandPaletteStore } from '@stores/projectPage/commandPalette'
+import type { Command, CommandCategory } from '@stores/projectPage/commandPalette/types'
 
 const commandStore = useCommandPaletteStore()
 const query = ref('')

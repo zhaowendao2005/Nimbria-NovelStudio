@@ -3,9 +3,9 @@
  * 负责注册视图相关的命令（切换右栏、显示面板等）
  */
 
-import { commandApi } from '@/Service/CommandPanelRightSidebar/command.api'
-import { rightSidebarApi } from '@/Service/CommandPanelRightSidebar/rightSidebar.api'
-import type { Command } from '@/stores/projectPage/commandPalette/types'
+import { commandApi } from '@service/CommandPanelRightSidebar/command.api'
+import { rightSidebarApi } from '@service/CommandPanelRightSidebar/rightSidebar.api'
+import type { Command } from '@stores/projectPage/commandPalette/types'
 
 const createViewCommands = (): Command[] => {
   return [

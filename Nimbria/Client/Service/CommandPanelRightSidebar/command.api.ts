@@ -3,8 +3,8 @@
  * 封装对命令面板状态的所有操作
  */
 
-import { useCommandPaletteStore } from '@/stores/projectPage/commandPalette'
-import type { Command } from '@/stores/projectPage/commandPalette/types'
+import { useCommandPaletteStore } from '@stores/projectPage/commandPalette'
+import type { Command } from '@stores/projectPage/commandPalette/types'
 
 /**
  * 命令API服务类

@@ -4,8 +4,8 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { registerAllCommandPlugins } from '@/Utils/Plugins/commands'
-import { registerAllPanelPlugins } from '@/Utils/Plugins/panels'
+import { registerAllCommandPlugins } from '@utils/Plugins/commands'
+import { registerAllPanelPlugins } from '@utils/Plugins/panels'
 
 /**
  * ProjectPageSystem
