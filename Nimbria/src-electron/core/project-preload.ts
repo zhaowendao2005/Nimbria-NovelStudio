@@ -49,7 +49,7 @@ contextBridge.exposeInMainWorld('nimbria', {
       const result = await ipcRenderer.invoke('window:is-maximized', {})
       return result.value
     },
-    focus: async () => {
+    focus: () => {
       ensurePort().postMessage({ type: 'project-focus-request', processId: projectProcessId })
     }
   },

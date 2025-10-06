@@ -55,7 +55,7 @@ onMounted(() => {
     },
     
     // Ctrl+S 保存快捷键
-    ctrlEnter: (value) => {
+    ctrlEnter: () => {
       // 可以用于其他快捷键，这里不用
     },
     

@@ -398,7 +398,7 @@ function validateProjectName() {
   
   // 如果父目录已选择，检查项目目录是否已存在
   if (formData.parentDirectory) {
-    validateProjectDirectory()
+    void validateProjectDirectory()
   }
 }
 

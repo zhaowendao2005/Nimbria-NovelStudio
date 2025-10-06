@@ -67,7 +67,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed } from 'vue'
 import { ArrowLeft, ArrowRight, Folder, Edit, View } from '@element-plus/icons-vue'
 import MarkdownEditor from './MarkdownEditor.vue'
 import MarkdownViewer from './MarkdownViewer.vue'
@@ -124,7 +124,7 @@ const handleContentChange = (newContent: string) => {
 
 // 手动保存（Ctrl+S触发）
 const handleSave = () => {
-  markdownStore.saveTab(props.tabId)
+  void markdownStore.saveTab(props.tabId)
 }
 
 // 暴露方法

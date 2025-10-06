@@ -63,8 +63,8 @@ export class FileManager {
       }
 
       // 清理所有监听器
-      for (const [_, watcherInfo] of context.watchers) {
-        watcherInfo.watcher.close()
+      for (const watcherInfo of context.watchers.values()) {
+        void watcherInfo.watcher.close()
       }
       context.watchers.clear()
 

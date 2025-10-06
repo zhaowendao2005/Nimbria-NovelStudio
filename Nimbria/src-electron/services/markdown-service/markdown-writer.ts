@@ -188,7 +188,7 @@ export class MarkdownWriter {
       const dirPath = path.dirname(filePath)
       await fs.access(dirPath, fs.constants.W_OK)
       return true
-    } catch (error) {
+    } catch {
       return false
     }
   }

@@ -76,7 +76,22 @@ const markdownStore = useMarkdownStore()
 const treeRef = ref<InstanceType<typeof ElTree>>()
 
 // 临时输入框引用
-const tempInputRef = ref<any>(null)
+const tempInputRef = ref<HTMLInputElement | null>(null)
+
+// 文件树节点类型（扩展 MarkdownFile，增加临时节点支持）
+interface FileTreeNode {
+  id: string
+  name: string
+  path: string
+  isFolder: boolean
+  children?: FileTreeNode[]
+  isTemporary?: boolean
+  metadata?: {
+    size: number
+    mtime: Date
+    tags?: string[]
+  }
+}
 
 // 文件树数据
 const fileTree = computed(() => markdownStore.fileTree)
@@ -96,7 +111,7 @@ const treeProps = {
 }
 
 // 处理节点点击
-const handleNodeClick = (data: any) => {
+const handleNodeClick = (data: FileTreeNode) => {
   // 如果点击的是临时节点，不处理
   if (data.isTemporary) return
   
@@ -105,20 +120,20 @@ const handleNodeClick = (data: any) => {
   
   // 如果是文件，打开它
   if (!data.isFolder) {
-    markdownStore.openFile(data.path)
+    void markdownStore.openFile(data.path)
   }
 }
 
 // 处理选中状态变化
-const handleCurrentChange = (data: any) => {
-  if (!data?.isTemporary) {
+const handleCurrentChange = (data: FileTreeNode | null) => {
+  if (data && !data.isTemporary) {
     markdownStore.selectNode(data)
   }
 }
 
 // 确认创建
 const handleConfirmCreation = () => {
-  markdownStore.confirmCreation()
+  void markdownStore.confirmCreation()
 }
 
 // 取消创建
@@ -138,7 +153,7 @@ const handleInputBlur = () => {
 // ==================== 监听创建状态，自动聚焦输入框 ====================
 watch(() => creationState.value.isCreating, (isCreating) => {
   if (isCreating) {
-    nextTick(() => {
+    void nextTick(() => {
       // 展开父节点
       if (creationState.value.parentNode) {
         const parentNodeKey = creationState.value.parentNode.id
@@ -162,7 +177,7 @@ const expandAllState = inject<{ value: boolean }>('expandAllState', { value: tru
 
 // 监听展开状态变化
 watch(() => expandAllState.value, (shouldExpand) => {
-  nextTick(() => {
+  void nextTick(() => {
     if (!treeRef.value) return
     
     // 获取所有节点

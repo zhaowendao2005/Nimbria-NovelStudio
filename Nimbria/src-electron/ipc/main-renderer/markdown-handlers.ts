@@ -43,7 +43,7 @@ export function registerMarkdownHandlers() {
   // 写入文件（使用保存队列）
   ipcMain.handle(
     CHANNELS.MARKDOWN_WRITE_FILE,
-    async (_event, payload: { filePath: string; content: string; options?: any }) => {
+    async (_event, payload: { filePath: string; content: string; options?: Record<string, unknown> }) => {
       try {
         logger.debug('IPC: markdown:writeFile', payload.filePath)
 

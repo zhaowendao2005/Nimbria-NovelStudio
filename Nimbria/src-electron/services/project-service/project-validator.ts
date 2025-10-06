@@ -69,7 +69,7 @@ export class ProjectValidator {
           result.config = config
         }
       } catch (error) {
-        result.issues.push(`配置文件格式错误: ${error}`)
+        result.issues.push(`配置文件格式错误: ${error instanceof Error ? error.message : String(error)}`)
       }
 
       // 检查必需的目录
@@ -114,7 +114,7 @@ export class ProjectValidator {
         isProject: false,
         missingFiles: [],
         missingDirectories: [],
-        issues: [`验证过程出错: ${error}`],
+        issues: [`验证过程出错: ${error instanceof Error ? error.message : String(error)}`],
         canInitialize: false
       }
     }
@@ -169,7 +169,7 @@ export class ProjectValidator {
           result.isValid = true
         }
 
-      } catch (error) {
+      } catch {
         result.majorIssues.push('配置文件格式错误')
       }
 
@@ -181,7 +181,7 @@ export class ProjectValidator {
       return {
         isProject: false,
         isValid: false,
-        majorIssues: [`验证失败: ${error}`]
+        majorIssues: [`验证失败: ${error instanceof Error ? error.message : String(error)}`]
       }
     }
   }
@@ -189,7 +189,7 @@ export class ProjectValidator {
   /**
    * 检查目录是否可以初始化为项目
    */
-  async canInitialize(directoryPath: string, templateId?: string): Promise<CanInitializeResult> {
+  async canInitialize(directoryPath: string): Promise<CanInitializeResult> {
     try {
       logger.debug(`Checking if can initialize: ${directoryPath}`)
 
@@ -268,7 +268,7 @@ export class ProjectValidator {
       logger.error('Cannot check initialize capability:', error)
       return {
         canInitialize: false,
-        reason: `检查失败: ${error}`
+        reason: `检查失败: ${error instanceof Error ? error.message : String(error)}`
       }
     }
   }

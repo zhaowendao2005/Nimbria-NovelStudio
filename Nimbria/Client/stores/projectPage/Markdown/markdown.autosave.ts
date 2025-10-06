@@ -22,7 +22,8 @@ export class AutoSaveController {
   ): void {
     // 清除旧定时器
     if (this.timers.has(tabId)) {
-      clearTimeout(this.timers.get(tabId)!)
+      const timer = this.timers.get(tabId)
+      if (timer) clearTimeout(timer)
     }
 
     // 设置新定时器
@@ -91,7 +92,8 @@ export class AutoSaveController {
    */
   cancelAutoSave(tabId: string): void {
     if (this.timers.has(tabId)) {
-      clearTimeout(this.timers.get(tabId)!)
+      const timer = this.timers.get(tabId)
+      if (timer) clearTimeout(timer)
       this.timers.delete(tabId)
     }
   }

@@ -1,7 +1,6 @@
 import type { BroadcastMessage } from '../../types/ipc'
 import type { WindowProcess } from '../../types/process'
-
-import { WindowManager } from '../../services/window-service/window-manager'
+import type { WindowManager } from '../../services/window-service/window-manager'
 
 export class MainProcessBridge {
   constructor(private readonly windowManager: WindowManager) {}

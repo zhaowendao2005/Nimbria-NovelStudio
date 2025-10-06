@@ -35,7 +35,7 @@ export interface MarkdownTreeOptions {
 export interface FileOperationResult {
   success: boolean
   error?: string
-  data?: any
+  data?: unknown
 }
 
 /**

@@ -280,9 +280,7 @@
 import { ref, reactive, computed, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import type { 
-  ProjectValidationResult, 
-  ProjectQuickValidation, 
-  NimbriaProjectConfig 
+  ProjectValidationResult
 } from '../../../types/domain/filesystem'
 
 // Props & Emits
@@ -574,7 +572,7 @@ async function initializeProject() {
 }
 
 // 打开项目
-async function openProject() {
+function openProject() {
   if (!validationResult.value?.isValid || isOpening.value) return
 
   isOpening.value = true
@@ -616,7 +614,7 @@ function resetState() {
 // 监听对话框打开
 watch(() => props.modelValue, (newValue) => {
   if (newValue) {
-    validateProject()
+    void validateProject()
   } else {
     setTimeout(resetState, 300)
   }
@@ -625,7 +623,7 @@ watch(() => props.modelValue, (newValue) => {
 // 监听项目路径变化
 watch(() => props.projectPath, () => {
   if (props.modelValue) {
-    validateProject()
+    void validateProject()
   }
 })
 </script>

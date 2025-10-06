@@ -94,7 +94,7 @@ export class ProjectInitializer {
       logger.error('Failed to create project:', error)
       return {
         success: false,
-        error: `创建项目失败: ${error}`
+        error: `创建项目失败: ${error instanceof Error ? error.message : String(error)}`
       }
     }
   }
@@ -121,14 +121,14 @@ export class ProjectInitializer {
       try {
         await fs.writeFile(testFile, 'test')
         await fs.remove(testFile)
-      } catch (error) {
+      } catch {
         throw new Error(`父目录无写权限: ${parentPath}`)
       }
     } catch (error) {
       if (error instanceof Error) {
         throw error
       }
-      throw new Error(`验证父目录失败: ${error}`)
+      throw new Error(`验证父目录失败: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -178,7 +178,7 @@ export class ProjectInitializer {
       logger.error('Failed to initialize existing directory:', error)
       return {
         success: false,
-        error: `初始化目录失败: ${error}`
+        error: `初始化目录失败: ${error instanceof Error ? error.message : String(error)}`
       }
     }
   }
@@ -258,7 +258,7 @@ export class ProjectInitializer {
       logger.error('Failed to initialize from template:', error)
       return {
         success: false,
-        error: `模板初始化失败: ${error}`
+        error: `模板初始化失败: ${error instanceof Error ? error.message : String(error)}`
       }
     }
   }
@@ -341,7 +341,7 @@ export class ProjectInitializer {
       logger.error('Failed to repair project:', error)
       return {
         success: false,
-        error: `项目修复失败: ${error}`
+        error: `项目修复失败: ${error instanceof Error ? error.message : String(error)}`
       }
     }
   }

@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
-import type { BroadcastMessage, ProjectData, ProjectResult, RecentProject, SaveResult } from '../../Client/Types/project'
+import type { BroadcastMessage, ProjectData } from '../../Client/Types/project'
 import type { IPCRequest, IPCResponse, IPCChannelMap } from '../types/ipc'
 
 const channelInvoke = async <T extends keyof IPCChannelMap>(channel: T, request: IPCRequest<T>): Promise<IPCResponse<T>> => {
@@ -32,7 +32,7 @@ contextBridge.exposeInMainWorld('nimbria', {
       const result = await channelInvoke('window:is-maximized', {})
       return result.value
     },
-    focus: async () => {
+    focus: () => {
       ensurePort().postMessage({ type: 'window-focus-request' })
     }
   },

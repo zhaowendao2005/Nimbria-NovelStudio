@@ -3,7 +3,8 @@
  * 基于chokidar提供跨平台文件监听功能
  */
 
-import chokidar, { FSWatcher } from 'chokidar'
+import chokidar from 'chokidar'
+import type { FSWatcher } from 'chokidar'
 import { nanoid } from 'nanoid'
 
 import type {
@@ -170,7 +171,7 @@ export class FileWatcherService {
    * 设置监听器事件
    */
   private setupWatcherEvents(watcher: FSWatcher, watcherId: string, projectId?: string): void {
-    const emitEvent = (type: FileChangeEvent['type'], path: string, stats?: any) => {
+    const emitEvent = (type: FileChangeEvent['type'], path: string, stats?: { size: number; mtime: Date }) => {
       const event: FileChangeEvent = {
         type,
         path,

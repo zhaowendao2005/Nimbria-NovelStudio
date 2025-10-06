@@ -6,7 +6,7 @@
 import fs from 'fs-extra'
 import * as path from 'path'
 import { nanoid } from 'nanoid'
-import type { MarkdownFile, MarkdownTreeOptions, FileOperationResult } from './types'
+import type { MarkdownFile, MarkdownTreeOptions } from './types'
 import { getLogger } from '../../utils/shared/logger'
 
 const logger = getLogger('MarkdownScanner')
@@ -164,8 +164,8 @@ export class MarkdownScanner {
   /**
    * 生成文件唯一ID
    */
-  private generateFileId(filePath: string): string {
-    // 使用文件路径的 hash + nanoid 确保唯一性
+  private generateFileId(): string {
+    // 使用 nanoid 确保唯一性
     return `md-${nanoid(10)}`
   }
 

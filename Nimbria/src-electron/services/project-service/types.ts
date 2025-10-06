@@ -73,7 +73,7 @@ export interface ProjectInitializationResult {
 export interface ProjectOperationResult {
   success: boolean
   error?: string
-  data?: any
+  data?: unknown
 }
 
 export interface ProjectQuickValidation {

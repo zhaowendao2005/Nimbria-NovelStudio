@@ -1,6 +1,5 @@
 import type { BroadcastMessage } from '../../types/ipc'
-
-import { WindowManager } from '../../services/window-service/window-manager'
+import type { WindowManager } from '../../services/window-service/window-manager'
 
 export class ProjectProcessBridge {
   constructor(private readonly windowManager: WindowManager) {}

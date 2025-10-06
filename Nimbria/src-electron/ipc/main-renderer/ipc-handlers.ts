@@ -7,6 +7,7 @@ type Handler<T extends IPCChannelName> = (
 ) => Promise<IPCResponse<T>> | IPCResponse<T>
 
 export class IPCHandlers {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly handlers = new Map<IPCChannelName, Handler<any>>()
 
   register<T extends IPCChannelName>(channel: T, handler: Handler<T>) {

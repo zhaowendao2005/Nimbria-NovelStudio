@@ -84,7 +84,7 @@ const isMaximized = ref(false)
 // 检查窗口是否最大化
 onMounted(async () => {
   try {
-    const nimbriaAPI = window.nimbria as any
+    const nimbriaAPI = window.nimbria
     if (nimbriaAPI?.window?.isMaximized) {
       const result = await nimbriaAPI.window.isMaximized()
       isMaximized.value = !!result
@@ -97,7 +97,7 @@ onMounted(async () => {
 // 最小化窗口
 async function minimizeWindow() {
   try {
-    const nimbriaAPI = window.nimbria as any
+    const nimbriaAPI = window.nimbria
     if (nimbriaAPI?.window?.minimize) {
       await nimbriaAPI.window.minimize()
     }
@@ -109,7 +109,7 @@ async function minimizeWindow() {
 // 切换最大化/还原
 async function toggleMaximize() {
   try {
-    const nimbriaAPI = window.nimbria as any
+    const nimbriaAPI = window.nimbria
     if (isMaximized.value) {
       if (nimbriaAPI?.window?.unmaximize) {
         await nimbriaAPI.window.unmaximize()
@@ -129,7 +129,7 @@ async function toggleMaximize() {
 // 关闭窗口
 async function closeWindow() {
   try {
-    const nimbriaAPI = window.nimbria as any
+    const nimbriaAPI = window.nimbria
     if (nimbriaAPI?.window?.close) {
       await nimbriaAPI.window.close()
     }

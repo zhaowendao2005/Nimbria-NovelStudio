@@ -375,8 +375,8 @@ declare global {
        * 文件对话框 API
        */
       file: {
-        openDialog(options: any): Promise<{ canceled: boolean; filePaths: string[] }>
-        saveDialog(options: any): Promise<{ canceled: boolean; filePath?: string }>
+        openDialog(options: Electron.OpenDialogOptions): Promise<{ canceled: boolean; filePaths: string[] }>
+        saveDialog(options: Electron.SaveDialogOptions): Promise<{ canceled: boolean; filePath?: string }>
       }
       
       /**

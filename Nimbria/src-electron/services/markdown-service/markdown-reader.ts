@@ -4,8 +4,7 @@
  */
 
 import fs from 'fs-extra'
-import * as path from 'path'
-import type { ReadOptions, FileOperationResult } from './types'
+import type { ReadOptions } from './types'
 import { getLogger } from '../../utils/shared/logger'
 
 const logger = getLogger('MarkdownReader')
@@ -81,7 +80,7 @@ export class MarkdownReader {
     try {
       await fs.access(filePath, fs.constants.R_OK)
       return true
-    } catch (error) {
+    } catch {
       return false
     }
   }

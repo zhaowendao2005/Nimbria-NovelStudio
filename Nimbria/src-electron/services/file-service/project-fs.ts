@@ -7,7 +7,6 @@ import { FileManager } from './file-manager'
 import { FileWatcherService } from './file-watcher'
 
 import type {
-  FileSystemItem,
   GlobOptions,
   WatchOptions,
   FileOperationResult,
@@ -15,8 +14,7 @@ import type {
   ReadDirResult,
   GlobResult,
   WatchResult,
-  FileChangeEvent,
-  ProjectFileContext
+  FileChangeEvent
 } from './types'
 import { getLogger } from '../../utils/shared/logger'
 
@@ -38,7 +36,7 @@ export class ProjectFileSystem {
   /**
    * 初始化项目
    */
-  async initProject(projectPath: string, windowId: string): Promise<FileOperationResult> {
+  initProject(projectPath: string, windowId: string): FileOperationResult {
     try {
       const result = this.fileManager.initProjectContext(projectPath, windowId)
       if (!result.success) {

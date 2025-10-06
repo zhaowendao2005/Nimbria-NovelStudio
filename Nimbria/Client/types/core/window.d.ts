@@ -123,21 +123,21 @@ export interface NimbriaWindowAPI {
 
     // 新增项目管理API
     /** 创建项目 */
-    createProject(options: any): Promise<any>
+    createProject(options: ProjectCreationOptions): Promise<ProjectOperationResult>
     /** 初始化现有目录为项目 */
-    initializeExistingDirectory(options: any): Promise<any>
+    initializeExistingDirectory(options: ProjectInitOptions): Promise<ProjectOperationResult>
     /** 验证项目 */
-    validateProject(projectPath: string): Promise<any>
+    validateProject(projectPath: string): Promise<ProjectValidationResult>
     /** 快速验证项目 */
-    quickValidateProject(projectPath: string): Promise<any>
+    quickValidateProject(projectPath: string): Promise<ProjectQuickValidation>
     /** 检查是否可以初始化 */
-    canInitialize(directoryPath: string): Promise<any>
+    canInitialize(directoryPath: string): Promise<CanInitializeResult>
     /** 获取项目模板 */
-    getTemplates(): Promise<any>
+    getTemplates(): Promise<ProjectTemplate[]>
     /** 修复项目 */
-    repairProject(projectPath: string): Promise<any>
+    repairProject(projectPath: string): Promise<ProjectOperationResult>
     /** 获取项目统计 */
-    getProjectStats(projectPath: string): Promise<any>
+    getProjectStats(projectPath: string): Promise<ProjectStats>
   }
 
   /**
@@ -337,7 +337,7 @@ export interface NimbriaWindowAPI {
       name: string
       path: string
       isFolder: boolean
-      children?: any[]
+      children?: MarkdownFile[]
       metadata?: {
         size: number
         mtime: Date

@@ -100,7 +100,7 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
       
       if (!targetPath) {
         // 从当前项目窗口获取项目路径
-        targetPath = (window as any).nimbria.getCurrentProjectPath?.() || null
+        targetPath = window.nimbria?.getCurrentProjectPath?.() || null
         if (targetPath) {
           projectPath.value = targetPath
           console.log('Auto-detected project path:', targetPath)
@@ -115,7 +115,7 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
       }
       
       // 调用 Electron API 扫描文件树
-      const tree = await (window as any).nimbria.markdown.scanTree({
+      const tree = await window.nimbria?.markdown?.scanTree({
         projectPath: targetPath,
         excludeDirs: ['node_modules', '.git', 'dist'],
         maxDepth: 10
@@ -169,7 +169,7 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     
     try {
       // 从 Electron API 读取文件内容
-      const content = await (window as any).nimbria.markdown.readFile(filePath)
+      const content = await window.nimbria?.markdown?.readFile(filePath)
       
       // 从文件路径提取文件名
       const fileName = file?.name || filePath.split(/[/\\]/).pop() || 'Untitled'
@@ -198,7 +198,7 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
       
       Notify.create({
         type: 'negative',
-        message: `打开文件失败: ${error}`,
+        message: `打开文件失败: ${error instanceof Error ? error.message : String(error)}`,
         timeout: 3000
       })
       
@@ -289,7 +289,7 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     
     try {
       // 调用 Electron API 保存文件
-      const result = await (window as any).nimbria.markdown.writeFile(
+      const result = await window.nimbria?.markdown?.writeFile(
         tab.filePath,
         tab.content,
         {
@@ -329,7 +329,9 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
         actions: [
           {
             label: '重试',
-            handler: () => saveTab(tabId)
+            handler: () => {
+              void saveTab(tabId)
+            }
           }
         ]
       })
@@ -404,7 +406,7 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     currentHistoryIndex.value--
     const path = navigationHistory.value[currentHistoryIndex.value]
     if (path) {
-      openFile(path)
+      void openFile(path)
     }
   }
   
@@ -415,7 +417,7 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     currentHistoryIndex.value++
     const path = navigationHistory.value[currentHistoryIndex.value]
     if (path) {
-      openFile(path)
+      void openFile(path)
     }
   }
   
@@ -632,7 +634,7 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     } catch (error) {
       Notify.create({
         type: 'negative',
-        message: `创建失败: ${error}`,
+        message: `创建失败: ${error instanceof Error ? error.message : String(error)}`,
         position: 'top'
       })
     }
@@ -681,8 +683,8 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
    * 内部方法：创建文件
    */
   const createFileInternal = async (filePath: string) => {
-    const result = await (window as any).nimbria.file.createFile(filePath, '')
-    if (!result.success) {
+    const result = await window.nimbria?.file?.createFile(filePath, '')
+    if (!result?.success) {
       throw new Error(result.error || 'Unknown error')
     }
   }
@@ -691,8 +693,8 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
    * 内部方法：创建目录
    */
   const createDirectoryInternal = async (dirPath: string) => {
-    const result = await (window as any).nimbria.file.createDirectory(dirPath)
-    if (!result.success) {
+    const result = await window.nimbria?.file?.createDirectory(dirPath)
+    if (!result?.success) {
       throw new Error(result.error || 'Unknown error')
     }
   }

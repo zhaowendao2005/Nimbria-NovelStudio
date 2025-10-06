@@ -269,10 +269,17 @@ export function getTemplateById(templateId: string): ProjectTemplate | null {
 /**
  * 验证项目配置的完整性
  */
-export function validateProjectConfig(config: any): { isValid: boolean; errors: string[] } {
+export function validateProjectConfig(config: unknown): { isValid: boolean; errors: string[] } {
   const errors: string[] = []
   
-  if (!config) {
+  if (!config || typeof config !== 'object') {
+    errors.push('配置文件格式无效')
+    return { isValid: false, errors }
+  }
+  
+  const cfg = config as Record<string, unknown>
+  
+  if (!cfg) {
     errors.push('配置文件为空')
     return { isValid: false, errors }
   }

@@ -72,11 +72,11 @@ const processSpecialContent = () => {
 
 // 监听内容变化
 watch(() => props.content, (newContent) => {
-  renderMarkdown(newContent)
+  void renderMarkdown(newContent)
 }, { immediate: true })
 
 onMounted(() => {
-  renderMarkdown(props.content)
+  void renderMarkdown(props.content)
 })
 </script>
 

@@ -123,8 +123,8 @@ export class AppManager {
 
   private loadMainWindow(windowProcess: WindowProcess) {
     if (isDevEnvironment) {
-      const url = process.env.APP_URL as string
-      void windowProcess.window.loadURL(url)
+      const url = process.env.APP_URL
+      if (url) void windowProcess.window.loadURL(url)
       windowProcess.window.webContents.openDevTools()
       return
     }
@@ -134,9 +134,11 @@ export class AppManager {
 
   private loadProjectWindow(windowProcess: WindowProcess) {
     if (isDevEnvironment) {
-      const baseUrl = process.env.APP_URL as string
-      const projectUrl = `${baseUrl}#/project`  // 导航到项目页路由
-      void windowProcess.window.loadURL(projectUrl)
+      const baseUrl = process.env.APP_URL
+      if (baseUrl) {
+        const projectUrl = `${baseUrl}#/project`  // 导航到项目页路由
+        void windowProcess.window.loadURL(projectUrl)
+      }
       windowProcess.window.webContents.openDevTools()
       return
     }
@@ -159,27 +161,27 @@ export class AppManager {
     })
     logger.info('File IPC handlers registered')
 
-    ipcMain.handle('window:minimize', async (event, request: IPCRequest<'window:minimize'>) => {
+    ipcMain.handle('window:minimize', (event, request: IPCRequest<'window:minimize'>) => {
       return this.handleWindowOperationFromEvent(event, 'minimize', request)
     })
 
-    ipcMain.handle('window:maximize', async (event, request: IPCRequest<'window:maximize'>) => {
+    ipcMain.handle('window:maximize', (event, request: IPCRequest<'window:maximize'>) => {
       return this.handleWindowOperationFromEvent(event, 'maximize', request)
     })
 
-    ipcMain.handle('window:unmaximize', async (event, request: IPCRequest<'window:unmaximize'>) => {
+    ipcMain.handle('window:unmaximize', (event, request: IPCRequest<'window:unmaximize'>) => {
       return this.handleWindowOperationFromEvent(event, 'unmaximize', request)
     })
 
-    ipcMain.handle('window:close', async (event, request: IPCRequest<'window:close'>) => {
+    ipcMain.handle('window:close', (event, request: IPCRequest<'window:close'>) => {
       return this.handleWindowOperationFromEvent(event, 'close', request)
     })
 
-    ipcMain.handle('window:focus', async (event, request: IPCRequest<'window:focus'>) => {
+    ipcMain.handle('window:focus', (event, request: IPCRequest<'window:focus'>) => {
       return this.handleWindowOperationFromEvent(event, 'focus', request)
     })
 
-    ipcMain.handle('window:is-maximized', async (event, request: IPCRequest<'window:is-maximized'>) => {
+    ipcMain.handle('window:is-maximized', (event, request: IPCRequest<'window:is-maximized'>) => {
       const process = this.resolveWindowProcessFromEvent(event, request.windowId)
       if (!process) {
         return { success: false, value: false }
@@ -224,22 +226,22 @@ export class AppManager {
       return { success: true }
     })
 
-    ipcMain.handle('project:save', async (_event, request: IPCRequest<'project:save'>) => {
+    ipcMain.handle('project:save', (_event, request: IPCRequest<'project:save'>) => {
       logger.info('Project save requested', request.projectData.id)
       // TODO: 调用实际保存逻辑
       return { success: true } satisfies IPCResponse<'project:save'>
     })
 
-    ipcMain.handle('project:get-recent', async () => {
+    ipcMain.handle('project:get-recent', () => {
       return getRecentProjects()
     })
 
-    ipcMain.handle('project:update-recent', async (_event, payload: { projectPath: string; projectName?: string }) => {
+    ipcMain.handle('project:update-recent', (_event, payload: { projectPath: string; projectName?: string }) => {
       upsertRecentProject(payload.projectPath, payload.projectName)
       return { success: true }
     })
 
-    ipcMain.handle('process:broadcast', async (_event, request: IPCRequest<'process:broadcast'>) => {
+    ipcMain.handle('process:broadcast', (_event, request: IPCRequest<'process:broadcast'>) => {
       this.windowManager?.broadcast(request.message)
       return undefined
     })
