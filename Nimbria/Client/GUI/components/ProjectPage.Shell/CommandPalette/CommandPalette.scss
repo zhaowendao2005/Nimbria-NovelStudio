@@ -7,7 +7,7 @@
 .command-palette-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 99999;  /* 超高 z-index，确保覆盖所有第三方库（Vditor, Element Plus 等） */
 }
 
 /* 背景遮罩 - 半透明黑色 */
@@ -16,6 +16,7 @@
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(2px);
+  z-index: 99998;  /* 比 overlay 低 1，但仍然很高 */
 }
 
 /* 面板定位器 - 居中，从上往下 */
@@ -27,12 +28,18 @@
   justify-content: center;
   padding-top: 15vh;  /* 从上方15vh处弹出 */
   pointer-events: none;  /* 允许点击穿透到遮罩 */
+  z-index: 99999;  /* 与 overlay 同级 */
+  
+  /* 直接设置子元素（TransitionChild 包裹的 div）的宽度 */
+  > div {
+    width: 100%;
+    max-width: 800px;
+  }
 }
 
 /* 面板容器 */
 .palette-container {
   width: 100%;
-  max-width: 640px;
   margin: 0 1rem;
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color);
@@ -40,6 +47,7 @@
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
   overflow: hidden;
   pointer-events: auto;  /* 恢复面板的点击 */
+  z-index: 100000;  /* 最高层级，确保面板内容在最上层 */
 }
 
 /* 搜索头部 */

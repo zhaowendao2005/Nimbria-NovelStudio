@@ -1,7 +1,9 @@
 <template>
-  <!-- Headless UI Dialog 作为遮罩 -->
-  <TransitionRoot :show="commandStore.isOpen" as="template">
-    <Dialog as="div" class="command-palette-overlay" @close="commandStore.close()">
+  <!-- 使用 Teleport 传送到 body，脱离组件树的堆叠上下文 -->
+  <Teleport to="body">
+    <!-- Headless UI Dialog 作为遮罩 -->
+    <TransitionRoot :show="commandStore.isOpen" as="template">
+      <Dialog as="div" class="command-palette-overlay" @close="commandStore.close()">
       <!-- 背景遮罩 -->
       <TransitionChild
         enter="ease-out duration-200"
@@ -74,8 +76,9 @@
           </DialogPanel>
         </TransitionChild>
       </div>
-    </Dialog>
-  </TransitionRoot>
+      </Dialog>
+    </TransitionRoot>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
