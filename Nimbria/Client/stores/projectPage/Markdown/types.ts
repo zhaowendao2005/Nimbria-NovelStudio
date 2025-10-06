@@ -14,6 +14,11 @@ export interface MarkdownFile {
     mtime: Date
     tags?: string[]
   }
+  
+  // 临时节点标记（用于文件/目录创建流程）
+  isTemporary?: boolean
+  tempType?: 'file' | 'folder'
+  parentId?: string
 }
 
 export interface MarkdownTab {
@@ -61,4 +66,16 @@ export interface SaveResult {
   retryCount?: number
   retryExhausted?: boolean
   skipped?: boolean
+}
+
+/**
+ * 文件创建状态
+ */
+export interface FileCreationState {
+  isCreating: boolean
+  type: 'file' | 'folder' | null
+  parentNode: MarkdownFile | null
+  tempNodeId: string | null
+  inputValue: string
+  validationError: string | null
 }

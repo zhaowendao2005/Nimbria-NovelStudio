@@ -265,6 +265,21 @@ export interface NimbriaWindowAPI {
       /** 选择的保存路径（如果未取消） */
       filePath?: string
     }>
+    
+    /**
+     * 创建新文件（UTF-8编码）
+     * @param filePath 完整文件路径
+     * @param initialContent 初始内容（默认空字符串）
+     * @returns 操作结果
+     */
+    createFile(filePath: string, initialContent?: string): Promise<{ success: boolean; error?: string }>
+    
+    /**
+     * 创建目录（自动创建父目录）
+     * @param dirPath 完整目录路径
+     * @returns 操作结果
+     */
+    createDirectory(dirPath: string): Promise<{ success: boolean; error?: string }>
   }
 
   /**

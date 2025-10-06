@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { Notify } from 'quasar'
 import { mockMarkdownFiles } from './markdown.mock'
 import { AutoSaveController } from './markdown.autosave'
-import type { MarkdownFile, MarkdownTab, AutoSaveConfig, SaveProgress } from './types'
+import type { MarkdownFile, MarkdownTab, AutoSaveConfig, SaveProgress, FileCreationState } from './types'
 
 /**
  * Markdown Store
@@ -47,6 +47,19 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
   
   // 自动保存控制器实例
   const autoSaveController = new AutoSaveController()
+  
+  // 当前选中的节点
+  const selectedNode = ref<MarkdownFile | null>(null)
+  
+  // 文件创建状态
+  const creationState = ref<FileCreationState>({
+    isCreating: false,
+    type: null,
+    parentNode: null,
+    tempNodeId: null,
+    inputValue: '',
+    validationError: null
+  })
   
   // ==================== 计算属性 ====================
   
@@ -431,6 +444,274 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     return null
   }
   
+  // ==================== 文件/目录创建功能 ====================
+  
+  /**
+   * 选中节点
+   */
+  const selectNode = (node: MarkdownFile | null) => {
+    selectedNode.value = node
+  }
+  
+  /**
+   * 获取当前选中节点的父目录路径
+   */
+  const getSelectedDirectory = (): string => {
+    if (!selectedNode.value) {
+      return projectPath.value
+    }
+    
+    if (selectedNode.value.isFolder) {
+      return selectedNode.value.path
+    } else {
+      const lastSlash = selectedNode.value.path.lastIndexOf('/')
+      return lastSlash > 0 ? selectedNode.value.path.substring(0, lastSlash) : projectPath.value
+    }
+  }
+  
+  /**
+   * 获取父节点（用于插入临时节点）
+   */
+  const getParentNodeForCreation = (): MarkdownFile | null => {
+    if (!selectedNode.value) {
+      return null
+    }
+    
+    if (selectedNode.value.isFolder) {
+      return selectedNode.value
+    } else {
+      return findParentNode(fileTree.value, selectedNode.value.path)
+    }
+  }
+  
+  /**
+   * 递归查找父节点
+   */
+  const findParentNode = (nodes: MarkdownFile[], targetPath: string): MarkdownFile | null => {
+    const lastSlash = targetPath.lastIndexOf('/')
+    if (lastSlash <= 0) return null
+    
+    const parentPath = targetPath.substring(0, lastSlash)
+    
+    for (const node of nodes) {
+      if (node.isFolder && node.path === parentPath) {
+        return node
+      }
+      if (node.children) {
+        const found = findParentNode(node.children, targetPath)
+        if (found) return found
+      }
+    }
+    return null
+  }
+  
+  /**
+   * 开始创建流程（插入临时节点）
+   */
+  const startCreation = (type: 'file' | 'folder') => {
+    if (creationState.value.isCreating) {
+      cancelCreation()
+    }
+    
+    const parentNode = getParentNodeForCreation()
+    const tempId = `temp-${type}-${Date.now()}`
+    
+    const tempNode: MarkdownFile = {
+      id: tempId,
+      name: '',
+      path: '',
+      isFolder: type === 'folder',
+      isTemporary: true,
+      tempType: type,
+      parentId: parentNode?.id || null
+    }
+    
+    if (parentNode) {
+      if (!parentNode.children) {
+        parentNode.children = []
+      }
+      parentNode.children.unshift(tempNode)
+    } else {
+      fileTree.value.unshift(tempNode)
+    }
+    
+    creationState.value = {
+      isCreating: true,
+      type,
+      parentNode,
+      tempNodeId: tempId,
+      inputValue: '',
+      validationError: null
+    }
+  }
+  
+  /**
+   * 更新输入值并验证
+   */
+  const updateCreationInput = (value: string) => {
+    creationState.value.inputValue = value
+    
+    const validation = validateFileName(value)
+    creationState.value.validationError = validation.error || null
+    
+    if (validation.valid) {
+      const targetPath = getTargetPath(value)
+      const exists = checkFileExists(targetPath)
+      if (exists) {
+        creationState.value.validationError = `${creationState.value.type === 'file' ? '文件' : '文件夹'}已存在`
+      }
+    }
+  }
+  
+  /**
+   * 获取目标路径
+   */
+  const getTargetPath = (fileName: string): string => {
+    const dir = getSelectedDirectory()
+    return `${dir}/${fileName}`.replace(/\/+/g, '/')
+  }
+  
+  /**
+   * 检查文件/目录是否已存在
+   */
+  const checkFileExists = (path: string): boolean => {
+    const checkInTree = (nodes: MarkdownFile[]): boolean => {
+      for (const node of nodes) {
+        if (node.path === path && !node.isTemporary) return true
+        if (node.children && checkInTree(node.children)) return true
+      }
+      return false
+    }
+    return checkInTree(fileTree.value)
+  }
+  
+  /**
+   * 确认创建
+   */
+  const confirmCreation = async () => {
+    if (!creationState.value.isCreating) return
+    if (creationState.value.validationError) {
+      Notify.create({
+        type: 'negative',
+        message: creationState.value.validationError,
+        position: 'top'
+      })
+      return
+    }
+    
+    const { type, inputValue } = creationState.value
+    const targetPath = getTargetPath(inputValue)
+    
+    try {
+      if (type === 'file') {
+        await createFileInternal(targetPath)
+      } else {
+        await createDirectoryInternal(targetPath)
+      }
+      
+      cancelCreation()
+      await initializeFileTree()
+      
+      if (type === 'file') {
+        await openFile(targetPath)
+      }
+      
+      Notify.create({
+        type: 'positive',
+        message: `${type === 'file' ? '文件' : '文件夹'}创建成功`,
+        position: 'top'
+      })
+    } catch (error) {
+      Notify.create({
+        type: 'negative',
+        message: `创建失败: ${error}`,
+        position: 'top'
+      })
+    }
+  }
+  
+  /**
+   * 取消创建（移除临时节点）
+   */
+  const cancelCreation = () => {
+    if (!creationState.value.isCreating) return
+    
+    const { tempNodeId, parentNode } = creationState.value
+    
+    const removeFromTree = (nodes: MarkdownFile[]): boolean => {
+      const index = nodes.findIndex(n => n.id === tempNodeId)
+      if (index !== -1) {
+        nodes.splice(index, 1)
+        return true
+      }
+      
+      for (const node of nodes) {
+        if (node.children && removeFromTree(node.children)) {
+          return true
+        }
+      }
+      return false
+    }
+    
+    if (parentNode && parentNode.children) {
+      removeFromTree(parentNode.children)
+    } else {
+      removeFromTree(fileTree.value)
+    }
+    
+    creationState.value = {
+      isCreating: false,
+      type: null,
+      parentNode: null,
+      tempNodeId: null,
+      inputValue: '',
+      validationError: null
+    }
+  }
+  
+  /**
+   * 内部方法：创建文件
+   */
+  const createFileInternal = async (filePath: string) => {
+    const result = await (window as any).nimbria.file.createFile(filePath, '')
+    if (!result.success) {
+      throw new Error(result.error || 'Unknown error')
+    }
+  }
+  
+  /**
+   * 内部方法：创建目录
+   */
+  const createDirectoryInternal = async (dirPath: string) => {
+    const result = await (window as any).nimbria.file.createDirectory(dirPath)
+    if (!result.success) {
+      throw new Error(result.error || 'Unknown error')
+    }
+  }
+  
+  /**
+   * 文件名验证
+   */
+  const validateFileName = (name: string): { valid: boolean; error?: string } => {
+    if (!name || name.trim() === '') {
+      return { valid: false, error: '名称不能为空' }
+    }
+    
+    if (/[\/\\:*?"<>|]/.test(name)) {
+      return { valid: false, error: '名称不能包含特殊字符: / \\ : * ? " < > |' }
+    }
+    
+    if (name === '.' || name === '..') {
+      return { valid: false, error: '名称不能为 . 或 ..' }
+    }
+    
+    if (name.length > 255) {
+      return { valid: false, error: '名称过长（最多255字符）' }
+    }
+    
+    return { valid: true }
+  }
+  
   // ==================== 返回 ====================
   
   return {
@@ -443,6 +724,8 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     currentHistoryIndex,
     autoSaveConfig,
     saveProgress,
+    selectedNode: computed(() => selectedNode.value),
+    creationState: computed(() => creationState.value),
     
     // 计算属性
     activeTab,
@@ -463,6 +746,13 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     toggleAutoSave,
     goBack,
     goForward,
-    findFileByPath
+    findFileByPath,
+    
+    // 文件/目录创建方法
+    selectNode,
+    startCreation,
+    updateCreationInput,
+    confirmCreation,
+    cancelCreation
   }
 })

@@ -98,12 +98,15 @@ import {
   FolderOpened,
   Folder
 } from '@element-plus/icons-vue'
+import { useMarkdownStore } from '@stores/projectPage'
 
 /**
  * FileTreeToolbar
  * 文件树工具栏（完整版）
  * 包含：标题栏、关闭按钮、5个工具按钮
  */
+
+const markdownStore = useMarkdownStore()
 
 // ==================== 工具栏状态 ====================
 const autoReveal = ref(false)
@@ -121,13 +124,11 @@ const handleClose = () => {
 
 // ==================== 新建文件/文件夹 ====================
 const handleNewFile = () => {
-  console.log('新建文件')
-  // TODO: 实现新建文件逻辑
+  markdownStore.startCreation('file')
 }
 
 const handleNewFolder = () => {
-  console.log('新建文件夹')
-  // TODO: 实现新建文件夹逻辑
+  markdownStore.startCreation('folder')
 }
 
 // ==================== 自动显示当前文件 ====================

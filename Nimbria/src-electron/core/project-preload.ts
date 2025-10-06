@@ -165,6 +165,19 @@ contextBridge.exposeInMainWorld('nimbria', {
         error: result.error
       }
     }
+  },
+  
+  // 文件/目录创建 API
+  file: {
+    // 创建文件
+    createFile: async (filePath: string, initialContent = ''): Promise<{ success: boolean; error?: string }> => {
+      return await ipcRenderer.invoke('file:create', filePath, initialContent)
+    },
+    
+    // 创建目录
+    createDirectory: async (dirPath: string): Promise<{ success: boolean; error?: string }> => {
+      return await ipcRenderer.invoke('file:createDirectory', dirPath)
+    }
   }
 })
 

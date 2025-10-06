@@ -18,6 +18,10 @@ export const CHANNELS = {
   MARKDOWN_WATCH_START: 'markdown:watchStart',
   MARKDOWN_WATCH_STOP: 'markdown:watchStop',
   MARKDOWN_FILE_CHANGED: 'markdown:fileChanged', // 事件推送
+  
+  // 文件/目录创建
+  FILE_CREATE: 'file:create',
+  DIRECTORY_CREATE: 'file:createDirectory',
 } as const;
 
 export type ChannelName = typeof CHANNELS[keyof typeof CHANNELS];
