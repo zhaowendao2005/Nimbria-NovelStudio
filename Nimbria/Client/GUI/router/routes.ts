@@ -31,17 +31,11 @@ const routes: RouteRecordRaw[] = [
             path: '',
             name: 'project-workspace',
             components: {
-              // 左栏：Shell容器（type="left"）
+              // 左栏：Shell容器（导航 + 文件树）
               left: () => import('@pages/ProjectPage.Shell.vue'),
-              // 中栏：主面板容器
-              center: () => import('@pages/ProjectPage.MainPanel.vue'),
-              // 右栏：Shell容器（type="right"）
-              right: () => import('@pages/ProjectPage.Shell.vue')
-            },
-            props: {
-              left: { type: 'left' },
-              center: {},
-              right: { type: 'right' }
+              // 中栏：主面板容器（包含右侧栏）
+              center: () => import('@pages/ProjectPage.MainPanel.vue')
+              // 右栏已移除，由RightSidebar插件式系统接管
             }
           }
         ]

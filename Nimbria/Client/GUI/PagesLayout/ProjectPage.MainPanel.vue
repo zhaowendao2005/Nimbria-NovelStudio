@@ -1,7 +1,8 @@
 <template>
   <div class="project-page-main-panel">
-    <!-- 自动保存指示器 -->
-    <AutoSaveIndicator v-if="markdownStore.openTabs.length > 0" />
+    <div class="main-panel-content">
+      <!-- 自动保存指示器 -->
+      <AutoSaveIndicator v-if="markdownStore.openTabs.length > 0" />
     
     <!-- 标签页系统 -->
     <el-tabs
@@ -43,6 +44,10 @@
         </div>
       </div>
     </div>
+    </div>
+    
+    <!-- 右侧栏 -->
+    <RightSidebar v-if="rightSidebarStore.visible && rightSidebarStore.hasPanels" />
   </div>
 </template>
 
@@ -51,13 +56,17 @@ import { onMounted } from 'vue'
 import MarkdownTab from '@components/ProjectPage.MainPanel/Markdown/MarkdownTab.vue'
 import AutoSaveIndicator from '@components/ProjectPage.MainPanel/AutoSave/AutoSaveIndicator.vue'
 import SaveStatusBadge from '@components/ProjectPage.MainPanel/AutoSave/SaveStatusBadge.vue'
+import RightSidebar from '@/GUI/components/ProjectPage.Shell/RightSidebar/RightSidebar.vue'
 import { useMarkdownStore } from '@stores/projectPage'
+import { useRightSidebarStore } from '@/stores/projectPage/rightSidebar'
 
 /**
  * ProjectPage.MainPanel
- * 中栏主面板容器
- * 职责：管理Markdown标签页系统
+ * 中栏主面板容器 + 右侧栏
+ * 职责：管理Markdown标签页系统 + 右侧栏显示
  */
+
+const rightSidebarStore = useRightSidebarStore()
 
 const markdownStore = useMarkdownStore()
 
@@ -85,9 +94,16 @@ const handleTabClick = () => {
 .project-page-main-panel {
   height: 100%;
   display: flex;
-  flex-direction: column;
-  overflow: hidden;  /* 🔑 禁止滚动 */
-  min-height: 0;     /* 🔑 关键！允许flex压缩 */
+  flex-direction: row;
+  overflow: hidden;
+
+  .main-panel-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+  }
 }
 
 /* 标签页容器 */

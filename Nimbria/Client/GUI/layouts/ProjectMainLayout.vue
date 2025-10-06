@@ -1,5 +1,8 @@
 <template>
   <div class="project-main-layout">
+    <!-- 命令面板 -->
+    <CommandPalette />
+    
     <!-- 顶部窗口控制栏 -->
     <q-bar class="project-titlebar q-electron-drag">
       <div class="project-titlebar__left">
@@ -49,34 +52,27 @@
         @mousedown="startDragLeft"
       ></div>
       
-      <!-- 中栏：主内容区 -->
+      <!-- 中栏：主内容区（包含右侧栏） -->
       <el-main class="center-panel">
         <router-view name="center" />
       </el-main>
-      
-      <!-- 右侧分隔器 -->
-      <div 
-        class="splitter right-splitter" 
-        @mousedown="startDragRight"
-      ></div>
-      
-      <!-- 右栏：大纲 -->
-      <el-aside :width="rightWidth" class="right-panel">
-        <router-view name="right" />
-      </el-aside>
     </el-container>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+import CommandPalette from '@/GUI/components/ProjectPage.Shell/CommandPalette/CommandPalette.vue'
+import { useCommandPaletteStore } from '@/stores/projectPage/commandPalette'
 
 /**
  * ProjectMainLayout
  * 项目页三栏布局容器
- * 职责：窗口控制栏 + 三栏容器 + 分隔器拖拽逻辑
+ * 职责：窗口控制栏 + 三栏容器 + 分隔器拖拽逻辑 + 命令面板 + 快捷键监听
  * 内容填充：由内联router控制（命名视图）
  */
+
+const commandStore = useCommandPaletteStore()
 
 // ==================== 窗口控制状态 ====================
 const isMaximized = ref(false)
@@ -140,34 +136,17 @@ async function closeWindow() {
 
 // ==================== 面板宽度状态 ====================
 const leftWidth = ref('328px')  // 48px导航 + 280px文件树
-const rightWidth = ref('280px')
 
 // ==================== 拖拽状态 ====================
 let isDragging = false
-let dragType: 'left' | 'right' | null = null
 let startX = 0
 let startWidth = 0
 
 // ==================== 左侧分隔器拖拽 ====================
 const startDragLeft = (e: MouseEvent) => {
   isDragging = true
-  dragType = 'left'
   startX = e.clientX
   startWidth = parseInt(leftWidth.value)
-  
-  document.addEventListener('mousemove', handleDrag)
-  document.addEventListener('mouseup', stopDrag)
-  
-  // 防止文本选中
-  e.preventDefault()
-}
-
-// ==================== 右侧分隔器拖拽 ====================
-const startDragRight = (e: MouseEvent) => {
-  isDragging = true
-  dragType = 'right'
-  startX = e.clientX
-  startWidth = parseInt(rightWidth.value)
   
   document.addEventListener('mousemove', handleDrag)
   document.addEventListener('mouseup', stopDrag)
@@ -182,25 +161,37 @@ const handleDrag = (e: MouseEvent) => {
   
   const deltaX = e.clientX - startX
   
-  if (dragType === 'left') {
-    // 左栏拖拽（向右增大，向左减小）
-    const newWidth = Math.max(200, Math.min(600, startWidth + deltaX))
-    leftWidth.value = `${newWidth}px`
-  } else if (dragType === 'right') {
-    // 右栏拖拽（向左增大，向右减小）
-    const newWidth = Math.max(200, Math.min(600, startWidth - deltaX))
-    rightWidth.value = `${newWidth}px`
-  }
+  // 左栏拖拽（向右增大，向左减小）
+  const newWidth = Math.max(200, Math.min(600, startWidth + deltaX))
+  leftWidth.value = `${newWidth}px`
 }
 
 // ==================== 停止拖拽 ====================
 const stopDrag = () => {
   isDragging = false
-  dragType = null
   
   document.removeEventListener('mousemove', handleDrag)
   document.removeEventListener('mouseup', stopDrag)
 }
+
+// ==================== 快捷键监听 ====================
+const handleKeydown = (e: KeyboardEvent) => {
+  // Ctrl+Shift+P 打开命令面板
+  if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+    e.preventDefault()
+    commandStore.toggle()
+  }
+}
+
+// 注册全局快捷键监听
+onMounted(() => {
+  window.addEventListener('keydown', handleKeydown)
+})
+
+// 清理监听器
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown)
+})
 </script>
 
 <style scoped lang="scss">
