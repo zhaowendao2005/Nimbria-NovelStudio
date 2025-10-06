@@ -53,6 +53,7 @@
         v-if="currentTab.mode === 'edit'"
         v-model="currentTab.content"
         @change="handleContentChange"
+        @save="handleSave"
       />
       <MarkdownViewer
         v-else
@@ -121,12 +122,10 @@ const handleContentChange = (newContent: string) => {
   markdownStore.updateTabContent(props.tabId, newContent)
 }
 
-// 监听Ctrl+S保存
-watch(() => currentTab.value?.isDirty, (isDirty) => {
-  if (isDirty) {
-    // 可以在这里添加自动保存逻辑
-  }
-})
+// 手动保存（Ctrl+S触发）
+const handleSave = () => {
+  markdownStore.saveTab(props.tabId)
+}
 
 // 暴露方法
 defineExpose({

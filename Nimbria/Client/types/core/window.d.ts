@@ -264,6 +264,126 @@ export interface NimbriaWindowAPI {
     pathExists(path: string): Promise<boolean>
     // 其他fs方法可以后续补充
   }
+
+  /**
+   * Markdown 文件管理 API
+   * 
+   * 提供 Markdown 文件的读取、写入、自动保存和备份管理功能。
+   * 支持文件树扫描、批量操作和原子性写入，确保数据安全。
+   * 
+   * 调用示例:
+   * ```typescript
+   * // 扫描项目中的 Markdown 文件树
+   * const fileTree = await window.nimbria.markdown.scanTree({
+   *   projectPath: 'D:\\MyProject',
+   *   excludeDirs: ['node_modules', '.git'],
+   *   maxDepth: 10
+   * })
+   * 
+   * // 读取 Markdown 文件内容
+   * const content = await window.nimbria.markdown.readFile('D:\\MyProject\\README.md')
+   * 
+   * // 保存 Markdown 文件
+   * const result = await window.nimbria.markdown.writeFile(
+   *   'D:\\MyProject\\README.md',
+   *   '# 新内容'
+   * )
+   * 
+   * // 批量保存多个文件
+   * await window.nimbria.markdown.batchWriteFiles([
+   *   { path: 'file1.md', content: '内容1' },
+   *   { path: 'file2.md', content: '内容2' }
+   * ])
+   * ```
+   */
+  markdown: {
+    /**
+     * 扫描项目中的 Markdown 文件树
+     * @param options 扫描选项
+     * @returns Markdown 文件树结构
+     */
+    scanTree(options: {
+      projectPath: string
+      excludeDirs?: string[]
+      maxDepth?: number
+    }): Promise<Array<{
+      id: string
+      name: string
+      path: string
+      isFolder: boolean
+      children?: any[]
+      metadata?: {
+        size: number
+        mtime: Date
+        tags?: string[]
+      }
+    }>>
+
+    /**
+     * 读取 Markdown 文件内容
+     * @param filePath 文件绝对路径
+     * @returns 文件内容（UTF-8）
+     */
+    readFile(filePath: string): Promise<string>
+
+    /**
+     * 写入 Markdown 文件（原子性操作）
+     * @param filePath 文件绝对路径
+     * @param content 文件内容
+     * @param options 写入选项
+     * @returns 操作结果
+     */
+    writeFile(
+      filePath: string, 
+      content: string,
+      options?: {
+        createBackup?: boolean
+        encoding?: string
+      }
+    ): Promise<{ success: boolean; error?: string }>
+
+    /**
+     * 批量写入多个 Markdown 文件
+     * @param files 文件列表
+     * @returns 批量操作结果
+     */
+    batchWriteFiles(files: Array<{
+      path: string
+      content: string
+    }>): Promise<{
+      success: boolean
+      totalCount: number
+      successCount: number
+      failedCount: number
+      errors?: Array<{ filePath: string; error: string }>
+    }>
+
+    /**
+     * 创建文件备份
+     * @param filePath 文件绝对路径
+     * @returns 备份文件路径
+     */
+    createBackup(filePath: string): Promise<string>
+
+    /**
+     * 列出文件的所有备份
+     * @param filePath 文件绝对路径
+     * @returns 备份信息列表
+     */
+    listBackups(filePath: string): Promise<Array<{
+      path: string
+      originalPath: string
+      timestamp: number
+      size: number
+    }>>
+
+    /**
+     * 恢复文件备份
+     * @param backupPath 备份文件路径
+     * @returns 操作结果
+     */
+    restoreBackup(backupPath: string): Promise<{ success: boolean; error?: string }>
+  }
 }
 
 declare global {

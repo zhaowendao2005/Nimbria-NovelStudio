@@ -64,6 +64,102 @@ contextBridge.exposeInMainWorld('nimbria', {
       broadcastListeners.add(callback)
     },
     createWorker: (scriptPath: string) => new Worker(scriptPath)
+  },
+
+  // Markdown 文件管理 API
+  markdown: {
+    // 扫描项目中的 Markdown 文件树
+    scanTree: async (options: { projectPath: string; excludeDirs?: string[]; maxDepth?: number }) => {
+      const result = await ipcRenderer.invoke('markdown:scanTree', options)
+      if (result.success) {
+        return result.data
+      } else {
+        throw new Error(result.error)
+      }
+    },
+
+    // 读取 Markdown 文件内容
+    readFile: async (filePath: string): Promise<string> => {
+      const result = await ipcRenderer.invoke('markdown:readFile', filePath)
+      if (result.success) {
+        return result.data
+      } else {
+        throw new Error(result.error)
+      }
+    },
+
+    // 写入 Markdown 文件
+    writeFile: async (
+      filePath: string,
+      content: string,
+      options?: { createBackup?: boolean; encoding?: string }
+    ): Promise<{ success: boolean; error?: string }> => {
+      const result = await ipcRenderer.invoke('markdown:writeFile', {
+        filePath,
+        content,
+        options
+      })
+      return {
+        success: result.success,
+        error: result.error
+      }
+    },
+
+    // 批量写入多个 Markdown 文件
+    batchWriteFiles: async (
+      files: Array<{ path: string; content: string }>
+    ): Promise<{
+      success: boolean
+      totalCount: number
+      successCount: number
+      failedCount: number
+      errors?: Array<{ filePath: string; error: string }>
+    }> => {
+      const result = await ipcRenderer.invoke('markdown:batchWrite', files)
+      if (result.success) {
+        return result.data
+      } else {
+        throw new Error(result.error)
+      }
+    },
+
+    // 创建文件备份
+    createBackup: async (filePath: string): Promise<string> => {
+      const result = await ipcRenderer.invoke('markdown:createBackup', filePath)
+      if (result.success) {
+        return result.data
+      } else {
+        throw new Error(result.error)
+      }
+    },
+
+    // 列出文件的所有备份
+    listBackups: async (
+      filePath: string
+    ): Promise<
+      Array<{
+        path: string
+        originalPath: string
+        timestamp: number
+        size: number
+      }>
+    > => {
+      const result = await ipcRenderer.invoke('markdown:listBackups', filePath)
+      if (result.success) {
+        return result.data
+      } else {
+        throw new Error(result.error)
+      }
+    },
+
+    // 恢复文件备份
+    restoreBackup: async (backupPath: string): Promise<{ success: boolean; error?: string }> => {
+      const result = await ipcRenderer.invoke('markdown:restoreBackup', backupPath)
+      return {
+        success: result.success,
+        error: result.error
+      }
+    }
   }
 })
 

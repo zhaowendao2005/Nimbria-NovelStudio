@@ -1,5 +1,8 @@
 <template>
   <div class="project-page-main-panel">
+    <!-- 自动保存指示器 -->
+    <AutoSaveIndicator v-if="markdownStore.openTabs.length > 0" />
+    
     <!-- 标签页系统 -->
     <el-tabs
       v-if="markdownStore.openTabs.length > 0"
@@ -13,9 +16,14 @@
       <el-tab-pane
         v-for="tab in markdownStore.openTabs"
         :key="tab.id"
-        :label="tab.fileName"
         :name="tab.id"
       >
+        <template #label>
+          <span class="tab-label">
+            {{ tab.fileName }}
+            <SaveStatusBadge :tab="tab" />
+          </span>
+        </template>
         <MarkdownTab :tab-id="tab.id" />
       </el-tab-pane>
     </el-tabs>
@@ -41,6 +49,8 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import MarkdownTab from '@components/ProjectPage.MainPanel/Markdown/MarkdownTab.vue'
+import AutoSaveIndicator from '@components/ProjectPage.MainPanel/AutoSave/AutoSaveIndicator.vue'
+import SaveStatusBadge from '@components/ProjectPage.MainPanel/AutoSave/SaveStatusBadge.vue'
 import { useMarkdownStore } from '@stores/projectPage'
 
 /**
@@ -52,8 +62,12 @@ import { useMarkdownStore } from '@stores/projectPage'
 const markdownStore = useMarkdownStore()
 
 // 初始化文件树
-onMounted(() => {
-  markdownStore.initializeFileTree()
+onMounted(async () => {
+  // TODO: 从项目管理获取当前项目路径
+  // const projectPath = useProjectSelectionStore().currentProject?.path
+  // markdownStore.setProjectPath(projectPath)
+  
+  await markdownStore.initializeFileTree()
 })
 
 // 处理标签页移除
@@ -104,6 +118,13 @@ const handleTabClick = () => {
     overflow: hidden;
     min-height: 0; /* 🔑 关键！ */
   }
+}
+
+/* 标签页标题（带保存状态） */
+.tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* 欢迎页样式 */

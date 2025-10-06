@@ -15,6 +15,7 @@ interface Props {
 interface Emits {
   (e: 'update:modelValue', value: string): void
   (e: 'change', value: string): void
+  (e: 'save'): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -53,6 +54,11 @@ onMounted(() => {
       emit('change', value)
     },
     
+    // Ctrl+S 保存快捷键
+    ctrlEnter: (value) => {
+      // 可以用于其他快捷键，这里不用
+    },
+    
     after: () => {
       // 初始化完成后设置内容
       if (vditor && props.modelValue) {
@@ -63,9 +69,22 @@ onMounted(() => {
       if (props.readonly) {
         vditor?.disabled()
       }
+      
+      // 监听Ctrl+S保存快捷键
+      if (vditor && vditor.vditor && vditor.vditor.element) {
+        vditor.vditor.element.addEventListener('keydown', handleKeyDown)
+      }
     }
   })
 })
+
+// 处理键盘事件
+const handleKeyDown = (e: KeyboardEvent) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault()
+    emit('save')
+  }
+}
 
 // 监听readonly属性变化
 watch(() => props.readonly, (newVal) => {
@@ -87,6 +106,10 @@ watch(() => props.modelValue, (newVal) => {
 
 onBeforeUnmount(() => {
   if (vditor) {
+    // 移除事件监听器
+    if (vditor.vditor && vditor.vditor.element) {
+      vditor.vditor.element.removeEventListener('keydown', handleKeyDown)
+    }
     vditor.destroy()
     vditor = null
   }

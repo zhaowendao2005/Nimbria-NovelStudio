@@ -15,6 +15,7 @@ import { ProjectFileSystem } from '../services/file-service/project-fs'
 import { ProjectManager } from '../services/project-service/project-manager'
 import { getLogger } from '../utils/shared/logger'
 import { getRecentProjects, upsertRecentProject } from '../store/recent-projects-store'
+import { registerMarkdownHandlers } from '../ipc/main-renderer/markdown-handlers'
 
 const logger = getLogger('AppManager')
 
@@ -146,6 +147,10 @@ export class AppManager {
   }
 
   private registerIpcHandlers() {
+    // 注册 Markdown IPC 处理器
+    registerMarkdownHandlers()
+    logger.info('Markdown IPC handlers registered')
+
     ipcMain.handle('window:minimize', async (event, request: IPCRequest<'window:minimize'>) => {
       return this.handleWindowOperationFromEvent(event, 'minimize', request)
     })
