@@ -39,8 +39,18 @@ export const useSettingsStore = defineStore('settings', () => {
    * 计算缓存总大小（字节）
    */
   function getCacheSizeInBytes(): number {
+    // 如果 localStorage 为空，直接返回 0
+    if (localStorage.length === 0) {
+      return 0
+    }
+    
     const data = getAllCacheData()
-    return JSON.stringify(data).length
+    // 计算实际数据大小（key + value）
+    let totalBytes = 0
+    Object.entries(data).forEach(([key, value]) => {
+      totalBytes += key.length + value.length
+    })
+    return totalBytes
   }
 
   /**
@@ -48,6 +58,7 @@ export const useSettingsStore = defineStore('settings', () => {
    */
   const formattedCacheSize = computed(() => {
     const bytes = getCacheSizeInBytes()
+    if (bytes === 0) return '0 B'  // 明确处理 0 的情况
     if (bytes < 1024) return `${bytes} B`
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`
     return `${(bytes / 1024 / 1024).toFixed(2)} MB`
@@ -141,7 +152,21 @@ export const useSettingsStore = defineStore('settings', () => {
    * 清空所有缓存
    */
   function clearAllCache() {
+    console.log('💾 [Settings Store] 执行 localStorage.clear()...')
+    const beforeCount = localStorage.length
+    
     localStorage.clear()
+    
+    const afterCount = localStorage.length
+    console.log(`💾 [Settings Store] localStorage 已清空`)
+    console.log(`   清理前: ${beforeCount} 项`)
+    console.log(`   清理后: ${afterCount} 项`)
+    
+    if (afterCount === 0) {
+      console.log(`✅ [Settings Store] localStorage 清理验证通过`)
+    } else {
+      console.warn(`⚠️  [Settings Store] localStorage 仍有 ${afterCount} 项残留`)
+    }
   }
 
   return {

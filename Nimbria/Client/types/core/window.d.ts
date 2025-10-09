@@ -116,6 +116,12 @@ export interface NimbriaWindowAPI {
     updateRecent(payload: { projectPath: string; projectName?: string }): Promise<{ success: boolean }>
     
     /** 
+     * 清空所有缓存（包括最近项目列表）
+     * @returns 操作结果
+     */
+    clearCache(): Promise<{ success: boolean }>
+    
+    /** 
      * 向所有项目窗口广播消息
      * @param message 要广播的消息
      */

@@ -45,7 +45,6 @@
         icon="delete_sweep"
         label="清空所有缓存"
         :loading="isClearing"
-        :disable="cacheItems.length === 0"
         @click="confirmClearCache"
       />
     </div>
@@ -131,18 +130,95 @@ async function clearCache() {
   isClearing.value = true
   
   try {
-    // 延迟模拟清理过程（让用户看到loading效果）
-    await new Promise(resolve => setTimeout(resolve, 800))
+    // ========== 清理前的日志 ==========
+    console.log('='.repeat(60))
+    console.log('🗑️  [缓存清理] 开始清理缓存')
+    console.log('='.repeat(60))
     
-    // 清空 localStorage
+    // 收集清理前的缓存统计
+    const beforeClear = {
+      totalSize: settingsStore.getCacheSizeInBytes(),
+      totalItems: localStorage.length,
+      allData: settingsStore.getAllCacheData(),
+      modules: settingsStore.getModuleCacheItems()
+    }
+    
+    console.log(`📊 清理前缓存统计:`)
+    console.log(`   - 缓存项总数: ${beforeClear.totalItems} 项`)
+    console.log(`   - 缓存总大小: ${settingsStore.formattedCacheSize}`)
+    console.log(`   - 详细分布:`)
+    beforeClear.modules.forEach(module => {
+      console.log(`     • ${module.name}: ${module.size}`)
+    })
+    
+    // 打印所有缓存键
+    console.log(`\n🔑 缓存键列表:`)
+    Object.keys(beforeClear.allData).forEach((key, index) => {
+      const valueLength = beforeClear.allData[key]?.length || 0
+      console.log(`   ${index + 1}. ${key} (${valueLength} 字符)`)
+    })
+    
+    console.log(`\n⏳ 开始执行清理操作...`)
+    
+    // 延迟模拟清理过程（让用户看到loading效果）
+    await new Promise(resolve => setTimeout(resolve, 300))
+    
+    // ========== 1. 清空前端 localStorage ==========
+    console.log('🗑️  [前端] 开始清空 localStorage...')
     settingsStore.clearAllCache()
+    console.log('✅ [前端] localStorage 已清空')
+    
+    // ========== 2. 清空后端 Electron Store（最近项目等） ==========
+    console.log('🗑️  [前端] 调用后端清空缓存接口...')
+    if (window.nimbria?.project?.clearCache) {
+      try {
+        const result = await window.nimbria.project.clearCache()
+        if (result.success) {
+          console.log('✅ [前端] 后端缓存清空成功')
+        } else {
+          console.warn('⚠️  [前端] 后端缓存清空失败')
+        }
+      } catch (error) {
+        console.error('❌ [前端] 调用后端清空缓存失败:', error)
+      }
+    } else {
+      console.warn('⚠️  [前端] window.nimbria.project.clearCache 不可用（可能在开发模式）')
+    }
+    
+    // ✅ 所有缓存清空完成
+    console.log('🔄 [缓存清理] 准备刷新页面以重置所有状态...')
+    
+    // 立即更新缓存项列表（UI 刷新，显示空状态）
+    loadCacheItems()
+    
+    // ========== 清理后的验证 ==========
+    const afterClear = {
+      totalItems: localStorage.length,
+      totalSize: settingsStore.getCacheSizeInBytes()
+    }
+    
+    console.log(`\n✅ 清理完成！`)
+    console.log(`📊 清理后缓存统计:`)
+    console.log(`   - localStorage 项数: ${afterClear.totalItems} 项`)
+    console.log(`   - localStorage 大小: ${afterClear.totalSize} 字节`)
+    
+    if (afterClear.totalItems === 0 && afterClear.totalSize === 0) {
+      console.log(`\n🎉 localStorage 清理成功！`)
+      console.log(`🎉 所有数据已彻底清除`)
+    } else {
+      console.warn(`\n⚠️  警告: localStorage 仍有 ${afterClear.totalItems} 项残留`)
+    }
+    
+    console.log(`\n🔄 页面将在 500ms 后自动刷新...`)
+    console.log(`🔄 刷新后所有 Pinia Store 会自动重置（包括最近项目列表）`)
+    console.log('='.repeat(60))
     
     // 成功提示
     Notify.create({
       type: 'positive',
       message: '缓存已清空',
-      caption: '页面将在 2 秒后自动刷新',
-      timeout: 2000,
+      caption: '页面即将刷新以重置所有状态',
+      timeout: 500,
       position: 'top',
       icon: 'check_circle'
     })
@@ -150,13 +226,20 @@ async function clearCache() {
     // 关闭对话框
     showConfirmDialog.value = false
     
-    // 2秒后刷新页面
+    // 500ms 后刷新页面（确保所有状态都彻底重置）
     setTimeout(() => {
+      console.log('🔄 正在刷新页面...')
+      console.log('🔄 刷新后所有 Pinia Store 会从 localStorage 重新初始化')
+      console.log('🔄 由于 localStorage 已清空，所有状态将恢复为初始状态')
       window.location.reload()
-    }, 2000)
+    }, 500)
     
   } catch (error) {
-    console.error('清空缓存失败:', error)
+    console.log('='.repeat(60))
+    console.error('❌ [缓存清理] 清理失败:', error)
+    console.error('错误详情:', error)
+    console.log('='.repeat(60))
+    
     Notify.create({
       type: 'negative',
       message: '清空缓存失败',

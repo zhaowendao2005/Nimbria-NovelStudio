@@ -43,6 +43,7 @@ contextBridge.exposeInMainWorld('nimbria', {
     save: (projectData: ProjectData) => channelInvoke('project:save', { projectData }),
     getRecent: () => channelInvoke('project:get-recent', undefined),
     updateRecent: (payload: { projectPath: string; projectName?: string }) => channelInvoke('project:update-recent', payload),
+    clearCache: () => channelInvoke('project:clear-cache', undefined),
     broadcastToProjects: (message: BroadcastMessage) => {
       void channelInvoke('process:broadcast', { message })
     },

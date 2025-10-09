@@ -241,6 +241,15 @@ export class AppManager {
       return { success: true }
     })
 
+    ipcMain.handle('project:clear-cache', () => {
+      console.log('🗑️  [Electron Main] 收到清空缓存请求')
+      console.log('🗑️  [Electron Main] 清空最近项目列表...')
+      const { clearRecentProjects } = require('../store/recent-projects-store')
+      clearRecentProjects()
+      console.log('✅ [Electron Main] 最近项目列表已清空')
+      return { success: true }
+    })
+
     ipcMain.handle('process:broadcast', (_event, request: IPCRequest<'process:broadcast'>) => {
       this.windowManager?.broadcast(request.message)
       return undefined
