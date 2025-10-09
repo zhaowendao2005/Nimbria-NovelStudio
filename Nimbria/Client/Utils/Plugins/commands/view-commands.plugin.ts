@@ -16,7 +16,13 @@ const createViewCommands = (): Command[] => {
       keywords: ['sidebar', '侧边栏', '右栏', 'toggle'],
       shortcut: 'Ctrl+B',
       action: () => {
-        rightSidebarApi.toggle()
+        console.log('[Command] Executing: view.toggleRightSidebar')
+        try {
+          rightSidebarApi.toggle()
+          console.log('[Command] Success: view.toggleRightSidebar')
+        } catch (error) {
+          console.error('[Command] Failed: view.toggleRightSidebar', error)
+        }
       }
     },
     {
@@ -25,7 +31,13 @@ const createViewCommands = (): Command[] => {
       category: 'view',
       keywords: ['outline', '大纲', 'show'],
       action: () => {
-        rightSidebarApi.switchTo('outline')
+        console.log('[Command] Executing: view.showOutline')
+        try {
+          rightSidebarApi.switchTo('outline')
+          console.log('[Command] Success: view.showOutline')
+        } catch (error) {
+          console.error('[Command] Failed: view.showOutline', error)
+        }
       }
     },
     {
@@ -34,7 +46,13 @@ const createViewCommands = (): Command[] => {
       category: 'view',
       keywords: ['hide', '隐藏', '右栏'],
       action: () => {
-        rightSidebarApi.hide()
+        console.log('[Command] Executing: view.hideRightSidebar')
+        try {
+          rightSidebarApi.hide()
+          console.log('[Command] Success: view.hideRightSidebar')
+        } catch (error) {
+          console.error('[Command] Failed: view.hideRightSidebar', error)
+        }
       }
     },
     {
@@ -43,7 +61,13 @@ const createViewCommands = (): Command[] => {
       category: 'view',
       keywords: ['show', '显示', '右栏'],
       action: () => {
-        rightSidebarApi.show()
+        console.log('[Command] Executing: view.showRightSidebar')
+        try {
+          rightSidebarApi.show()
+          console.log('[Command] Success: view.showRightSidebar')
+        } catch (error) {
+          console.error('[Command] Failed: view.showRightSidebar', error)
+        }
       }
     }
   ]

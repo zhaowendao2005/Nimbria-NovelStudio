@@ -38,11 +38,21 @@ import { useRightSidebarStore } from '@stores/projectPage/rightSidebar'
 
 const rightSidebarStore = useRightSidebarStore()
 
+/**
+ * 处理标签页关闭
+ * 逻辑：
+ * - 多个标签页：删除当前标签页
+ * - 最后一个标签页：删除标签页 + 隐藏右栏
+ */
 const handleRemove = (panelId: string) => {
+  console.log('[RightSidebar] Removing panel:', panelId)
+  
+  // 删除标签页（注销面板）
   rightSidebarStore.unregister(panelId)
   
-  // 如果没有面板了，自动隐藏右栏
+  // 如果删除后没有面板了，自动隐藏右栏
   if (!rightSidebarStore.hasPanels) {
+    console.log('[RightSidebar] No panels left, hiding sidebar')
     rightSidebarStore.hide()
   }
 }

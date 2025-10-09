@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { Notify } from 'quasar'
-import { mockMarkdownFiles } from './markdown.mock'
 import { AutoSaveController } from './markdown.autosave'
 import type { MarkdownFile, MarkdownTab, AutoSaveConfig, SaveProgress, FileCreationState } from './types'
 
@@ -108,9 +107,13 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
       }
       
       if (!targetPath) {
-        console.warn('Project path not set, using mock data')
-        // 降级到Mock数据
-        fileTree.value = mockMarkdownFiles
+        console.error('Project path not set, cannot load file tree')
+        
+        Notify.create({
+          type: 'negative',
+          message: '项目路径未设置，无法加载文件树',
+          timeout: 3000
+        })
         return
       }
       
@@ -125,13 +128,11 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
       console.log('File tree loaded:', tree.length, 'items')
     } catch (error) {
       console.error('Failed to load file tree:', error)
-      // 降级到Mock数据
-      fileTree.value = mockMarkdownFiles
       
       Notify.create({
-        type: 'warning',
-        message: '加载文件树失败，使用Mock数据',
-        timeout: 2000
+        type: 'negative',
+        message: `加载文件树失败: ${error instanceof Error ? error.message : String(error)}`,
+        timeout: 3000
       })
     }
   }
