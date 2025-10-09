@@ -103,8 +103,16 @@ watch(() => props.readonly, (newVal) => {
 
 // 监听外部值变化
 watch(() => props.modelValue, (newVal) => {
-  if (vditor && newVal !== vditor.getValue()) {
-    vditor.setValue(newVal || '')
+  if (!vditor) return
+  
+  // 🔥 安全检查：确保 Vditor 内部结构已初始化
+  try {
+    const currentValue = vditor.getValue()
+    if (newVal !== currentValue) {
+      vditor.setValue(newVal || '')
+    }
+  } catch (error) {
+    console.warn('[MarkdownEditor] Vditor not fully initialized:', error)
   }
 })
 

@@ -25,7 +25,8 @@ export interface PaneNode {
   children?: [PaneNode, PaneNode]     // 恰好两个子节点
   
   // === Leaf 节点专用字段 ===
-  tabId?: string | null               // 关联的标签页 ID，null 表示空面板
+  tabIds?: string[]                   // 该面板中打开的所有标签页 ID
+  activeTabId?: string | null         // 当前激活的标签页 ID
   isFocused?: boolean                 // 是否是当前焦点面板
   
   // === 元数据 ===

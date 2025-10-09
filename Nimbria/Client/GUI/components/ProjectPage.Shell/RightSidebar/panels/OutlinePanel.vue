@@ -55,20 +55,20 @@ const paneLayoutStore = usePaneLayoutStore()
 const outlineItems = ref<OutlineItem[]>([])
 
 /**
- * 🔥 当前焦点面板的文件内容
- * 改造：从焦点面板获取内容，而不是从 activeTab
+ * 🔥 当前焦点面板的激活文件内容
+ * 改造：从焦点面板的激活标签获取内容
  */
 const activeContent = computed(() => {
   // 1. 获取焦点面板
   const focusedPane = paneLayoutStore.focusedPane
   if (!focusedPane) return ''
   
-  // 2. 获取面板对应的标签页 ID
-  const tabId = focusedPane.tabId
-  if (!tabId) return ''
+  // 2. 获取面板的激活标签页 ID
+  const activeTabId = focusedPane.activeTabId
+  if (!activeTabId) return ''
   
   // 3. 获取标签页内容
-  const tab = markdownStore.openTabs.find(t => t.id === tabId)
+  const tab = markdownStore.openTabs.find(t => t.id === activeTabId)
   return tab?.content || ''
 })
 

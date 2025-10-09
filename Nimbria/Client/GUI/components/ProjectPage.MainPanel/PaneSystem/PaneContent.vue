@@ -7,13 +7,36 @@
     <!-- 焦点指示器 -->
     <div v-if="isFocused" class="focus-indicator"></div>
     
-    <!-- 内容区域：有标签页时显示 MarkdownTab -->
-    <div v-if="currentTab" class="pane-main">
-      <MarkdownTab 
-        :tab-id="tabId!" 
-        :pane-id="paneId"
-      />
-    </div>
+    <!-- 🔥 标签页系统 -->
+    <el-tabs
+      v-if="paneTabIds.length > 0"
+      v-model="localActiveTabId"
+      type="card"
+      closable
+      class="pane-tabs"
+      @tab-remove="handleTabRemove"
+      @tab-click="handleTabClick"
+    >
+      <el-tab-pane
+        v-for="tid in paneTabIds"
+        :key="tid"
+        :name="tid"
+      >
+        <template #label>
+          <!-- 🔥 右键菜单应该在标签上触发 -->
+          <div 
+            class="tab-label-wrapper"
+            @contextmenu.prevent.stop="handleContextMenu($event, tid)"
+          >
+            <span class="tab-label">
+              {{ getTabName(tid) }}
+              <SaveStatusBadge :tab="getTab(tid)" />
+            </span>
+          </div>
+        </template>
+        <MarkdownTab :tab-id="tid" />
+      </el-tab-pane>
+    </el-tabs>
     
     <!-- 空面板提示 -->
     <div v-else class="empty-pane">
@@ -28,29 +51,42 @@
         </template>
       </el-empty>
     </div>
+    
+    <!-- 右键菜单 -->
+    <ContextMenu
+      v-model:visible="contextMenuVisible"
+      :x="contextMenuX"
+      :y="contextMenuY"
+      :items="contextMenuItems"
+      @select="handleMenuSelect"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { Document } from '@element-plus/icons-vue'
 import { useMarkdownStore } from '@stores/projectPage/Markdown'
 import { usePaneLayoutStore } from '@stores/projectPage/paneLayout'
+import type { PaneContextMenuItem, SplitAction } from '@stores/projectPage/paneLayout/types'
 import MarkdownTab from '@components/ProjectPage.MainPanel/Markdown/MarkdownTab.vue'
+import SaveStatusBadge from '@components/ProjectPage.MainPanel/AutoSave/SaveStatusBadge.vue'
+import ContextMenu from './ContextMenu.vue'
 
 /**
  * PaneContent
- * 叶子面板组件，显示实际的标签页内容
+ * 叶子面板组件，包含完整的标签页系统
  * 
  * 功能：
  * - 显示焦点指示器
- * - 渲染 MarkdownTab 或空状态
+ * - 渲染多个 MarkdownTab
+ * - 标签页切换
+ * - 右键菜单（在标签上触发）
  * - 处理焦点切换
  */
 
 interface Props {
   paneId: string
-  tabId: string | null
   isFocused?: boolean
 }
 
@@ -60,12 +96,75 @@ const markdownStore = useMarkdownStore()
 const paneLayoutStore = usePaneLayoutStore()
 
 /**
- * 当前标签页数据
+ * 该面板的所有标签页 ID
  */
-const currentTab = computed(() => {
-  if (!props.tabId) return null
-  return markdownStore.openTabs.find(t => t.id === props.tabId) || null
+const paneTabIds = computed(() => {
+  return paneLayoutStore.getTabIdsByPane(props.paneId)
 })
+
+/**
+ * 本地激活的标签页 ID
+ */
+const localActiveTabId = ref<string | null>(
+  paneLayoutStore.getActiveTabIdByPane(props.paneId)
+)
+
+/**
+ * 监听 store 中的激活标签变化
+ */
+watch(
+  () => paneLayoutStore.getActiveTabIdByPane(props.paneId),
+  (newActiveId) => {
+    localActiveTabId.value = newActiveId
+  }
+)
+
+/**
+ * 监听本地激活标签变化，同步到 store
+ */
+watch(localActiveTabId, (newTabId) => {
+  if (newTabId) {
+    paneLayoutStore.switchTabInPane(props.paneId, newTabId)
+  }
+})
+
+/**
+ * 获取标签页名称
+ */
+const getTabName = (tabId: string): string => {
+  const tab = markdownStore.openTabs.find(t => t.id === tabId)
+  return tab?.fileName || 'Untitled'
+}
+
+/**
+ * 获取标签页对象
+ */
+const getTab = (tabId: string) => {
+  return markdownStore.openTabs.find(t => t.id === tabId) || null
+}
+
+/**
+ * 处理标签页移除
+ */
+const handleTabRemove = (tabId: string | number) => {
+  const tid = String(tabId)
+  
+  // 1. 从面板中移除
+  paneLayoutStore.closeTabInPane(props.paneId, tid)
+  
+  // 2. 从 markdown store 中关闭
+  markdownStore.closeTab(tid)
+}
+
+/**
+ * 处理标签页点击
+ */
+const handleTabClick = () => {
+  // 切换焦点到当前面板
+  if (!props.isFocused) {
+    paneLayoutStore.setFocusedPane(props.paneId)
+  }
+}
 
 /**
  * 点击面板，设置焦点
@@ -74,6 +173,69 @@ const handleClick = () => {
   if (!props.isFocused) {
     paneLayoutStore.setFocusedPane(props.paneId)
   }
+}
+
+// ==================== 右键菜单 ====================
+
+const contextMenuVisible = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+const currentContextTabId = ref<string | null>(null)
+
+// 菜单项配置
+const contextMenuItems: PaneContextMenuItem[] = [
+  {
+    action: 'split-right-move',
+    label: '向右拆分（转移）',
+    icon: 'arrow-right'
+  },
+  {
+    action: 'split-right-copy',
+    label: '向右拆分（复制）',
+    icon: 'copy-document'
+  },
+  {
+    action: 'split-down-move',
+    label: '向下拆分（转移）',
+    icon: 'arrow-down',
+    divider: true
+  },
+  {
+    action: 'split-down-copy',
+    label: '向下拆分（复制）',
+    icon: 'copy-document'
+  }
+]
+
+/**
+ * 处理右键菜单
+ */
+const handleContextMenu = (event: MouseEvent, tabId: string) => {
+  console.log('[PaneContent] Context menu on tab:', tabId)
+  
+  currentContextTabId.value = tabId
+  contextMenuX.value = event.clientX
+  contextMenuY.value = event.clientY
+  contextMenuVisible.value = true
+}
+
+/**
+ * 处理菜单选择
+ */
+const handleMenuSelect = (action: SplitAction) => {
+  if (!currentContextTabId.value) return
+  
+  console.log('[PaneContent] Menu action:', { action, tabId: currentContextTabId.value })
+  
+  // 执行分屏操作
+  paneLayoutStore.executeSplitAction(
+    props.paneId,
+    action,
+    currentContextTabId.value
+  )
+  
+  contextMenuVisible.value = false
+  currentContextTabId.value = null
 }
 </script>
 
@@ -119,11 +281,45 @@ const handleClick = () => {
   }
 }
 
-/* 主内容区 */
-.pane-main {
-  flex: 1;
+/* 标签页系统 */
+.pane-tabs {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
-  overflow: hidden;
+  
+  :deep(.el-tabs__header) {
+    margin: 0;
+    border-bottom: 1px solid var(--obsidian-border, #e3e5e8);
+    background: var(--obsidian-bg-secondary, #f5f6f8);
+    flex-shrink: 0;
+  }
+  
+  :deep(.el-tabs__content) {
+    flex: 1;
+    min-height: 0 !important;
+    overflow: hidden;
+  }
+  
+  :deep(.el-tab-pane) {
+    height: 100%;
+    overflow: hidden;
+    min-height: 0;
+  }
+}
+
+/* 标签标题包装器 */
+.tab-label-wrapper {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* 空面板样式 */
@@ -140,4 +336,3 @@ const handleClick = () => {
   font-size: 14px;
 }
 </style>
-

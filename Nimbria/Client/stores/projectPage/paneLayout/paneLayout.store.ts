@@ -27,7 +27,8 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
   const paneTree = ref<PaneNode>({
     id: nanoid(),
     type: 'leaf',
-    tabId: null,        // 初始为空
+    tabIds: [],         // 初始为空数组
+    activeTabId: null,  // 无激活标签
     isFocused: true,
     createdAt: Date.now(),
     lastActiveAt: Date.now()
@@ -216,9 +217,22 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
     
     const updateLeaf = (node: PaneNode): PaneNode => {
       if (node.type === 'leaf' && node.id === paneId) {
+        const currentTabIds = node.tabIds || []
+        
+        // 如果标签已存在，只切换激活状态
+        if (currentTabIds.includes(tabId)) {
+          return {
+            ...node,
+            activeTabId: tabId,
+            lastActiveAt: Date.now()
+          }
+        }
+        
+        // 否则添加新标签
         return {
           ...node,
-          tabId,
+          tabIds: [...currentTabIds, tabId],
+          activeTabId: tabId,
           lastActiveAt: Date.now()
         }
       } else if (node.children) {
@@ -238,11 +252,85 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
   }
   
   /**
-   * 获取面板对应的标签页 ID
+   * 关闭面板中的某个标签页
    */
-  const getTabIdByPane = (paneId: string): string | null => {
+  const closeTabInPane = (paneId: string, tabId: string) => {
+    console.log('[PaneLayout] Closing tab in pane:', { paneId, tabId })
+    
+    const updateLeaf = (node: PaneNode): PaneNode => {
+      if (node.type === 'leaf' && node.id === paneId) {
+        const currentTabIds = node.tabIds || []
+        const newTabIds = currentTabIds.filter(id => id !== tabId)
+        
+        // 如果删除的是激活标签，切换到第一个标签
+        let newActiveTabId = node.activeTabId
+        if (node.activeTabId === tabId) {
+          newActiveTabId = newTabIds.length > 0 ? newTabIds[0] : null
+        }
+        
+        return {
+          ...node,
+          tabIds: newTabIds,
+          activeTabId: newActiveTabId,
+          lastActiveAt: Date.now()
+        }
+      } else if (node.children) {
+        return {
+          ...node,
+          children: [
+            updateLeaf(node.children[0]),
+            updateLeaf(node.children[1])
+          ] as [PaneNode, PaneNode]
+        }
+      }
+      return node
+    }
+    
+    paneTree.value = updateLeaf(paneTree.value)
+  }
+  
+  /**
+   * 切换面板中的激活标签页
+   */
+  const switchTabInPane = (paneId: string, tabId: string) => {
+    console.log('[PaneLayout] Switching tab in pane:', { paneId, tabId })
+    
+    const updateLeaf = (node: PaneNode): PaneNode => {
+      if (node.type === 'leaf' && node.id === paneId) {
+        return {
+          ...node,
+          activeTabId: tabId,
+          lastActiveAt: Date.now()
+        }
+      } else if (node.children) {
+        return {
+          ...node,
+          children: [
+            updateLeaf(node.children[0]),
+            updateLeaf(node.children[1])
+          ] as [PaneNode, PaneNode]
+        }
+      }
+      return node
+    }
+    
+    paneTree.value = updateLeaf(paneTree.value)
+  }
+  
+  /**
+   * 获取面板的标签页列表
+   */
+  const getTabIdsByPane = (paneId: string): string[] => {
     const pane = allLeafPanes.value.find(p => p.id === paneId)
-    return pane?.tabId || null
+    return pane?.tabIds || []
+  }
+  
+  /**
+   * 获取面板的激活标签页 ID
+   */
+  const getActiveTabIdByPane = (paneId: string): string | null => {
+    const pane = allLeafPanes.value.find(p => p.id === paneId)
+    return pane?.activeTabId || null
   }
   
   /**
@@ -279,7 +367,8 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
     paneTree.value = {
       id: nanoid(),
       type: 'leaf',
-      tabId: null,
+      tabIds: [],
+      activeTabId: null,
       isFocused: true,
       createdAt: Date.now(),
       lastActiveAt: Date.now()
@@ -356,7 +445,10 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
     executeSplitAction,
     closePane,
     openTabInPane,
-    getTabIdByPane,
+    closeTabInPane,
+    switchTabInPane,
+    getTabIdsByPane,
+    getActiveTabIdByPane,
     updateSplitRatio,
     resetLayout,
     persistState,
@@ -383,7 +475,8 @@ function findAndSplit(
     const newLeaf: PaneNode = {
       id: newPaneId,
       type: 'leaf',
-      tabId: tabId,
+      tabIds: [tabId],      // 新面板只包含一个标签
+      activeTabId: tabId,
       isFocused: false,
       createdAt: Date.now(),
       lastActiveAt: Date.now()
@@ -392,7 +485,15 @@ function findAndSplit(
     // 更新原节点
     const originalLeaf: PaneNode = {
       ...node,
-      tabId: shouldMove ? null : node.tabId,  // 转移模式下清空原面板
+      // 转移模式：从原面板移除该标签
+      // 复制模式：保留标签
+      tabIds: shouldMove 
+        ? (node.tabIds || []).filter(id => id !== tabId) 
+        : node.tabIds,
+      // 如果移除的是激活标签，切换到第一个剩余标签
+      activeTabId: shouldMove && node.activeTabId === tabId
+        ? ((node.tabIds || []).filter(id => id !== tabId)[0] || null)
+        : node.activeTabId,
       isFocused: false
     }
     
