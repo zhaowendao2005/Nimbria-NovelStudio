@@ -4,6 +4,18 @@
     <q-bar class="startup-titlebar q-electron-drag">
       <div class="startup-titlebar__title">Nimbria</div>
       <q-space />
+      <!-- 设置按钮 -->
+      <q-btn 
+        flat 
+        dense 
+        round 
+        size="sm" 
+        icon="settings" 
+        @click="openSettings"
+        class="q-electron-drag--exception startup-titlebar__btn startup-titlebar__btn--settings" 
+      >
+        <q-tooltip>设置</q-tooltip>
+      </q-btn>
       <q-btn 
         flat 
         dense 
@@ -154,6 +166,9 @@
       :project-path="validationProjectPath"
       @project-opened="onProjectOpened"
     />
+
+    <!-- 设置对话框 -->
+    <SettingsDialog v-model="showSettingsDialog" />
   </q-layout>
 </template>
 
@@ -162,6 +177,7 @@ import { computed, ref, onMounted } from 'vue'
 import { useProjectSelectionStore } from '../../stores/project'
 import ProjectCreationDialog from '../components/ProjectManagement/ProjectCreationDialog.vue'
 import ProjectValidationDialog from '../components/ProjectManagement/ProjectValidationDialog.vue'
+import SettingsDialog from '../components/HomeDashboardPage/Settings/SettingsDialog.vue'
 import type { RecentProject } from '../../types/domain/project'
 
 const leftDrawerOpen = ref(true)
@@ -173,6 +189,7 @@ const isOpeningProject = ref(false)
 const showProjectCreationDialog = ref(false)
 const showProjectValidationDialog = ref(false)
 const validationProjectPath = ref('')
+const showSettingsDialog = ref(false)
 
 // 高度计算
 const TITLEBAR_HEIGHT = 48;
@@ -207,6 +224,11 @@ async function closeApp() {
   } catch (error) {
     console.error('窗口关闭失败:', error);
   }
+}
+
+function openSettings() {
+  console.log('打开设置面板');
+  showSettingsDialog.value = true
 }
 
 // 组件挂载时加载最近项目
@@ -342,6 +364,10 @@ function onProjectOpened(projectPath: string) {
     &:hover {
       background: rgba(0, 0, 0, 0.05);
     }
+  }
+
+  &__btn--settings {
+    margin-right: 4px;
   }
 
   &__btn--minimize {
