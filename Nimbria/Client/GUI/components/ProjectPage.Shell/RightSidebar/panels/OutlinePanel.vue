@@ -43,6 +43,8 @@ interface OutlineItem {
   id: string
   text: string
   level: number // 1-6 对应 h1-h6
+  lineNumber: number // 🔥 标题所在的行号
+  slug: string // 🔥 标题的 slug（用于预览模式跳转）
 }
 
 const markdownStore = useMarkdownStore()
@@ -60,20 +62,66 @@ const activeContent = computed(() => {
   return markdownStore.activeTab?.content || ''
 })
 
+/**
+ * 将标题文本转换为 slug（用于 HTML 锚点）
+ */
+const textToSlug = (text: string): string => {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[\s]+/g, '-')         // 空格转为连字符
+    .replace(/[^\w\u4e00-\u9fa5-]/g, '') // 只保留字母、数字、中文、连字符
+    .replace(/--+/g, '-')           // 多个连字符合并
+    .replace(/^-|-$/g, '')          // 去除首尾连字符
+}
+
+/**
+ * 计算标题在原始 Markdown 中的行号
+ */
+const calculateLineNumber = (markdown: string, headingText: string, headingIndex: number): number => {
+  const lines = markdown.split('\n')
+  let currentHeadingCount = 0
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]?.trim() || ''
+    // 匹配 Markdown 标题格式：# 、## 、### 等
+    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/)
+    
+    if (headingMatch && headingMatch[2]) {
+      const matchedText = headingMatch[2].trim()
+      if (matchedText === headingText || matchedText.includes(headingText)) {
+        if (currentHeadingCount === headingIndex) {
+          return i + 1 // 行号从 1 开始
+        }
+        currentHeadingCount++
+      }
+    }
+  }
+  
+  return 1 // 默认返回第1行
+}
+
 // 提取大纲
 const extractOutline = (markdown: string): OutlineItem[] => {
   if (!markdown) return []
   
   try {
-    const tokens = marked.lexer(markdown) as Array<{ type: string; depth?: number; text?: string }>
+    const tokens = marked.lexer(markdown) as Array<{ type: string; depth?: number; text?: string; raw?: string }>
     
     const headings = tokens
       .filter(token => token.type === 'heading')
-      .map((heading, index: number) => ({
-        id: `heading-${index}`,
-        level: heading.depth || 1,
-        text: heading.text || ''
-      }))
+      .map((heading, index: number) => {
+        const text = heading.text || ''
+        const lineNumber = calculateLineNumber(markdown, text, index)
+        
+        return {
+          id: `heading-${index}`,
+          level: heading.depth || 1,
+          text,
+          lineNumber,
+          slug: textToSlug(text)
+        }
+      })
     
     return headings
   } catch (error) {
@@ -93,9 +141,20 @@ const getMarker = (level: number): string => {
   return '#'.repeat(level)
 }
 
+/**
+ * 点击大纲项，跳转到对应标题
+ */
 const scrollToHeading = (id: string) => {
-  console.log('[OutlinePanel] Scroll to heading:', id)
-  // TODO: 实现滚动到标题功能（需要与 Vditor 编辑器通信）
+  const item = outlineItems.value.find(i => i.id === id)
+  if (!item) {
+    console.warn('[OutlinePanel] Heading not found:', id)
+    return
+  }
+  
+  console.log('[OutlinePanel] Scroll to heading:', item)
+  
+  // 调用 Store 的跳转方法
+  markdownStore.scrollToOutline(item.lineNumber, item.slug)
 }
 </script>
 

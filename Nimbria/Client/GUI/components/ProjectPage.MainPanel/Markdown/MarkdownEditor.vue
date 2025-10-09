@@ -6,6 +6,7 @@
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import Vditor from 'vditor'
 import 'vditor/dist/index.css'
+import { useMarkdownStore } from '@stores/projectPage/Markdown'
 
 interface Props {
   modelValue?: string
@@ -27,6 +28,9 @@ const emit = defineEmits<Emits>()
 
 const editorContainer = ref<HTMLElement>()
 let vditor: Vditor | null = null
+
+// 🔥 获取 Markdown Store（用于大纲跳转）
+const markdownStore = useMarkdownStore()
 
 onMounted(() => {
   if (!editorContainer.value) return
@@ -103,6 +107,47 @@ watch(() => props.modelValue, (newVal) => {
     vditor.setValue(newVal || '')
   }
 })
+
+// 🔥 监听大纲跳转目标
+watch(() => markdownStore.outlineScrollTarget, (target) => {
+  if (!target || !vditor) return
+  
+  console.log('[MarkdownEditor] Scroll to line:', target.lineNumber)
+  
+  try {
+    // Vditor IR 模式下滚动到指定行
+    // 获取编辑器的可滚动容器
+    const irElement = vditor.vditor?.ir?.element
+    if (!irElement) {
+      console.warn('[MarkdownEditor] IR element not found')
+      return
+    }
+    
+    // 查找目标行元素
+    // IR 模式下，每一行都在一个 <div> 中
+    const lines = irElement.querySelectorAll('.vditor-ir__node')
+    const targetLine = lines[target.lineNumber - 1]
+    
+    if (targetLine) {
+      // 滚动到目标行
+      targetLine.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      })
+      console.log('[MarkdownEditor] Scrolled to line:', target.lineNumber)
+    } else {
+      console.warn('[MarkdownEditor] Target line not found:', target.lineNumber)
+    }
+    
+    // 清除跳转目标
+    setTimeout(() => {
+      markdownStore.clearScrollTarget()
+    }, 500)
+    
+  } catch (error) {
+    console.error('[MarkdownEditor] Failed to scroll:', error)
+  }
+}, { deep: true })
 
 onBeforeUnmount(() => {
   if (vditor) {

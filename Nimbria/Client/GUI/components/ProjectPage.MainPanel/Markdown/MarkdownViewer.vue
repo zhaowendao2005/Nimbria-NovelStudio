@@ -6,6 +6,7 @@
 import { ref, onMounted, watch, nextTick } from 'vue'
 import Vditor from 'vditor'
 import 'vditor/dist/index.css'
+import { useMarkdownStore } from '@stores/projectPage/Markdown'
 
 interface Props {
   content: string
@@ -15,6 +16,9 @@ const props = defineProps<Props>()
 
 const viewerContainer = ref<HTMLElement>()
 const renderedHtml = ref('')
+
+// 🔥 获取 Markdown Store（用于大纲跳转）
+const markdownStore = useMarkdownStore()
 
 // 渲染Markdown为HTML
 const renderMarkdown = async (markdown: string) => {
@@ -74,6 +78,56 @@ const processSpecialContent = () => {
 watch(() => props.content, (newContent) => {
   void renderMarkdown(newContent)
 }, { immediate: true })
+
+// 🔥 监听大纲跳转目标
+watch(() => markdownStore.outlineScrollTarget, (target) => {
+  if (!target || !viewerContainer.value) return
+  
+  console.log('[MarkdownViewer] Scroll to slug:', target.slug)
+  
+  try {
+    // 在预览模式下，查找对应 slug 的标题元素
+    // Vditor 生成的 HTML 中，标题会有 id 属性
+    const headingElement = viewerContainer.value.querySelector(`#${target.slug}`)
+    
+    if (headingElement) {
+      // 滚动到目标标题
+      headingElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      })
+      console.log('[MarkdownViewer] Scrolled to heading:', target.slug)
+    } else {
+      // 如果通过 slug 找不到，尝试通过文本匹配
+      const allHeadings = viewerContainer.value.querySelectorAll('h1, h2, h3, h4, h5, h6')
+      let found = false
+      
+      for (const heading of Array.from(allHeadings)) {
+        if (heading.textContent?.toLowerCase().includes(target.slug.toLowerCase())) {
+          heading.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+          })
+          found = true
+          console.log('[MarkdownViewer] Scrolled to heading by text match')
+          break
+        }
+      }
+      
+      if (!found) {
+        console.warn('[MarkdownViewer] Target heading not found:', target.slug)
+      }
+    }
+    
+    // 清除跳转目标
+    setTimeout(() => {
+      markdownStore.clearScrollTarget()
+    }, 500)
+    
+  } catch (error) {
+    console.error('[MarkdownViewer] Failed to scroll:', error)
+  }
+}, { deep: true })
 
 onMounted(() => {
   void renderMarkdown(props.content)

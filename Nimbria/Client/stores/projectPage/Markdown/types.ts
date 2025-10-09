@@ -79,3 +79,12 @@ export interface FileCreationState {
   inputValue: string
   validationError: string | null
 }
+
+/**
+ * 大纲跳转目标
+ */
+export interface OutlineScrollTarget {
+  lineNumber: number  // 目标行号（用于编辑模式）
+  slug: string        // 目标标题的 slug（用于预览模式）
+  timestamp: number   // 时间戳（用于触发重复跳转）
+}

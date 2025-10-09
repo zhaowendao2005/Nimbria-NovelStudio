@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { Notify } from 'quasar'
 import { AutoSaveController } from './markdown.autosave'
-import type { MarkdownFile, MarkdownTab, AutoSaveConfig, SaveProgress, FileCreationState } from './types'
+import type { MarkdownFile, MarkdownTab, AutoSaveConfig, SaveProgress, FileCreationState, OutlineScrollTarget } from './types'
 
 /**
  * Markdown Store
@@ -59,6 +59,9 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     inputValue: '',
     validationError: null
   })
+  
+  // 🔥 大纲跳转目标（用于大纲点击跳转）
+  const outlineScrollTarget = ref<OutlineScrollTarget | null>(null)
   
   // ==================== 计算属性 ====================
   
@@ -723,6 +726,29 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     return { valid: true }
   }
   
+  /**
+   * 🔥 大纲跳转：滚动到指定标题位置
+   * @param lineNumber 目标行号
+   * @param slug 标题的 slug（用于预览模式）
+   */
+  const scrollToOutline = (lineNumber: number, slug: string) => {
+    console.log('[MarkdownStore] Scroll to outline:', { lineNumber, slug })
+    
+    // 设置跳转目标（编辑器和查看器会监听这个状态）
+    outlineScrollTarget.value = {
+      lineNumber,
+      slug,
+      timestamp: Date.now() // 时间戳用于触发重复跳转
+    }
+  }
+  
+  /**
+   * 🔥 清除大纲跳转目标
+   */
+  const clearScrollTarget = () => {
+    outlineScrollTarget.value = null
+  }
+  
   // ==================== 返回 ====================
   
   return {
@@ -737,6 +763,7 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     saveProgress,
     selectedNode: computed(() => selectedNode.value),
     creationState: computed(() => creationState.value),
+    outlineScrollTarget: computed(() => outlineScrollTarget.value), // 🔥 大纲跳转目标
     
     // 计算属性
     activeTab,
@@ -764,6 +791,10 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     startCreation,
     updateCreationInput,
     confirmCreation,
-    cancelCreation
+    cancelCreation,
+    
+    // 🔥 大纲跳转方法
+    scrollToOutline,
+    clearScrollTarget
   }
 })
