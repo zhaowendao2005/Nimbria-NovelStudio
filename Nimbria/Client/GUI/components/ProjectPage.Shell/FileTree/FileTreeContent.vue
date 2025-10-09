@@ -63,6 +63,7 @@ import {
   WarningFilled 
 } from '@element-plus/icons-vue'
 import { useMarkdownStore } from '@stores/projectPage'
+import { usePaneLayoutStore } from '@stores/projectPage/paneLayout'
 
 /**
  * FileTreeContent
@@ -71,6 +72,7 @@ import { useMarkdownStore } from '@stores/projectPage'
  */
 
 const markdownStore = useMarkdownStore()
+const paneLayoutStore = usePaneLayoutStore()
 
 // el-tree实例引用
 const treeRef = ref<InstanceType<typeof ElTree>>()
@@ -111,16 +113,31 @@ const treeProps = {
 }
 
 // 处理节点点击
-const handleNodeClick = (data: FileTreeNode) => {
+const handleNodeClick = async (data: FileTreeNode) => {
   // 如果点击的是临时节点，不处理
   if (data.isTemporary) return
   
   // 更新选中状态
   markdownStore.selectNode(data)
   
-  // 如果是文件，打开它
+  // 如果是文件，在焦点面板中打开
   if (!data.isFolder) {
-    void markdownStore.openFile(data.path)
+    try {
+      // 1. 调用 markdownStore 打开文件（创建或获取 tab）
+      const tab = await markdownStore.openFile(data.path)
+      
+      // 2. 如果成功且有焦点面板，在焦点面板中显示该 tab
+      if (tab && paneLayoutStore.focusedPane) {
+        paneLayoutStore.openTabInPane(paneLayoutStore.focusedPane.id, tab.id)
+        console.log('[FileTree] Opened file in focused pane:', {
+          file: data.path,
+          paneId: paneLayoutStore.focusedPane.id,
+          tabId: tab.id
+        })
+      }
+    } catch (error) {
+      console.error('[FileTree] Failed to open file:', error)
+    }
   }
 }
 

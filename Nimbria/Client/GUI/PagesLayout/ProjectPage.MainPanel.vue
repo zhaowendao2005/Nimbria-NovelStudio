@@ -3,33 +3,13 @@
     <!-- 自动保存指示器 -->
     <AutoSaveIndicator v-if="markdownStore.openTabs.length > 0" />
     
-    <!-- 标签页系统 -->
-    <el-tabs
-      v-if="markdownStore.openTabs.length > 0"
-      v-model="markdownStore.activeTabId"
-      type="card"
-      closable
-      class="markdown-tabs"
-      @tab-remove="handleTabRemove"
-      @tab-click="handleTabClick"
-    >
-      <el-tab-pane
-        v-for="tab in markdownStore.openTabs"
-        :key="tab.id"
-        :name="tab.id"
-      >
-        <template #label>
-          <span class="tab-label">
-            {{ tab.fileName }}
-            <SaveStatusBadge :tab="tab" />
-          </span>
-        </template>
-        <MarkdownTab :tab-id="tab.id" />
-      </el-tab-pane>
-    </el-tabs>
+    <!-- 🔥 分屏系统 -->
+    <div class="pane-system-container">
+      <PaneContainer :node="paneLayoutStore.paneTree" />
+    </div>
     
-    <!-- 无打开文件时的欢迎页 -->
-    <div v-else class="welcome-container">
+    <!-- 无打开文件时的欢迎页（已由 PaneContent 处理，保留此处作为后备）-->
+    <div v-if="false" class="welcome-container">
       <div class="welcome-content">
         <h1>欢迎使用 Markdown 编辑器</h1>
         <p>双击左侧文件树中的文件以打开</p>
@@ -48,34 +28,27 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import MarkdownTab from '@components/ProjectPage.MainPanel/Markdown/MarkdownTab.vue'
+import PaneContainer from '@components/ProjectPage.MainPanel/PaneSystem/PaneContainer.vue'
 import AutoSaveIndicator from '@components/ProjectPage.MainPanel/AutoSave/AutoSaveIndicator.vue'
-import SaveStatusBadge from '@components/ProjectPage.MainPanel/AutoSave/SaveStatusBadge.vue'
 import { useMarkdownStore } from '@stores/projectPage'
+import { usePaneLayoutStore } from '@stores/projectPage/paneLayout'
 
 /**
  * ProjectPage.MainPanel
  * 中栏主面板容器
- * 职责：管理Markdown标签页系统
+ * 职责：管理 Markdown 分屏系统
  */
 
 const markdownStore = useMarkdownStore()
+const paneLayoutStore = usePaneLayoutStore()
 
 // 初始化文件树
 onMounted(async () => {
   // 项目路径会自动从当前项目窗口获取
   await markdownStore.initializeFileTree()
+  
+  console.log('[ProjectPage.MainPanel] Initialized with pane tree:', paneLayoutStore.paneTree)
 })
-
-// 处理标签页移除
-const handleTabRemove = (tabId: string | number) => {
-  markdownStore.closeTab(String(tabId))
-}
-
-// 处理标签页点击
-const handleTabClick = () => {
-  // 可以添加额外的点击处理逻辑
-}
 </script>
 
 <style scoped lang="scss">
@@ -89,38 +62,12 @@ const handleTabClick = () => {
   overflow: hidden;
 }
 
-/* 标签页容器 */
-.markdown-tabs {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  min-height: 0; /* 🔑 关键！ */
-  
-  :deep(.el-tabs__header) {
-    margin: 0;
-    border-bottom: 1px solid var(--obsidian-border, #e3e5e8);
-    background: var(--obsidian-bg-secondary, #f5f6f8);
-    flex-shrink: 0;
-  }
-  
-  :deep(.el-tabs__content) {
-    flex: 1;
-    min-height: 0 !important; /* 🔑 必须!important覆盖Element Plus */
-    overflow: hidden;
-  }
-  
-  :deep(.el-tab-pane) {
-    height: 100%;
-    overflow: hidden;
-    min-height: 0; /* 🔑 关键！ */
-  }
-}
-
-/* 标签页标题（带保存状态） */
-.tab-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+/* 🔥 分屏系统容器 */
+.pane-system-container {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
 }
 
 /* 欢迎页样式 */

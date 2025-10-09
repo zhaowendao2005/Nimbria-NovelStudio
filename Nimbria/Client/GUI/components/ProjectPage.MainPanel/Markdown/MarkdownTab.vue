@@ -1,7 +1,10 @@
 <template>
   <div class="markdown-tab">
     <!-- Header: 面包屑 + 模式切换 -->
-    <div class="tab-header">
+    <div 
+      class="tab-header"
+      @contextmenu.prevent="handleContextMenu"
+    >
       <div class="header-left">
         <!-- 前进后退按钮 -->
         <el-button class="nav-btn" link :disabled="!canGoBack" @click="goBack">
@@ -63,24 +66,38 @@
     <div v-else class="tab-empty">
       <el-empty description="标签页未找到" />
     </div>
+    
+    <!-- 右键菜单 -->
+    <ContextMenu
+      v-model:visible="contextMenuVisible"
+      :x="contextMenuX"
+      :y="contextMenuY"
+      :items="contextMenuItems"
+      @select="handleMenuSelect"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { ArrowLeft, ArrowRight, Folder, Edit, View } from '@element-plus/icons-vue'
 import MarkdownEditor from './MarkdownEditor.vue'
 import MarkdownViewer from './MarkdownViewer.vue'
+import ContextMenu from '@components/ProjectPage.MainPanel/PaneSystem/ContextMenu.vue'
 import { useMarkdownStore } from '@stores/projectPage'
+import { usePaneLayoutStore } from '@stores/projectPage/paneLayout'
+import type { PaneContextMenuItem, SplitAction } from '@stores/projectPage/paneLayout/types'
 
 interface Props {
   tabId: string
+  paneId?: string  // 🔥 新增：面板 ID
 }
 
 const props = defineProps<Props>()
 
 // 使用Pinia Store
 const markdownStore = useMarkdownStore()
+const paneLayoutStore = usePaneLayoutStore()
 
 // 当前标签页数据
 const currentTab = computed(() => {
@@ -125,6 +142,68 @@ const handleContentChange = (newContent: string) => {
 // 手动保存（Ctrl+S触发）
 const handleSave = () => {
   void markdownStore.saveTab(props.tabId)
+}
+
+// ==================== 右键菜单 ====================
+
+// 右键菜单状态
+const contextMenuVisible = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+
+// 菜单项配置
+const contextMenuItems: PaneContextMenuItem[] = [
+  {
+    action: 'split-right-move',
+    label: '向右拆分（转移）',
+    icon: 'arrow-right'
+  },
+  {
+    action: 'split-right-copy',
+    label: '向右拆分（复制）',
+    icon: 'copy-document'
+  },
+  {
+    action: 'split-down-move',
+    label: '向下拆分（转移）',
+    icon: 'arrow-down',
+    divider: true
+  },
+  {
+    action: 'split-down-copy',
+    label: '向下拆分（复制）',
+    icon: 'copy-document'
+  }
+]
+
+/**
+ * 处理右键菜单
+ */
+const handleContextMenu = (event: MouseEvent) => {
+  // 只有当有打开的标签页且有 paneId 时才显示菜单
+  if (!currentTab.value || !props.paneId) return
+  
+  contextMenuX.value = event.clientX
+  contextMenuY.value = event.clientY
+  contextMenuVisible.value = true
+}
+
+/**
+ * 处理菜单选择
+ */
+const handleMenuSelect = (action: SplitAction) => {
+  if (!currentTab.value || !props.paneId) return
+  
+  console.log('[MarkdownTab] Menu action:', action)
+  
+  // 执行分屏操作
+  paneLayoutStore.executeSplitAction(
+    props.paneId,
+    action,
+    currentTab.value.id
+  )
+  
+  contextMenuVisible.value = false
 }
 
 // 暴露方法

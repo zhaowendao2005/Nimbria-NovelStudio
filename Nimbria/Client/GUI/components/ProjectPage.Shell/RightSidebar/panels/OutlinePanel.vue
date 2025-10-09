@@ -32,6 +32,7 @@
 import { ref, computed, watch } from 'vue'
 import { marked } from 'marked'
 import { useMarkdownStore } from '@stores/projectPage/Markdown'
+import { usePaneLayoutStore } from '@stores/projectPage/paneLayout'
 
 /**
  * OutlinePanel
@@ -48,18 +49,32 @@ interface OutlineItem {
 }
 
 const markdownStore = useMarkdownStore()
+const paneLayoutStore = usePaneLayoutStore()
 
 // 大纲项列表
 const outlineItems = ref<OutlineItem[]>([])
 
-// 是否有打开的文件
-const hasActiveFile = computed(() => {
-  return markdownStore.activeTab !== null
+/**
+ * 🔥 当前焦点面板的文件内容
+ * 改造：从焦点面板获取内容，而不是从 activeTab
+ */
+const activeContent = computed(() => {
+  // 1. 获取焦点面板
+  const focusedPane = paneLayoutStore.focusedPane
+  if (!focusedPane) return ''
+  
+  // 2. 获取面板对应的标签页 ID
+  const tabId = focusedPane.tabId
+  if (!tabId) return ''
+  
+  // 3. 获取标签页内容
+  const tab = markdownStore.openTabs.find(t => t.id === tabId)
+  return tab?.content || ''
 })
 
-// 当前激活文件的内容
-const activeContent = computed(() => {
-  return markdownStore.activeTab?.content || ''
+// 是否有打开的文件
+const hasActiveFile = computed(() => {
+  return activeContent.value !== ''
 })
 
 /**
