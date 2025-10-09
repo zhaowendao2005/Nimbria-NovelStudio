@@ -138,13 +138,16 @@ defineExpose({
 
 <style scoped>
 .markdown-tab {
-  width: 100%;
+  /* 🔥 经典 flex 布局：占满父容器 */
   height: 100%;
+  width: 100%;
+  min-height: 0;
+  
   display: flex;
   flex-direction: column;
+  
   background-color: var(--obsidian-bg-primary, #ffffff);
-  overflow: hidden;  /* 🔑 禁止滚动 */
-  min-height: 0;     /* 🔑 关键！允许flex压缩 */
+  overflow: hidden;  /* 禁止整体滚动，内部组件自己处理 */
 }
 
 /* Header样式 */
@@ -255,9 +258,11 @@ defineExpose({
 
 /* Main内容区域 */
 .tab-main {
+  /* 🔥 经典 flex 布局：占满剩余空间 */
   flex: 1;
-  min-height: 0;      /* 🔑 关键！允许flex压缩 */
-  overflow: hidden;   /* 🔑 禁止滚动 */
+  flex-shrink: 0;
+  min-height: 0;  /* 关键：允许 flex 收缩 */
+  overflow: hidden;  /* 内容由 Vditor 自己处理滚动 */
 }
 
 .tab-empty {

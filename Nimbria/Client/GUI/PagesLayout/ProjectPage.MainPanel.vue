@@ -62,12 +62,17 @@ onMounted(async () => {
   overflow: hidden;
 }
 
-/* 🔥 分屏系统容器 */
+/* 🔥 分屏系统容器 - 经典 flex 布局 */
 .pane-system-container {
   flex: 1;
-  min-height: 0;
+  flex-shrink: 0;  /* 🔥 关键：不被压缩 */
+  min-height: 0;   /* 🔥 关键：允许收缩 */
   overflow: hidden;
   position: relative;
+  
+  /* 确保子元素也是flex布局 */
+  display: flex;
+  flex-direction: column;
 }
 
 /* 欢迎页样式 */

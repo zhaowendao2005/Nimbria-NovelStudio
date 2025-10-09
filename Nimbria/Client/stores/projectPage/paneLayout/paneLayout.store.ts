@@ -14,7 +14,7 @@ import type {
 } from './types'
 
 const STORAGE_KEY = 'nimbria:paneLayout:state'
-const STATE_VERSION = 1
+const STATE_VERSION = 2  // 🔥 升级版本，清理旧格式缓存（tabId -> tabIds）
 
 export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
   
@@ -93,7 +93,7 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
         return {
           ...node,
           isFocused: node.id === paneId,
-          lastActiveAt: node.id === paneId ? Date.now() : node.lastActiveAt
+          lastActiveAt: node.id === paneId ? Date.now() : (node.lastActiveAt || Date.now())
         }
       } else if (node.children) {
         return {
@@ -170,7 +170,8 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
         if (node.type === 'leaf' && node.id === paneId) {
           return {
             ...node,
-            tabId: null
+            tabIds: [],        // 🔥 清空所有标签
+            activeTabId: null  // 🔥 清空激活标签
           }
         } else if (node.children) {
           return {
@@ -253,19 +254,37 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
   
   /**
    * 关闭面板中的某个标签页
+   * 🔥 如果是最后一个标签页，自动删除整个面板节点
    */
   const closeTabInPane = (paneId: string, tabId: string) => {
     console.log('[PaneLayout] Closing tab in pane:', { paneId, tabId })
     
+    // 1. 先获取当前面板的标签列表
+    const currentPane = allLeafPanes.value.find(p => p.id === paneId)
+    if (!currentPane) {
+      console.warn('[PaneLayout] Pane not found:', paneId)
+      return
+    }
+    
+    const currentTabIds = currentPane.tabIds || []
+    
+    // 2. 检查是否是最后一个标签页
+    if (currentTabIds.length === 1 && currentTabIds[0] === tabId) {
+      console.log('[PaneLayout] Closing last tab, will delete pane:', paneId)
+      // 🔥 关闭整个面板节点
+      closePane(paneId)
+      return
+    }
+    
+    // 3. 否则只关闭标签页
     const updateLeaf = (node: PaneNode): PaneNode => {
       if (node.type === 'leaf' && node.id === paneId) {
-        const currentTabIds = node.tabIds || []
         const newTabIds = currentTabIds.filter(id => id !== tabId)
         
         // 如果删除的是激活标签，切换到第一个标签
-        let newActiveTabId = node.activeTabId
+        let newActiveTabId: string | null = node.activeTabId || null
         if (node.activeTabId === tabId) {
-          newActiveTabId = newTabIds.length > 0 ? newTabIds[0] : null
+          newActiveTabId = newTabIds.length > 0 ? (newTabIds[0] || null) : null
         }
         
         return {
@@ -398,24 +417,41 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
   
   /**
    * 恢复状态
+   * 🔥 增强版：自动清理不兼容的缓存
    */
   const restoreState = () => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
-      if (saved) {
-        const state = JSON.parse(saved) as PaneLayoutState
-        
-        // 检查版本兼容性
-        if (state.version === STATE_VERSION && state.paneTree) {
-          paneTree.value = state.paneTree
-          focusedPaneId.value = state.focusedPaneId || paneTree.value.id
-          console.log('[PaneLayout] State restored')
-        } else {
-          console.warn('[PaneLayout] Incompatible state version, using default')
-        }
+      if (!saved) {
+        console.log('[PaneLayout] No saved state, using default')
+        return
+      }
+      
+      const state = JSON.parse(saved) as PaneLayoutState
+      
+      // 检查版本兼容性
+      if (state.version !== STATE_VERSION) {
+        console.warn('[PaneLayout] Incompatible state version:', {
+          saved: state.version,
+          current: STATE_VERSION
+        })
+        // 🔥 清理旧缓存
+        localStorage.removeItem(STORAGE_KEY)
+        console.log('[PaneLayout] Old cache cleared, using default state')
+        return
+      }
+      
+      // 恢复状态
+      if (state.paneTree) {
+        paneTree.value = state.paneTree
+        focusedPaneId.value = state.focusedPaneId || paneTree.value.id
+        console.log('[PaneLayout] State restored successfully')
       }
     } catch (error) {
       console.error('[PaneLayout] Failed to restore state:', error)
+      // 🔥 恢复失败时清理缓存
+      localStorage.removeItem(STORAGE_KEY)
+      console.log('[PaneLayout] Corrupted cache cleared')
     }
   }
   
@@ -483,17 +519,16 @@ function findAndSplit(
     }
     
     // 更新原节点
+    const currentTabIds = node.tabIds || []
+    const newTabIds = shouldMove ? currentTabIds.filter(id => id !== tabId) : currentTabIds
+    const newActiveTabId: string | null = shouldMove && node.activeTabId === tabId
+      ? (newTabIds[0] || null)
+      : (node.activeTabId || null)
+    
     const originalLeaf: PaneNode = {
       ...node,
-      // 转移模式：从原面板移除该标签
-      // 复制模式：保留标签
-      tabIds: shouldMove 
-        ? (node.tabIds || []).filter(id => id !== tabId) 
-        : node.tabIds,
-      // 如果移除的是激活标签，切换到第一个剩余标签
-      activeTabId: shouldMove && node.activeTabId === tabId
-        ? ((node.tabIds || []).filter(id => id !== tabId)[0] || null)
-        : node.activeTabId,
+      tabIds: newTabIds,
+      activeTabId: newActiveTabId,
       isFocused: false
     }
     

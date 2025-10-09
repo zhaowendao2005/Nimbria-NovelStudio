@@ -97,9 +97,14 @@ const paneLayoutStore = usePaneLayoutStore()
 
 /**
  * 该面板的所有标签页 ID
+ * 🔥 过滤掉无效的 tabIds（防止缓存数据不一致）
  */
 const paneTabIds = computed(() => {
-  return paneLayoutStore.getTabIdsByPane(props.paneId)
+  const allTabIds = paneLayoutStore.getTabIdsByPane(props.paneId)
+  // 只保留在 markdownStore 中存在的标签页
+  return allTabIds.filter(tid => 
+    markdownStore.openTabs.some(tab => tab.id === tid)
+  )
 })
 
 /**
@@ -127,6 +132,25 @@ watch(localActiveTabId, (newTabId) => {
     paneLayoutStore.switchTabInPane(props.paneId, newTabId)
   }
 })
+
+/**
+ * 🔥 监听 paneTabIds，清理 paneLayout 中的无效数据
+ * 当缓存恢复导致状态不一致时，自动修复
+ */
+watch(paneTabIds, (validTabIds) => {
+  const currentActiveTabId = paneLayoutStore.getActiveTabIdByPane(props.paneId)
+  
+  // 如果当前激活的标签不在有效列表中，切换到第一个有效标签
+  if (currentActiveTabId && !validTabIds.includes(currentActiveTabId)) {
+    const firstValidTabId = validTabIds[0]
+    if (firstValidTabId) {
+      paneLayoutStore.switchTabInPane(props.paneId, firstValidTabId)
+      console.log('[PaneContent] Auto-switched to valid tab:', firstValidTabId)
+    } else {
+      console.log('[PaneContent] No valid tabs, keeping current state')
+    }
+  }
+}, { immediate: true })
 
 /**
  * 获取标签页名称
@@ -241,11 +265,16 @@ const handleMenuSelect = (action: SplitAction) => {
 
 <style scoped>
 .pane-content {
-  position: relative;
+  /* 🔥 经典 flex 布局：占满剩余空间但不溢出 */
+  flex: 1;
+  flex-shrink: 0;
+  min-height: 0;  /* 关键：允许在 flex 中收缩 */
   width: 100%;
-  height: 100%;
+  
   display: flex;
   flex-direction: column;
+  
+  position: relative;
   background: var(--obsidian-bg-primary, #ffffff);
   border: 2px solid transparent;
   transition: border-color 0.2s;
@@ -283,28 +312,35 @@ const handleMenuSelect = (action: SplitAction) => {
 
 /* 标签页系统 */
 .pane-tabs {
-  height: 100%;
+  /* 🔥 经典 flex 布局：占满剩余空间 */
+  flex: 1;
+  flex-shrink: 0;
+  min-height: 0;
+  
   display: flex;
   flex-direction: column;
-  min-height: 0;
   
   :deep(.el-tabs__header) {
     margin: 0;
     border-bottom: 1px solid var(--obsidian-border, #e3e5e8);
     background: var(--obsidian-bg-secondary, #f5f6f8);
-    flex-shrink: 0;
+    flex-shrink: 0;  /* 头部不收缩 */
   }
   
   :deep(.el-tabs__content) {
+    /* 🔥 内容区域：占满剩余空间 */
     flex: 1;
-    min-height: 0 !important;
+    flex-shrink: 0;
+    min-height: 0;
     overflow: hidden;
   }
   
   :deep(.el-tab-pane) {
+    /* 🔥 每个 tab 面板：占满父容器 */
     height: 100%;
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
-    min-height: 0;
   }
 }
 

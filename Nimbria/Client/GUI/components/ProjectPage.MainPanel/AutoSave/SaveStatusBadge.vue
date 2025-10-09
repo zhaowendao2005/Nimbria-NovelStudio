@@ -1,5 +1,5 @@
 <template>
-  <span class="save-status-badge">
+  <span v-if="tab" class="save-status-badge">
     <!-- 未保存标记 -->
     <q-icon
       v-if="tab.isDirty && !tab.isSaving"
@@ -53,7 +53,7 @@
 import type { MarkdownTab } from '@stores/projectPage/Markdown/types'
 
 interface Props {
-  tab: MarkdownTab
+  tab: MarkdownTab | null  // 🔥 允许 null
 }
 
 defineProps<Props>()
