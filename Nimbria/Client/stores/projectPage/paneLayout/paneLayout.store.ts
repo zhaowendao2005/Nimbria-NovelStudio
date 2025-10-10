@@ -377,6 +377,106 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
     focusedPaneId.value = paneTree.value.id
   }
   
+  /**
+   * 在不同面板间移动标签页
+   * @param fromPaneId 源面板ID
+   * @param toPaneId 目标面板ID
+   * @param tabId 标签页ID
+   * @param toIndex 目标位置索引
+   */
+  const moveTabBetweenPanes = (
+    fromPaneId: string,
+    toPaneId: string,
+    tabId: string,
+    toIndex: number
+  ) => {
+    console.log('[PaneLayout] Moving tab between panes:', {
+      fromPaneId,
+      toPaneId,
+      tabId,
+      toIndex
+    })
+    
+    const updateTree = (node: PaneNode): PaneNode => {
+      if (node.type === 'leaf') {
+        // 从源面板移除
+        if (node.id === fromPaneId) {
+          const newTabIds = (node.tabIds || []).filter(id => id !== tabId)
+          const newActiveTabId = node.activeTabId === tabId
+            ? (newTabIds[0] || null)
+            : node.activeTabId
+          
+          return {
+            ...node,
+            tabIds: newTabIds,
+            activeTabId: newActiveTabId
+          }
+        }
+        
+        // 添加到目标面板
+        if (node.id === toPaneId) {
+          const currentTabIds = node.tabIds || []
+          const newTabIds = [...currentTabIds]
+          
+          // 在指定位置插入
+          newTabIds.splice(toIndex, 0, tabId)
+          
+          return {
+            ...node,
+            tabIds: newTabIds,
+            activeTabId: tabId,  // 激活新添加的标签
+            lastActiveAt: Date.now()
+          }
+        }
+      } else if (node.children) {
+        return {
+          ...node,
+          children: [
+            updateTree(node.children[0]),
+            updateTree(node.children[1])
+          ] as [PaneNode, PaneNode]
+        }
+      }
+      
+      return node
+    }
+    
+    paneTree.value = updateTree(paneTree.value)
+    
+    // 设置焦点到目标面板
+    setFocusedPane(toPaneId)
+  }
+  
+  /**
+   * 重新排序面板内的标签页
+   * @param paneId 面板ID
+   * @param newTabIds 新的标签页顺序
+   */
+  const reorderTabsInPane = (paneId: string, newTabIds: string[]) => {
+    console.log('[PaneLayout] Reordering tabs in pane:', { paneId, newTabIds })
+    
+    const updateTree = (node: PaneNode): PaneNode => {
+      if (node.type === 'leaf' && node.id === paneId) {
+        return {
+          ...node,
+          tabIds: newTabIds
+        }
+      } else if (node.children) {
+        return {
+          ...node,
+          children: [
+            updateTree(node.children[0]),
+            updateTree(node.children[1])
+          ] as [PaneNode, PaneNode]
+        }
+      }
+      
+      return node
+    }
+    
+    paneTree.value = updateTree(paneTree.value)
+  }
+  
   // ==================== 持久化 ====================
   
   /**
@@ -468,6 +568,8 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
     getActiveTabIdByPane,
     updateSplitRatio,
     resetLayout,
+    moveTabBetweenPanes,
+    reorderTabsInPane,
     persistState,
     restoreState
   }

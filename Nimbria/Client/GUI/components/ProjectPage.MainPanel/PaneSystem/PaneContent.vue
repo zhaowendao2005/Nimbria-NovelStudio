@@ -7,36 +7,32 @@
     <!-- 焦点指示器 -->
     <div v-if="isFocused" class="focus-indicator"></div>
     
-    <!-- 🔥 标签页系统 -->
-    <el-tabs
-      v-if="paneTabIds.length > 0"
-      v-model="localActiveTabId"
-      type="card"
-      closable
-      class="pane-tabs"
-      @tab-remove="handleTabRemove"
-      @tab-click="handleTabClick"
-    >
-      <el-tab-pane
-        v-for="tid in paneTabIds"
-        :key="tid"
-        :name="tid"
-      >
-        <template #label>
-          <!-- 🔥 右键菜单应该在标签上触发 -->
-          <div 
-            class="tab-label-wrapper"
-            @contextmenu.prevent.stop="handleContextMenu($event, tid)"
-          >
-            <span class="tab-label">
-              {{ getTabName(tid) }}
-              <SaveStatusBadge :tab="getTab(tid)" />
-            </span>
-          </div>
-        </template>
-        <MarkdownTab :tab-id="tid" />
-      </el-tab-pane>
-    </el-tabs>
+    <!-- 🔥 使用自定义可拖拽标签栏 -->
+    <!-- 
+      布局说明：
+      1. .pane-tabs-wrapper 是 flex 容器（flex-direction: column）
+      2. DraggableTabBar 占据固定高度（flex-shrink: 0）
+      3. .tab-content-area 占据剩余空间（flex: 1）
+      4. 这与原 el-tabs 的布局结构完全一致
+    -->
+    <div v-if="paneTabIds.length > 0" class="pane-tabs-wrapper">
+      <DraggableTabBar
+        :pane-id="paneId"
+        :tab-ids="paneTabIds"
+        :active-tab-id="localActiveTabId"
+        @tab-click="handleTabSwitch"
+        @tab-close="handleTabRemove"
+        @tab-contextmenu="handleContextMenu"
+      />
+      
+      <!-- 标签页内容区域 -->
+      <div class="tab-content-area">
+        <MarkdownTab
+          v-if="localActiveTabId"
+          :tab-id="localActiveTabId"
+        />
+      </div>
+    </div>
     
     <!-- 空面板提示 -->
     <div v-else class="empty-pane">
@@ -70,7 +66,7 @@ import { useMarkdownStore } from '@stores/projectPage/Markdown'
 import { usePaneLayoutStore } from '@stores/projectPage/paneLayout'
 import type { PaneContextMenuItem, SplitAction } from '@stores/projectPage/paneLayout/types'
 import MarkdownTab from '@components/ProjectPage.MainPanel/Markdown/MarkdownTab.vue'
-import SaveStatusBadge from '@components/ProjectPage.MainPanel/AutoSave/SaveStatusBadge.vue'
+import DraggableTabBar from './DraggableTabBar.vue'
 import ContextMenu from './ContextMenu.vue'
 
 /**
@@ -170,20 +166,21 @@ const getTab = (tabId: string) => {
 /**
  * 处理标签页移除
  */
-const handleTabRemove = (tabId: string | number) => {
-  const tid = String(tabId)
-  
+const handleTabRemove = (tabId: string) => {
   // 1. 从面板中移除
-  paneLayoutStore.closeTabInPane(props.paneId, tid)
+  paneLayoutStore.closeTabInPane(props.paneId, tabId)
   
   // 2. 从 markdown store 中关闭
-  markdownStore.closeTab(tid)
+  markdownStore.closeTab(tabId)
 }
 
 /**
- * 处理标签页点击
+ * 处理标签页切换
  */
-const handleTabClick = () => {
+const handleTabSwitch = (tabId: string) => {
+  // 切换激活标签
+  localActiveTabId.value = tabId
+  
   // 切换焦点到当前面板
   if (!props.isFocused) {
     paneLayoutStore.setFocusedPane(props.paneId)
@@ -263,7 +260,7 @@ const handleMenuSelect = (action: SplitAction) => {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .pane-content {
   /* 🔥 经典 flex 布局：占满剩余空间但不溢出 */
   flex: 1;
@@ -310,50 +307,35 @@ const handleMenuSelect = (action: SplitAction) => {
   }
 }
 
-/* 标签页系统 - 参照之前可以工作的版本 */
-/* 🔥 关键：直接选择 el-tabs 类，因为它是组件根元素 */
-:deep(.pane-tabs),
-:deep(.el-tabs) {
+/* 🔥 关键布局样式 - 与原 el-tabs 结构保持一致 */
+.pane-tabs-wrapper {
   height: 100%;
   display: flex;
   flex-direction: column;
-  min-height: 0;  /* 🔑 关键！ */
+  min-height: 0;  // 🔥 关键：允许在 flex 中收缩
 }
 
-:deep(.el-tabs__header) {
-  margin: 0;
-  border-bottom: 1px solid var(--obsidian-border, #e3e5e8);
-  background: var(--obsidian-bg-secondary, #f5f6f8);
-  flex-shrink: 0;  /* 头部不收缩 */
-}
-
-:deep(.el-tabs__content) {
-  /* 🔥 内容区域：占满剩余空间 */
-  flex: 1;
-  min-height: 0 !important;  /* 🔑 必须 !important 覆盖 Element Plus */
+.tab-content-area {
+  flex: 1;        // 🔥 关键：占据剩余空间
+  min-height: 0;  // 🔥 关键：允许在 flex 中收缩
   overflow: hidden;
 }
 
-:deep(.el-tab-pane) {
-  /* 🔥 每个 tab 面板：占满父容器 */
-  height: 100%;
-  overflow: hidden;
-  min-height: 0;  /* 🔑 关键！ */
-}
-
-/* 标签标题包装器 */
-.tab-label-wrapper {
-  display: inline-flex;
-  align-items: center;
-  cursor: pointer;
-  user-select: none;
-}
-
-.tab-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
+/* 
+  对比原 el-tabs 布局：
+  
+  原布局：
+  .el-tabs (flex column)
+    └── .el-tabs__header (flex-shrink: 0)
+    └── .el-tabs__content (flex: 1)
+  
+  新布局：
+  .pane-tabs-wrapper (flex column)
+    └── DraggableTabBar > .draggable-tab-bar (flex-shrink: 0)
+    └── .tab-content-area (flex: 1)
+  
+  两者完全等价！
+*/
 
 /* 空面板样式 */
 .empty-pane {
