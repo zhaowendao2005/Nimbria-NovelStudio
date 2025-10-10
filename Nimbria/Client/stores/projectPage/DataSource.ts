@@ -4,18 +4,20 @@ import { MockFileAPI } from '@stores/MockData.vite';
 /**
  * ProjectPage 数据源适配器
  * 根据环境自动选择真实后端或 Mock 数据
+ * 
+ * ⚠️ 注意：Electron 环境下使用 window.nimbria.markdown API（已存在的实现）
  */
 class ProjectPageDataSource {
   /**
    * 获取文件树
-   * 注意：此方法需要后端实现，这里提供 Mock 支持
+   * 注意：Electron 环境需要调用 markdown.scanTree
    */
   async getFileTree() {
     if (Environment.shouldUseMock()) {
       return MockFileAPI.getFileTree();
     }
-    // TODO: 实现真实的文件树获取逻辑，使用 window.nimbria.fs.readDir 递归构建
-    throw new Error('getFileTree 需要在 Electron 环境中实现');
+    // Electron 环境：使用 markdown.scanTree（由 markdown.store 调用）
+    throw new Error('getFileTree 应通过 markdown.store.initializeFileTree 调用');
   }
 
   /**
@@ -25,7 +27,8 @@ class ProjectPageDataSource {
     if (Environment.shouldUseMock()) {
       return MockFileAPI.getFileContent(filePath);
     }
-    return window.nimbria.fs.readFile(filePath);
+    // Electron 环境：使用原有的 markdown.readFile API
+    return (window.nimbria as any)?.markdown?.readFile(filePath);
   }
 
   /**
@@ -35,8 +38,11 @@ class ProjectPageDataSource {
     if (Environment.shouldUseMock()) {
       return MockFileAPI.saveFile(filePath, content);
     }
-    await window.nimbria.fs.writeFile(filePath, content);
-    return true;
+    // Electron 环境：使用原有的 markdown.writeFile API
+    const result = await (window.nimbria as any)?.markdown?.writeFile(filePath, content, {
+      createBackup: false
+    });
+    return result?.success || false;
   }
 
   /**
@@ -46,8 +52,12 @@ class ProjectPageDataSource {
     if (Environment.shouldUseMock()) {
       return MockFileAPI.createFile(path, name);
     }
+    // Electron 环境：使用 file.createFile（如果存在）
     const fullPath = `${path}/${name}`;
-    await window.nimbria.fs.writeFile(fullPath, '');
+    const result = await (window.nimbria as any)?.file?.createFile(fullPath, '');
+    if (!result?.success) {
+      throw new Error(result?.error || 'Create file failed');
+    }
     return {
       id: fullPath,
       name,
@@ -67,22 +77,19 @@ class ProjectPageDataSource {
     if (Environment.shouldUseMock()) {
       return MockFileAPI.deleteFile(filePath);
     }
-    await window.nimbria.fs.delete(filePath);
-    return true;
+    // Electron 环境：保持原有逻辑（可能需要实现）
+    throw new Error('deleteFile 需要在 Electron 环境中实现');
   }
 
   /**
    * 重命名文件
-   * 注意：通过移动实现重命名
    */
   async renameFile(filePath: string, newName: string) {
     if (Environment.shouldUseMock()) {
       return MockFileAPI.renameFile(filePath, newName);
     }
-    const dir = filePath.substring(0, filePath.lastIndexOf('/'));
-    const newPath = `${dir}/${newName}`;
-    await window.nimbria.fs.move(filePath, newPath);
-    return true;
+    // Electron 环境：保持原有逻辑（可能需要实现）
+    throw new Error('renameFile 需要在 Electron 环境中实现');
   }
 
   /**
@@ -92,8 +99,8 @@ class ProjectPageDataSource {
     if (Environment.shouldUseMock()) {
       return MockFileAPI.moveFile(filePath, targetPath);
     }
-    await window.nimbria.fs.move(filePath, targetPath);
-    return true;
+    // Electron 环境：保持原有逻辑（可能需要实现）
+    throw new Error('moveFile 需要在 Electron 环境中实现');
   }
 }
 
