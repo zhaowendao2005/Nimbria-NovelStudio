@@ -310,45 +310,35 @@ const handleMenuSelect = (action: SplitAction) => {
   }
 }
 
-/* 标签页系统 */
-.pane-tabs {
-  /* 🔥 经典 flex 布局：占满剩余空间 */
+/* 标签页系统 - 参照之前可以工作的版本 */
+/* 🔥 关键：直接选择 el-tabs 类，因为它是组件根元素 */
+:deep(.pane-tabs),
+:deep(.el-tabs) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;  /* 🔑 关键！ */
+}
+
+:deep(.el-tabs__header) {
+  margin: 0;
+  border-bottom: 1px solid var(--obsidian-border, #e3e5e8);
+  background: var(--obsidian-bg-secondary, #f5f6f8);
+  flex-shrink: 0;  /* 头部不收缩 */
+}
+
+:deep(.el-tabs__content) {
+  /* 🔥 内容区域：占满剩余空间 */
   flex: 1;
-  flex-shrink: 0;
-  min-height: 0;
-  
-  /* 🔥 关键：el-tabs 本身必须是 flex 容器 */
-  :deep(.el-tabs) {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-  }
-  
-  :deep(.el-tabs__header) {
-    margin: 0;
-    border-bottom: 1px solid var(--obsidian-border, #e3e5e8);
-    background: var(--obsidian-bg-secondary, #f5f6f8);
-    flex-shrink: 0;  /* 头部不收缩 */
-  }
-  
-  :deep(.el-tabs__content) {
-    /* 🔥 内容区域：占满剩余空间 */
-    flex: 1;
-    min-height: 0;  /* 🔥 关键 */
-    overflow: hidden;
-    
-    /* 🔥 确保是 flex 容器，用于 el-tab-pane */
-    display: flex;
-    flex-direction: column;
-  }
-  
-  :deep(.el-tab-pane) {
-    /* 🔥 每个 tab 面板：占满父容器 */
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
+  min-height: 0 !important;  /* 🔑 必须 !important 覆盖 Element Plus */
+  overflow: hidden;
+}
+
+:deep(.el-tab-pane) {
+  /* 🔥 每个 tab 面板：占满父容器 */
+  height: 100%;
+  overflow: hidden;
+  min-height: 0;  /* 🔑 关键！ */
 }
 
 /* 标签标题包装器 */
