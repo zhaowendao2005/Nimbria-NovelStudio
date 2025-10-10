@@ -164,29 +164,10 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
   const closePane = (paneId: string) => {
     console.log('[PaneLayout] Closing pane:', paneId)
     
-    // 如果只有一个面板，清空内容而不关闭
+    // 🔥 如果只有一个面板，回退到默认空白状态
     if (paneCount.value === 1) {
-      const updateLeaf = (node: PaneNode): PaneNode => {
-        if (node.type === 'leaf' && node.id === paneId) {
-          return {
-            ...node,
-            tabIds: [],        // 🔥 清空所有标签
-            activeTabId: null  // 🔥 清空激活标签
-          }
-        } else if (node.children) {
-          return {
-            ...node,
-            children: [
-              updateLeaf(node.children[0]),
-              updateLeaf(node.children[1])
-            ] as [PaneNode, PaneNode]
-          }
-        }
-        return node
-      }
-      
-      paneTree.value = updateLeaf(paneTree.value)
-      console.log('[PaneLayout] Cleared last pane content')
+      console.log('[PaneLayout] Closing last pane, resetting to default empty state')
+      resetLayout()
       return
     }
     
