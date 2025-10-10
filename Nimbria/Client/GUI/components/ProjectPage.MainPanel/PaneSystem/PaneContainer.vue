@@ -66,6 +66,7 @@ const handleRatioChange = (newRatio: number) => {
 .pane-container-root {
   flex: 1;
   flex-shrink: 0;
+  height: 0;      /* 🔥 关键：配合 flex: 1，为子元素提供高度计算基准 */
   min-height: 0;  /* 关键：允许在 flex 中收缩 */
   width: 100%;
   overflow: hidden;
@@ -78,6 +79,7 @@ const handleRatioChange = (newRatio: number) => {
 .pane-splitter {
   flex: 1;
   flex-shrink: 0;
+  height: 0;      /* 🔥 关键：为 QSplitter 内部的 height: 50% 提供计算基准 */
   min-height: 0;
   width: 100%;
 }

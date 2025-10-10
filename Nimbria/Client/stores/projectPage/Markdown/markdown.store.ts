@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { Notify } from 'quasar'
 import { AutoSaveController } from './markdown.autosave'
+import { Environment } from '@utils/environment'
+import ProjectPageDataSource from '@stores/projectPage/DataSource'
 import type { MarkdownFile, MarkdownTab, AutoSaveConfig, SaveProgress, FileCreationState, OutlineScrollTarget } from './types'
 
 /**
@@ -93,16 +95,25 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
   }
   
   /**
-   * 初始化文件树（从Electron API获取真实数据）
+   * 初始化文件树（自动适配 Mock/Electron 环境）
    */
   const initializeFileTree = async (path?: string) => {
     try {
-      // 尝试从参数、store、或者当前项目窗口获取路径
+      // 在 Mock 环境下，不需要项目路径，直接加载 Mock 数据
+      if (Environment.shouldUseMock()) {
+        console.log('[Mock] Loading file tree from Mock data...')
+        const tree = await ProjectPageDataSource.getFileTree()
+        fileTree.value = tree
+        console.log('[Mock] File tree loaded:', tree.length, 'items')
+        return
+      }
+      
+      // Electron 环境：需要项目路径
       let targetPath = path || projectPath.value
       
       if (!targetPath) {
         // 从当前项目窗口获取项目路径
-        targetPath = window.nimbria?.getCurrentProjectPath?.() || null
+        targetPath = (window.nimbria as any)?.getCurrentProjectPath?.() || null
         if (targetPath) {
           projectPath.value = targetPath
           console.log('Auto-detected project path:', targetPath)
@@ -121,7 +132,7 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
       }
       
       // 调用 Electron API 扫描文件树
-      const tree = await window.nimbria?.markdown?.scanTree({
+      const tree = await (window.nimbria as any)?.markdown?.scanTree({
         projectPath: targetPath,
         excludeDirs: ['node_modules', '.git', 'dist'],
         maxDepth: 10
@@ -172,8 +183,8 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     }
     
     try {
-      // 从 Electron API 读取文件内容
-      const content = await window.nimbria?.markdown?.readFile(filePath)
+      // 使用 DataSource 读取文件内容（自动适配 Mock/Electron）
+      const content = await ProjectPageDataSource.getFileContent(filePath)
       
       // 从文件路径提取文件名
       const fileName = file?.name || filePath.split(/[/\\]/).pop() || 'Untitled'
@@ -292,16 +303,10 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     delete tab.saveError
     
     try {
-      // 调用 Electron API 保存文件
-      const result = await window.nimbria?.markdown?.writeFile(
-        tab.filePath,
-        tab.content,
-        {
-          createBackup: autoSaveConfig.value.createBackup
-        }
-      )
+      // 使用 DataSource 保存文件（自动适配 Mock/Electron）
+      const success = await ProjectPageDataSource.saveFile(tab.filePath, tab.content)
       
-      if (result.success) {
+      if (success) {
         // 保存成功
         tab.isDirty = false
         tab.lastSaved = new Date()
@@ -317,7 +322,7 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
         
         return { success: true }
       } else {
-        throw new Error(result.error)
+        throw new Error('Save failed')
       }
     } catch (error) {
       // 保存失败
@@ -687,17 +692,24 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
    * 内部方法：创建文件
    */
   const createFileInternal = async (filePath: string) => {
-    const result = await window.nimbria?.file?.createFile(filePath, '')
-    if (!result?.success) {
-      throw new Error(result.error || 'Unknown error')
-    }
+    // 使用 DataSource 创建文件（自动适配 Mock/Electron）
+    const dir = filePath.substring(0, filePath.lastIndexOf('/'))
+    const name = filePath.substring(filePath.lastIndexOf('/') + 1)
+    await ProjectPageDataSource.createFile(dir, name)
   }
   
   /**
    * 内部方法：创建目录
    */
   const createDirectoryInternal = async (dirPath: string) => {
-    const result = await window.nimbria?.file?.createDirectory(dirPath)
+    // 在 Mock 环境下，目录创建不需要实际操作
+    if (Environment.shouldUseMock()) {
+      console.log('[Mock] Create directory:', dirPath)
+      return
+    }
+    
+    // Electron 环境：调用文件系统 API
+    const result = await (window.nimbria as any)?.file?.createDirectory(dirPath)
     if (!result?.success) {
       throw new Error(result.error || 'Unknown error')
     }

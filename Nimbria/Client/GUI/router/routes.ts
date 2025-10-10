@@ -42,6 +42,28 @@ const routes: RouteRecordRaw[] = [
       }
     ]
   },
+
+  // 🔥 新增：Vite 测试路由（完整的项目页面布局）
+  {
+    path: '/vite-test',
+    component: () => import('@layouts/ProjectMainLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'ViteTest',
+        components: {
+          // 左栏：Shell容器（导航 + 文件树）
+          left: () => import('@pages/ProjectPage.Shell.vue'),
+          // 中栏：主面板容器（包含右侧栏）
+          center: () => import('@pages/ProjectPage.MainPanel.vue')
+        },
+        meta: {
+          title: 'Vite 测试环境',
+          requiresAuth: false
+        }
+      }
+    ]
+  },
   
   // 404 错误页面
   {

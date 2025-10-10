@@ -179,6 +179,7 @@ defineExpose({
 
 <style scoped>
 .markdown-editor {
+  /* 🔥 Vditor 会使用 height: 100%，父容器的 height: 0 + flex: 1 提供了计算基准 */
   width: 100%;
   height: 100%;
   overflow: hidden;

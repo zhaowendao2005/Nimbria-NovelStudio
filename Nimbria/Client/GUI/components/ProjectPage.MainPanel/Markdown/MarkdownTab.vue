@@ -261,8 +261,13 @@ defineExpose({
   /* 🔥 经典 flex 布局：占满剩余空间 */
   flex: 1;
   flex-shrink: 0;
+  height: 0;      /* 🔥 关键：配合 flex: 1，让子元素的 height: 100% 可以正确计算 */
   min-height: 0;  /* 关键：允许 flex 收缩 */
-  overflow: hidden;  /* 内容由 Vditor 自己处理滚动 */
+  
+  display: flex;  /* 确保子元素（MarkdownEditor/Viewer）也能使用flex */
+  flex-direction: column;
+  
+  overflow: hidden;  /* 内容由 Vditor/Viewer 自己处理滚动 */
 }
 
 .tab-empty {

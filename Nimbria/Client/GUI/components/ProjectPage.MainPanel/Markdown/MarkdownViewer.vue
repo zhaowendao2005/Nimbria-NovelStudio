@@ -136,9 +136,11 @@ onMounted(() => {
 
 <style scoped>
 .markdown-viewer {
+  /* 🔥 占满父容器，父容器的 height: 0 + flex: 1 提供了高度 */
   width: 100%;
   height: 100%;
-  overflow-y: auto;  /* ✅ 唯一滚动层 */
+  
+  overflow-y: auto;  /* ✅ 垂直滚动 */
   padding: 20px 40px;
   background-color: var(--obsidian-bg-primary, #ffffff);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;

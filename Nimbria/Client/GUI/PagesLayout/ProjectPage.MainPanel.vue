@@ -66,6 +66,7 @@ onMounted(async () => {
 .pane-system-container {
   flex: 1;
   flex-shrink: 0;  /* 🔥 关键：不被压缩 */
+  height: 0;       /* 🔥 关键：配合 flex: 1，为子元素的百分比高度提供计算基准 */
   min-height: 0;   /* 🔥 关键：允许收缩 */
   overflow: hidden;
   position: relative;
