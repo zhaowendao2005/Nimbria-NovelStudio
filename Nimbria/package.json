@@ -22,7 +22,7 @@
         "rendererProcessPort": 9222,
         "description": "开发模式下 Electron 会自动启用远程调试端口",
         "usage": {
-          "chromeDevTools": "在 Chrome 浏览器中打开 chrome://inspect，添加目标 localhost:9222",
+          "chromeDevTools": "在 Chrome 浏览器中打开 chrome://inspect，添加目标 localhost:9222,项目页http://localhost:9300/#/project",
           "mcpTools": "使用 Chrome DevTools MCP 工具连接到端口 9222 进行调试",
           "vscode": "使用 VSCode 的调试器连接到主进程端口 5858"
         }

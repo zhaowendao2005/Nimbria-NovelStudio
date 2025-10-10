@@ -15,7 +15,7 @@ import { useMarkdownStore } from '@stores/projectPage/Markdown'
 import type { Command } from '@stores/projectPage/commandPalette/types'
 import type { MarkdownTab } from '@stores/projectPage/Markdown/types'
 import { Notify } from 'quasar'
-import { ensureOutlinePanelRegistered } from '@utils/Plugins/panels/outline-panel.plugin'
+import { ensureOutlinePanelForTab } from '@utils/Plugins/panels/outline-panel.plugin'
 
 /**
  * 已注册的命令ID集合（用于清理旧命令）
@@ -36,24 +36,16 @@ const createOutlineCommandForTab = (tab: MarkdownTab): Command => {
     action: () => {
       console.log(`[Command] Executing: markdown.showOutline for ${tab.fileName} (${tab.id})`)
       try {
-        const markdownStore = useMarkdownStore()
+        // 🔥 为这个标签页创建/获取大纲面板
+        const panelId = ensureOutlinePanelForTab(tab.id, tab.fileName)
         
-        // 🔥 先切换到这个标签页（如果不是当前激活的）
-        if (markdownStore.activeTabId !== tab.id) {
-          markdownStore.switchTab(tab.id)
-          console.log(`[Command] Switched to tab: ${tab.fileName}`)
-        }
-        
-        // 🔥 确保大纲面板已注册（按需注册）
-        ensureOutlinePanelRegistered()
-        
-        // 切换到大纲面板（会自动显示右栏）
-        rightSidebarApi.switchTo('outline')
+        // 🔥 切换到该大纲面板（如果已存在则激活标签页，如果不存在则刚刚创建）
+        rightSidebarApi.switchTo(panelId)
         
         // 显示右侧栏（如果隐藏的话）
         rightSidebarApi.show()
         
-        console.log('[Command] Success: markdown.showOutline')
+        console.log(`[Command] Success: Showing outline for ${tab.fileName} (panel: ${panelId})`)
         
         Notify.create({
           type: 'positive',

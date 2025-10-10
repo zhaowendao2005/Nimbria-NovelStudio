@@ -13,6 +13,7 @@ export interface RightSidebarPanel {
   closable?: boolean            // 是否可关闭（默认true）
   order?: number                // 排序权重（数值越小越靠前）
   when?: () => boolean          // 显示条件
+  props?: Record<string, any>   // 🔥 传递给组件的 props
 }
 
 /** Store状态 */

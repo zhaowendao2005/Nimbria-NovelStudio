@@ -25,7 +25,7 @@
           
           <!-- 动态组件（由外部提供） -->
           <div class="panel-content">
-            <component :is="panel.component" />
+            <component :is="panel.component" v-bind="panel.props || {}" />
           </div>
         </el-tab-pane>
       </el-tabs>

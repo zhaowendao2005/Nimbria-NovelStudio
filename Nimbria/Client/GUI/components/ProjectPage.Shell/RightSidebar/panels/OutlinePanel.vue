@@ -32,11 +32,10 @@
 import { ref, computed, watch } from 'vue'
 import { marked } from 'marked'
 import { useMarkdownStore } from '@stores/projectPage/Markdown'
-import { usePaneLayoutStore } from '@stores/projectPage/paneLayout'
 
 /**
  * OutlinePanel
- * 大纲面板 - 自动从当前打开的 Markdown 文件提取标题
+ * 大纲面板 - 显示指定标签页的 Markdown 文件大纲
  * 标题栏和关闭按钮由 RightSidebar 统一管理
  */
 
@@ -48,27 +47,22 @@ interface OutlineItem {
   slug: string // 🔥 标题的 slug（用于预览模式跳转）
 }
 
+// 🔥 接收 props：指定要显示大纲的标签页 ID
+const props = defineProps<{
+  tabId: string
+}>()
+
 const markdownStore = useMarkdownStore()
-const paneLayoutStore = usePaneLayoutStore()
 
 // 大纲项列表
 const outlineItems = ref<OutlineItem[]>([])
 
 /**
- * 🔥 当前焦点面板的激活文件内容
- * 改造：从焦点面板的激活标签获取内容
+ * 🔥 获取指定标签页的内容
+ * 改造：从 props.tabId 获取内容，而不是从焦点面板获取
  */
 const activeContent = computed(() => {
-  // 1. 获取焦点面板
-  const focusedPane = paneLayoutStore.focusedPane
-  if (!focusedPane) return ''
-  
-  // 2. 获取面板的激活标签页 ID
-  const activeTabId = focusedPane.activeTabId
-  if (!activeTabId) return ''
-  
-  // 3. 获取标签页内容
-  const tab = markdownStore.openTabs.find(t => t.id === activeTabId)
+  const tab = markdownStore.openTabs.find(t => t.id === props.tabId)
   return tab?.content || ''
 })
 
