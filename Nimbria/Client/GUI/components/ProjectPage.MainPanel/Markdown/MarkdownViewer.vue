@@ -136,9 +136,10 @@ onMounted(() => {
 
 <style scoped>
 .markdown-viewer {
-  /* 🔥 占满父容器，父容器的 height: 0 + flex: 1 提供了高度 */
+  /* 🔥 使用 flex 布局，占满父容器 */
+  flex: 1;
+  min-height: 0;  /* 🔥 关键：防止内容撑开父容器 */
   width: 100%;
-  height: 100%;
   
   overflow-y: auto;  /* ✅ 垂直滚动 */
   padding: 20px 40px;

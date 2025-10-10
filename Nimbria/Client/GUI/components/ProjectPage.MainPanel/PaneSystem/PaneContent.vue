@@ -317,8 +317,12 @@ const handleMenuSelect = (action: SplitAction) => {
   flex-shrink: 0;
   min-height: 0;
   
-  display: flex;
-  flex-direction: column;
+  /* 🔥 关键：el-tabs 本身必须是 flex 容器 */
+  :deep(.el-tabs) {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
   
   :deep(.el-tabs__header) {
     margin: 0;
@@ -330,9 +334,12 @@ const handleMenuSelect = (action: SplitAction) => {
   :deep(.el-tabs__content) {
     /* 🔥 内容区域：占满剩余空间 */
     flex: 1;
-    flex-shrink: 0;
-    min-height: 0;
+    min-height: 0;  /* 🔥 关键 */
     overflow: hidden;
+    
+    /* 🔥 确保是 flex 容器，用于 el-tab-pane */
+    display: flex;
+    flex-direction: column;
   }
   
   :deep(.el-tab-pane) {
