@@ -243,6 +243,11 @@ export default configure((/* ctx */) => {
       // specify the debugging port to use for the Electron app when running in development mode
       inspectPort: 5858,
 
+      // 🔥 开发模式下的额外启动参数
+      // --remote-debugging-port=9222 开启 Chrome DevTools Protocol (CDP) 远程调试
+      // 允许使用 chrome://inspect 或 MCP 工具进行调试
+      electronArgs: ['--remote-debugging-port=9222'],
+
       // 使用 electron-builder 以生成 NSIS 安装包
       bundler: 'builder', // 'packager' or 'builder'
 

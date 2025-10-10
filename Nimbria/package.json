@@ -10,10 +10,42 @@
     "lint": "eslint -c ./eslint.config.js \"./Client/**/*.{ts,js,cjs,mjs,vue}\" \"./src-electron/**/*.{ts,js,cjs,mjs}\"",
     "test": "echo \"No test specified\" && exit 0",
     "dev": "node Script/run-with-logger.mjs --name dev -- quasar dev",
-    "dev:electron": "node Script/run-with-logger.mjs --name dev:electron -- quasar dev -m electron",
+    "dev:electron": "node Script/run-with-logger.mjs --name dev:electron -- quasar dev -m electron -- --remote-debugging-port=9222",
     "build": "node Script/run-with-logger.mjs --name build -- quasar build",
     "build:electron": "quasar build -m electron",
     "postinstall": "quasar prepare"
+  },
+  "projectInfo": {
+    "debugging": {
+      "electron": {
+        "mainProcessPort": 5858,
+        "rendererProcessPort": 9222,
+        "description": "开发模式下 Electron 会自动启用远程调试端口",
+        "usage": {
+          "chromeDevTools": "在 Chrome 浏览器中打开 chrome://inspect，添加目标 localhost:9222",
+          "mcpTools": "使用 Chrome DevTools MCP 工具连接到端口 9222 进行调试",
+          "vscode": "使用 VSCode 的调试器连接到主进程端口 5858"
+        }
+      }
+    },
+    "startup": {
+      "dev": "npm run dev - 启动 Web 开发服务器",
+      "devElectron": "npm run dev:electron - 启动 Electron 开发模式（包含远程调试）",
+      "build": "npm run build - 构建 Web 应用",
+      "buildElectron": "npm run build:electron - 构建 Electron 安装包"
+    },
+    "architecture": {
+      "frontend": "Vue 3 + Quasar + Element Plus",
+      "backend": "Electron Main Process + Python Services",
+      "stateManagement": "Pinia",
+      "editor": "Vditor (Markdown)",
+      "splitPane": "Quasar QSplitter + Custom Pane System"
+    },
+    "ports": {
+      "webDev": "默认 9000（Quasar 自动分配）",
+      "electronMainDebug": 5858,
+      "electronRendererDebug": 9222
+    }
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
