@@ -4,6 +4,7 @@ import { Notify } from 'quasar'
 import { AutoSaveController } from './markdown.autosave'
 import { Environment } from '@utils/environment'
 import ProjectPageDataSource from '@stores/projectPage/DataSource'
+import { usePaneLayoutStore } from '@stores/projectPage/paneLayout'
 import type { MarkdownFile, MarkdownTab, AutoSaveConfig, SaveProgress, FileCreationState, OutlineScrollTarget } from './types'
 
 /**
@@ -228,6 +229,26 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     
     const tab = openTabs.value[index]
     if (!tab) return
+    
+    // 🔥 检查是否还有其他面板在使用这个标签页（引用计数）
+    const paneLayoutStore = usePaneLayoutStore()
+    const allPanes = paneLayoutStore.allLeafPanes
+    
+    const refCount = allPanes.filter(pane => 
+      pane.tabIds?.includes(tabId)
+    ).length
+    
+    console.log(`[Markdown] closeTab: tabId=${tabId}, fileName=${tab.fileName}, refCount=${refCount}`)
+    
+    // 🔥 如果还有其他面板在使用，不删除标签对象，只打印日志
+    if (refCount > 0) {
+      console.log(`[Markdown] Tab still in use by ${refCount} pane(s), keeping tab object`)
+      // 注意：不更新 activeTabId，因为其他面板可能还在用
+      return
+    }
+    
+    // 🔥 引用计数为 0，可以安全删除标签对象
+    console.log(`[Markdown] No pane references, deleting tab object`)
     
     // 如果有未保存的更改，这里可以添加确认逻辑
     if (tab.isDirty) {
