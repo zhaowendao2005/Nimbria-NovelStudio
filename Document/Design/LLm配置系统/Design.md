@@ -9,36 +9,51 @@
 
 ## 🎯 核心变更需求
 
-### 1. 模型选择交互改进
+### 【重要】UI保持原则
 
-**当前问题**：
-- 模型显示为纯展示的chip标签
+**⚠️ 核心原则：保持现有UI布局不变**
+- ✅ 保持现有ProviderCard的布局结构
+- ✅ 保持现有model-chip的样式和排列
+- ✅ 保持现有expansion-item的展开/收起逻辑
+- ❌ 不改变任何现有组件的布局结构
+- ❌ 不添加新的视觉元素改变外观
+- ✅ 只在现有元素上添加交互事件监听
+
+### 1. 模型选择交互改进（不改UI，只加交互）
+
+**当前状态**：
+- 模型显示为纯展示的chip标签（外观保持）
 - 无法直接选择活动模型
 - 缺少右键菜单功能
 
-**目标设计**：
+**目标设计（保持现有UI，只增强交互）**：
 
 ```
-每个模型chip变为可交互元素：
+现有UI布局（不改动）：
 ┌─────────────────────────────────────┐
 │ LLM (5个)                           │
-│ ┌─────────────────────┐  ┌──────┐  │
-│ │ ☑️ gpt-3.5-turbo    │  │ [+] │  │ ← 手动添加按钮
-│ │ [📝自定义]          │  └──────┘  │
+│ ┌─────────────────────┐            │
+│ │ gpt-3.5-turbo       │            │ ← 保持现有chip样式
 │ └─────────────────────┘            │
 │ ┌─────────────────────┐            │
-│ │ ☐ gpt-4             │            │
+│ │ gpt-4               │            │
 │ └─────────────────────┘            │
 │ ...                                │
 └─────────────────────────────────────┘
 
-交互行为：
-✅ 左键点击chip → 切换选中状态（复选框）
-✅ 右键点击chip → 弹出上下文菜单
+新增交互行为（不改变外观）：
+✅ 左键点击chip → 切换选中状态
+   - 选中时：chip添加selected类（背景色、边框加粗）
+   - 未选中时：保持原样式
+   
+✅ 右键点击chip → 弹出q-menu上下文菜单
    - 删除模型
    - 重命名（修改displayName）
    - 配置参数（打开ModelConfigModal）
-✅ 点击[+]按钮 → 打开AddModelModal
+   
+✅ 模型类型组最后添加 [+] chip
+   - 样式：虚线边框的chip
+   - 点击：打开AddModelModal
 ```
 
 ---
@@ -195,62 +210,80 @@
         显示通知: "提供商添加成功"
 ```
 
-### 流程2: 模型选择与管理（新增增强）
+### 流程2: 模型选择与管理（保持UI，增强交互）
 
 ```
-ProviderCard 展开模型列表
+ProviderCard 展开模型列表（保持现有布局）
     ↓
 ┌─────────────────────────────────────┐
-│ LLM (5个)                  [+ 添加] │
+│ LLM (5个)                           │
 │ ┌─────────────────────────────────┐ │
-│ │ ☑️ gpt-3.5-turbo [📝自定义]     │ │ ← 左键点击切换选中
-│ └─────────────────────────────────┘ │   右键打开菜单
+│ │ gpt-3.5-turbo [📝]              │ │ ← 保持现有chip样式
+│ └─────────────────────────────────┘ │   添加事件监听
 │ ┌─────────────────────────────────┐ │
-│ │ ☐ gpt-4                         │ │
+│ │ gpt-4                           │ │
+│ └─────────────────────────────────┘ │
+│ ┌─────────────────────────────────┐ │
+│ │ [+ 添加模型]                    │ │ ← 新增chip（虚线边框）
 │ └─────────────────────────────────┘ │
 └─────────────────────────────────────┘
 
 左键点击模型chip:
     ↓
-toggleModelSelection(modelType, modelName, checked)
+handleModelClick(model, modelType)
     ↓
-if (checked):
-    // 设为活动模型
-    settingsStore.setActiveModel(modelType, providerId, modelName)
+检查当前选中状态:
+    isActive = isActiveModel(modelType, model.name)
+    ↓
+if (!isActive):
+    // 设为活动模型（同类型其他模型自动取消）
+    settingsStore.setActiveModel(modelType, providerId, model.name)
         ↓
     DataSource.setActiveModel()
         ↓
     activeModels[modelType] = 'providerId.modelName'
         ↓
-    UI更新: 
-        - chip变为选中状态（☑️）
+    UI更新（通过computed自动响应）: 
+        - 添加 .model-chip--active 类
+        - chip背景色变化（#e3f2fd）
+        - 边框加粗（2px solid #1976d2）
         - 顶部活动模型标签更新
 else:
-    // 取消活动
+    // 取消活动（点击已选中的chip）
     settingsStore.clearActiveModel(modelType)
         ↓
     delete activeModels[modelType]
+        ↓
+    UI更新:
+        - 移除 .model-chip--active 类
+        - 恢复原样式
 
 右键点击模型chip:
     ↓
-显示 ModelContextMenu 在鼠标位置
+handleModelContextMenu(event, model, modelType)
+    ↓
+event.preventDefault() // 阻止默认右键菜单
+    ↓
+显示 q-menu（touch-position + context-menu）
     ↓
 ┌─────────────────────┐
-│ 🗑️ 删除模型         │ → confirmDeleteModel()
-│ ✏️ 重命名           │ → showRenameDialog()
-│ ⚙️ 配置参数         │ → openModelConfigModal()
+│ 🗑️ 删除模型         │ → handleDeleteModel()
+│ ✏️ 重命名           │ → handleRenameModel()
+│ ⚙️ 配置参数         │ → handleConfigModel()
 └─────────────────────┘
 
-点击 [+ 添加] 按钮:
+点击 [+ 添加模型] chip:
     ↓
-打开 AddModelModal
+handleAddModel(modelType)
+    ↓
+打开 AddModelModal，传入当前modelType
     ↓
 ┌────────────────────────────────────┐
 │ 手动添加模型                        │
 │                                    │
 │ 模型名称 *: [              ]       │
 │ 显示名称:   [              ]       │
-│ 模型类型 *: [LLM ▼]                │
+│ 模型类型:   LLM (预填充，只读)      │
 │                                    │
 │ 初始配置:                           │
 │ - 上下文长度: [4096]               │
@@ -261,7 +294,11 @@ else:
 │            [取消] [添加]           │
 └────────────────────────────────────┘
     ↓
-保存到 provider.supportedModels
+settingsStore.addModelToProvider(providerId, modelType, modelDetail)
+    ↓
+保存到 provider.supportedModels[modelType].models
+    ↓
+UI自动更新显示新模型chip
 ```
 
 ### 流程3: 提供商配置（三Tab - 完全照搬）
@@ -357,22 +394,31 @@ ProviderCard中点击模型的⚙️按钮
 - 分组：active → available → inactive
 - 使用ProviderCard渲染每个提供商
 
-**Settings.LlmConfig.ProviderCard.vue** ⭐重点修改
+**Settings.LlmConfig.ProviderCard.vue** ⭐重点修改（只改交互，不改布局）
 - 职责：单个提供商的完整展示
-- Header部分：
-  - Logo + 名称 + 描述
-  - 状态chip + 模型数 + 刷新时间
-  - 操作按钮：⚙️配置 🔄刷新 ⚡激活开关
-- Expansion部分：
-  - 按类型分组的模型列表
-  - **每个模型chip可点击（复选）**
-  - **每个模型chip可右键（菜单）**
-  - **每组最后一个[+]按钮**
+- Header部分（保持现有布局）：
+  - Logo + 名称 + 描述（不变）
+  - 状态chip + 模型数 + 刷新时间（不变）
+  - 操作按钮：⚙️配置 🔄刷新 ⚡激活开关（不变）
+- Expansion部分（保持现有布局，增强交互）：
+  - 按类型分组的模型列表（布局不变）
+  - **每个模型chip添加点击事件（@click切换选中）**
+  - **每个模型chip添加右键事件（@contextmenu打开菜单）**
+  - **每组最后添加一个[+] chip（虚线样式）**
+  - 选中状态通过CSS类控制（不改变DOM结构）
 
-**Settings.LlmConfig.ActiveModels.vue**
+**Settings.LlmConfig.ActiveModels.vue** ⭐关键修改（复用ProviderCard的选中逻辑）
 - 职责：活动模型管理页面
-- 按模型类型显示下拉框
-- 可切换每个类型的活动模型
+- **设计变更**：不使用下拉框，直接复用ProviderCard的模型列表
+- **实现方式**：
+  - 显示所有提供商的ProviderCard
+  - 用户通过点击chip选择活动模型（与提供商列表Tab相同交互）
+  - 每个模型类型只能有一个选中（单选逻辑）
+  - 选中的模型即为该类型的活动模型
+- **说明**：图2显示的就是这个逻辑 - "为提供商选取默认模型"
+  - 用户在图1的ProviderCard中点击chip
+  - 该chip被标记为选中（活动模型）
+  - 顶部活动模型标签自动更新
 
 ### 对话框层
 
@@ -487,82 +533,223 @@ export async function addModel(
 
 ---
 
-## 🎨 UI细节设计
+## 🎨 UI细节设计（基于现有样式微调）
 
-### 模型chip样式（选中与未选中）
+### 模型chip样式增强（不破坏现有样式）
+
+**实现方式**：在现有chip上添加动态类
 
 ```scss
+// 保持现有.q-chip样式不变
+// 只添加活动状态的modifier类
+
 .model-chip {
-  cursor: pointer;
-  transition: all 0.2s ease;
+  // 保持现有cursor和transition
   
-  // 未选中状态
-  &.unselected {
-    background: white;
-    border: 1px solid #e0e0e0;
-    color: #666;
-    
-    &:hover {
-      border-color: #1976d2;
-      background: #f5f5f5;
-    }
-  }
-  
-  // 选中状态（活动模型）
-  &.selected {
-    background: #e3f2fd;
-    border: 2px solid #1976d2;
-    color: #1976d2;
+  // 活动模型状态（追加到现有chip上）
+  &--active {
+    background: #e3f2fd !important; // 浅蓝背景
+    border: 2px solid #1976d2 !important; // 加粗蓝色边框
+    color: #1976d2 !important;
     font-weight: 500;
-    
-    &::before {
-      content: '✓ ';
-      font-weight: bold;
-    }
+    box-shadow: 0 2px 4px rgba(25, 118, 210, 0.2);
   }
   
-  // 自定义配置标识
+  // hover状态（未选中时）
+  &:not(.model-chip--active):hover {
+    border-color: #1976d2;
+    background: #f5f5f5;
+    cursor: pointer;
+  }
+  
+  // 自定义配置标识（保持现有）
   .custom-badge {
     margin-left: 4px;
     color: #ff9800;
   }
 }
+
+// [+] 添加按钮chip样式
+.model-chip--add {
+  border: 1px dashed #1976d2 !important;
+  background: transparent !important;
+  color: #1976d2 !important;
+  
+  &:hover {
+    background: #e3f2fd !important;
+  }
+}
 ```
 
-### 右键菜单样式
+**使用示例**：
+```vue
+<q-chip 
+  v-for="model in modelGroup.models"
+  :class="{ 
+    'model-chip--active': isActiveModel(modelGroup.type, model.name)
+  }"
+  @click="handleModelClick(model, modelGroup.type)"
+  @contextmenu.prevent="handleModelContextMenu($event, model, modelGroup.type)"
+>
+  {{ model.name }}
+  <q-icon v-if="model.config" name="edit" size="xs" class="custom-badge" />
+</q-chip>
+
+<!-- 添加按钮chip -->
+<q-chip 
+  class="model-chip--add"
+  @click="handleAddModel(modelGroup.type)"
+>
+  <q-icon name="add" size="xs" />
+  添加模型
+</q-chip>
+```
+
+### 右键菜单实现（q-menu）
+
+**在ProviderCard组件中添加**：
 
 ```vue
-<q-menu 
-  touch-position 
-  context-menu
-  transition-show="jump-down"
-  transition-hide="jump-up"
->
-  <q-list dense style="min-width: 150px">
-    <q-item clickable v-close-popup>
-      <q-item-section avatar>
-        <q-icon name="delete" color="negative" />
-      </q-item-section>
-      <q-item-section>删除模型</q-item-section>
-    </q-item>
-    
-    <q-item clickable v-close-popup>
-      <q-item-section avatar>
-        <q-icon name="edit" color="primary" />
-      </q-item-section>
-      <q-item-section>重命名</q-item-section>
-    </q-item>
-    
-    <q-separator />
-    
-    <q-item clickable v-close-popup>
-      <q-item-section avatar>
-        <q-icon name="settings" color="orange" />
-      </q-item-section>
-      <q-item-section>配置参数</q-item-section>
-    </q-item>
-  </q-list>
-</q-menu>
+<template>
+  <!-- 现有内容保持不变 -->
+  
+  <!-- 模型chip右键菜单（添加到组件末尾） -->
+  <q-menu 
+    v-model="showContextMenu"
+    touch-position 
+    context-menu
+    transition-show="jump-down"
+    transition-hide="jump-up"
+  >
+    <q-list dense style="min-width: 150px">
+      <q-item 
+        clickable 
+        v-close-popup
+        @click="handleDeleteModel(contextMenuModel, contextMenuModelType)"
+      >
+        <q-item-section avatar>
+          <q-icon name="delete" color="negative" />
+        </q-item-section>
+        <q-item-section>删除模型</q-item-section>
+      </q-item>
+      
+      <q-item 
+        clickable 
+        v-close-popup
+        @click="handleRenameModel(contextMenuModel, contextMenuModelType)"
+      >
+        <q-item-section avatar>
+          <q-icon name="edit" color="primary" />
+        </q-item-section>
+        <q-item-section>重命名</q-item-section>
+      </q-item>
+      
+      <q-separator />
+      
+      <q-item 
+        clickable 
+        v-close-popup
+        @click="handleConfigModel(contextMenuModel, contextMenuModelType)"
+      >
+        <q-item-section avatar>
+          <q-icon name="settings" color="orange" />
+        </q-item-section>
+        <q-item-section>配置参数</q-item-section>
+      </q-item>
+    </q-list>
+  </q-menu>
+  
+  <!-- 重命名对话框 -->
+  <q-dialog v-model="showRenameDialog" persistent>
+    <q-card style="min-width: 350px">
+      <q-card-section>
+        <div class="text-h6">重命名模型</div>
+      </q-card-section>
+      
+      <q-card-section class="q-pt-none">
+        <q-input 
+          v-model="renameValue" 
+          label="显示名称"
+          dense
+          autofocus
+          @keyup.enter="confirmRename"
+        />
+      </q-card-section>
+      
+      <q-card-actions align="right">
+        <q-btn flat label="取消" v-close-popup />
+        <q-btn 
+          flat 
+          label="确定" 
+          color="primary" 
+          @click="confirmRename"
+        />
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
+</template>
+
+<script setup lang="ts">
+// 右键菜单相关状态
+const showContextMenu = ref(false)
+const contextMenuModel = ref<ModelDetail | null>(null)
+const contextMenuModelType = ref<string>('')
+
+// 重命名对话框相关
+const showRenameDialog = ref(false)
+const renameValue = ref('')
+
+// 右键菜单处理函数
+function handleModelContextMenu(
+  event: MouseEvent, 
+  model: ModelDetail, 
+  modelType: string
+) {
+  event.preventDefault()
+  contextMenuModel.value = model
+  contextMenuModelType.value = modelType
+  showContextMenu.value = true
+}
+
+function handleDeleteModel(model: ModelDetail, modelType: string) {
+  // 确认删除
+  $q.dialog({
+    title: '确认删除',
+    message: `确定要删除模型 "${model.name}" 吗？`,
+    cancel: true,
+    persistent: true
+  }).onOk(() => {
+    settingsStore.removeModelFromProvider(
+      props.provider.id,
+      modelType,
+      model.name
+    )
+  })
+}
+
+function handleRenameModel(model: ModelDetail, modelType: string) {
+  renameValue.value = model.displayName || model.name
+  contextMenuModel.value = model
+  contextMenuModelType.value = modelType
+  showRenameDialog.value = true
+}
+
+function confirmRename() {
+  if (contextMenuModel.value) {
+    settingsStore.setModelDisplayName(
+      props.provider.id,
+      contextMenuModel.value.name,
+      renameValue.value
+    )
+    showRenameDialog.value = false
+  }
+}
+
+function handleConfigModel(model: ModelDetail, modelType: string) {
+  // 触发父组件事件，打开ModelConfigModal
+  emit('model-config', props.provider, model.name)
+}
+</script>
 ```
 
 ---
@@ -595,20 +782,203 @@ export const mockDiscoveredModels = [
 
 ---
 
+## 📌 关键实现细节说明
+
+### 1. ProviderCard模型chip交互实现
+
+**在 Settings.LlmConfig.ProviderCard.vue 中**：
+
+```typescript
+// computed: 判断模型是否为活动模型
+const isActiveModel = (modelType: string, modelName: string): boolean => {
+  const activeModelId = settingsStore.activeModels[modelType]
+  if (!activeModelId) return false
+  
+  const { providerId, modelName: activeModelName } = parseModelId(activeModelId)
+  return providerId === props.provider.id && activeModelName === modelName
+}
+
+// 点击chip切换活动状态
+const handleModelClick = async (model: ModelDetail, modelType: string) => {
+  const isActive = isActiveModel(modelType, model.name)
+  
+  if (isActive) {
+    // 取消活动
+    await settingsStore.clearActiveModel(modelType)
+  } else {
+    // 设为活动
+    await settingsStore.setActiveModel(
+      modelType, 
+      props.provider.id, 
+      model.name
+    )
+  }
+}
+
+// 右键菜单
+const handleModelContextMenu = (
+  event: MouseEvent,
+  model: ModelDetail,
+  modelType: string
+) => {
+  event.preventDefault()
+  contextMenuModel.value = model
+  contextMenuModelType.value = modelType
+  showContextMenu.value = true
+}
+
+// 添加模型
+const handleAddModel = (modelType: string) => {
+  selectedModelType.value = modelType
+  showAddModelDialog.value = true
+}
+```
+
+**模板中的绑定**：
+
+```vue
+<q-chip 
+  v-for="model in modelGroup.models"
+  :key="model.name"
+  :class="{ 
+    'model-chip--active': isActiveModel(modelGroup.type, model.name)
+  }"
+  @click="handleModelClick(model, modelGroup.type)"
+  @contextmenu.prevent="handleModelContextMenu($event, model, modelGroup.type)"
+>
+  {{ model.name }}
+  <q-icon 
+    v-if="model.config" 
+    name="edit" 
+    size="xs" 
+    color="orange"
+  />
+</q-chip>
+
+<!-- 添加模型按钮 -->
+<q-chip 
+  class="model-chip--add"
+  @click="handleAddModel(modelGroup.type)"
+>
+  <q-icon name="add" size="xs" />
+  添加模型
+</q-chip>
+```
+
+### 2. 活动模型Tab实现说明
+
+**关键理解**：图2展示的"活动模型"Tab实际上复用了图1的ProviderCard组件
+
+**实现方式**：
+
+```vue
+<!-- Settings.LlmConfig.ActiveModels.vue -->
+<template>
+  <div class="active-models-tab">
+    <div class="hint">
+      <q-icon name="info" color="primary" />
+      为每种模型类型选择一个默认的活动模型
+    </div>
+    
+    <!-- 直接复用ProviderList组件 -->
+    <SettingsLlmConfigProviderList />
+    
+    <!-- 说明：
+         - 用户点击任意ProviderCard中的模型chip
+         - 该模型被设为对应类型的活动模型
+         - 同类型的其他模型自动取消选中
+         - 这就是"为提供商选取默认模型"的交互
+    -->
+  </div>
+</template>
+```
+
+### 3. 单选逻辑实现（每个类型只能选一个）
+
+**在 settings.llm.store.ts 中**：
+
+```typescript
+async function setActiveModel(
+  modelType: string,
+  providerId: string,
+  modelName: string
+): Promise<boolean> {
+  try {
+    loading.value = true
+    
+    // 创建modelId
+    const modelId = createModelId(providerId, modelName)
+    
+    // 调用DataSource（目前mock，TODO: IPC）
+    const success = await DataSource.setActiveModel(modelType, modelId)
+    
+    if (success) {
+      // 更新activeModels（自动覆盖同类型的旧选择）
+      activeModels.value[modelType] = modelId
+      
+      // 触发UI更新（computed自动响应）
+    }
+    
+    return success
+  } catch (err) {
+    error.value = '设置活动模型失败'
+    return false
+  } finally {
+    loading.value = false
+  }
+}
+```
+
+### 4. CSS实现（不破坏现有样式）
+
+**在 Settings.LlmConfig.ProviderCard.vue 的 scoped style 中添加**：
+
+```scss
+// 保持现有所有样式不变
+
+// 只添加以下新样式
+.model-chip--active {
+  background: #e3f2fd !important;
+  border: 2px solid #1976d2 !important;
+  color: #1976d2 !important;
+  font-weight: 500;
+  box-shadow: 0 2px 4px rgba(25, 118, 210, 0.2);
+}
+
+.model-chip--add {
+  border: 1px dashed #1976d2 !important;
+  background: transparent !important;
+  color: #1976d2 !important;
+  
+  &:hover {
+    background: #e3f2fd !important;
+  }
+}
+
+// 添加hover效果（不影响已选中的）
+.q-chip:not(.model-chip--active):hover {
+  border-color: #1976d2;
+  background: #f5f5f5;
+  cursor: pointer;
+}
+```
+
+---
+
 ## 📝 实施优先级
 
 ### P0 - 核心流程（必须完成）
 1. ✅ AddProviderModal三步流程
-2. ✅ ProviderCard模型列表复选交互
-3. ✅ 活动模型设置/取消
+2. ⭐ ProviderCard模型chip点击选中交互（重点）
+3. ⭐ 活动模型设置/取消（重点）
 4. ✅ ModelConfigModal（单模型配置）
 5. ✅ ProviderConfigModal（提供商配置）
 
 ### P1 - 增强交互（重要）
-6. ✅ 右键菜单
-7. ✅ 模型重命名功能
-8. ✅ 手动添加模型（AddModelModal）
-9. ✅ 模型删除功能
+6. ⭐ 右键菜单（新增）
+7. ⭐ 模型重命名功能（新增）
+8. ⭐ 手动添加模型（AddModelModal，新增）
+9. ⭐ 模型删除功能（新增）
 
 ### P2 - 优化完善（可选）
 10. 智能推荐系统
@@ -645,16 +1015,16 @@ DataSource.ts
 ### 功能完整性
 - [ ] 可以添加提供商（三步流程完整）
 - [ ] 可以测试连接并自动发现模型
-- [ ] 可以点击模型chip设置/取消活动模型
-- [ ] 可以右键模型chip打开菜单
-- [ ] 可以删除模型
-- [ ] 可以重命名模型显示名
+- [⭐] **可以点击模型chip设置/取消活动模型（核心）**
+- [⭐] **可以右键模型chip打开菜单（核心）**
+- [⭐] **可以删除模型（核心）**
+- [⭐] **可以重命名模型显示名（核心）**
 - [ ] 可以配置单个模型参数
 - [ ] 可以配置提供商（三Tab完整）
 - [ ] 可以刷新模型列表
 - [ ] 可以删除提供商
-- [ ] 可以手动添加单个模型
-- [ ] 活动模型标签正确显示
+- [⭐] **可以手动添加单个模型（核心）**
+- [⭐] **活动模型标签正确显示（核心）**
 - [ ] 按状态分组正确显示
 
 ### 交互流畅性
@@ -662,11 +1032,30 @@ DataSource.ts
 - [ ] 所有错误提示正确显示
 - [ ] 所有成功通知正确显示
 - [ ] 对话框打开/关闭动画流畅
-- [ ] 右键菜单位置正确
+- [⭐] **右键菜单位置正确（核心）**
+
+### UI保持完整性（新增）
+- [⭐] **现有布局结构不变**
+- [⭐] **只通过CSS类添加交互状态**
+- [⭐] **不添加破坏现有布局的元素**
+- [⭐] **[+]添加按钮融入现有chip风格**
 
 ### Mock数据完整性
 - [ ] 所有表单不做校验（直接通过）
 - [ ] 测试连接总是返回成功+模型列表
 - [ ] 所有操作总是返回成功
+
+---
+
+**设计方案完成！** 🎉
+
+**核心原则总结：**
+1. ✅ **UI布局完全不变** - 保持现有ProviderCard的所有布局
+2. ✅ 完全遵循JiuZhang的交互流程
+3. ✅ 三步添加、三Tab配置不变
+4. ✅ 增强模型选择交互（点击选中+右键菜单）
+5. ✅ 只通过CSS类和事件监听增强交互
+6. ✅ 图2的"活动模型Tab"就是复用图1的ProviderCard
+7. ✅ 优先保证流程完整（mock不校验）
 
 ---
