@@ -40,7 +40,9 @@ onMounted(() => {
     mode: 'ir', // Instant Rendering模式，类似Obsidian
     placeholder: '开始编写...',
     theme: 'classic',
-    cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.10.7',  // 指定CDN版本
+    // 🔥 使用国内 CDN 源，加载速度更快
+    // unpkg.com 在国内有镜像节点，速度较快
+    cdn: 'https://unpkg.com/vditor@3.10.7',
     
     // 使用默认工具栏并固定
     toolbarConfig: {
