@@ -144,7 +144,6 @@ function scrollToSection(sectionId: string) {
 function handleScroll() {
   if (!contentRef.value) return
 
-  const scrollTop = contentRef.value.scrollTop
   const sections = ['cache', 'ai', 'theme']
   
   // 找到当前在视口中的章节

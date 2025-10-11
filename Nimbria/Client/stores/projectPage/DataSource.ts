@@ -1,6 +1,21 @@
 import { Environment } from '@utils/environment';
 import { MockFileAPI } from '@stores/MockData.vite';
 
+// 定义 Nimbria API 接口类型
+interface MarkdownAPI {
+  readFile?: (filePath: string) => Promise<string>
+  writeFile?: (filePath: string, content: string, options?: { createBackup?: boolean }) => Promise<{ success: boolean; error?: string }>
+}
+
+interface FileAPI {
+  createFile?: (filePath: string, content: string) => Promise<{ success: boolean; error?: string }>
+}
+
+interface NimbriaAPI {
+  markdown?: MarkdownAPI
+  file?: FileAPI
+}
+
 /**
  * ProjectPage 数据源适配器
  * 根据环境自动选择真实后端或 Mock 数据
@@ -28,7 +43,8 @@ class ProjectPageDataSource {
       return MockFileAPI.getFileContent(filePath);
     }
     // Electron 环境：使用原有的 markdown.readFile API
-    return (window.nimbria as any)?.markdown?.readFile(filePath);
+    const nimbriaAPI = window.nimbria as NimbriaAPI | undefined
+    return nimbriaAPI?.markdown?.readFile(filePath);
   }
 
   /**
@@ -39,7 +55,8 @@ class ProjectPageDataSource {
       return MockFileAPI.saveFile(filePath, content);
     }
     // Electron 环境：使用原有的 markdown.writeFile API
-    const result = await (window.nimbria as any)?.markdown?.writeFile(filePath, content, {
+    const nimbriaAPI = window.nimbria as NimbriaAPI | undefined
+    const result = await nimbriaAPI?.markdown?.writeFile(filePath, content, {
       createBackup: false
     });
     return result?.success || false;
@@ -54,7 +71,8 @@ class ProjectPageDataSource {
     }
     // Electron 环境：使用 file.createFile（如果存在）
     const fullPath = `${path}/${name}`;
-    const result = await (window.nimbria as any)?.file?.createFile(fullPath, '');
+    const nimbriaAPI = window.nimbria as NimbriaAPI | undefined
+    const result = await nimbriaAPI?.file?.createFile(fullPath, '');
     if (!result?.success) {
       throw new Error(result?.error || 'Create file failed');
     }

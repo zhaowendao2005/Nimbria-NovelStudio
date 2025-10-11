@@ -258,14 +258,14 @@ function formatLastOpened(lastOpened: string): string {
 }
 
 // 项目操作函数
-async function createProject() {
+function createProject() {
   if (isCreatingProject.value) return
   
   isCreatingProject.value = true
   projectStore.clearError()
 
   try {
-    const result = await projectStore.createNewProject()
+    const result = projectStore.createNewProject()
     
     if (result === 'show-creation-dialog') {
       showProjectCreationDialog.value = true

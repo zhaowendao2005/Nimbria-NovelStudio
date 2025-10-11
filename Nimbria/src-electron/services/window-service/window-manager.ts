@@ -39,14 +39,14 @@ export class WindowManager {
     })
   }
 
-  public async createMainWindow(): Promise<WindowProcess> {
-    const process = await this.processManager.createMainProcess()
+  public createMainWindow(): WindowProcess {
+    const process = this.processManager.createMainProcess()
     this.messageRouter.setupChannel(process)
     return process
   }
 
-  public async createProjectWindow(projectPath: string): Promise<WindowProcess> {
-    const process = await this.processManager.createProjectProcess(projectPath)
+  public createProjectWindow(projectPath: string): WindowProcess {
+    const process = this.processManager.createProjectProcess(projectPath)
     this.messageRouter.setupChannel(process)
     return process
   }

@@ -62,7 +62,7 @@ defineProps<Props>()
 const isMaximized = ref(false)
 
 // 检查窗口是否最大化
-onMounted(async () => {
+onMounted(() => {
   try {
     // 🔥 使用专用频道查询当前窗口状态
     const nimbriaApi = window.nimbria as unknown as NimbriaWithEvents

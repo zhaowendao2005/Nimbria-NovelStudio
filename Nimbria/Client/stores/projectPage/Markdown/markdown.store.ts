@@ -7,6 +7,24 @@ import ProjectPageDataSource from '@stores/projectPage/DataSource'
 import { usePaneLayoutStore } from '@stores/projectPage/paneLayout'
 import type { MarkdownFile, MarkdownTab, AutoSaveConfig, SaveProgress, FileCreationState, OutlineScrollTarget } from './types'
 
+// 定义扩展的 Nimbria API 接口
+interface ExtendedMarkdownAPI {
+  scanTree?: (params: {
+    projectPath: string
+    excludeDirs?: string[]
+    maxDepth?: number
+  }) => Promise<MarkdownFile[]>
+  createDirectory?: (dirPath: string) => Promise<{ success: boolean; error?: string }>
+}
+
+interface ExtendedNimbriaAPI {
+  getCurrentProjectPath?: () => string | null
+  markdown?: ExtendedMarkdownAPI
+  file?: {
+    createDirectory?: (dirPath: string) => Promise<{ success: boolean; error?: string }>
+  }
+}
+
 /**
  * Markdown Store
  * 管理Markdown文件树、标签页、导航历史等状态
@@ -114,7 +132,8 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
       
       if (!targetPath) {
         // 从当前项目窗口获取项目路径
-        targetPath = (window.nimbria as any)?.getCurrentProjectPath?.() || null
+        const nimbriaAPI = window.nimbria as ExtendedNimbriaAPI | undefined
+        targetPath = nimbriaAPI?.getCurrentProjectPath?.() || null
         if (targetPath) {
           projectPath.value = targetPath
           console.log('Auto-detected project path:', targetPath)
@@ -133,7 +152,8 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
       }
       
       // 调用 Electron API 扫描文件树
-      const tree = await (window.nimbria as any)?.markdown?.scanTree({
+      const nimbriaAPI = window.nimbria as ExtendedNimbriaAPI | undefined
+      const tree = await nimbriaAPI?.markdown?.scanTree({
         projectPath: targetPath,
         excludeDirs: ['node_modules', '.git', 'dist'],
         maxDepth: 10
@@ -730,9 +750,10 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     }
     
     // Electron 环境：调用文件系统 API
-    const result = await (window.nimbria as any)?.file?.createDirectory(dirPath)
+    const nimbriaAPI = window.nimbria as ExtendedNimbriaAPI | undefined
+    const result = await nimbriaAPI?.file?.createDirectory(dirPath)
     if (!result?.success) {
-      throw new Error(result.error || 'Unknown error')
+      throw new Error(result?.error || 'Unknown error')
     }
   }
   

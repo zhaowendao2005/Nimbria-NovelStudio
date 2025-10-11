@@ -36,7 +36,7 @@ export class ProjectFileSystem {
   /**
    * 初始化项目
    */
-  async initProject(projectPath: string, windowId: string): Promise<FileOperationResult> {
+  initProject(projectPath: string, windowId: string): FileOperationResult {
     try {
       const result = this.fileManager.initProjectContext(projectPath, windowId)
       if (!result.success) {

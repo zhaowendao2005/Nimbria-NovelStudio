@@ -7,6 +7,13 @@ import { Environment } from '@utils/environment'
 import { MockProjectAPI } from '@stores/MockData.vite'
 import type { RecentProject } from '../../types/domain/project'
 
+// 定义 Project API 类型
+interface ProjectAPI {
+  getRecent?: () => Promise<RecentProject[]>
+  updateRecent?: (params: { projectPath: string; projectName?: string }) => Promise<{ success: boolean }>
+  createWindow?: (projectPath: string) => Promise<{ success: boolean }>
+}
+
 export class ProjectDataSource {
   /**
    * 获取最近打开的项目列表
@@ -26,10 +33,11 @@ export class ProjectDataSource {
     
     // 注意：window.nimbria.project 的真实API可能不同
     // 这里保留原有的调用方式，需要根据实际API进行调整
-    if (!(window.nimbria?.project as any)?.getRecent) {
+    const projectAPI = window.nimbria?.project as ProjectAPI | undefined
+    if (!projectAPI?.getRecent) {
       throw new Error('项目API不可用')
     }
-    return await (window.nimbria.project as any).getRecent()
+    return await projectAPI.getRecent()
   }
 
   /**
@@ -41,10 +49,11 @@ export class ProjectDataSource {
       return { success: true };
     }
     
-    if (!(window.nimbria?.project as any)?.updateRecent) {
+    const projectAPI = window.nimbria?.project as ProjectAPI | undefined
+    if (!projectAPI?.updateRecent) {
       throw new Error('项目API不可用')
     }
-    return await (window.nimbria.project as any).updateRecent({ projectPath, projectName })
+    return await projectAPI.updateRecent({ projectPath, projectName })
   }
 
   /**
@@ -56,10 +65,11 @@ export class ProjectDataSource {
       return { success: true };
     }
     
-    if (!(window.nimbria?.project as any)?.createWindow) {
+    const projectAPI = window.nimbria?.project as ProjectAPI | undefined
+    if (!projectAPI?.createWindow) {
       throw new Error('项目窗口API不可用')
     }
-    return await (window.nimbria.project as any).createWindow(projectPath)
+    return await projectAPI.createWindow(projectPath)
   }
 
   /**

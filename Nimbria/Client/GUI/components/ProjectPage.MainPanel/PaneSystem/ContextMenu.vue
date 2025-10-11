@@ -33,7 +33,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, type Component } from 'vue'
 import { 
   ArrowRight, 
   ArrowDown, 
@@ -78,8 +78,8 @@ const menuStyle = computed(() => ({
 /**
  * 获取图标组件
  */
-const getIcon = (iconName: string) => {
-  const iconMap: Record<string, any> = {
+const getIcon = (iconName: string): Component | null => {
+  const iconMap: Record<string, Component> = {
     'arrow-right': ArrowRight,
     'arrow-down': ArrowDown,
     'copy-document': CopyDocument,

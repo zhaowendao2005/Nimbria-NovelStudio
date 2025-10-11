@@ -60,7 +60,17 @@ contextBridge.exposeInMainWorld('nimbria', {
       ensurePort().postMessage({ type: 'project-broadcast', message })
     },
     // 🔥 标签页拆分到新窗口
-    detachTabToWindow: (data: { tabId: string; tabData: any; projectPath: string }) => 
+    detachTabToWindow: (data: { 
+      tabId: string
+      tabData: {
+        id: string
+        title: string
+        filePath: string
+        content: string
+        isDirty: boolean
+      }
+      projectPath: string 
+    }) => 
       ipcRenderer.invoke('project:detach-tab-to-window', data)
   },
 
@@ -184,11 +194,11 @@ contextBridge.exposeInMainWorld('nimbria', {
   },
 
   // 🔥 事件通信 API
-  on: (channel: string, callback: (...args: any[]) => void) => {
+  on: (channel: string, callback: (...args: unknown[]) => void) => {
     ipcRenderer.on(channel, (_event, ...args) => callback(...args))
   },
   
-  send: (channel: string, ...args: any[]) => {
+  send: (channel: string, ...args: unknown[]) => {
     ipcRenderer.send(channel, ...args)
   }
 })

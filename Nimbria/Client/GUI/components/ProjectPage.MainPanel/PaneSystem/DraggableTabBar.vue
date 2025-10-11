@@ -62,6 +62,13 @@ interface Props {
   activeTabId: string | null
 }
 
+interface DragEvent {
+  from: HTMLElement & { dataset: { paneId: string } }
+  to: HTMLElement & { dataset: { paneId: string } }
+  oldIndex: number
+  newIndex: number
+}
+
 const props = defineProps<Props>()
 const emit = defineEmits<{
   'tab-click': [tabId: string]
@@ -100,17 +107,17 @@ const getTab = (tabId: string) => {
 }
 
 // 拖拽开始
-const handleDragStart = (evt: any) => {
+const handleDragStart = (evt: DragEvent) => {
   console.log('[DraggableTabBar] Drag start:', evt)
   // 设置焦点到当前面板
   paneLayoutStore.setFocusedPane(props.paneId)
 }
 
 // 拖拽结束
-const handleDragEnd = (evt: any) => {
+const handleDragEnd = (evt: DragEvent) => {
   console.log('[DraggableTabBar] Drag end:', evt)
   
-  const { from, to, oldIndex, newIndex } = evt
+  const { from, to, newIndex } = evt
   const fromPaneId = from.dataset.paneId
   const toPaneId = to.dataset.paneId
   const draggedTabId = localTabIds.value[newIndex]
@@ -134,12 +141,12 @@ const handleDragEnd = (evt: any) => {
 }
 
 // 标签被添加到当前面板
-const handleAdd = (evt: any) => {
+const handleAdd = (evt: DragEvent) => {
   console.log('[DraggableTabBar] Tab added:', evt)
 }
 
 // 标签被移除出当前面板
-const handleRemove = (evt: any) => {
+const handleRemove = (evt: DragEvent) => {
   console.log('[DraggableTabBar] Tab removed:', evt)
 }
 

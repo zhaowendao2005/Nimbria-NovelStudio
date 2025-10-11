@@ -8,9 +8,17 @@
       <!-- 🔥 自动保存指示器 -->
       <AutoSaveIndicator v-if="markdownStore.openTabs.length > 0" />
       
-      <!-- 🔥 分屏系统 -->
-      <div class="pane-system-container">
-        <PaneContainer :node="paneLayoutStore.paneTree" />
+      <!-- 🔥 分屏系统（有面板时显示） -->
+      <div v-if="paneLayoutStore.hasPanes" class="pane-system-container">
+        <PaneContainer :node="paneLayoutStore.paneTree!" />
+      </div>
+      
+      <!-- 🔥 加载中/空状态 -->
+      <div v-else class="loading-container">
+        <div class="loading-content">
+          <q-spinner-dots size="50px" color="primary" />
+          <p>正在初始化编辑器...</p>
+        </div>
       </div>
     </div>
   </div>
@@ -160,6 +168,28 @@ onUnmounted(() => {
   top: 16px;
   right: 16px;
   z-index: 1000;
+}
+
+/* 加载状态容器 */
+.loading-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--obsidian-bg-primary, #ffffff);
+}
+
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  
+  p {
+    color: var(--obsidian-text-muted, #6c757d);
+    font-size: 14px;
+    margin: 0;
+  }
 }
 </style>
 

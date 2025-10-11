@@ -14,7 +14,7 @@ import { WindowManager } from '../services/window-service/window-manager'
 import { ProjectFileSystem } from '../services/file-service/project-fs'
 import { ProjectManager } from '../services/project-service/project-manager'
 import { getLogger } from '../utils/shared/logger'
-import { getRecentProjects, upsertRecentProject } from '../store/recent-projects-store'
+import { getRecentProjects, upsertRecentProject, clearRecentProjects } from '../store/recent-projects-store'
 import { registerMarkdownHandlers } from '../ipc/main-renderer/markdown-handlers'
 import { registerFileHandlers } from '../ipc/main-renderer/file-handlers'
 
@@ -27,10 +27,10 @@ export class AppManager {
   private projectManager!: ProjectManager
   private transferMap?: Map<string, { sourceWebContentsId: number; tabId: string }>
 
-  async boot() {
+  boot() {
     logger.info('Starting Nimbria application...')
     this.initializeFileSystem()
-    await this.initializeWindowManager()
+    this.initializeWindowManager()
     this.registerIpcHandlers()
   }
 
@@ -47,7 +47,7 @@ export class AppManager {
     logger.info('File system and project management services initialized')
   }
 
-  private async initializeWindowManager() {
+  private initializeWindowManager() {
     const templates: Record<'main' | 'project', WindowTemplate> = {
       main: {
         id: 'main-default',
@@ -96,16 +96,16 @@ export class AppManager {
       }
     })
 
-    const launch = async () => {
+    const launch = () => {
       if (!this.windowManager) return
-      this.mainProcess = await this.windowManager.createMainWindow()
+      this.mainProcess = this.windowManager.createMainWindow()
     }
 
     if (app.isReady()) {
-      await launch()
+      launch()
     } else {
       app.on('ready', () => {
-        void launch()
+        launch()
       })
     }
 
@@ -313,16 +313,16 @@ export class AppManager {
       }
     })
 
-    ipcMain.handle('project:create-window', async (_event, request: IPCRequest<'project:create-window'>) => {
+    ipcMain.handle('project:create-window', (_event, request: IPCRequest<'project:create-window'>) => {
       if (!this.windowManager) {
         return { success: false, errorCode: 'window-manager-not-ready' }
       }
 
-      const process = await this.windowManager.createProjectWindow(request.projectPath)
+      const process = this.windowManager.createProjectWindow(request.projectPath)
       
       // 自动初始化项目文件系统上下文
       if (process.type === 'project') {
-        await this.projectFileSystem.initProject(process.projectPath, process.id)
+        this.projectFileSystem.initProject(process.projectPath, process.id)
         logger.info(`Auto-initialized project filesystem for ${process.projectPath}`)
       }
       
@@ -364,7 +364,6 @@ export class AppManager {
     ipcMain.handle('project:clear-cache', () => {
       console.log('🗑️  [Electron Main] 收到清空缓存请求')
       console.log('🗑️  [Electron Main] 清空最近项目列表...')
-      const { clearRecentProjects } = require('../store/recent-projects-store')
       clearRecentProjects()
       console.log('✅ [Electron Main] 最近项目列表已清空')
       return { success: true }
@@ -373,7 +372,13 @@ export class AppManager {
     // 🔥 标签页拆分到新窗口
     ipcMain.handle('project:detach-tab-to-window', async (event, payload: { 
       tabId: string
-      tabData: any
+      tabData: {
+        id: string
+        title: string
+        filePath: string
+        content: string
+        isDirty: boolean
+      }
       projectPath: string 
     }) => {
       try {
@@ -485,8 +490,8 @@ export class AppManager {
 
   private registerFileSystemHandlers() {
     // 项目文件系统初始化和清理
-    ipcMain.handle('fs:project-init', async (_event, request: IPCRequest<'fs:project-init'>) => {
-      const result = await this.projectFileSystem.initProject(request.projectPath, request.windowId)
+    ipcMain.handle('fs:project-init', (_event, request: IPCRequest<'fs:project-init'>) => {
+      const result = this.projectFileSystem.initProject(request.projectPath, request.windowId)
       return result
     })
 

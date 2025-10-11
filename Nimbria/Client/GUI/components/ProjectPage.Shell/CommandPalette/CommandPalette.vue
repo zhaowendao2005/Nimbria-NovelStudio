@@ -147,7 +147,7 @@ const handleExecute = (command: Command) => {
 // 监听打开状态，自动聚焦
 watch(() => commandStore.isOpen, (isOpen) => {
   if (isOpen) {
-    nextTick(() => {
+    void nextTick(() => {
       searchInputRef.value?.focus()
     })
   } else {

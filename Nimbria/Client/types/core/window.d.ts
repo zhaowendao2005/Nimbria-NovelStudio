@@ -160,9 +160,15 @@ export interface NimbriaWindowAPI {
      */
     detachTabToWindow(data: { 
       tabId: string
-      tabData: any
+      tabData: {
+        id: string
+        title: string
+        filePath: string
+        content: string
+        isDirty: boolean
+      }
       projectPath: string 
-    }): Promise<{ success: boolean; windowId?: number; error?: any }>
+    }): Promise<{ success: boolean; windowId?: number; error?: string }>
 
     // 新增项目管理API
     /** 创建项目 */
@@ -472,7 +478,7 @@ export interface NimbriaWindowAPI {
    * })
    * ```
    */
-  on(channel: string, callback: (...args: any[]) => void): void
+  on(channel: string, callback: (...args: unknown[]) => void): void
 
   /**
    * 发送 IPC 事件
@@ -484,7 +490,7 @@ export interface NimbriaWindowAPI {
    * window.nimbria.send('project:detached-ready', { transferId: 'xxx' })
    * ```
    */
-  send(channel: string, ...args: any[]): void
+  send(channel: string, ...args: unknown[]): void
 }
 
 declare global {

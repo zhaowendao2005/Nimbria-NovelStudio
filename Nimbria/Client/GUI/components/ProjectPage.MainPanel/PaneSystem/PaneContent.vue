@@ -174,21 +174,6 @@ watch(paneTabIds, (validTabIds) => {
 }, { immediate: true })
 
 /**
- * 获取标签页名称
- */
-const getTabName = (tabId: string): string => {
-  const tab = markdownStore.openTabs.find(t => t.id === tabId)
-  return tab?.fileName || 'Untitled'
-}
-
-/**
- * 获取标签页对象
- */
-const getTab = (tabId: string) => {
-  return markdownStore.openTabs.find(t => t.id === tabId) || null
-}
-
-/**
  * 处理标签页移除
  */
 const handleTabRemove = (tabId: string) => {

@@ -98,7 +98,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { Notify } from 'quasar'
 import { useSettingsStore } from '@stores/settings/settings.store'
 

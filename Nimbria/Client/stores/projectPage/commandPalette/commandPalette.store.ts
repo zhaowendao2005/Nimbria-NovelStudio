@@ -5,7 +5,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Command, CommandPaletteState } from './types'
+import type { Command } from './types'
 
 export const useCommandPaletteStore = defineStore('commandPalette', () => {
   // ==================== 状态 ====================
