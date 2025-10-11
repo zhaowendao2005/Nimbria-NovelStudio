@@ -1,10 +1,12 @@
-import { app, ipcMain, dialog, BrowserWindow } from 'electron'
+import { app, ipcMain, dialog, BrowserWindow, type MessagePortMain } from 'electron'
 import path from 'node:path'
+import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const isDevEnvironment = !!process.env.DEV || !!process.env.DEBUGGING
+const isDebugMode = !!process.env.ELECTRON_DEBUG
 
 import type { WindowTemplate } from '../types/window'
 import type { WindowProcess, ProjectWindowProcess, MainWindowProcess } from '../types/process'
@@ -13,10 +15,11 @@ import type { IPCRequest, IPCResponse, WindowOperationResult } from '../types/ip
 import { WindowManager } from '../services/window-service/window-manager'
 import { ProjectFileSystem } from '../services/file-service/project-fs'
 import { ProjectManager } from '../services/project-service/project-manager'
-import { getLogger } from '../utils/shared/logger'
+import { getLogger, closeLogSystem, getLogFilePath } from '../utils/shared/logger'
 import { getRecentProjects, upsertRecentProject, clearRecentProjects } from '../store/recent-projects-store'
 import { registerMarkdownHandlers } from '../ipc/main-renderer/markdown-handlers'
 import { registerFileHandlers } from '../ipc/main-renderer/file-handlers'
+import { createApplicationMenu, setupContextMenu } from './menu'
 
 const logger = getLogger('AppManager')
 
@@ -28,17 +31,40 @@ export class AppManager {
   private transferMap?: Map<string, { sourceWebContentsId: number; tabId: string }>
 
   boot() {
+    logger.info('='.repeat(80))
     logger.info('Starting Nimbria application...')
+    logger.info('Environment:', {
+      isDev: isDevEnvironment,
+      isDebug: isDebugMode,
+      nodeEnv: process.env.NODE_ENV,
+      appPath: app.getAppPath(),
+      userDataPath: app.getPath('userData')
+    })
+    logger.info('Log file:', getLogFilePath())
+    logger.info('='.repeat(80))
+    
     this.initializeFileSystem()
     this.initializeWindowManager()
     this.registerIpcHandlers()
+    
+    // 🔥 在调试模式下创建应用菜单
+    if (isDebugMode) {
+      createApplicationMenu(true)
+      logger.info('Debug menu initialized')
+    }
   }
 
   async shutdown() {
+    logger.info('='.repeat(80))
     logger.info('Shutting down Nimbria application...')
     if (this.projectFileSystem) {
       await this.projectFileSystem.cleanup()
     }
+    logger.info('Application shutdown complete')
+    logger.info('='.repeat(80))
+    
+    // 🔥 关闭日志系统
+    closeLogSystem()
   }
 
   private initializeFileSystem() {
@@ -130,7 +156,45 @@ export class AppManager {
       return
     }
 
-    void windowProcess.window.loadFile(path.join(__dirname, '../../index.html'))
+    // 🔥 修复生产环境路径问题
+    // Electron 可以直接从 asar 中加载文件
+    // app.asar 会被自动解压到内存中，所以直接使用 app.getAppPath() + 'index.html'
+    const indexPath = path.join(app.getAppPath(), 'index.html')
+    
+    logger.info('Loading main window from:', indexPath)
+    logger.info('Current __dirname:', __dirname)
+    logger.info('App path:', app.getAppPath())
+    logger.info('Is in asar:', __dirname.includes('app.asar'))
+    logger.info('Debug mode:', isDebugMode)
+    logger.info('Index.html exists (in asar):', fs.existsSync(indexPath))
+    
+    // 添加错误监听器
+    windowProcess.window.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+      logger.error('Failed to load window:', { errorCode, errorDescription, validatedURL })
+    })
+    
+    windowProcess.window.webContents.on('did-finish-load', () => {
+      logger.info('Main window finished loading')
+      // 🔥 调试模式下也开启 DevTools
+      if (isDebugMode) {
+        windowProcess.window.webContents.openDevTools()
+        logger.info('DevTools opened in debug mode')
+      }
+    })
+    
+    windowProcess.window.webContents.on('dom-ready', () => {
+      logger.info('DOM ready for main window')
+    })
+    
+    // 🔥 添加 F12 快捷键支持（即使菜单不存在也能工作）
+    this.setupDevToolsShortcut(windowProcess)
+    
+    // 🔥 在调试模式下添加右键菜单
+    if (isDebugMode) {
+      setupContextMenu(windowProcess.window, true)
+    }
+    
+    void windowProcess.window.loadFile(indexPath)
   }
 
   private loadProjectWindow(windowProcess: WindowProcess) {
@@ -144,8 +208,29 @@ export class AppManager {
       return
     }
 
-    // 生产环境：加载index.html并导航到/project
-    void windowProcess.window.loadFile(path.join(__dirname, '../../index.html'), {
+    // 🔥 修复生产环境路径问题（与主窗口逻辑一致）
+    const indexPath = path.join(app.getAppPath(), 'index.html')
+    
+    logger.info('Loading project window from:', indexPath)
+    logger.info('File exists (in asar):', fs.existsSync(indexPath))
+    
+    // 🔥 调试模式下自动打开 DevTools
+    if (isDebugMode) {
+      windowProcess.window.webContents.on('did-finish-load', () => {
+        windowProcess.window.webContents.openDevTools()
+        logger.info('DevTools opened for project window in debug mode')
+      })
+    }
+    
+    // 🔥 添加 F12 快捷键支持
+    this.setupDevToolsShortcut(windowProcess)
+    
+    // 🔥 在调试模式下添加右键菜单
+    if (isDebugMode) {
+      setupContextMenu(windowProcess.window, true)
+    }
+    
+    void windowProcess.window.loadFile(indexPath, {
       hash: '/project'
     })
   }
@@ -202,9 +287,39 @@ export class AppManager {
       }
       detachedWindow.webContents.openDevTools()
     } else {
-      await detachedWindow.loadFile(path.join(__dirname, '../../index.html'), {
+      // 🔥 修复生产环境路径问题（与主窗口逻辑一致）
+      const indexPath = path.join(app.getAppPath(), 'index.html')
+      logger.info('Loading detached window from:', indexPath)
+      logger.info('File exists (in asar):', fs.existsSync(indexPath))
+      
+      // 🔥 调试模式下自动打开 DevTools
+      if (isDebugMode) {
+        detachedWindow.webContents.on('did-finish-load', () => {
+          detachedWindow.webContents.openDevTools()
+          logger.info('DevTools opened for detached window in debug mode')
+        })
+      }
+      
+      await detachedWindow.loadFile(indexPath, {
         hash: `/project-detached?${params.toString()}`
       })
+    }
+
+    // 🔥 为分离窗口也添加快捷键和右键菜单支持
+    // 创建一个临时的 WindowProcess 对象用于设置快捷键
+    const detachedProcess: ProjectWindowProcess = {
+      id: config.transferId,
+      type: 'project',
+      window: detachedWindow,
+      port: null as unknown as MessagePortMain, // 分离窗口不使用 MessagePort
+      processId: detachedWindow.webContents.getProcessId(),
+      projectPath: config.projectPath,
+      createdAt: new Date(),
+      lastActive: new Date()
+    }
+    this.setupDevToolsShortcut(detachedProcess)
+    if (isDebugMode) {
+      setupContextMenu(detachedWindow, true)
     }
 
     logger.info('Detached window loaded:', config.transferId)
@@ -213,20 +328,84 @@ export class AppManager {
   }
 
   /**
+   * 为窗口设置 DevTools 快捷键（F12）
+   * 🔥 确保即使没有菜单，F12 也能切换 DevTools
+   */
+  private setupDevToolsShortcut(windowProcess: WindowProcess) {
+    // 只在开发模式或调试模式下启用
+    if (!isDevEnvironment && !isDebugMode) {
+      return
+    }
+
+    windowProcess.window.webContents.on('before-input-event', (event, input) => {
+      // F12 键
+      if (input.type === 'keyDown' && input.key === 'F12') {
+        windowProcess.window.webContents.toggleDevTools()
+        event.preventDefault()
+        logger.info('DevTools toggled via F12 shortcut')
+      }
+      
+      // Ctrl+Shift+I / Cmd+Shift+I (macOS)
+      if (input.type === 'keyDown' && 
+          input.key === 'I' && 
+          (input.control || input.meta) && 
+          input.shift) {
+        windowProcess.window.webContents.openDevTools()
+        event.preventDefault()
+        logger.info('DevTools opened via Ctrl+Shift+I shortcut')
+      }
+      
+      // Ctrl+R / Cmd+R (macOS) - 重新加载
+      if (input.type === 'keyDown' && 
+          input.key === 'r' && 
+          (input.control || input.meta) && 
+          !input.shift) {
+        windowProcess.window.reload()
+        event.preventDefault()
+        logger.info('Window reloaded via Ctrl+R shortcut')
+      }
+    })
+    
+    logger.info('DevTools shortcuts set up for window')
+  }
+
+  /**
    * 解析 preload 脚本路径
-   * 🔥 复用 ProcessManager 的逻辑，确保路径一致
+   * 🔥 修复生产环境路径问题
    */
   private resolvePreloadPath(type: 'main' | 'project'): string {
     const preloadBaseName = type === 'main' ? 'main-preload' : 'project-preload'
 
     if (isDevEnvironment) {
-      return path.join(app.getAppPath(), 'preload', `${preloadBaseName}.cjs`)
+      const devPath = path.join(app.getAppPath(), 'preload', `${preloadBaseName}.cjs`)
+      logger.info(`Development preload path for ${type}:`, devPath)
+      return devPath
     }
 
+    // 🔥 生产环境路径修复
     const preloadFolder = process.env.QUASAR_ELECTRON_PRELOAD_FOLDER || 'electron-preload'
     const preloadExtension = process.env.QUASAR_ELECTRON_PRELOAD_EXTENSION || '.cjs'
+    const prodPath = path.join(app.getAppPath(), preloadFolder, `${preloadBaseName}${preloadExtension}`)
+    
+    logger.info(`Production preload path for ${type}:`, prodPath)
+    logger.info('App path:', app.getAppPath())
+    logger.info('Preload folder:', preloadFolder)
+    logger.info('Preload extension:', preloadExtension)
+    
+    // 检查文件是否存在
+    if (!fs.existsSync(prodPath)) {
+      logger.error(`Preload script not found at: ${prodPath}`)
+      // 尝试备用路径
+      const altPath = path.join(__dirname, '../preload', `${preloadBaseName}${preloadExtension}`)
+      logger.info(`Trying alternative preload path: ${altPath}`)
+      if (fs.existsSync(altPath)) {
+        return altPath
+      } else {
+        logger.error(`Alternative preload path also not found: ${altPath}`)
+      }
+    }
 
-    return path.join(app.getAppPath(), preloadFolder, `${preloadBaseName}${preloadExtension}`)
+    return prodPath
   }
 
   private registerIpcHandlers() {

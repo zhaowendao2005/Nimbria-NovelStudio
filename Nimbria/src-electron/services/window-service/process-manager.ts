@@ -1,5 +1,6 @@
 import { BrowserWindow, MessageChannelMain, app } from 'electron'
 import path from 'node:path'
+import fs from 'node:fs'
 
 import type { BroadcastMessage } from '../../types/ipc'
 import type {
@@ -192,6 +193,10 @@ export class ProcessManager {
     const overrides = config.overrides ?? {}
     const { webPreferences: overrideWebPreferences, ...restOverrides } = overrides
 
+    // 🔥 检查是否为调试模式
+    const isDev = !!process.env.DEV || !!process.env.DEBUGGING
+    const isDebugMode = !!process.env.ELECTRON_DEBUG
+
     const options: WindowProcessConfig = {
       type: config.type,
       width: baseOptions.width ?? 1024,
@@ -210,7 +215,9 @@ export class ProcessManager {
         preload: this.resolvePreloadPath(config.type),
         partition: config.type === 'project' ? `persist:${config.projectPath ?? ''}` : undefined,
         sandbox: config.type === 'project' ? false : undefined,
-        nodeIntegrationInWorker: config.type === 'project'
+        nodeIntegrationInWorker: config.type === 'project',
+        // 🔥 在开发模式或调试模式下启用 DevTools
+        devTools: isDev || isDebugMode
       }
     }
 
@@ -287,10 +294,22 @@ export class ProcessManager {
       return path.join(app.getAppPath(), 'preload', `${preloadBaseName}.cjs`)
     }
 
+    // 🔥 修复生产环境路径问题 - 与 AppManager 保持一致
     const preloadFolder = process.env.QUASAR_ELECTRON_PRELOAD_FOLDER || 'electron-preload'
     const preloadExtension = process.env.QUASAR_ELECTRON_PRELOAD_EXTENSION || '.cjs'
+    
+    // 尝试主路径
+    let preloadPath = path.join(app.getAppPath(), preloadFolder, `${preloadBaseName}${preloadExtension}`)
+    
+    // 检查文件是否存在，如果不存在尝试备用路径
+    if (!fs.existsSync(preloadPath)) {
+      const altPath = path.join(__dirname, '../preload', `${preloadBaseName}${preloadExtension}`)
+      if (fs.existsSync(altPath)) {
+        preloadPath = altPath
+      }
+    }
 
-    return path.join(app.getAppPath(), preloadFolder, `${preloadBaseName}${preloadExtension}`)
+    return preloadPath
   }
 
   private async persistProcess(process: WindowProcess): Promise<void> {

@@ -69,6 +69,20 @@
         "type": "node"
     },
     {
+        "name": "Build: Electron: Debug",
+        "request": "launch",
+        "runtimeArgs": [
+            "run-script",
+            "build:electron:debug"
+        ],
+        "runtimeExecutable": "npm",
+        "skipFiles": [
+            "<node_internals>/**"
+        ],
+        "type": "node",
+        "console": "integratedTerminal"
+    },  
+    {
         "name": "npm install",
         "request": "launch",
         "runtimeArgs": [

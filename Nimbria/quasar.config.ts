@@ -128,7 +128,8 @@ export default configure((/* ctx */) => {
       },
       // viteVuePluginOptions: {},
       
-        vitePlugins: [
+      // 🔥 ESLint 开关：通过环境变量 DISABLE_ESLINT=1 来禁用
+      vitePlugins: process.env.DISABLE_ESLINT === '1' ? [] : [
         ['vite-plugin-checker', {
           vueTsc: false,
           eslint: {
