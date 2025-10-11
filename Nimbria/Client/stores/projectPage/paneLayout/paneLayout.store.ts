@@ -22,9 +22,10 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
   
   /**
    * 分屏树根节点
+   * 🔥 可以为 null（表示欢迎页状态）
    * 初始状态：单个空面板
    */
-  const paneTree = ref<PaneNode>({
+  const paneTree = ref<PaneNode | null>({
     id: nanoid(),
     type: 'leaf',
     tabIds: [],         // 初始为空数组
@@ -36,15 +37,19 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
   
   /**
    * 当前焦点面板 ID
+   * 🔥 可以为 null（表示欢迎页状态）
    */
-  const focusedPaneId = ref<string>(paneTree.value.id)
+  const focusedPaneId = ref<string | null>(paneTree.value?.id || null)
   
   // ==================== 计算属性 ====================
   
   /**
    * 获取所有叶子节点（扁平化）
+   * 🔥 当 paneTree 为 null 时返回空数组
    */
   const allLeafPanes = computed(() => {
+    if (!paneTree.value) return []
+    
     const leaves: PaneNode[] = []
     
     const traverse = (node: PaneNode) => {
@@ -75,6 +80,11 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
    * 是否有多个面板
    */
   const hasMultiplePanes = computed(() => paneCount.value > 1)
+  
+  /**
+   * 🔥 是否有面板（paneTree 不为 null）
+   */
+  const hasPanes = computed(() => paneTree.value !== null)
   
   // ==================== Actions ====================
   
@@ -107,7 +117,9 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
       return node
     }
     
-    paneTree.value = updateFocus(paneTree.value)
+    if (paneTree.value) {
+      paneTree.value = updateFocus(paneTree.value)
+    }
   }
   
   /**
@@ -134,7 +146,7 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
     
     // 在树中查找目标节点并执行分屏
     const result = findAndSplit(
-      paneTree.value, 
+      paneTree.value!, 
       paneId, 
       direction, 
       newPaneId, 
@@ -157,44 +169,17 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
     return null
   }
   
-  /**
-   * 关闭面板
-   * @param paneId 要关闭的面板 ID
-   */
-  const closePane = (paneId: string) => {
-    console.log('[PaneLayout] Closing pane:', paneId)
-    
-    // 🔥 如果只有一个面板，回退到默认空白状态
-    if (paneCount.value === 1) {
-      console.log('[PaneLayout] Closing last pane, resetting to default empty state')
-      resetLayout()
-      return
-    }
-    
-    // 多个面板时，删除并合并
-    const result = findAndRemove(paneTree.value, paneId)
-    
-    if (result) {
-      paneTree.value = result.newRoot
-      
-      // 如果删除的是焦点面板，切换到第一个可用面板
-      if (focusedPaneId.value === paneId) {
-        const firstPane = allLeafPanes.value[0]
-        if (firstPane) {
-          setFocusedPane(firstPane.id)
-        }
-      }
-      
-      console.log('[PaneLayout] Pane closed and merged')
-    } else {
-      console.warn('[PaneLayout] Failed to close pane')
-    }
-  }
+  // 🔥 closePane 移至后面重新实现（支持欢迎页逻辑）
   
   /**
    * 在指定面板中打开标签页
    */
   const openTabInPane = (paneId: string, tabId: string) => {
+    if (!paneTree.value) {
+      console.warn('[PaneLayout] Cannot open tab: no pane tree')
+      return
+    }
+    
     console.log('[PaneLayout] Opening tab in pane:', { paneId, tabId })
     
     const updateLeaf = (node: PaneNode): PaneNode => {
@@ -229,7 +214,9 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
       return node
     }
     
-    paneTree.value = updateLeaf(paneTree.value)
+    if (paneTree.value) {
+      paneTree.value = updateLeaf(paneTree.value)
+    }
     setFocusedPane(paneId)
   }
   
@@ -286,7 +273,9 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
       return node
     }
     
-    paneTree.value = updateLeaf(paneTree.value)
+    if (paneTree.value) {
+      paneTree.value = updateLeaf(paneTree.value)
+    }
   }
   
   /**
@@ -314,7 +303,9 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
       return node
     }
     
-    paneTree.value = updateLeaf(paneTree.value)
+    if (paneTree.value) {
+      paneTree.value = updateLeaf(paneTree.value)
+    }
   }
   
   /**
@@ -355,7 +346,9 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
       return node
     }
     
-    paneTree.value = updateRatio(paneTree.value)
+    if (paneTree.value) {
+      paneTree.value = updateRatio(paneTree.value)
+    }
   }
   
   /**
@@ -403,13 +396,13 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
         if (node.id === fromPaneId) {
           const newTabIds = (node.tabIds || []).filter(id => id !== tabId)
           const newActiveTabId = node.activeTabId === tabId
-            ? (newTabIds[0] || null)
+            ? (newTabIds[0] ?? null)
             : node.activeTabId
           
           return {
             ...node,
             tabIds: newTabIds,
-            activeTabId: newActiveTabId
+            activeTabId: newActiveTabId ?? null
           }
         }
         
@@ -441,7 +434,9 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
       return node
     }
     
-    paneTree.value = updateTree(paneTree.value)
+    if (paneTree.value) {
+      paneTree.value = updateTree(paneTree.value)
+    }
     
     // 设置焦点到目标面板
     setFocusedPane(toPaneId)
@@ -474,23 +469,93 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
       return node
     }
     
-    paneTree.value = updateTree(paneTree.value)
+    if (paneTree.value) {
+      paneTree.value = updateTree(paneTree.value)
+    }
+  }
+  
+  /**
+   * 🔥 重置为默认单面板布局
+   * 用于从欢迎页恢复面板系统
+   */
+  const resetToDefaultLayout = () => {
+    const defaultPane: PaneNode = {
+      id: nanoid(),
+      type: 'leaf',
+      tabIds: [],
+      activeTabId: null,
+      isFocused: true,
+      createdAt: Date.now(),
+      lastActiveAt: Date.now()
+    }
+    
+    paneTree.value = defaultPane
+    focusedPaneId.value = defaultPane.id
+    
+    console.log('[PaneLayout] Reset to default single pane layout:', defaultPane.id)
+  }
+  
+  /**
+   * 🔥 关闭指定面板
+   * 如果是最后一个面板，清空 paneTree（显示欢迎页）
+   * 如果是多面板，删除该面板并用兄弟节点替换父容器
+   */
+  const closePane = (paneId: string) => {
+    console.log('🗑️ [PaneLayout] closePane called:', {
+      paneId,
+      currentPaneCount: paneCount.value,
+      allPanes: allLeafPanes.value.map(p => ({ id: p.id, tabCount: p.tabIds?.length || 0 }))
+    })
+    
+    // 1. 如果这是最后一个面板，清空 paneTree（显示欢迎页）
+    if (paneCount.value === 1) {
+      paneTree.value = null
+      focusedPaneId.value = null
+      console.log('✅ [PaneLayout] Last pane closed, showing welcome page')
+      return
+    }
+    
+    // 2. 多面板时的关闭逻辑：删除该面板并用兄弟节点替换父容器
+    if (!paneTree.value) {
+      console.error('[PaneLayout] Cannot close pane: no pane tree')
+      return
+    }
+    
+    const result = removePaneFromTree(paneTree.value, paneId)
+    
+    if (result) {
+      paneTree.value = result.newRoot
+      
+      // 如果删除的是焦点面板，切换焦点到第一个可用面板
+      if (focusedPaneId.value === paneId) {
+        const firstPane = allLeafPanes.value[0]
+        if (firstPane) {
+          setFocusedPane(firstPane.id)
+          console.log('✅ [PaneLayout] Switched focus to pane:', firstPane.id)
+        }
+      }
+      
+      console.log('✅ [PaneLayout] Pane closed and tree merged')
+    } else {
+      console.error('❌ [PaneLayout] Failed to close pane:', paneId)
+    }
   }
   
   // ==================== 持久化 ====================
   
   /**
    * 持久化状态
+   * 🔥 支持保存 null（欢迎页状态）
    */
   const persistState = () => {
     try {
       const state: PaneLayoutState = {
-        paneTree: paneTree.value,
-        focusedPaneId: focusedPaneId.value,
+        paneTree: paneTree.value,  // 可能为 null
+        focusedPaneId: focusedPaneId.value,  // 可能为 null
         version: STATE_VERSION
       }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-      console.log('[PaneLayout] State persisted')
+      console.log('[PaneLayout] State persisted', paneTree.value ? `(${paneCount.value} panes)` : '(welcome page)')
     } catch (error) {
       console.error('[PaneLayout] Failed to persist state:', error)
     }
@@ -498,7 +563,7 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
   
   /**
    * 恢复状态
-   * 🔥 增强版：自动清理不兼容的缓存
+   * 🔥 增强版：支持恢复 null（欢迎页状态）
    */
   const restoreState = () => {
     try {
@@ -522,11 +587,16 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
         return
       }
       
-      // 恢复状态
-      if (state.paneTree) {
+      // 🔥 恢复状态（包括 null）
+      if (state.paneTree !== undefined) {
         paneTree.value = state.paneTree
-        focusedPaneId.value = state.focusedPaneId || paneTree.value.id
-        console.log('[PaneLayout] State restored successfully')
+        focusedPaneId.value = state.focusedPaneId
+        
+        if (state.paneTree === null) {
+          console.log('[PaneLayout] Restored empty state (welcome page)')
+        } else {
+          console.log('[PaneLayout] State restored successfully')
+        }
       }
     } catch (error) {
       console.error('[PaneLayout] Failed to restore state:', error)
@@ -556,11 +626,12 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
     focusedPane,
     paneCount,
     hasMultiplePanes,
+    hasPanes,  // 🔥 新增
     
     // Actions
     setFocusedPane,
     executeSplitAction,
-    closePane,
+    closePane,  // 🔥 已有，新增逻辑
     openTabInPane,
     closeTabInPane,
     switchTabInPane,
@@ -568,6 +639,7 @@ export const usePaneLayoutStore = defineStore('projectPage-paneLayout', () => {
     getActiveTabIdByPane,
     updateSplitRatio,
     resetLayout,
+    resetToDefaultLayout,  // 🔥 新增
     moveTabBetweenPanes,
     reorderTabsInPane,
     persistState,
@@ -673,47 +745,57 @@ function findAndSplit(
 }
 
 /**
- * 在树中查找并删除节点
+ * 🔥 从树中删除指定面板节点
+ * @param node 当前节点
+ * @param targetId 要删除的面板ID
+ * @returns 新的根节点，如果删除失败则返回 null
  */
-function findAndRemove(
+function removePaneFromTree(
   node: PaneNode,
   targetId: string
 ): { newRoot: PaneNode } | null {
-  // 如果当前节点是 split，检查子节点
+  // 如果当前节点是 split 容器
   if (node.type === 'split' && node.children) {
-    // 如果左子节点是目标叶子节点，返回右子节点
-    if (node.children[0].type === 'leaf' && node.children[0].id === targetId) {
-      return { newRoot: node.children[1] }
+    const [leftChild, rightChild] = node.children
+    
+    // 🔥 情况1：左子节点是目标叶子节点 → 用右子节点替换整个容器
+    if (leftChild.type === 'leaf' && leftChild.id === targetId) {
+      console.log('[removePaneFromTree] Found target in left child, replacing with right child')
+      return { newRoot: rightChild }
     }
     
-    // 如果右子节点是目标叶子节点，返回左子节点
-    if (node.children[1].type === 'leaf' && node.children[1].id === targetId) {
-      return { newRoot: node.children[0] }
+    // 🔥 情况2：右子节点是目标叶子节点 → 用左子节点替换整个容器
+    if (rightChild.type === 'leaf' && rightChild.id === targetId) {
+      console.log('[removePaneFromTree] Found target in right child, replacing with left child')
+      return { newRoot: leftChild }
     }
     
-    // 递归查找左子树
-    const leftResult = findAndRemove(node.children[0], targetId)
+    // 🔥 情况3：递归查找左子树
+    const leftResult = removePaneFromTree(leftChild, targetId)
     if (leftResult) {
+      console.log('[removePaneFromTree] Target found in left subtree, updating left child')
       return {
         newRoot: {
           ...node,
-          children: [leftResult.newRoot, node.children[1]]
+          children: [leftResult.newRoot, rightChild]
         }
       }
     }
     
-    // 递归查找右子树
-    const rightResult = findAndRemove(node.children[1], targetId)
+    // 🔥 情况4：递归查找右子树
+    const rightResult = removePaneFromTree(rightChild, targetId)
     if (rightResult) {
+      console.log('[removePaneFromTree] Target found in right subtree, updating right child')
       return {
         newRoot: {
           ...node,
-          children: [node.children[0], rightResult.newRoot]
+          children: [leftChild, rightResult.newRoot]
         }
       }
     }
   }
   
+  // 未找到目标节点
   return null
 }
 

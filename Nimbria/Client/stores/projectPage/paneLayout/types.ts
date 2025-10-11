@@ -57,7 +57,7 @@ export interface PaneContextMenuItem {
  * 分屏布局状态
  */
 export interface PaneLayoutState {
-  paneTree: PaneNode              // 分屏树根节点
+  paneTree: PaneNode | null       // 🔥 分屏树根节点（可为 null 表示欢迎页）
   focusedPaneId: string | null    // 当前焦点面板 ID
   version: number                 // 状态版本号（用于持久化兼容性）
 }

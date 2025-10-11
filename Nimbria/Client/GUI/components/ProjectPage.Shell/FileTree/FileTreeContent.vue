@@ -126,7 +126,13 @@ const handleNodeClick = async (data: FileTreeNode) => {
       // 1. 调用 markdownStore 打开文件（创建或获取 tab）
       const tab = await markdownStore.openFile(data.path)
       
-      // 2. 如果成功且有焦点面板，在焦点面板中显示该 tab
+      // 2. 🔥 如果没有面板，先创建默认面板
+      if (!paneLayoutStore.focusedPane) {
+        console.log('[FileTree] No pane exists, creating default layout')
+        paneLayoutStore.resetToDefaultLayout()
+      }
+      
+      // 3. 在焦点面板中显示该 tab
       if (tab && paneLayoutStore.focusedPane) {
         paneLayoutStore.openTabInPane(paneLayoutStore.focusedPane.id, tab.id)
         console.log('[FileTree] Opened file in focused pane:', {
@@ -134,6 +140,8 @@ const handleNodeClick = async (data: FileTreeNode) => {
           paneId: paneLayoutStore.focusedPane.id,
           tabId: tab.id
         })
+      } else {
+        console.error('[FileTree] Failed to open file: no focused pane available')
       }
     } catch (error) {
       console.error('[FileTree] Failed to open file:', error)

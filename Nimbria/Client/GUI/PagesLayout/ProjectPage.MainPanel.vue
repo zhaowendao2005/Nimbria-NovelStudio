@@ -3,16 +3,19 @@
     <!-- 自动保存指示器 -->
     <AutoSaveIndicator v-if="markdownStore.openTabs.length > 0" />
     
-    <!-- 🔥 分屏系统 -->
-    <div class="pane-system-container">
+    <!-- 🔥 分屏系统（有面板时显示） -->
+    <div 
+      v-if="paneLayoutStore.hasPanes" 
+      class="pane-system-container"
+    >
       <PaneContainer :node="paneLayoutStore.paneTree" />
     </div>
     
-    <!-- 无打开文件时的欢迎页（已由 PaneContent 处理，保留此处作为后备）-->
-    <div v-if="false" class="welcome-container">
+    <!-- 🔥 欢迎页（无面板时显示） -->
+    <div v-else class="welcome-container">
       <div class="welcome-content">
         <h1>欢迎使用 Markdown 编辑器</h1>
-        <p>双击左侧文件树中的文件以打开</p>
+        <p>单击左侧文件树中的文件以打开</p>
         <div class="welcome-tips">
           <h3>快捷键提示：</h3>
           <ul>

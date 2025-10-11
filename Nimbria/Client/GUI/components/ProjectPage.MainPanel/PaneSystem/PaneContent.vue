@@ -34,18 +34,43 @@
       </div>
     </div>
     
-    <!-- 空面板提示 -->
-    <div v-else class="empty-pane">
-      <el-empty 
-        description="点击左侧文件树打开文件"
-        :image-size="120"
-      >
-        <template #image>
-          <el-icon :size="80" color="var(--obsidian-text-muted)">
-            <Document />
-          </el-icon>
-        </template>
-      </el-empty>
+    <!-- 空面板 -->
+    <div v-else class="empty-pane-container">
+      <!-- 🔥 空面板工具栏 -->
+      <div class="empty-pane-toolbar">
+        <div class="empty-pane-toolbar__info">
+          <q-icon name="view_column" size="16px" />
+          <span>空面板</span>
+        </div>
+        
+        <div class="empty-pane-toolbar__actions">
+          <q-btn
+            flat
+            dense
+            round
+            size="sm"
+            icon="close"
+            @click="handleClosePane"
+            class="empty-pane-toolbar__close-btn"
+          >
+            <q-tooltip>关闭此面板</q-tooltip>
+          </q-btn>
+        </div>
+      </div>
+      
+      <!-- 空面板提示 -->
+      <div class="empty-pane">
+        <el-empty 
+          description="点击左侧文件树打开文件"
+          :image-size="120"
+        >
+          <template #image>
+            <el-icon :size="80" color="var(--obsidian-text-muted)">
+              <Document />
+            </el-icon>
+          </template>
+        </el-empty>
+      </div>
     </div>
     
     <!-- 右键菜单 -->
@@ -274,6 +299,15 @@ const handleMenuSelect = async (action: SplitAction) => {
 }
 
 /**
+ * 🔥 关闭当前空面板
+ * 调用 paneLayoutStore.closePane() 关闭面板
+ */
+const handleClosePane = () => {
+  console.log('🗑️ [PaneContent] Closing empty pane:', props.paneId)
+  paneLayoutStore.closePane(props.paneId)
+}
+
+/**
  * 🔥 拆分标签页到新窗口
  */
 const handleDetachToWindow = async (tabId: string) => {
@@ -424,6 +458,49 @@ onUnmounted(() => {
   
   两者完全等价！
 */
+
+/* 🔥 空面板容器 */
+.empty-pane-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 🔥 空面板工具栏 */
+.empty-pane-toolbar {
+  height: 32px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--obsidian-background-primary);
+  border-bottom: 1px solid var(--obsidian-background-modifier-border);
+  flex-shrink: 0;
+  
+  &__info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--obsidian-text-muted);
+  }
+  
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  &__close-btn {
+    color: var(--obsidian-text-muted);
+    transition: all 0.2s;
+    
+    &:hover {
+      background: var(--obsidian-background-modifier-hover);
+      color: var(--obsidian-text-accent);
+    }
+  }
+}
 
 /* 空面板样式 */
 .empty-pane {
