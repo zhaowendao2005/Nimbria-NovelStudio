@@ -1,5 +1,8 @@
 <template>
   <div class="detached-page">
+    <!-- 🔥 自定义标题栏 -->
+    <DetachedWindowTitleBar :title="windowTitle" />
+    
     <!-- 只渲染MainPanel，无左栏、无右栏 -->
     <div class="full-content">
       <!-- 🔥 自动保存指示器 -->
@@ -20,6 +23,7 @@ import { useMarkdownStore } from '@stores/projectPage/Markdown'
 import { usePaneLayoutStore } from '@stores/projectPage/paneLayout'
 import PaneContainer from '@components/ProjectPage.MainPanel/PaneSystem/PaneContainer.vue'
 import AutoSaveIndicator from '@components/ProjectPage.MainPanel/AutoSave/AutoSaveIndicator.vue'
+import DetachedWindowTitleBar from '@components/Shared/DetachedWindowTitleBar.vue'
 
 /**
  * ProjectPage.DetachedPage
@@ -38,6 +42,7 @@ const paneLayoutStore = usePaneLayoutStore()
 
 const transferId = ref<string>('')
 const projectPath = ref<string>('')
+const windowTitle = ref<string>('Nimbria - Detached Window')
 
 onMounted(async () => {
   console.log('🚀 [DetachedPage] Initializing detached window...')
@@ -68,7 +73,8 @@ onMounted(async () => {
     console.log('📄 [DetachedPage] Tab data:', tabData)
     
     // 设置窗口标题
-    document.title = tabData.title || 'Nimbria - Detached Window'
+    windowTitle.value = tabData.title || 'Nimbria - Detached Window'
+    document.title = windowTitle.value
     
     // 3. 初始化编辑器状态：在 PaneSystem 中创建面板并打开该标签页
     if (tabData.filePath) {
@@ -95,7 +101,10 @@ onMounted(async () => {
     // 4. 发送就绪事件（触发握手）
     setTimeout(() => {
       // 🔥 使用类型断言避免类型冲突（filesystem.d.ts覆盖了类型）
-      const nimbriaApi = window.nimbria as any
+      interface NimbriaWithEvents {
+        send?: (channel: string, ...args: unknown[]) => void
+      }
+      const nimbriaApi = window.nimbria as unknown as NimbriaWithEvents
       if (nimbriaApi?.send) {
         nimbriaApi.send('project:detached-ready', { transferId: transferId.value })
         console.log('📨 [DetachedPage] Ready signal sent, transferId:', transferId.value)

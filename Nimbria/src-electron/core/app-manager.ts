@@ -273,6 +273,46 @@ export class AppManager {
       }
     })
 
+    // 🔥 分离窗口专用频道（确保操作当前窗口）
+    ipcMain.on('detached-window:minimize', (event) => {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      if (window) {
+        window.minimize()
+        console.log('🔽 [AppManager] Detached window minimized')
+      }
+    })
+
+    ipcMain.on('detached-window:maximize', (event) => {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      if (window) {
+        window.maximize()
+        console.log('🔳 [AppManager] Detached window maximized')
+      }
+    })
+
+    ipcMain.on('detached-window:unmaximize', (event) => {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      if (window) {
+        window.unmaximize()
+        console.log('🔲 [AppManager] Detached window unmaximized')
+      }
+    })
+
+    ipcMain.on('detached-window:close', (event) => {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      if (window) {
+        window.close()
+        console.log('❌ [AppManager] Detached window closed')
+      }
+    })
+
+    ipcMain.on('detached-window:query-maximized', (event) => {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      if (window) {
+        event.sender.send('detached-window:maximized-state', window.isMaximized())
+      }
+    })
+
     ipcMain.handle('project:create-window', async (_event, request: IPCRequest<'project:create-window'>) => {
       if (!this.windowManager) {
         return { success: false, errorCode: 'window-manager-not-ready' }
