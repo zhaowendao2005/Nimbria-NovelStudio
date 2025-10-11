@@ -456,3 +456,126 @@ export async function importConfig(configContent: string): Promise<boolean> {
   throw new Error('Not implemented');
 }
 
+// ==================== 模型管理（新增）====================
+
+/**
+ * 设置模型显示名
+ * TODO: 对接后端API - PATCH /api/llm/providers/:providerId/models/:modelName/display-name
+ */
+export async function setModelDisplayName(
+  providerId: string,
+  modelName: string,
+  displayName: string
+): Promise<boolean> {
+  await simulateDelay();
+  
+  if (useMockSource.value) {
+    const provider = llmProvidersMock.find(p => p.id === providerId);
+    if (!provider) {
+      return false;
+    }
+    
+    // 查找并更新模型显示名
+    for (const modelGroup of provider.supportedModels) {
+      const model = modelGroup.models.find(m => m.name === modelName);
+      if (model) {
+        // 使用类型断言，因为ModelDetail可能没有displayName属性
+        (model as any).displayName = displayName;
+        return true;
+      }
+    }
+    
+    return false;
+  }
+  
+  // TODO: 真实API调用
+  // const response = await window.api.llm.setModelDisplayName(providerId, modelName, displayName);
+  // return response.success;
+  
+  return false;
+}
+
+/**
+ * 删除模型
+ * TODO: 对接后端API - DELETE /api/llm/providers/:providerId/models/:modelType/:modelName
+ */
+export async function removeModel(
+  providerId: string,
+  modelType: string,
+  modelName: string
+): Promise<boolean> {
+  await simulateDelay();
+  
+  if (useMockSource.value) {
+    const provider = llmProvidersMock.find(p => p.id === providerId);
+    if (!provider) {
+      return false;
+    }
+    
+    // 查找并删除模型
+    const modelGroup = provider.supportedModels.find(g => g.type === modelType);
+    if (modelGroup) {
+      const modelIndex = modelGroup.models.findIndex(m => m.name === modelName);
+      if (modelIndex > -1) {
+        modelGroup.models.splice(modelIndex, 1);
+        return true;
+      }
+    }
+    
+    return false;
+  }
+  
+  // TODO: 真实API调用
+  // const response = await window.api.llm.removeModel(providerId, modelType, modelName);
+  // return response.success;
+  
+  return false;
+}
+
+/**
+ * 添加模型
+ * TODO: 对接后端API - POST /api/llm/providers/:providerId/models
+ */
+export async function addModel(
+  providerId: string,
+  modelType: string,
+  modelDetail: any
+): Promise<boolean> {
+  await simulateDelay();
+  
+  if (useMockSource.value) {
+    const provider = llmProvidersMock.find(p => p.id === providerId);
+    if (!provider) {
+      return false;
+    }
+    
+    // 查找模型组
+    let modelGroup = provider.supportedModels.find(g => g.type === modelType);
+    
+    // 如果组不存在，创建新组
+    if (!modelGroup) {
+      modelGroup = {
+        type: modelType as any, // 类型断言，因为modelType是string
+        models: []
+      };
+      provider.supportedModels.push(modelGroup);
+    }
+    
+    // 检查模型是否已存在
+    const existingModel = modelGroup.models.find(m => m.name === modelDetail.name);
+    if (existingModel) {
+      return false; // 模型已存在
+    }
+    
+    // 添加模型
+    modelGroup.models.push(modelDetail);
+    return true;
+  }
+  
+  // TODO: 真实API调用
+  // const response = await window.api.llm.addModel(providerId, modelType, modelDetail);
+  // return response.success;
+  
+  return false;
+}
+

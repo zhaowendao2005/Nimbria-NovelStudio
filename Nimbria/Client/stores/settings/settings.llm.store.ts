@@ -522,6 +522,137 @@ export const useSettingsLlmStore = defineStore('settings-llm', () => {
     }
   }
 
+  // ==================== 模型管理（新增）====================
+
+  /**
+   * 设置模型显示名
+   */
+  async function setModelDisplayName(
+    providerId: string,
+    modelName: string,
+    displayName: string
+  ): Promise<boolean> {
+    try {
+      loading.value = true;
+      error.value = null;
+
+      const success = await DataSource.setModelDisplayName(providerId, modelName, displayName);
+      
+      if (success) {
+        // 更新本地状态
+        const provider = providers.value.find(p => p.id === providerId);
+        if (provider) {
+          for (const modelGroup of provider.supportedModels) {
+            const model = modelGroup.models.find(m => m.name === modelName);
+            if (model) {
+              // 使用类型断言，因为ModelDetail可能没有displayName属性
+              (model as any).displayName = displayName;
+              break;
+            }
+          }
+        }
+        console.log('✅ [LLM Store] 模型显示名已更新:', providerId, modelName, '→', displayName);
+      }
+
+      return success;
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : '设置模型显示名失败';
+      console.error('❌ [LLM Store] 设置模型显示名失败:', err);
+      return false;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * 从提供商删除模型
+   */
+  async function removeModelFromProvider(
+    providerId: string,
+    modelType: string,
+    modelName: string
+  ): Promise<boolean> {
+    try {
+      loading.value = true;
+      error.value = null;
+
+      const success = await DataSource.removeModel(providerId, modelType, modelName);
+      
+      if (success) {
+        // 更新本地状态
+        const provider = providers.value.find(p => p.id === providerId);
+        if (provider) {
+          const modelGroup = provider.supportedModels.find(g => g.type === modelType);
+          if (modelGroup) {
+            modelGroup.models = modelGroup.models.filter(m => m.name !== modelName);
+          }
+        }
+        
+        // 如果删除的是活动模型，清除活动状态
+        const activeModelId = activeModels.value[modelType];
+        if (activeModelId) {
+          const { providerId: activePId, modelName: activeMName } = parseModelId(activeModelId);
+          if (activePId === providerId && activeMName === modelName) {
+            delete activeModels.value[modelType];
+          }
+        }
+
+        console.log('✅ [LLM Store] 模型已删除:', providerId, modelType, modelName);
+      }
+
+      return success;
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : '删除模型失败';
+      console.error('❌ [LLM Store] 删除模型失败:', err);
+      return false;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * 添加模型到提供商
+   */
+  async function addModelToProvider(
+    providerId: string,
+    modelType: string,
+    modelDetail: any // TODO: 使用ModelDetail类型
+  ): Promise<boolean> {
+    try {
+      loading.value = true;
+      error.value = null;
+
+      const success = await DataSource.addModel(providerId, modelType, modelDetail);
+      
+      if (success) {
+        // 更新本地状态
+        const provider = providers.value.find(p => p.id === providerId);
+        if (provider) {
+          const modelGroup = provider.supportedModels.find(g => g.type === modelType);
+          if (modelGroup) {
+            modelGroup.models.push(modelDetail);
+          } else {
+            // 如果该类型不存在，创建新分组
+            provider.supportedModels.push({
+              type: modelType as any, // 类型断言，因为modelType是string
+              models: [modelDetail]
+            });
+          }
+        }
+
+        console.log('✅ [LLM Store] 模型已添加:', providerId, modelType, modelDetail.name);
+      }
+
+      return success;
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : '添加模型失败';
+      console.error('❌ [LLM Store] 添加模型失败:', err);
+      return false;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   // ==================== 工具方法 ====================
 
   function getActiveModelInfo(modelType: string): { providerId: string; modelName: string } | null {
@@ -595,6 +726,11 @@ export const useSettingsLlmStore = defineStore('settings-llm', () => {
     // 模型配置
     updateModelConfig,
     resetModelConfig,
+
+    // 模型管理（新增）
+    setModelDisplayName,
+    removeModelFromProvider,
+    addModelToProvider,
 
     // 配置导入导出
     exportConfig,

@@ -60,16 +60,23 @@
           @configure="handleConfigure"
           @remove="handleRemove"
           @refresh="handleRefreshProvider"
+          @model-config="handleModelConfig"
+          @add-model="handleAddModel"
         />
       </q-tab-panel>
 
       <!-- 活动模型面板 -->
       <q-tab-panel name="active-models">
         <SettingsLlmConfigActiveModels
-          :active-models="llmStore.activeModels"
           :providers="llmStore.providers"
-          @set-active="handleSetActive"
-          @clear-active="handleClearActive"
+          :loading="llmStore.loading"
+          @activate="handleActivate"
+          @deactivate="handleDeactivate"
+          @configure="handleConfigure"
+          @remove="handleRemove"
+          @refresh="handleRefreshProvider"
+          @model-config="handleModelConfig"
+          @add-model="handleAddModel"
         />
       </q-tab-panel>
     </q-tab-panels>
@@ -85,6 +92,13 @@
       :provider-id="currentProviderId"
       @config-updated="handleConfigUpdated"
     />
+
+    <SettingsLlmConfigAddModelModal
+      v-model="showAddModelModal"
+      :provider-id="currentProviderId"
+      :model-type="currentModelType"
+      @added="handleModelAdded"
+    />
   </div>
 </template>
 
@@ -96,12 +110,15 @@ import SettingsLlmConfigProviderList from './Settings.LlmConfig.ProviderList.vue
 import SettingsLlmConfigActiveModels from './Settings.LlmConfig.ActiveModels.vue'
 import SettingsLlmConfigAddProviderModal from './Settings.LlmConfig.AddProviderModal.vue'
 import SettingsLlmConfigConfigModal from './Settings.LlmConfig.ConfigModal.vue'
+import SettingsLlmConfigAddModelModal from './Settings.LlmConfig.AddModelModal.vue'
 
 const llmStore = useSettingsLlmStore()
 const activeTab = ref('providers')
 const showAddModal = ref(false)
 const showConfigModal = ref(false)
+const showAddModelModal = ref(false)
 const currentProviderId = ref('')
+const currentModelType = ref('')
 
 // 初始化
 onMounted(() => {
@@ -312,6 +329,35 @@ function handleConfigUpdated() {
     message: '配置已更新',
     position: 'top'
   })
+}
+
+// 模型配置回调
+function handleModelConfig(providerId: string, modelName: string) {
+  console.log('打开模型配置:', providerId, modelName)
+  // TODO: 打开ModelConfigModal
+  Notify.create({
+    type: 'info',
+    message: '模型配置功能正在开发中',
+    position: 'top'
+  })
+}
+
+// 添加模型回调
+function handleAddModel(providerId: string, modelType: string) {
+  currentProviderId.value = providerId
+  currentModelType.value = modelType
+  showAddModelModal.value = true
+}
+
+// 模型添加成功回调
+function handleModelAdded() {
+  Notify.create({
+    type: 'positive',
+    message: '模型已添加',
+    position: 'top'
+  })
+  // 刷新提供商数据
+  llmStore.loadProviders()
 }
 </script>
 

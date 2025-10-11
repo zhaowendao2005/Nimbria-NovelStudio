@@ -23,6 +23,8 @@
           @configure="$emit('configure', $event)"
           @remove="$emit('remove', $event)"
           @refresh="$emit('refresh', $event)"
+          @model-config="(providerId, modelName) => $emit('modelConfig', providerId, modelName)"
+          @add-model="(providerId, modelType) => $emit('addModel', providerId, modelType)"
         />
       </div>
 
@@ -41,6 +43,8 @@
           @configure="$emit('configure', $event)"
           @remove="$emit('remove', $event)"
           @refresh="$emit('refresh', $event)"
+          @model-config="(providerId, modelName) => $emit('modelConfig', providerId, modelName)"
+          @add-model="(providerId, modelType) => $emit('addModel', providerId, modelType)"
         />
       </div>
 
@@ -59,6 +63,8 @@
           @configure="$emit('configure', $event)"
           @remove="$emit('remove', $event)"
           @refresh="$emit('refresh', $event)"
+          @model-config="(providerId, modelName) => $emit('modelConfig', providerId, modelName)"
+          @add-model="(providerId, modelType) => $emit('addModel', providerId, modelType)"
         />
       </div>
     </div>
@@ -88,6 +94,8 @@ defineEmits<{
   configure: [providerId: string]
   remove: [providerId: string]
   refresh: [providerId: string]
+  modelConfig: [providerId: string, modelName: string]
+  addModel: [providerId: string, modelType: string]
 }>()
 
 const activeProviders = computed(() =>
