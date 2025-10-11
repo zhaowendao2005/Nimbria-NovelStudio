@@ -271,10 +271,10 @@ export default configure((/* ctx */) => {
         directories: {
           output: '.release'
         },
-        // 使用多尺寸 ICO 图标文件
-        win: { icon: 'public/app-icon.ico' },
-        mac: { icon: 'public/app-icon.ico' },
-        linux: { icon: 'public/app-icon.ico' },
+        // 使用正确的图标文件路径
+        win: { icon: 'src-electron/icons/icon.ico' },
+        mac: { icon: 'src-electron/icons/icon.icns' },
+        linux: { icon: 'src-electron/icons/icon.png' },
         // 追加资源：优先保持 .dist/backend 既有逻辑；并通过"目录映射配置区"批量加入
         extraResources: (() => {
           const resources = [] as any[];

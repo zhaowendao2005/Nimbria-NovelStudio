@@ -12,7 +12,7 @@
     "dev": "node Script/run-with-logger.mjs --name dev -- quasar dev",
     "dev:electron": "node Script/run-with-logger.mjs --name dev:electron -- quasar dev -m electron -- --remote-debugging-port=9222",
     "build": "node Script/run-with-logger.mjs --name build -- quasar build",
-    "build:electron": "quasar build -m electron",
+    "build:electron": "node Script/run-with-logger.mjs --name build:electron -- quasar build -m electron",
     "postinstall": "quasar prepare"
   },
   "projectInfo": {
