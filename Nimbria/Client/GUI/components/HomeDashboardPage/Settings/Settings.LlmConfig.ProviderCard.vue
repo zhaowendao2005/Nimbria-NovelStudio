@@ -124,14 +124,7 @@
             @click="handleModelClick(model, modelGroup.type)"
             @contextmenu.prevent="handleModelContextMenu($event, model, modelGroup.type)"
           >
-            {{ model.displayName || model.name }}
-            <q-icon
-              v-if="model.config"
-              name="edit"
-              size="xs"
-              color="orange"
-              class="q-ml-xs"
-            />
+            {{ (model as any).displayName || model.name }}
           </q-chip>
           
           <!-- 添加模型按钮 -->

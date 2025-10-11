@@ -68,15 +68,10 @@
       <!-- 活动模型面板 -->
       <q-tab-panel name="active-models">
         <SettingsLlmConfigActiveModels
+          :active-models="llmStore.activeModels"
           :providers="llmStore.providers"
-          :loading="llmStore.loading"
-          @activate="handleActivate"
-          @deactivate="handleDeactivate"
-          @configure="handleConfigure"
-          @remove="handleRemove"
-          @refresh="handleRefreshProvider"
-          @model-config="handleModelConfig"
-          @add-model="handleAddModel"
+          @set-active="handleSetActive"
+          @clear-active="handleClearActive"
         />
       </q-tab-panel>
     </q-tab-panels>

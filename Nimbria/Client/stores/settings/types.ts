@@ -155,12 +155,15 @@ export function parseModelId(modelId: string): ParsedModelId {
     throw new Error('Invalid model ID');
   }
   
-  const parts = modelId.split('.');
-  if (parts.length !== 2) {
-    throw new Error('Model ID must be in format "providerId.modelName"');
+  // 使用 :: 作为分隔符以支持模型名称中包含点号的情况（如 gpt-3.5-turbo）
+  const separatorIndex = modelId.indexOf('::');
+  if (separatorIndex === -1) {
+    throw new Error('Model ID must be in format "providerId::modelName"');
   }
   
-  const [providerId, modelName] = parts;
+  const providerId = modelId.substring(0, separatorIndex);
+  const modelName = modelId.substring(separatorIndex + 2);
+  
   if (!providerId || !modelName) {
     throw new Error('Provider ID and model name cannot be empty');
   }
@@ -170,17 +173,18 @@ export function parseModelId(modelId: string): ParsedModelId {
 
 /**
  * 工具函数：创建模型ID
+ * 使用 :: 作为分隔符以支持模型名称中包含点号的情况（如 gpt-3.5-turbo）
  */
 export function createModelId(providerId: string, modelName: string): string {
   if (!providerId || !modelName) {
     throw new Error('Provider ID and model name are required');
   }
   
-  if (providerId.includes('.') || modelName.includes('.')) {
-    throw new Error('Provider ID and model name cannot contain dots');
+  if (providerId.includes('::') || modelName.includes('::')) {
+    throw new Error('Provider ID and model name cannot contain "::"');
   }
   
-  return `${providerId}.${modelName}`;
+  return `${providerId}::${modelName}`;
 }
 
 /**
