@@ -62,6 +62,11 @@
             <SettingsCacheManagement />
           </section>
 
+          <!-- LLM配置 -->
+          <section :id="'section-llm'" class="settings-section">
+            <SettingsLlmConfig />
+          </section>
+
           <!-- AI配置 -->
           <section :id="'section-ai'" class="settings-section">
             <SettingsAIConfig />
@@ -80,6 +85,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import SettingsCacheManagement from './Settings.CacheManagement.vue'
+import SettingsLlmConfig from './Settings.LlmConfig.vue'
 import SettingsAIConfig from './Settings.AIConfig.vue'
 import SettingsThemeSettings from './Settings.ThemeSettings.vue'
 
@@ -114,6 +120,7 @@ const contentRef = ref<HTMLElement>()
 // 菜单项配置
 const menuItems = [
   { id: 'cache', label: '缓存管理', icon: 'storage' },
+  { id: 'llm', label: 'LLM配置', icon: 'psychology' },
   { id: 'ai', label: 'AI配置', icon: 'smart_toy' },
   { id: 'theme', label: '主题设置', icon: 'palette' }
 ]
@@ -144,7 +151,7 @@ function scrollToSection(sectionId: string) {
 function handleScroll() {
   if (!contentRef.value) return
 
-  const sections = ['cache', 'ai', 'theme']
+  const sections = ['cache', 'llm', 'ai', 'theme']
   
   // 找到当前在视口中的章节
   for (const id of sections) {

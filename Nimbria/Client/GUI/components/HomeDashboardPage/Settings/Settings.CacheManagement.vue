@@ -100,9 +100,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { Notify } from 'quasar'
-import { useSettingsStore } from '@stores/settings/settings.store'
+import { useSettingsCacheStore } from '@stores/settings'
 
-const settingsStore = useSettingsStore()
+const settingsStore = useSettingsCacheStore()
 
 const isClearing = ref(false)
 const showConfirmDialog = ref(false)
