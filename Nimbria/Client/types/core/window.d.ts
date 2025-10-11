@@ -127,6 +127,43 @@ export interface NimbriaWindowAPI {
      */
     broadcastToProjects(message: BroadcastMessage): void
 
+    /**
+     * 🔥 将标签页拆分到新窗口
+     * 
+     * 创建一个独立的窗口显示单个标签页，无左右栏。
+     * 新窗口与源窗口通过握手机制同步，创建成功后自动关闭源标签页。
+     * 
+     * @param data 拆分数据
+     * @param data.tabId 标签页ID
+     * @param data.tabData 标签页数据（标题、文件路径、内容等）
+     * @param data.projectPath 项目路径
+     * @returns 创建结果，包含成功状态和窗口ID
+     * 
+     * @example
+     * ```typescript
+     * const result = await window.nimbria.project.detachTabToWindow({
+     *   tabId: 'tab-123',
+     *   tabData: {
+     *     id: 'tab-123',
+     *     title: 'README.md',
+     *     filePath: '/path/to/README.md',
+     *     content: '# Hello World',
+     *     isDirty: false
+     *   },
+     *   projectPath: '/path/to/project'
+     * })
+     * 
+     * if (result.success) {
+     *   console.log('新窗口已创建:', result.windowId)
+     * }
+     * ```
+     */
+    detachTabToWindow(data: { 
+      tabId: string
+      tabData: any
+      projectPath: string 
+    }): Promise<{ success: boolean; windowId?: number; error?: any }>
+
     // 新增项目管理API
     /** 创建项目 */
     createProject(options: ProjectCreationOptions): Promise<ProjectOperationResult>
@@ -416,6 +453,38 @@ export interface NimbriaWindowAPI {
      */
     restoreBackup(backupPath: string): Promise<{ success: boolean; error?: string }>
   }
+
+  /**
+   * 🔥 事件通信 API
+   * 
+   * 用于在渲染进程中监听和发送 IPC 事件
+   */
+
+  /**
+   * 监听 IPC 事件
+   * @param channel 事件频道名称
+   * @param callback 事件回调函数
+   * 
+   * @example
+   * ```typescript
+   * window.nimbria.on('project:close-source-tab', (data) => {
+   *   console.log('收到关闭标签事件:', data)
+   * })
+   * ```
+   */
+  on(channel: string, callback: (...args: any[]) => void): void
+
+  /**
+   * 发送 IPC 事件
+   * @param channel 事件频道名称
+   * @param args 事件参数
+   * 
+   * @example
+   * ```typescript
+   * window.nimbria.send('project:detached-ready', { transferId: 'xxx' })
+   * ```
+   */
+  send(channel: string, ...args: any[]): void
 }
 
 declare global {

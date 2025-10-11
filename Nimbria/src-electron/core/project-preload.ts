@@ -58,7 +58,10 @@ contextBridge.exposeInMainWorld('nimbria', {
     save: (projectData: ProjectData) => ipcRenderer.invoke('project:save', { projectData }) as Promise<SaveResult>,
     broadcastToProjects: (message: BroadcastMessage) => {
       ensurePort().postMessage({ type: 'project-broadcast', message })
-    }
+    },
+    // 🔥 标签页拆分到新窗口
+    detachTabToWindow: (data: { tabId: string; tabData: any; projectPath: string }) => 
+      ipcRenderer.invoke('project:detach-tab-to-window', data)
   },
 
   process: {
@@ -178,6 +181,15 @@ contextBridge.exposeInMainWorld('nimbria', {
     createDirectory: async (dirPath: string): Promise<{ success: boolean; error?: string }> => {
       return await ipcRenderer.invoke('file:createDirectory', dirPath)
     }
+  },
+
+  // 🔥 事件通信 API
+  on: (channel: string, callback: (...args: any[]) => void) => {
+    ipcRenderer.on(channel, (_event, ...args) => callback(...args))
+  },
+  
+  send: (channel: string, ...args: any[]) => {
+    ipcRenderer.send(channel, ...args)
   }
 })
 

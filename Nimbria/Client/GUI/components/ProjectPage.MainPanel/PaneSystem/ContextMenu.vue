@@ -37,7 +37,8 @@ import { computed } from 'vue'
 import { 
   ArrowRight, 
   ArrowDown, 
-  CopyDocument 
+  CopyDocument,
+  FullScreen 
 } from '@element-plus/icons-vue'
 import type { PaneContextMenuItem, SplitAction } from '@stores/projectPage/paneLayout/types'
 
@@ -81,7 +82,8 @@ const getIcon = (iconName: string) => {
   const iconMap: Record<string, any> = {
     'arrow-right': ArrowRight,
     'arrow-down': ArrowDown,
-    'copy-document': CopyDocument
+    'copy-document': CopyDocument,
+    'full-screen': FullScreen
   }
   return iconMap[iconName] || null
 }

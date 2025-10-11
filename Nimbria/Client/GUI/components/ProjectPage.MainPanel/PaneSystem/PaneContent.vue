@@ -60,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { Document } from '@element-plus/icons-vue'
 import { useMarkdownStore } from '@stores/projectPage/Markdown'
 import { usePaneLayoutStore } from '@stores/projectPage/paneLayout'
@@ -218,13 +218,19 @@ const contextMenuItems: PaneContextMenuItem[] = [
   {
     action: 'split-down-move',
     label: '向下拆分（转移）',
-    icon: 'arrow-down',
-    divider: true
+    icon: 'arrow-down'
   },
   {
     action: 'split-down-copy',
     label: '向下拆分（复制）',
-    icon: 'copy-document'
+    icon: 'copy-document',
+    divider: true // 分组分隔线
+  },
+  // 🔥 窗口操作分组
+  {
+    action: 'detach-to-window',
+    label: '拆分到新窗口',
+    icon: 'full-screen'
   }
 ]
 
@@ -243,10 +249,18 @@ const handleContextMenu = (event: MouseEvent, tabId: string) => {
 /**
  * 处理菜单选择
  */
-const handleMenuSelect = (action: SplitAction) => {
+const handleMenuSelect = async (action: SplitAction) => {
   if (!currentContextTabId.value) return
   
   console.log('[PaneContent] Menu action:', { action, tabId: currentContextTabId.value })
+  
+  // 🔥 处理拆分到新窗口
+  if (action === 'detach-to-window') {
+    await handleDetachToWindow(currentContextTabId.value)
+    contextMenuVisible.value = false
+    currentContextTabId.value = null
+    return
+  }
   
   // 执行分屏操作
   paneLayoutStore.executeSplitAction(
@@ -258,6 +272,80 @@ const handleMenuSelect = (action: SplitAction) => {
   contextMenuVisible.value = false
   currentContextTabId.value = null
 }
+
+/**
+ * 🔥 拆分标签页到新窗口
+ */
+const handleDetachToWindow = async (tabId: string) => {
+  try {
+    // 1. 获取标签页数据
+    const tab = markdownStore.openTabs.find(t => t.id === tabId)
+    if (!tab) {
+      console.error('[PaneContent] Tab not found:', tabId)
+      return
+    }
+    
+    // 2. 获取当前项目路径
+    const projectPath = window.nimbria?.getCurrentProjectPath?.()
+    if (!projectPath) {
+      console.error('[PaneContent] No project path available')
+      return
+    }
+    
+    console.log('🚀 [PaneContent] Detaching tab to new window:', tab)
+    
+    // 3. 准备标签页数据（深拷贝，避免响应式对象）
+    const tabData = {
+      id: tab.id,
+      title: tab.fileName,
+      filePath: tab.filePath,
+      content: tab.content || '',
+      isDirty: tab.isDirty
+    }
+    
+    // 4. 调用 Electron API 创建新窗口
+    const result = await window.nimbria.project.detachTabToWindow({
+      tabId: tab.id,
+      tabData: tabData,
+      projectPath: projectPath
+    })
+    
+    if (result.success) {
+      console.log('✅ [PaneContent] Detached window created successfully')
+      // 不立即关闭标签，等待握手完成
+    } else {
+      console.error('❌ [PaneContent] Failed to create detached window:', result.error)
+    }
+  } catch (error) {
+    console.error('❌ [PaneContent] Error detaching to window:', error)
+  }
+}
+
+/**
+ * 🔥 监听关闭源标签事件（来自分离窗口的握手）
+ */
+const handleCloseSourceTab = (data: { transferId: string; tabId: string }) => {
+  console.log('📨 [PaneContent] Received close-source-tab event:', data)
+  
+  // 关闭对应的标签页
+  handleTabRemove(data.tabId)
+  
+  console.log('✅ [PaneContent] Source tab closed:', data.tabId)
+}
+
+// 🔥 生命周期：注册事件监听
+onMounted(() => {
+  // 监听来自主进程的关闭源标签事件
+  if (window.nimbria?.on) {
+    window.nimbria.on('project:close-source-tab', handleCloseSourceTab)
+    console.log('✅ [PaneContent] Event listener registered: project:close-source-tab')
+  }
+})
+
+onUnmounted(() => {
+  // 清理事件监听（虽然 Electron 的 ipcRenderer 没有 removeListener，但保留结构）
+  console.log('👋 [PaneContent] Component unmounted')
+})
 </script>
 
 <style scoped lang="scss">

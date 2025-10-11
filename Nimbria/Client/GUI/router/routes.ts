@@ -64,6 +64,23 @@ const routes: RouteRecordRaw[] = [
       }
     ]
   },
+
+  // 🔥 标签页拆分窗口路由（只显示MainPanel，无左右栏）
+  {
+    path: '/project-detached',
+    component: () => import('@index/ProjectPageSystem.vue'),
+    children: [
+      {
+        path: '',
+        name: 'project-detached',
+        component: () => import('@pages/ProjectPage.DetachedPage.vue'),
+        meta: {
+          title: 'Nimbria - Detached Window',
+          requiresAuth: false
+        }
+      }
+    ]
+  },
   
   // 404 错误页面
   {

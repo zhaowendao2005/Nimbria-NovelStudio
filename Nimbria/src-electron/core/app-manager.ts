@@ -25,6 +25,7 @@ export class AppManager {
   private mainProcess: WindowProcess | null = null
   private projectFileSystem!: ProjectFileSystem
   private projectManager!: ProjectManager
+  private transferMap?: Map<string, { sourceWebContentsId: number; tabId: string }>
 
   async boot() {
     logger.info('Starting Nimbria application...')
@@ -149,6 +150,85 @@ export class AppManager {
     })
   }
 
+  /**
+   * 创建分离窗口（标签页拆分到新窗口）
+   */
+  private async createDetachedWindow(config: {
+    projectPath: string
+    transferId: string
+    tabData: { title?: string; [key: string]: unknown }
+    ui: 'minimal'
+  }): Promise<BrowserWindow> {
+    // 🔥 解析正确的 preload 脚本路径（与项目窗口相同）
+    const preloadPath = this.resolvePreloadPath('project')
+    
+    const detachedWindow = new BrowserWindow({
+      width: 1200,
+      height: 800,
+      minWidth: 800,
+      minHeight: 600,
+      resizable: true,
+      useContentSize: true,
+      frame: false,
+      title: config.tabData.title || 'Nimbria - Detached Window',
+      icon: path.join(__dirname, '../icons/icon.png'),
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false, // 🔥 与项目窗口保持一致
+        nodeIntegrationInWorker: true, // 🔥 与项目窗口保持一致
+        preload: preloadPath
+      }
+    })
+
+    // 设置窗口标题
+    detachedWindow.setTitle(config.tabData.title || 'Nimbria - Detached Window')
+
+    // 构建URL参数
+    const params = new URLSearchParams({
+      newWindow: 'true',
+      ui: config.ui,
+      transferId: config.transferId,
+      projectPath: config.projectPath,
+      tabData: encodeURIComponent(JSON.stringify(config.tabData))
+    })
+
+    // 加载分离窗口页面
+    if (isDevEnvironment) {
+      const baseUrl = process.env.APP_URL
+      if (baseUrl) {
+        const detachedUrl = `${baseUrl}#/project-detached?${params.toString()}`
+        await detachedWindow.loadURL(detachedUrl)
+      }
+      detachedWindow.webContents.openDevTools()
+    } else {
+      await detachedWindow.loadFile(path.join(__dirname, '../../index.html'), {
+        hash: `/project-detached?${params.toString()}`
+      })
+    }
+
+    logger.info('Detached window loaded:', config.transferId)
+
+    return detachedWindow
+  }
+
+  /**
+   * 解析 preload 脚本路径
+   * 🔥 复用 ProcessManager 的逻辑，确保路径一致
+   */
+  private resolvePreloadPath(type: 'main' | 'project'): string {
+    const preloadBaseName = type === 'main' ? 'main-preload' : 'project-preload'
+
+    if (isDevEnvironment) {
+      return path.join(app.getAppPath(), 'preload', `${preloadBaseName}.cjs`)
+    }
+
+    const preloadFolder = process.env.QUASAR_ELECTRON_PRELOAD_FOLDER || 'electron-preload'
+    const preloadExtension = process.env.QUASAR_ELECTRON_PRELOAD_EXTENSION || '.cjs'
+
+    return path.join(app.getAppPath(), preloadFolder, `${preloadBaseName}${preloadExtension}`)
+  }
+
   private registerIpcHandlers() {
     // 注册 Markdown IPC 处理器
     registerMarkdownHandlers()
@@ -248,6 +328,69 @@ export class AppManager {
       clearRecentProjects()
       console.log('✅ [Electron Main] 最近项目列表已清空')
       return { success: true }
+    })
+
+    // 🔥 标签页拆分到新窗口
+    ipcMain.handle('project:detach-tab-to-window', async (event, payload: { 
+      tabId: string
+      tabData: any
+      projectPath: string 
+    }) => {
+      try {
+        const transferId = `transfer-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+        
+        logger.info('Creating detached window for tab:', payload.tabId)
+        
+        // 记录源窗口映射（用于握手关闭）
+        if (!this.transferMap) {
+          this.transferMap = new Map()
+        }
+        this.transferMap.set(transferId, {
+          sourceWebContentsId: event.sender.id,
+          tabId: payload.tabId
+        })
+        
+        // 创建分离窗口
+        const detachedWindow = await this.createDetachedWindow({
+          projectPath: payload.projectPath,
+          transferId,
+          tabData: payload.tabData,
+          ui: 'minimal'
+        })
+        
+        logger.info('Detached window created successfully, transferId:', transferId)
+        
+        return { success: true, windowId: detachedWindow.id }
+      } catch (error) {
+        logger.error('Failed to create detached window:', error)
+        return { 
+          success: false, 
+          error: { 
+            code: 'DETACH_FAILED', 
+            message: (error as Error).message 
+          } 
+        }
+      }
+    })
+
+    // 🔥 分离窗口就绪握手
+    ipcMain.on('project:detached-ready', (_event, data: { transferId: string }) => {
+      if (!this.transferMap) return
+      
+      const rec = this.transferMap.get(data.transferId)
+      if (rec) {
+        logger.info('Detached window ready, closing source tab:', rec.tabId)
+        const sourceWindow = BrowserWindow.getAllWindows().find(
+          win => win.webContents.id === rec.sourceWebContentsId
+        )
+        if (sourceWindow && !sourceWindow.isDestroyed()) {
+          sourceWindow.webContents.send('project:close-source-tab', { 
+            transferId: data.transferId, 
+            tabId: rec.tabId 
+          })
+        }
+        this.transferMap.delete(data.transferId)
+      }
     })
 
     ipcMain.handle('process:broadcast', (_event, request: IPCRequest<'process:broadcast'>) => {
