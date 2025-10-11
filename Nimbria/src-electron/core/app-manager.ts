@@ -548,6 +548,30 @@ export class AppManager {
       return { success: true }
     })
 
+    ipcMain.handle('window:show-main', () => {
+      if (!this.windowManager) {
+        return { success: false, error: 'Window manager not ready' }
+      }
+
+      let mainProcess = this.windowManager.getMainProcess()
+      
+      // 如果主窗口不存在，则创建它
+      if (!mainProcess) {
+        mainProcess = this.windowManager.createMainWindow()
+        logger.info('Main window created from show-main request')
+      }
+      
+      // 显示并聚焦主窗口
+      if (mainProcess.window.isMinimized()) {
+        mainProcess.window.restore()
+      }
+      mainProcess.window.show()
+      mainProcess.window.focus()
+      
+      logger.info('Main window shown and focused')
+      return { success: true }
+    })
+
     // 🔥 标签页拆分到新窗口
     ipcMain.handle('project:detach-tab-to-window', async (event, payload: { 
       tabId: string

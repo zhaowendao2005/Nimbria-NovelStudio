@@ -51,6 +51,8 @@ export interface NimbriaWindowAPI {
     isMaximized(): Promise<boolean>
     /** 将焦点设置到当前窗口 */
     focus(): Promise<void>
+    /** 显示并聚焦主窗口 */
+    showMain(): Promise<void>
   }
 
   /**

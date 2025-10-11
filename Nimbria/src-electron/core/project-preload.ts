@@ -51,7 +51,8 @@ contextBridge.exposeInMainWorld('nimbria', {
     },
     focus: () => {
       ensurePort().postMessage({ type: 'project-focus-request', processId: projectProcessId })
-    }
+    },
+    showMain: () => ipcRenderer.invoke('window:show-main')
   },
 
   project: {

@@ -1,5 +1,15 @@
 <template>
   <div class="project-navbar">
+    <!-- Home按钮 -->
+    <el-tooltip content="主页" placement="right" :show-after="500">
+      <button 
+        class="nav-icon-btn"
+        @click="handleClick('home')"
+      >
+        <el-icon class="nav-icon"><HomeFilled /></el-icon>
+      </button>
+    </el-tooltip>
+    
     <!-- 文件浏览器图标 -->
     <el-tooltip content="文件浏览器" placement="right" :show-after="500">
       <button 
@@ -45,7 +55,7 @@
 </template>
 
 <script setup lang="ts">
-import { Folder, Search, Calendar, Setting } from '@element-plus/icons-vue'
+import { Folder, Search, Calendar, Setting, HomeFilled } from '@element-plus/icons-vue'
 
 /**
  * ProjectNavbar
@@ -53,9 +63,20 @@ import { Folder, Search, Calendar, Setting } from '@element-plus/icons-vue'
  * TODO: 扩展功能 - 添加活动状态切换、更多导航项
  */
 
-const handleClick = (type: string) => {
+const handleClick = async (type: string) => {
   console.log('Navbar clicked:', type)
-  // TODO: 实现导航逻辑
+  
+  if (type === 'home') {
+    try {
+      await window.nimbria.window.showMain()
+      console.log('Main window shown and focused')
+    } catch (error) {
+      console.error('Failed to show main window:', error)
+    }
+    return
+  }
+  
+  // TODO: 实现其他导航逻辑
 }
 </script>
 

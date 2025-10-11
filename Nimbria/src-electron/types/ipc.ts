@@ -51,6 +51,7 @@ export interface IPCChannelMap {
   'window:close': { request: WindowControlPayload; response: WindowOperationResult }
   'window:focus': { request: WindowControlPayload; response: WindowOperationResult }
   'window:is-maximized': { request: WindowControlPayload; response: { success: boolean; value: boolean } }
+  'window:show-main': { request: void; response: WindowOperationResult }
 
   'project:create-window': {
     request: { projectPath: string }
