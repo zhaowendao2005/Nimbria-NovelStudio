@@ -184,10 +184,6 @@ import {
   ArrowDown, 
   Check,
   Document,
-  Files,
-  Switch,
-  DataBoard,
-  List,
   Search,
   Upload
 } from '@element-plus/icons-vue';
@@ -268,7 +264,7 @@ const startNameEdit = () => {
   isEditingName.value = true;
   editingName.value = props.node.fieldName;
   
-  nextTick(() => {
+  void nextTick(() => {
     nameInputRef.value?.focus();
     nameInputRef.value?.select();
   });
@@ -280,12 +276,14 @@ const handleNameEditComplete = () => {
   const newName = editingName.value.trim();
   
   if (!newName) {
-    ElMessage.warning('字段名不能为空');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ElMessage.warning('字段名不能为空' as any);
     return;
   }
   
   if (!schemaUtils.isValidFieldName(newName)) {
-    ElMessage.warning('字段名格式不正确，只能包含字母、数字和下划线，且不能以数字开头');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ElMessage.warning('字段名格式不正确，只能包含字母、数字和下划线，且不能以数字开头' as any);
     return;
   }
   
@@ -346,6 +344,8 @@ const handleTypeChange = (newType: JsonSchemaType) => {
   align-items: center;
   justify-content: space-between;
   padding: 4px 8px;
+  padding-right: 12px; /* 🔧 为右侧操作按钮额外预留空间 */
+  margin-right: 8px; /* 🔧 确保按钮与滚动条保持距离 */
   border-radius: 6px;
   transition: all 0.2s ease;
   min-height: 42px;
@@ -454,6 +454,8 @@ const handleTypeChange = (newType: JsonSchemaType) => {
   opacity: 0;
   transition: opacity 0.2s ease;
   flex-shrink: 0;
+  margin-left: 12px; /* 🔧 与内容保持距离 */
+  min-width: 180px; /* 🔧 确保操作按钮组有足够的显示空间 */
 }
 
 .tree-schema-node:hover .node-actions {

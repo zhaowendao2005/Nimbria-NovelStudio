@@ -157,6 +157,7 @@ const addRootField = () => {
   overflow-x: auto;
   min-height: 0;
   width: 100%; /* 跟随父容器宽度 */
+  padding-right: 12px; /* 🔧 为右侧操作按钮预留空间 */
 }
 
 .code-preview {
