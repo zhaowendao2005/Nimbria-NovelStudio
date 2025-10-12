@@ -67,7 +67,9 @@ export interface ParseMetadata {
 export interface ExportMetadata {
   type: 'column' | 'section-header' | 'merged-row' | 'ignore'
   columnName?: string
+  columnOrder?: number  // 列顺序
   order?: number
+  columnWidth?: number  // 列宽度
   width?: number
   mergeCols?: number  // 合并列数
   format?: {

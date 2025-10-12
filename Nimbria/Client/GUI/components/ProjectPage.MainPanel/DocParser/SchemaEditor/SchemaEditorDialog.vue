@@ -416,6 +416,13 @@ const handleFieldConfirm = (fieldData: any, context: any) => {
         // 为所有类型补齐 items 占位（统一格式）
         newField.items = fieldData.items ?? templateFactory.getTemplateItems(fieldData.type)
       }
+      // 🆕 保存扩展字段
+      if (fieldData['x-parse']) {
+        newField['x-parse'] = fieldData['x-parse']
+      }
+      if (fieldData['x-export']) {
+        newField['x-export'] = fieldData['x-export']
+      }
       workingSchema.value.properties[fieldName] = newField as JsonSchemaField
     } else {
       const parentField = schemaUtils.getFieldByPath(workingSchema.value, context.parentPath)
@@ -430,6 +437,13 @@ const handleFieldConfirm = (fieldData: any, context: any) => {
           nestedField.items = []
         } else {
           nestedField.items = fieldData.items ?? templateFactory.getTemplateItems(fieldData.type)
+        }
+        // 🆕 保存扩展字段
+        if (fieldData['x-parse']) {
+          nestedField['x-parse'] = fieldData['x-parse']
+        }
+        if (fieldData['x-export']) {
+          nestedField['x-export'] = fieldData['x-export']
         }
     workingSchema.value = schemaUtils.addFieldToPath(
       workingSchema.value,
@@ -449,6 +463,13 @@ const handleFieldConfirm = (fieldData: any, context: any) => {
           items: fieldData.items ?? templateFactory.getTemplateItems(fieldData.type),
           description: fieldData.description,
           required: fieldData.required
+        }
+        // 🆕 保存扩展字段
+        if (fieldData['x-parse']) {
+          childSchemaField['x-parse'] = fieldData['x-parse']
+        }
+        if (fieldData['x-export']) {
+          childSchemaField['x-export'] = fieldData['x-export']
         }
         parentArrayField.items.push(childSchemaField)
         console.log('🧩 [SchemaEditorDialog] 已写入Schema.items，长度:', parentArrayField.items.length)
@@ -543,6 +564,18 @@ const handleFieldConfirm = (fieldData: any, context: any) => {
             newField.items = fieldData.items ?? templateFactory.getTemplateItems(fieldData.type)
           }
           
+          // 🆕 更新扩展字段
+          if (fieldData['x-parse']) {
+            newField['x-parse'] = fieldData['x-parse']
+          } else {
+            delete newField['x-parse']
+          }
+          if (fieldData['x-export']) {
+            newField['x-export'] = fieldData['x-export']
+          } else {
+            delete newField['x-export']
+          }
+          
           // 删除旧字段，添加新字段
           delete targetProperties[context.originalFieldName]
           targetProperties[fieldName] = newField
@@ -558,15 +591,23 @@ const handleFieldConfirm = (fieldData: any, context: any) => {
         // 字段名未变化，只更新属性
         console.log('📝 [SchemaEditorDialog] 字段名未变化，仅更新属性')
         
+        const updatedField: any = {
+          type: fieldData.type,
+          description: fieldData.description,
+          required: fieldData.required,
+          items: fieldData.items ?? templateFactory.getTemplateItems(fieldData.type)
+        }
+        // 🆕 更新扩展字段
+        if (fieldData['x-parse']) {
+          updatedField['x-parse'] = fieldData['x-parse']
+        }
+        if (fieldData['x-export']) {
+          updatedField['x-export'] = fieldData['x-export']
+        }
     workingSchema.value = schemaUtils.setFieldByPath(
       workingSchema.value,
       context.fieldPath,
-          {
-            type: fieldData.type,
-            description: fieldData.description,
-            required: fieldData.required,
-            items: fieldData.items ?? templateFactory.getTemplateItems(fieldData.type)
-          }
+          updatedField
         )
         
         // 同步更新Tree

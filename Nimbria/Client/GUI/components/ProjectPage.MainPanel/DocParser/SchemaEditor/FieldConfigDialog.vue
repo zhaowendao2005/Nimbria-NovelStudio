@@ -2,132 +2,239 @@
   <el-dialog 
     v-model="visible"
     :title="isEditing ? '编辑字段' : '添加字段'"
-    width="600px"
+    width="700px"
     class="field-config-dialog"
     @close="handleDialogClose"
   >
-    <el-form 
-      ref="formRef"
-      :model="localForm" 
-      :rules="formRules"
-      label-width="100px"
-      class="field-form"
-    >
-      <!-- 字段名称 -->
-      <el-form-item label="字段名称" prop="name" required>
-        <el-input
-          v-model="localForm.name"
-          placeholder="请输入字段名称"
-          class="form-input"
-        />
-      </el-form-item>
-
-      <!-- 字段类型 -->
-      <el-form-item label="字段类型" prop="type" required>
-        <el-select
-          v-model="localForm.type"
-          placeholder="请选择字段类型"
-          @change="handleTypeChange"
-          class="form-input"
+    <el-tabs v-model="activeTab" class="field-tabs">
+      <!-- Tab 1: 基本信息 -->
+      <el-tab-pane label="基本信息" name="basic">
+        <el-form 
+          ref="formRef"
+          :model="localForm" 
+          :rules="formRules"
+          label-width="100px"
+          class="field-form"
         >
-          <el-option
-            v-for="option in typeOptions"
-            :key="option.value"
-            :label="option.label"
-            :value="option.value"
-          />
-        </el-select>
-      </el-form-item>
+          <!-- 字段名称 -->
+          <el-form-item label="字段名称" prop="name" required>
+            <el-input
+              v-model="localForm.name"
+              placeholder="请输入字段名称（英文）"
+              class="form-input"
+            />
+          </el-form-item>
 
-      <!-- 字段描述 -->
-      <el-form-item label="描述">
-        <el-input
-          v-model="localForm.description"
-          type="textarea"
-          :rows="2"
-          placeholder="请输入字段描述"
-          class="form-input"
-        />
-      </el-form-item>
+          <!-- 字段类型 -->
+          <el-form-item label="字段类型" prop="type" required>
+            <el-select
+              v-model="localForm.type"
+              placeholder="请选择字段类型"
+              @change="handleTypeChange"
+              class="form-input"
+            >
+              <el-option
+                v-for="option in typeOptions"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              />
+            </el-select>
+          </el-form-item>
 
-      <!-- 必填字段 -->
-      <el-form-item label="必填字段">
-        <el-switch v-model="localForm.required" />
-      </el-form-item>
+          <!-- 字段描述 -->
+          <el-form-item label="描述">
+            <el-input
+              v-model="localForm.description"
+              type="textarea"
+              :rows="2"
+              placeholder="请输入字段描述"
+              class="form-input"
+            />
+          </el-form-item>
 
-      <!-- 字符串类型特有配置 -->
-      <template v-if="localForm.type === 'string'">
-        <el-form-item label="最小长度">
-          <el-input-number
-            v-model="localForm.minLength"
-            :min="0"
-            placeholder="最小长度"
-            class="form-input"
-          />
-        </el-form-item>
-        
-        <el-form-item label="最大长度">
-          <el-input-number
-            v-model="localForm.maxLength"
-            :min="localForm.minLength || 0"
-            placeholder="最大长度"
-            class="form-input"
-          />
-        </el-form-item>
+          <!-- 必填字段 -->
+          <el-form-item label="必填字段">
+            <el-switch v-model="localForm.required" />
+          </el-form-item>
 
-        <el-form-item label="枚举值">
-          <el-input
-            v-model="localForm.enumValues"
-            type="textarea"
-            :rows="2"
-            placeholder="每行一个值，例如：&#10;值1&#10;值2&#10;值3"
-            class="form-input"
-          />
-        </el-form-item>
-      </template>
+          <!-- 数组/对象类型说明 -->
+          <el-form-item v-if="localForm.type === 'array' || localForm.type === 'object'">
+            <el-alert 
+              :title="localForm.type === 'array' ? '数组将创建为空容器，可在树形编辑器中添加子元素' : '对象将创建为空容器，可在树形编辑器中添加属性'" 
+              type="info" 
+              :closable="false"
+              show-icon
+            />
+          </el-form-item>
+        </el-form>
+      </el-tab-pane>
 
-      <!-- 数字类型特有配置 -->
-      <template v-if="localForm.type === 'number' || localForm.type === 'integer'">
-        <el-form-item label="最小值">
-          <el-input-number
-            v-model="localForm.minimum"
-            placeholder="最小值"
-            class="form-input"
-          />
-        </el-form-item>
-        
-        <el-form-item label="最大值">
-          <el-input-number
-            v-model="localForm.maximum"
-            :min="localForm.minimum"
-            placeholder="最大值"
-            class="form-input"
-          />
-        </el-form-item>
-      </template>
+      <!-- Tab 2: 解析规则 -->
+      <el-tab-pane label="解析规则" name="parse">
+        <el-form 
+          :model="localForm" 
+          label-width="100px"
+          class="field-form"
+        >
+          <!-- 启用解析 -->
+          <el-form-item label="启用解析">
+            <el-switch v-model="enableParse" />
+            <span class="form-tip">为此字段配置正则表达式解析规则</span>
+          </el-form-item>
 
-      <!-- 对象类型特有配置 -->
-      <template v-if="localForm.type === 'object'">
-        <el-form-item label="对象属性" class="object-fields-item">
-          <ObjectFieldManager 
-            v-model="objectFields"
-            @update:modelValue="handleObjectFieldsChange"
-          />
-        </el-form-item>
-      </template>
+          <template v-if="enableParse">
+            <!-- 正则表达式 -->
+            <el-form-item label="正则表达式" required>
+              <el-input
+                v-model="xParse.pattern"
+                placeholder="例如：^(\d+)[.、]"
+                class="form-input"
+              />
+              <span class="form-tip">提取数据的正则表达式</span>
+            </el-form-item>
 
-      <!-- 数组类型说明 -->
-      <template v-if="localForm.type === 'array'">
-        <el-form-item label="数组说明">
-          <el-alert 
-            title="数组将创建为空的容器，您可以在可视化编辑器中添加任意类型的子元素" 
-            type="info" 
-            :closable="false"
-            show-icon
-          />
-        </el-form-item>
-      </template>
-    </el-form>
+            <!-- 解析模式 -->
+            <el-form-item label="解析模式" required>
+              <el-select v-model="xParse.mode" class="form-input">
+                <el-option label="extract - 提取匹配内容" value="extract" />
+                <el-option label="split - 分割文档" value="split" />
+                <el-option label="validate - 验证格式" value="validate" />
+              </el-select>
+            </el-form-item>
+
+            <!-- 正则标志 -->
+            <el-form-item label="正则标志">
+              <el-checkbox-group v-model="selectedFlags" class="flags-group">
+                <el-checkbox label="g">全局匹配 (global)</el-checkbox>
+                <el-checkbox label="m">多行模式 (multiline)</el-checkbox>
+                <el-checkbox label="i">忽略大小写 (ignoreCase)</el-checkbox>
+                <el-checkbox label="s">. 匹配换行 (dotAll)</el-checkbox>
+              </el-checkbox-group>
+            </el-form-item>
+
+            <!-- 捕获组 -->
+            <el-form-item label="捕获组">
+              <el-input
+                v-model="captureGroupsStr"
+                placeholder="例如：1 或 1,2,3"
+                class="form-input"
+              />
+              <span class="form-tip">提取第几个括号内的内容，多个用逗号分隔</span>
+            </el-form-item>
+
+            <!-- 测试文本 -->
+            <el-form-item label="测试文本">
+              <el-input
+                v-model="examplesStr"
+                type="textarea"
+                :rows="3"
+                placeholder="输入示例文本用于测试正则（可选）"
+                class="form-input"
+              />
+            </el-form-item>
+          </template>
+        </el-form>
+      </el-tab-pane>
+
+      <!-- Tab 3: 导出配置 -->
+      <el-tab-pane label="导出配置" name="export">
+        <el-form 
+          :model="localForm" 
+          label-width="100px"
+          class="field-form"
+        >
+          <!-- 启用导出 -->
+          <el-form-item label="启用导出">
+            <el-switch v-model="enableExport" />
+            <span class="form-tip">配置此字段在Excel中的导出方式</span>
+          </el-form-item>
+
+          <template v-if="enableExport">
+            <!-- 导出类型 -->
+            <el-form-item label="导出类型" required>
+              <el-select v-model="xExport.type" class="form-input">
+                <el-option label="column - 普通列" value="column" />
+                <el-option label="section-header - 章节标题" value="section-header" />
+                <el-option label="ignore - 不导出" value="ignore" />
+              </el-select>
+            </el-form-item>
+
+            <!-- 列配置（仅 column 类型） -->
+            <template v-if="xExport.type === 'column'">
+              <el-form-item label="列名" required>
+                <el-input
+                  v-model="xExport.columnName"
+                  placeholder="例如：题号、题目内容"
+                  class="form-input"
+                />
+              </el-form-item>
+
+              <el-form-item label="列顺序">
+                <el-input-number
+                  v-model="xExport.columnOrder"
+                  :min="1"
+                  placeholder="列顺序"
+                  class="form-input"
+                />
+                <span class="form-tip">在Excel中的列位置（1,2,3...）</span>
+              </el-form-item>
+
+              <el-form-item label="列宽度">
+                <el-input-number
+                  v-model="xExport.columnWidth"
+                  :min="5"
+                  :max="100"
+                  placeholder="列宽"
+                  class="form-input"
+                />
+                <span class="form-tip">Excel列宽（字符数）</span>
+              </el-form-item>
+
+              <!-- 格式化选项 -->
+              <el-form-item label="格式化">
+                <div class="format-options">
+                  <el-checkbox v-model="xExport.format!.bold">加粗</el-checkbox>
+                  
+                  <div class="format-row">
+                    <span>字号：</span>
+                    <el-input-number
+                      v-model="xExport.format!.fontSize"
+                      :min="8"
+                      :max="24"
+                      size="small"
+                      style="width: 100px;"
+                    />
+                  </div>
+                  
+                  <div class="format-row">
+                    <span>对齐：</span>
+                    <el-select v-model="xExport.format!.alignment" size="small" style="width: 120px;">
+                      <el-option label="左对齐" value="left" />
+                      <el-option label="居中" value="center" />
+                      <el-option label="右对齐" value="right" />
+                    </el-select>
+                  </div>
+                </div>
+              </el-form-item>
+            </template>
+
+            <!-- 章节标题配置（仅 section-header 类型） -->
+            <template v-if="xExport.type === 'section-header'">
+              <el-form-item label="合并列数">
+                <el-input-number
+                  v-model="xExport.mergeCols"
+                  :min="1"
+                  placeholder="合并列数"
+                  class="form-input"
+                />
+                <span class="form-tip">章节标题跨越的列数</span>
+              </el-form-item>
+            </template>
+          </template>
+        </el-form>
+      </el-tab-pane>
+    </el-tabs>
 
     <template #footer>
       <div class="dialog-footer">
@@ -142,12 +249,13 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, reactive } from 'vue'
-import { ElMessage, ElInputNumber, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { schemaUtils } from '@stores/projectPage/docParser/docParser.schemaUtils'
-import ObjectFieldManager from './ObjectFieldManager.vue'
 import type { 
   JsonSchemaField, 
-  JsonSchemaType
+  JsonSchemaType,
+  ParseMetadata,
+  ExportMetadata
 } from '@stores/projectPage/docParser/docParser.types'
 import type { TreeNodeData } from '@stores/projectPage/docParser/docParser.schemaUtils'
 
@@ -157,13 +265,6 @@ interface FieldEditForm {
   type: JsonSchemaType
   description: string
   isRequired: boolean
-  minLength?: number
-  maxLength?: number
-  minimum?: number
-  maximum?: number
-  pattern?: string
-  enum?: any[]
-  objectFieldNames?: string[]
 }
 
 interface FieldEditContext {
@@ -191,28 +292,43 @@ const emit = defineEmits<{
 // 响应式数据
 const formRef = ref<FormInstance>()
 const loading = ref(false)
+const activeTab = ref('basic')
 
 // 表单数据
-const localForm = reactive<FieldEditForm>({
+const localForm = reactive({
   name: '',
-  type: 'string',
+  type: 'string' as JsonSchemaType,
   description: '',
-  required: false,
-  minLength: undefined,
-  maxLength: undefined,
-  enumValues: '',
-  minimum: undefined,
-  maximum: undefined
+  required: false
 })
 
-// 对象字段管理
-const objectFields = ref<string[]>([])
+// 解析规则
+const enableParse = ref(false)
+const xParse = reactive<ParseMetadata>({
+  pattern: '',
+  mode: 'extract',
+  flags: '',
+  captureGroups: [],
+  examples: []
+})
+const selectedFlags = ref<string[]>([])
+const captureGroupsStr = ref('')
+const examplesStr = ref('')
 
-// 处理对象字段变化
-const handleObjectFieldsChange = (fields: string[]) => {
-  console.log('🔄 [FieldConfigDialog] 对象字段发生变化:', fields)
-  objectFields.value = fields
-}
+// 导出配置
+const enableExport = ref(false)
+const xExport = reactive<ExportMetadata>({
+  type: 'column',
+  columnName: '',
+  columnOrder: 1,
+  columnWidth: 15,
+  mergeCols: 1,
+  format: {
+    bold: false,
+    fontSize: 12,
+    alignment: 'left'
+  }
+})
 
 // 计算属性
 const visible = computed({
@@ -250,47 +366,95 @@ const resetForm = () => {
     name: '',
     type: 'string',
     description: '',
-    required: false,
-    minLength: undefined,
-    maxLength: undefined,
-    enumValues: '',
-    minimum: undefined,
-    maximum: undefined
+    required: false
   })
+  
+  enableParse.value = false
+  Object.assign(xParse, {
+    pattern: '',
+    mode: 'extract',
+    flags: '',
+    captureGroups: [],
+    examples: []
+  })
+  selectedFlags.value = []
+  captureGroupsStr.value = ''
+  examplesStr.value = ''
+  
+  enableExport.value = false
+  Object.assign(xExport, {
+    type: 'column',
+    columnName: '',
+    columnOrder: 1,
+    columnWidth: 15,
+    mergeCols: 1,
+    format: {
+      bold: false,
+      fontSize: 12,
+      alignment: 'left'
+    }
+  })
+  
+  activeTab.value = 'basic'
 }
 
-const loadFormData = (data: FieldEditForm) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const loadFormData = (data: any) => {
   console.log('📥 [FieldConfigDialog] 加载表单数据:', JSON.stringify(data, null, 2))
   
+  // 基本信息
   Object.assign(localForm, {
-    ...data
+    name: data.name || data.fieldName || '',
+    type: data.type || 'string',
+    description: data.description || '',
+    required: data.required || data.isRequired || false
   })
   
-  // 如果是对象类型且有现有数据，尝试从中提取字段名
-  if (data.type === 'object' && (data as any).items && typeof (data as any).items === 'object') {
-    const existingFields = Object.keys((data as any).items)
-    objectFields.value = existingFields
-    console.log('🔄 [FieldConfigDialog] 从现有数据提取对象字段:', existingFields)
+  // 解析规则
+  if (data['x-parse']) {
+    enableParse.value = true
+    Object.assign(xParse, data['x-parse'])
+    
+    // flags 转为数组
+    if (data['x-parse'].flags) {
+      selectedFlags.value = data['x-parse'].flags.split('')
+    }
+    
+    // captureGroups 转为字符串
+    if (data['x-parse'].captureGroups && Array.isArray(data['x-parse'].captureGroups)) {
+      captureGroupsStr.value = data['x-parse'].captureGroups.join(',')
+    }
+    
+    // examples 转为字符串
+    if (data['x-parse'].examples && Array.isArray(data['x-parse'].examples)) {
+      examplesStr.value = data['x-parse'].examples.join('\n')
+    }
   } else {
-    objectFields.value = []
+    enableParse.value = false
+  }
+  
+  // 导出配置
+  if (data['x-export']) {
+    enableExport.value = true
+    Object.assign(xExport, {
+      type: data['x-export'].type || 'column',
+      columnName: data['x-export'].columnName || '',
+      columnOrder: data['x-export'].columnOrder || 1,
+      columnWidth: data['x-export'].columnWidth || 15,
+      mergeCols: data['x-export'].mergeCols || 1,
+      format: {
+        bold: data['x-export'].format?.bold || false,
+        fontSize: data['x-export'].format?.fontSize || 12,
+        alignment: data['x-export'].format?.alignment || 'left'
+      }
+    })
+  } else {
+    enableExport.value = false
   }
 }
 
 const handleTypeChange = (newType: JsonSchemaType) => {
   console.log('🔄 [FieldConfigDialog] 类型切换:', newType)
-  
-  // 清除其他类型的特定配置
-  localForm.minLength = undefined
-  localForm.maxLength = undefined
-  localForm.enumValues = ''
-  localForm.minimum = undefined
-  localForm.maximum = undefined
-  
-  // 清空对象字段
-  if (newType !== 'object') {
-    objectFields.value = []
-    console.log('🧹 [FieldConfigDialog] 非对象类型，清空对象字段')
-  }
 }
 
 const handleDialogClose = () => {
@@ -318,51 +482,37 @@ const handleConfirm = async () => {
     
     if (!props.context) {
       console.error('❌ [FieldConfigDialog] 缺少字段上下文信息')
-      ElMessage.error('缺少字段上下文信息')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(ElMessage.error as any)('缺少字段上下文信息')
       return
     }
 
     loading.value = true
     console.log('📋 [FieldConfigDialog] 设置loading状态为true')
 
-    // 统一模板占位生成函数（所有类型都用items）
+    // 生成模板占位
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function getTemplateItems(type: JsonSchemaType): any {
-      const items = (() => {
-        switch (type) {
-          case 'string': return ""
-          case 'number':
-          case 'integer': return 0
-          case 'boolean': return false
-          case 'object': return {}
-          case 'array': return []
-          default: return ""
-        }
-      })()
-      console.log(`🏗️ [FieldConfigDialog] 生成模板占位 ${type} -> ${JSON.stringify(items)}`)
-      return items
+      switch (type) {
+        case 'string': return ""
+        case 'number':
+        case 'integer': return 0
+        case 'boolean': return false
+        case 'object': return {}
+        case 'array': return []
+        default: return ""
+      }
     }
 
-    // 构建统一模板格式字段数据（所有类型都用items）
+    // 构建字段数据
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const fieldData: any = {
-      fieldName: localForm.name,  // ⭐ 关键：包含字段名！
+      fieldName: localForm.name,
       type: localForm.type,
-      items: localForm.type === 'object' ? generateObjectItems() : getTemplateItems(localForm.type)  // 对象使用键值对
+      items: getTemplateItems(localForm.type)
     }
 
-    // 生成对象的items键值对
-    function generateObjectItems(): Record<string, string> {
-      const items: Record<string, string> = {}
-      objectFields.value.forEach(fieldName => {
-        items[fieldName] = ""  // 所有值都是空字符串
-      })
-      console.log('🏗️ [FieldConfigDialog] 生成的对象items:', JSON.stringify(items, null, 2))
-      return items
-    }
-    
-    console.log('🏗️ [FieldConfigDialog] 基础字段数据构建:', JSON.stringify(fieldData, null, 2))
-    console.log('🔑 [FieldConfigDialog] 关键字段名已包含:', localForm.name)
-
-    // 添加可选字段
+    // 添加基本字段
     if (localForm.description) {
       fieldData.description = localForm.description
       console.log('📄 [FieldConfigDialog] 添加描述:', localForm.description)
@@ -372,44 +522,65 @@ const handleConfirm = async () => {
       console.log('⭐ [FieldConfigDialog] 设置为必填字段')
     }
 
-    // 添加类型特定约束
-    if (localForm.type === 'string') {
-      console.log('🔤 [FieldConfigDialog] 处理字符串类型约束')
-      if (localForm.minLength !== undefined) {
-        fieldData.minLength = localForm.minLength
-        console.log(`📏 [FieldConfigDialog] 设置最小长度: ${localForm.minLength}`)
-      }
-      if (localForm.maxLength !== undefined) {
-        fieldData.maxLength = localForm.maxLength
-        console.log(`📏 [FieldConfigDialog] 设置最大长度: ${localForm.maxLength}`)
+    // 🆕 添加解析规则 x-parse
+    if (enableParse.value && xParse.pattern) {
+      // 组装 flags
+      const flags = selectedFlags.value.join('')
+      
+      // 解析 captureGroups
+      const captureGroups = captureGroupsStr.value
+        .split(',')
+        .map(s => s.trim())
+        .filter(s => s)
+        .map(s => parseInt(s))
+        .filter(n => !isNaN(n))
+      
+      // 解析 examples
+      const examples = examplesStr.value
+        .split('\n')
+        .map(s => s.trim())
+        .filter(s => s)
+      
+      fieldData['x-parse'] = {
+        pattern: xParse.pattern,
+        mode: xParse.mode,
+        ...(flags && { flags }),
+        ...(captureGroups.length > 0 && { captureGroups }),
+        ...(examples.length > 0 && { examples })
       }
       
-      // 处理枚举值
-      if (localForm.enumValues) {
-        const enumArray = localForm.enumValues
-          .split('\n')
-          .map(v => v.trim())
-          .filter(v => v.length > 0)
-        if (enumArray.length > 0) {
-          fieldData.enum = enumArray
-          console.log(`📜 [FieldConfigDialog] 设置枚举值:`, enumArray)
+      console.log('🔍 [FieldConfigDialog] 添加解析规则:', fieldData['x-parse'])
+    }
+
+    // 🆕 添加导出配置 x-export
+    if (enableExport.value) {
+      if (xExport.type === 'column') {
+        fieldData['x-export'] = {
+          type: 'column',
+          columnName: xExport.columnName || localForm.name,
+          columnOrder: xExport.columnOrder || 1,
+          columnWidth: xExport.columnWidth || 15,
+          format: {
+            bold: xExport.format?.bold || false,
+            fontSize: xExport.format?.fontSize || 12,
+            alignment: xExport.format?.alignment || 'left'
+          }
+        }
+      } else if (xExport.type === 'section-header') {
+        fieldData['x-export'] = {
+          type: 'section-header',
+          mergeCols: xExport.mergeCols || 1
+        }
+      } else if (xExport.type === 'ignore') {
+        fieldData['x-export'] = {
+          type: 'ignore'
         }
       }
-    } else if (localForm.type === 'number' || localForm.type === 'integer') {
-      console.log('🔢 [FieldConfigDialog] 处理数值类型约束')
-      if (localForm.minimum !== undefined) {
-        fieldData.minimum = localForm.minimum
-        console.log(`📉 [FieldConfigDialog] 设置最小值: ${localForm.minimum}`)
-      }
-      if (localForm.maximum !== undefined) {
-        fieldData.maximum = localForm.maximum
-        console.log(`📈 [FieldConfigDialog] 设置最大值: ${localForm.maximum}`)
-      }
+      
+      console.log('📤 [FieldConfigDialog] 添加导出配置:', fieldData['x-export'])
     }
 
     console.log('🎯 [FieldConfigDialog] 最终字段数据:', JSON.stringify(fieldData, null, 2))
-    console.log('🎯 [FieldConfigDialog] 上下文数据:', JSON.stringify(props.context, null, 2))
-    console.log('🎯 [FieldConfigDialog] 表单字段名:', localForm.name)
 
     // 发送确认事件
     console.log('🚀 [FieldConfigDialog] 发送confirm事件')
@@ -449,26 +620,46 @@ watch(() => props.initialData, (newData) => {
   --el-dialog-padding-primary: 20px;
 }
 
+.field-tabs {
+  min-height: 400px;
+}
+
 .field-form {
-  margin-top: 20px;
+  padding: 20px 0;
 }
 
 .form-input {
   width: 100%;
 }
 
-.object-fields-item {
-  margin-bottom: 20px;
-}
-
-.object-fields-item :deep(.el-form-item__content) {
-  width: 100%;
-  flex: 1;
-}
-
-.object-fields-item :deep(.el-form-item__content > *) {
-  width: 100%;
+.form-tip {
   display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.flags-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.format-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.format-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.format-row > span {
+  min-width: 50px;
+  font-size: 14px;
 }
 
 .dialog-footer {
@@ -483,5 +674,15 @@ watch(() => props.initialData, (newData) => {
 
 .field-form :deep(.el-textarea__inner) {
   resize: vertical;
+}
+
+.field-form :deep(.el-checkbox) {
+  height: auto;
+  white-space: normal;
+}
+
+.field-form :deep(.el-checkbox__label) {
+  white-space: normal;
+  line-height: 1.4;
 }
 </style>
