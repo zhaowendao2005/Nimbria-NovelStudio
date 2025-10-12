@@ -15,4 +15,5 @@ export { default as SettingsLlmConfigProviderCard } from './Settings.LlmConfig.P
 export { default as SettingsLlmConfigActiveModels } from './Settings.LlmConfig.ActiveModels.vue'
 export { default as SettingsLlmConfigAddProviderModal } from './Settings.LlmConfig.AddProviderModal.vue'
 export { default as SettingsLlmConfigConfigModal } from './Settings.LlmConfig.ConfigModal.vue'
+export { default as SettingsLlmConfigModelConfigModal } from './Settings.LlmConfig.ModelConfigModal.vue'
 

@@ -164,6 +164,27 @@ export interface BatchRefreshResult {
 }
 
 /**
+ * 发现的模型（连接测试时返回）
+ */
+export interface DiscoveredModel {
+  type: ModelType;
+  models: Array<{
+    name: string;
+    isAvailable: boolean;
+  }>;
+}
+
+/**
+ * 连接测试结果
+ */
+export interface ConnectionTestResult {
+  success: boolean;
+  discoveredModels?: DiscoveredModel[];
+  error?: string;
+  modelsCount?: number;
+}
+
+/**
  * 工具函数：解析模型ID
  */
 export function parseModelId(modelId: string): ParsedModelId {

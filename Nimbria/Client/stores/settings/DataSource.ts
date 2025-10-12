@@ -13,6 +13,8 @@ import type {
   ModelConfig,
   ValidationResult,
   ModelRefreshResult,
+  ConnectionTestResult,
+  DiscoveredModel,
 } from './types';
 import { 
   llmProvidersMock
@@ -313,11 +315,62 @@ export async function testProviderConnection(
 }
 
 /**
+ * 测试新提供商连接并发现模型
+ * TODO: 对接后端API - POST /api/llm/test-connection
+ */
+export async function testNewProviderConnection(
+  config: { baseUrl: string; apiKey: string }
+): Promise<ConnectionTestResult> {
+  await simulateDelay(2000); // 模拟较长的连接测试
+  
+  if (useMockSource.value) {
+    // 模拟连接测试和模型发现
+    const discoveredModels: DiscoveredModel[] = [
+      {
+        type: 'LLM',
+        models: [
+          { name: 'gpt-4o', isAvailable: true },
+          { name: 'gpt-4-turbo', isAvailable: true },
+          { name: 'gpt-4', isAvailable: true },
+          { name: 'gpt-3.5-turbo', isAvailable: true },
+        ]
+      },
+      {
+        type: 'TEXT_EMBEDDING',
+        models: [
+          { name: 'text-embedding-3-large', isAvailable: true },
+          { name: 'text-embedding-3-small', isAvailable: true },
+          { name: 'text-embedding-ada-002', isAvailable: true },
+        ]
+      }
+    ];
+
+    const modelsCount = discoveredModels.reduce(
+      (count, group) => count + group.models.length,
+      0
+    );
+
+    return {
+      success: true,
+      discoveredModels,
+      modelsCount
+    };
+  }
+  
+  // TODO: 真实API调用
+  // const response = await window.api.llm.testNewProviderConnection(config);
+  // return response.data;
+  
+  throw new Error('Not implemented');
+}
+
+/**
  * 更新模型配置
  * TODO: 对接后端API - PATCH /api/llm/providers/:id/models/:modelName/config
  */
 export async function updateModelConfig(
   providerId: string,
+  modelType: string,
   modelName: string,
   config: Partial<ModelConfig>
 ): Promise<ModelProvider> {
@@ -330,11 +383,16 @@ export async function updateModelConfig(
     }
     
     // 查找并更新模型配置
-    for (const modelGroup of provider.supportedModels) {
+    const modelGroup = provider.supportedModels.find(g => g.type === modelType);
+    if (modelGroup) {
       const model = modelGroup.models.find(m => m.name === modelName);
       if (model) {
-        model.config = { ...model.config, ...config };
-        break;
+        // 如果config为空对象，删除model.config（表示使用提供商默认）
+        if (Object.keys(config).length === 0) {
+          delete (model as any).config;
+        } else {
+          (model as any).config = { ...(model as any).config, ...config };
+        }
       }
     }
     
@@ -342,7 +400,7 @@ export async function updateModelConfig(
   }
   
   // TODO: 真实API调用
-  // const response = await window.api.llm.updateModelConfig(providerId, modelName, config);
+  // const response = await window.api.llm.updateModelConfig(providerId, modelType, modelName, config);
   // return response.data;
   
   throw new Error('Not implemented');

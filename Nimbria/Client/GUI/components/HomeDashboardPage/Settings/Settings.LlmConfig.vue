@@ -94,6 +94,14 @@
       :model-type="currentModelType"
       @added="handleModelAdded"
     />
+
+    <SettingsLlmConfigModelConfigModal
+      v-model="showModelConfigModal"
+      :provider-id="currentProviderId"
+      :model-type="currentModelType"
+      :model-name="currentModelName"
+      @config-updated="handleModelConfigUpdated"
+    />
   </div>
 </template>
 
@@ -106,14 +114,17 @@ import SettingsLlmConfigActiveModels from './Settings.LlmConfig.ActiveModels.vue
 import SettingsLlmConfigAddProviderModal from './Settings.LlmConfig.AddProviderModal.vue'
 import SettingsLlmConfigConfigModal from './Settings.LlmConfig.ConfigModal.vue'
 import SettingsLlmConfigAddModelModal from './Settings.LlmConfig.AddModelModal.vue'
+import SettingsLlmConfigModelConfigModal from './Settings.LlmConfig.ModelConfigModal.vue'
 
 const llmStore = useSettingsLlmStore()
 const activeTab = ref('providers')
 const showAddModal = ref(false)
 const showConfigModal = ref(false)
 const showAddModelModal = ref(false)
+const showModelConfigModal = ref(false)
 const currentProviderId = ref('')
 const currentModelType = ref('')
+const currentModelName = ref('')
 
 // 初始化
 onMounted(() => {
@@ -329,10 +340,25 @@ function handleConfigUpdated() {
 // 模型配置回调
 function handleModelConfig(providerId: string, modelName: string) {
   console.log('打开模型配置:', providerId, modelName)
-  // TODO: 打开ModelConfigModal
+  currentProviderId.value = providerId
+  currentModelName.value = modelName
+  
+  // 查找模型类型
+  const provider = llmStore.providers.find(p => p.id === providerId)
+  if (provider) {
+    for (const modelGroup of provider.supportedModels) {
+      const model = modelGroup.models.find((m: any) => m.name === modelName)
+      if (model) {
+        currentModelType.value = modelGroup.type
+        showModelConfigModal.value = true
+        return
+      }
+    }
+  }
+  
   Notify.create({
-    type: 'info',
-    message: '模型配置功能正在开发中',
+    type: 'negative',
+    message: '未找到模型',
     position: 'top'
   })
 }
@@ -349,6 +375,17 @@ function handleModelAdded() {
   Notify.create({
     type: 'positive',
     message: '模型已添加',
+    position: 'top'
+  })
+  // 刷新提供商数据
+  llmStore.loadProviders()
+}
+
+// 模型配置更新成功回调
+function handleModelConfigUpdated() {
+  Notify.create({
+    type: 'positive',
+    message: '模型配置已更新',
     position: 'top'
   })
   // 刷新提供商数据

@@ -445,18 +445,44 @@ export const useSettingsLlmStore = defineStore('settings-llm', () => {
     }
   }
 
+  /**
+   * 测试新提供商连接（用于添加向导）
+   * @param config - 提供商基础配置
+   * @returns 连接测试结果，包含发现的模型
+   */
+  async function testNewProviderConnection(config: {
+    baseUrl: string;
+    apiKey: string;
+  }): Promise<ConnectionTestResult> {
+    try {
+      const result = await DataSource.testNewProviderConnection(config);
+      console.log('✅ [LLM Store] 新提供商连接测试成功:', result.modelsCount, '个模型');
+      return result;
+    } catch (err) {
+      console.error('❌ [LLM Store] 测试新提供商连接失败:', err);
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : '连接测试失败'
+      };
+    }
+  }
+
   // ==================== 模型配置 ====================
 
+  /**
+   * 更新单个模型的配置
+   */
   async function updateModelConfig(
-    providerId: string, 
-    modelName: string, 
+    providerId: string,
+    modelType: string,
+    modelName: string,
     config: Partial<ModelConfig>
   ): Promise<boolean> {
     try {
       loading.value = true;
       error.value = null;
       
-      const updatedProvider = await DataSource.updateModelConfig(providerId, modelName, config);
+      const updatedProvider = await DataSource.updateModelConfig(providerId, modelType, modelName, config);
       
       // 更新本地状态
       const index = providers.value.findIndex(p => p.id === providerId);
@@ -464,7 +490,7 @@ export const useSettingsLlmStore = defineStore('settings-llm', () => {
         providers.value[index] = updatedProvider;
       }
       
-      console.log('✅ [LLM Store] 模型配置已更新:', providerId, modelName);
+      console.log('✅ [LLM Store] 模型配置已更新:', providerId, modelType, modelName);
       return true;
     } catch (err) {
       error.value = err instanceof Error ? err.message : '更新模型配置失败';
@@ -473,6 +499,36 @@ export const useSettingsLlmStore = defineStore('settings-llm', () => {
     } finally {
       loading.value = false;
     }
+  }
+
+  /**
+   * 获取模型的有效配置（考虑继承）
+   */
+  function getEffectiveModelConfig(
+    providerId: string,
+    modelType: string,
+    modelName: string
+  ): ModelConfig {
+    const provider = providers.value.find(p => p.id === providerId);
+    if (!provider) {
+      throw new Error('提供商不存在');
+    }
+
+    const modelGroup = provider.supportedModels.find(g => g.type === modelType);
+    if (!modelGroup) {
+      throw new Error(`模型类型 ${modelType} 不存在`);
+    }
+
+    const model = modelGroup.models.find(m => m.name === modelName);
+    if (!model) {
+      throw new Error(`模型 ${modelName} 不存在`);
+    }
+
+    // 合并配置：model.config 覆盖 provider.defaultConfig
+    return {
+      ...provider.defaultConfig,
+      ...((model as any).config || {})
+    };
   }
 
   async function resetModelConfig(providerId: string, modelName: string): Promise<boolean> {
@@ -757,10 +813,12 @@ export const useSettingsLlmStore = defineStore('settings-llm', () => {
     // 验证与测试
     validateProvider,
     testProviderConnection,
+    testNewProviderConnection,
 
     // 模型配置
     updateModelConfig,
     resetModelConfig,
+    getEffectiveModelConfig,
 
     // 模型管理（新增）
     setModelDisplayName,
