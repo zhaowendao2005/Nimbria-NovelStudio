@@ -43,19 +43,6 @@
         "type": "node"
     },
     {
-        "name": "Build",
-        "request": "launch",
-        "runtimeArgs": [
-            "run-script",
-            "build"
-        ],
-        "runtimeExecutable": "npm",
-        "skipFiles": [
-            "<node_internals>/**"
-        ],
-        "type": "node"
-    },
-    {
         "name": "Build: Electron",
         "request": "launch",
         "runtimeArgs": [
@@ -69,11 +56,11 @@
         "type": "node"
     },
     {
-        "name": "Build: Electron: Debug",
+        "name": "build:electron:debug:no-lint",
         "request": "launch",
         "runtimeArgs": [
             "run-script",
-            "build:electron:debug"
+            "build:electron:debug:no-lint"
         ],
         "runtimeExecutable": "npm",
         "skipFiles": [
