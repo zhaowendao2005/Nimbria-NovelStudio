@@ -44,7 +44,6 @@
     <el-tooltip content="文档解析器" placement="right" :show-after="500">
       <button 
         class="nav-icon-btn"
-        :class="{ active: currentView === 'docparser' }"
         @click="handleClick('docparser')"
       >
         <el-icon class="nav-icon"><DocumentCopy /></el-icon>
@@ -95,7 +94,6 @@ const handleClick = async (type: string) => {
   
   if (type === 'docparser') {
     console.log('[ProjectNavbar] 打开DocParser标签页')
-    currentView.value = 'docparser'
     
     // 1. 打开DocParser标签页
     const tab = markdownStore.openDocParser()
@@ -157,11 +155,20 @@ const handleClick = async (type: string) => {
   cursor: pointer;
   transition: all 0.2s ease;
   color: var(--obsidian-text-secondary);
+  outline: none;
 }
 
 .nav-icon-btn:hover {
   background: var(--obsidian-hover-bg);
   color: var(--obsidian-text-primary);
+}
+
+.nav-icon-btn:focus {
+  outline: none;
+}
+
+.nav-icon-btn:active {
+  background: var(--obsidian-hover-bg);
 }
 
 .nav-icon-btn.active {
