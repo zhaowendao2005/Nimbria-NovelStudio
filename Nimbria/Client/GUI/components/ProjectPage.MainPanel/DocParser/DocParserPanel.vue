@@ -11,7 +11,7 @@
       @load-schema="handleLoadSchema"
       @select-document="handleSelectDocument"
       @parse="handleParse"
-      @export="handleExport"
+      @quick-export="handleQuickExport"
     />
     
     <!-- 主内容区 -->
@@ -68,6 +68,7 @@
       <div v-if="hasParsedData" class="content-section export-section">
         <ExportConfig
           v-if="exportConfig"
+          ref="exportConfigRef"
           :config="exportConfig"
           @confirm="handleExportConfirm"
           @cancel="showExportConfig = false"
@@ -98,6 +99,9 @@ import ExportConfig from './ExportConfig.vue'
 import { JsonSchemaSection } from './SchemaEditor'
 
 const docParserStore = useDocParserStore()
+
+// 组件引用
+const exportConfigRef = ref<InstanceType<typeof ExportConfig> | null>(null)
 
 // 状态
 const showSchemaEditor = ref(false)
@@ -297,8 +301,8 @@ const handleParse = async () => {
 }
 
 // 导出操作
-const handleExport = () => {
-  console.log('[DocParserPanel] 准备导出')
+const handleQuickExport = () => {
+  console.log('[DocParserPanel] 快速导出 - 触发ExportConfig的确认按钮')
   
   if (!docParserStore.parsedData || !docParserStore.exportConfig) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -306,15 +310,8 @@ const handleExport = () => {
     return
   }
   
-  // 直接导出（简化流程）
-  handleExportConfirm({
-    sheetName: 'Sheet1',
-    format: 'xlsx',
-    outputPath: './output.xlsx',
-    includeHeaders: true,
-    freezeHeader: true,
-    includeSectionHeaders: false
-  })
+  // 触发ExportConfig组件的确认导出
+  exportConfigRef.value?.triggerExport()
 }
 
 const handleExportConfirm = async (config: any) => {
@@ -349,11 +346,25 @@ const handleExportConfirm = async (config: any) => {
   }
 }
 
-const handleSelectOutputPath = () => {
+const handleSelectOutputPath = async () => {
   console.log('[DocParserPanel] 选择输出路径')
-  // TODO: 实现文件保存对话框
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ;(ElMessage.info as any)('请在配置中输入输出路径')
+  
+  try {
+    const timestamp = new Date().toISOString().slice(0, 10)
+    const defaultFileName = `export-${timestamp}.xlsx`
+    
+    // 打开文件保存对话框
+    const selectedPath = await DataSource.selectExportPath(undefined, defaultFileName)
+    
+    if (selectedPath && exportConfigRef.value) {
+      // 更新ExportConfig的输出路径
+      exportConfigRef.value.updateOutputPath(selectedPath)
+    }
+  } catch (error) {
+    console.error('[DocParserPanel] 选择输出路径失败:', error)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.error as any)('选择路径失败')
+  }
 }
 </script>
 

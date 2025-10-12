@@ -47,9 +47,9 @@
         :icon="Download"
         :disabled="!canExport"
         :loading="exporting"
-        @click="handleExport"
+        @click="handleQuickExport"
       >
-        导出
+        快速导出
       </el-button>
     </div>
     
@@ -59,16 +59,6 @@
       @confirm="handleSchemaCreated"
       @cancel="showNewSchemaDialog = false"
     />
-    
-    <!-- 导出配置对话框 -->
-    <ExportDialog
-      v-if="showExportDialog"
-      v-model="showExportDialog"
-      v-bind="exportDataInfo ? { dataInfo: exportDataInfo } : {}"
-      :default-file-name="exportFileName"
-      @confirm="handleExportConfirmed"
-      @cancel="showExportDialog = false"
-    />
   </div>
 </template>
 
@@ -77,7 +67,6 @@ import { ref, computed } from 'vue'
 import { useQuasar } from 'quasar'
 import { DocumentAdd, FolderOpened, Document, CircleCheck, Download } from '@element-plus/icons-vue'
 import NewSchemaDialog from './dialogs/NewSchemaDialog.vue'
-import ExportDialog from './dialogs/ExportDialog.vue'
 import { useDocParserStore } from '@stores/projectPage/docParser/docParser.store'
 import DataSource from '@stores/projectPage/DataSource'
 
@@ -99,7 +88,7 @@ const emit = defineEmits<{
   'load-schema': []
   'select-document': []
   'parse': []
-  'export': [data: { exportPath: string; format: 'xlsx' | 'csv'; options: any }]
+  'quick-export': []
 }>()
 
 const $q = useQuasar()
@@ -107,7 +96,6 @@ const docParserStore = useDocParserStore()
 
 // 对话框状态
 const showNewSchemaDialog = ref(false)
-const showExportDialog = ref(false)
 
 // 当前步骤
 const currentStep = computed(() => {
@@ -121,28 +109,6 @@ const currentStep = computed(() => {
 const canSelectDoc = computed(() => props.hasSchema)
 const canParse = computed(() => props.hasSchema && props.hasDocument)
 const canExport = computed(() => props.hasParsedData)
-
-// 导出数据信息
-const exportDataInfo = computed(() => {
-  if (!docParserStore.parsedData) return undefined
-  
-  const data = docParserStore.parsedData as any[]
-  const itemCount = data.length
-  const fieldCount = data.length > 0 ? Object.keys(data[0]).length : 0
-  const estimatedSize = `${Math.round(itemCount * fieldCount * 50 / 1024)} KB`
-  
-  return {
-    itemCount,
-    fieldCount,
-    estimatedSize
-  }
-})
-
-// 默认导出文件名
-const exportFileName = computed(() => {
-  const timestamp = new Date().toISOString().slice(0, 10)
-  return `export-${timestamp}.xlsx`
-})
 
 // 新建 Schema
 const handleNewSchema = () => {
@@ -200,19 +166,9 @@ const handleLoadSchema = async () => {
   }
 }
 
-// 导出
-const handleExport = () => {
-  showExportDialog.value = true
-}
-
-// 导出确认
-const handleExportConfirmed = (data: {
-  exportPath: string
-  format: 'xlsx' | 'csv'
-  options: any
-}) => {
-  showExportDialog.value = false
-  emit('export', data)
+// 快速导出 - 直接触发ExportConfig的导出按钮
+const handleQuickExport = () => {
+  emit('quick-export')
 }
 </script>
 

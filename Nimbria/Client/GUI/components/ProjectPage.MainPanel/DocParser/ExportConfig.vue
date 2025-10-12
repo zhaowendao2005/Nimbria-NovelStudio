@@ -78,15 +78,24 @@
         <h4>高级选项</h4>
         <el-form label-width="120px" size="small">
           <el-form-item label="包含表头">
-            <el-switch v-model="localConfig.includeHeaders" />
+            <div class="switch-with-desc">
+              <el-switch v-model="localConfig.includeHeaders" />
+              <span class="option-desc">在Excel第一行显示列标题</span>
+            </div>
           </el-form-item>
           
           <el-form-item label="冻结首行">
-            <el-switch v-model="localConfig.freezeHeader" />
+            <div class="switch-with-desc">
+              <el-switch v-model="localConfig.freezeHeader" />
+              <span class="option-desc">固定表头，滚动时保持可见</span>
+            </div>
           </el-form-item>
           
           <el-form-item label="章节标题">
-            <el-switch v-model="localConfig.includeSectionHeaders" />
+            <div class="switch-with-desc">
+              <el-switch v-model="localConfig.includeSectionHeaders" />
+              <span class="option-desc">在数据中包含章节信息</span>
+            </div>
           </el-form-item>
         </el-form>
       </div>
@@ -143,12 +152,14 @@ const columns = computed(() => {
 
 const refreshConfig = () => {
   // 刷新配置（从Schema重新提取）
-  ElMessage.success('配置已刷新')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(ElMessage.success as any)('配置已刷新')
 }
 
 const removeColumn = (index: number) => {
   // 从列表中移除列
-  ElMessage.warning('列移除功能待实现')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(ElMessage.warning as any)('列移除功能待实现')
 }
 
 const selectOutputPath = () => {
@@ -157,12 +168,28 @@ const selectOutputPath = () => {
 
 const handleConfirm = () => {
   if (!localConfig.value.outputPath) {
-    ElMessage.warning('请选择输出路径')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.warning as any)('请选择输出路径')
     return
   }
   
   emit('confirm', localConfig.value)
 }
+
+// 暴露给父组件的方法
+const triggerExport = () => {
+  handleConfirm()
+}
+
+const updateOutputPath = (path: string) => {
+  localConfig.value.outputPath = path
+}
+
+// 暴露方法给父组件使用
+defineExpose({
+  triggerExport,
+  updateOutputPath
+})
 </script>
 
 <style scoped lang="scss">
@@ -215,6 +242,17 @@ const handleConfirm = () => {
   padding: 12px 16px;
   border-top: 1px solid var(--el-border-color);
   background: var(--el-bg-color-page);
+}
+
+.switch-with-desc {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  
+  .option-desc {
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
+  }
 }
 </style>
 

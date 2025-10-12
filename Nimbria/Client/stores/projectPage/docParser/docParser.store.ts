@@ -293,8 +293,8 @@ export const useDocParserStore = defineStore('projectPage-docParser', () => {
           config.columns.push({
             field: [...path],
             name: exportMeta.columnName || path[path.length - 1],
-            order: exportMeta.order || 999,
-            width: exportMeta.width || 15,
+            order: exportMeta.columnOrder || exportMeta.order || 999,
+            width: exportMeta.columnWidth || exportMeta.width || 15,
             format: exportMeta.format
           })
         } else if (exportMeta.type === 'section-header') {
@@ -317,8 +317,14 @@ export const useDocParserStore = defineStore('projectPage-docParser', () => {
       }
     }
     
+    // 支持 object 类型的 properties
     if (schema.properties) {
       traverse(schema, [])
+    }
+    
+    // 支持 array 类型的 items
+    if (schema.type === 'array' && schema.items && !Array.isArray(schema.items)) {
+      traverse(schema.items, [])
     }
     
     // 按 order 排序
