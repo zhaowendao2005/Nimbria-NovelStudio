@@ -280,23 +280,31 @@ export const useDocParserStore = defineStore('projectPage-docParser', () => {
    * 从 Schema 提取导出配置
    */
   const extractExportConfigFromSchema = (schema: DocParserSchema): ExportConfig => {
+    console.log('[DocParser Store] 开始提取导出配置，Schema类型:', schema.type)
+    console.log('[DocParser Store] Schema内容:', JSON.stringify(schema, null, 2))
+    
     const config: ExportConfig = {
       columns: [],
       sectionHeaders: []
     }
     
     const traverse = (node: any, path: string[]) => {
+      console.log('[DocParser Store] traverse节点，path:', path, 'hasExport:', !!node['x-export'], 'hasProperties:', !!node.properties)
+      
       if (node['x-export']) {
         const exportMeta = node['x-export']
+        console.log('[DocParser Store] 找到x-export配置:', exportMeta, 'path:', path)
         
         if (exportMeta.type === 'column') {
-          config.columns.push({
+          const column = {
             field: [...path],
             name: exportMeta.columnName || path[path.length - 1],
             order: exportMeta.columnOrder || exportMeta.order || 999,
             width: exportMeta.columnWidth || exportMeta.width || 15,
             format: exportMeta.format
-          })
+          }
+          console.log('[DocParser Store] 添加列配置:', column)
+          config.columns.push(column)
         } else if (exportMeta.type === 'section-header') {
           config.sectionHeaders.push({
             field: [...path],
@@ -307,30 +315,35 @@ export const useDocParserStore = defineStore('projectPage-docParser', () => {
       }
       
       if (node.properties) {
+        console.log('[DocParser Store] 遍历properties，字段数:', Object.keys(node.properties).length)
         Object.entries(node.properties).forEach(([key, subNode]) => {
           traverse(subNode, [...path, key])
         })
       }
       
       if (node.items && !Array.isArray(node.items)) {
+        console.log('[DocParser Store] 遍历items')
         traverse(node.items, [...path, '[]'])
       }
     }
     
     // 支持 object 类型的 properties
     if (schema.properties) {
+      console.log('[DocParser Store] Schema有properties，开始遍历')
       traverse(schema, [])
     }
     
     // 支持 array 类型的 items
     if (schema.type === 'array' && schema.items && !Array.isArray(schema.items)) {
+      console.log('[DocParser Store] Schema是array类型，开始遍历items')
       traverse(schema.items, [])
     }
     
     // 按 order 排序
     config.columns.sort((a, b) => a.order - b.order)
     
-    console.log('[DocParser Store] 导出配置已提取:', config)
+    console.log('[DocParser Store] 导出配置已提取，列数:', config.columns.length)
+    console.log('[DocParser Store] 列配置详情:', config.columns)
     return config
   }
   
