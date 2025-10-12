@@ -17,10 +17,16 @@ export interface TreeNodeData {
   pattern?: string
   enum?: any[]
   default?: any
+  // 🆕 DocParser 扩展字段
+  'x-parse'?: ParseMetadata
+  'x-export'?: ExportMetadata
   // UI相关
   children?: TreeNodeData[]  // 子节点（用于树形展示）
   isEditing?: boolean  // 是否处于编辑状态
 }
+
+// 导入 ParseMetadata 和 ExportMetadata 类型
+import type { ParseMetadata, ExportMetadata } from './docParser.types'
 
 // 模板占位生成器
 export const templateFactory = {
@@ -240,7 +246,19 @@ export const treeConverter = {
         pattern: field.pattern,
         enum: field.enum,
         default: field.default,
+        // 🆕 复制 DocParser 扩展字段
+        'x-parse': (field as any)['x-parse'],
+        'x-export': (field as any)['x-export'],
         children: []
+      }
+      
+      // 🔍 调试日志
+      if ((field as any)['x-parse'] || (field as any)['x-export']) {
+        console.log('[treeConverter] 发现扩展字段:', {
+          fieldName,
+          'x-parse': (field as any)['x-parse'],
+          'x-export': (field as any)['x-export']
+        });
       }
 
       // 处理子节点（统一items格式）
@@ -265,8 +283,17 @@ export const treeConverter = {
           convertNode(name, subField, path ? `${path}.${name}` : name, field.required)
         )
       } else if (field.type === 'array' && field.items && !Array.isArray(field.items)) {
-        // 兼容传统items格式
-        node.children = this.convertArrayItems(field.items, path, fieldName)
+        // 🔥 数组的 items 是对象类型（标准 JSON Schema 格式）
+        const itemsField = field.items as JsonSchemaField
+        
+        // 如果 items 有 properties，递归处理其子字段
+        if (itemsField.type === 'object' && itemsField.properties) {
+          const itemNode = convertNode('items', itemsField, `${path}[]`, [])
+          node.children = [itemNode]
+        } else {
+          // 简单类型的数组项
+          node.children = []
+        }
       }
 
       return node
@@ -610,6 +637,33 @@ export const treeConverter = {
       return constraints.join(', ')
     }
 
+    // 🆕 检查是否有解析规则
+    const hasParseRule = !!(node['x-parse'])
+    
+    // 🆕 检查是否有导出配置
+    const hasExportConfig = !!(node['x-export'])
+    
+    // 🆕 生成解析规则摘要
+    const getParseRuleSummary = (): string => {
+      if (!node['x-parse']) return ''
+      const parse = node['x-parse']
+      const parts: string[] = []
+      if (parse.regex) parts.push(`regex: ${parse.regex.substring(0, 30)}...`)
+      if (parse.mode) parts.push(`mode: ${parse.mode}`)
+      return parts.join(', ')
+    }
+    
+    // 🆕 生成导出配置摘要
+    const getExportConfigSummary = (): string => {
+      if (!node['x-export']) return ''
+      const exp = node['x-export']
+      const parts: string[] = []
+      if (exp.type) parts.push(`type: ${exp.type}`)
+      if (exp.columnName) parts.push(`col: ${exp.columnName}`)
+      if (exp.order !== undefined) parts.push(`order: ${exp.order}`)
+      return parts.join(', ')
+    }
+
     return {
       icon: iconMap[node.type] || 'Document',
       color: colorMap[node.type] || '#909399',
@@ -617,7 +671,12 @@ export const treeConverter = {
       hasDescription,
       canAddChild,
       hasConstraints,
-      constraintText: hasConstraints ? getConstraintText() : ''
+      constraintText: hasConstraints ? getConstraintText() : '',
+      // 🆕 DocParser 扩展信息
+      hasParseRule,
+      parseRuleSummary: hasParseRule ? getParseRuleSummary() : '',
+      hasExportConfig,
+      exportConfigSummary: hasExportConfig ? getExportConfigSummary() : ''
     }
   },
 

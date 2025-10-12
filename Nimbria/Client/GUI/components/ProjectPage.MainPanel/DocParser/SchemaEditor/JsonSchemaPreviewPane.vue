@@ -17,6 +17,7 @@
             node-key="id"
             default-expand-all
             :expand-on-click-node="false"
+            :indent="40"
             class="preview-tree"
           >
             <template #default="{ data }">
@@ -59,8 +60,14 @@ const treeData = ref<TreeNodeData[]>([]);
 
 const convertSchemaToTree = (schema: JsonSchema) => {
   try {
+    // 🔍 调试日志：查看原始 Schema
+    console.log('[JsonSchemaPreviewPane] 转换 Schema:', JSON.stringify(schema, null, 2));
+    
     if (schema && schema.properties) {
       treeData.value = treeConverter.jsonSchemaToTreeData(schema);
+      
+      // 🔍 调试日志：查看转换后的树数据
+      console.log('[JsonSchemaPreviewPane] 转换后的树数据:', treeData.value);
     } else {
       treeData.value = [];
     }
@@ -114,12 +121,14 @@ const addRootField = () => {
   height: 100%;
   display: flex;
   flex-direction: column;
+  min-width: 0; /* 🔑 关键：允许 flex item 收缩 */
 }
 
 .preview-container {
   height: 100%;
   display: flex;
   flex-direction: column;
+  min-width: 0; /* 🔑 关键：允许容器收缩 */
   border: 1px solid var(--el-border-color);
   border-radius: 4px;
   overflow: hidden;
@@ -144,19 +153,40 @@ const addRootField = () => {
 
 .preview-tree {
   flex: 1;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: auto;
   min-height: 0;
+  width: 100%; /* 跟随父容器宽度 */
 }
 
 .code-preview {
   flex: 1;
   min-height: 0;
   height: 100%;
+  overflow-x: auto;
+  overflow-y: auto;
 }
 
 :deep(.el-tree-node__content) {
-  padding: 0 !important;
   height: auto !important;
-  min-height: 32px;
+  min-height: 36px;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  padding-right: 0 !important;
+  /* 保留 padding-left 让 Element Plus 的 indent 生效 */
+  width: max-content !important; /* 🔑 让内容决定宽度 */
+  min-width: 100% !important; /* 至少占满容器 */
+}
+
+/* 🔑 关键：el-tree-node__children 也需要能够超出容器 */
+:deep(.el-tree-node__children) {
+  width: max-content !important;
+  min-width: 100% !important;
+}
+
+/* 🔑 el-tree-node 本身也需要处理 */
+:deep(.el-tree-node) {
+  width: max-content !important;
+  min-width: 100% !important;
 }
 </style>

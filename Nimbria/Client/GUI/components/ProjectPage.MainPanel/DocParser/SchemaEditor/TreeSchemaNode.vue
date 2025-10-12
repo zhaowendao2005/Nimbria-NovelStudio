@@ -45,8 +45,30 @@
 
       <!-- 描述信息 -->
       <span v-if="displayInfo.hasDescription" class="field-description">
-        - {{ node?.fieldData?.description }}
+        - {{ node?.description }}
       </span>
+      
+      <!-- 🆕 解析规则标记 -->
+      <el-tag
+        v-if="displayInfo.hasParseRule"
+        type="success"
+        size="small"
+        class="parse-badge"
+        effect="plain"
+      >
+        <el-icon><Search /></el-icon>
+      </el-tag>
+      
+      <!-- 🆕 导出配置标记 -->
+      <el-tag
+        v-if="displayInfo.hasExportConfig"
+        type="primary"
+        size="small"
+        class="export-badge"
+        effect="plain"
+      >
+        <el-icon><Upload /></el-icon>
+      </el-tag>
     </div>
 
     <!-- 悬停操作按钮 -->
@@ -165,7 +187,9 @@ import {
   Files,
   Switch,
   DataBoard,
-  List
+  List,
+  Search,
+  Upload
 } from '@element-plus/icons-vue';
 import { treeConverter, schemaUtils } from '@stores/projectPage/docParser/docParser.schemaUtils';
 import type { TreeNodeData } from '@stores/projectPage/docParser/docParser.schemaUtils';
@@ -199,11 +223,25 @@ const displayInfo = computed(() => {
       hasDescription: false,
       canAddChild: false,
       hasConstraints: false,
-      constraintText: ''
+      constraintText: '',
+      hasParseRule: false,
+      parseRuleSummary: '',
+      hasExportConfig: false,
+      exportConfigSummary: ''
     };
   }
   
-  return treeConverter.getNodeDisplayInfo(props.node);
+  // 🔍 调试日志
+  console.log('[TreeSchemaNode] 节点信息:', {
+    fieldName: props.node.fieldName,
+    'x-parse': props.node['x-parse'],
+    'x-export': props.node['x-export']
+  });
+  
+  const info = treeConverter.getNodeDisplayInfo(props.node);
+  console.log('[TreeSchemaNode] displayInfo:', info);
+  
+  return info;
 });
 
 const typeOptions = computed(() => schemaUtils.getAvailableTypes());
@@ -311,7 +349,8 @@ const handleTypeChange = (newType: JsonSchemaType) => {
   border-radius: 6px;
   transition: all 0.2s ease;
   min-height: 42px;
-  width: 100%;
+  width: max-content; /* 🔑 让内容决定宽度,可以超出容器 */
+  min-width: 100%; /* 至少占满容器宽度 */
 }
 
 .tree-schema-node:hover {
@@ -372,6 +411,22 @@ const handleTypeChange = (newType: JsonSchemaType) => {
   padding: 3px 8px;
   border-radius: 4px;
   flex-shrink: 0;
+}
+
+.parse-badge,
+.export-badge {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.parse-badge .el-icon,
+.export-badge .el-icon {
+  font-size: 12px;
 }
 
 .field-type {
