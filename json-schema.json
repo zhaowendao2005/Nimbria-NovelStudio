@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "chapters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "chapterNumber": {
+            "type": "string",
+            "description": "章节编号，如'第一章'"
+          },
+          "chapterTitle": {
+            "type": "string",
+            "description": "章节标题，如'生命的分子基础'"
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "questionNumber": {
+                  "type": "string",
+                  "description": "题号，如'1'"
+                },
+                "questionContent": {
+                  "type": "string",
+                  "description": "题目内容"
+                },
+                "answer": {
+                  "type": "string",
+                  "description": "答案内容"
+                }
+              },
+              "required": ["questionNumber", "questionContent", "answer"]
+            }
+          }
+        },
+        "required": ["chapterNumber", "chapterTitle", "questions"]
+      }
+    }
+  }
+}
