@@ -22,6 +22,21 @@ export const CHANNELS = {
   // 文件/目录创建
   FILE_CREATE: 'file:create',
   DIRECTORY_CREATE: 'file:createDirectory',
+  
+  // DocParser Schema 管理
+  DOCPARSER_CREATE_SCHEMA: 'docParser:createSchema',
+  DOCPARSER_LOAD_SCHEMA: 'docParser:loadSchema',
+  DOCPARSER_SAVE_SCHEMA: 'docParser:saveSchema',
+  DOCPARSER_LIST_SCHEMAS: 'docParser:listSchemas',
+  
+  // DocParser 文件选择器
+  DOCPARSER_SELECT_SCHEMA_FILE: 'docParser:selectSchemaFile',
+  DOCPARSER_SELECT_DOCUMENT_FILE: 'docParser:selectDocumentFile',
+  DOCPARSER_SELECT_EXPORT_PATH: 'docParser:selectExportPath',
+  
+  // DocParser 文档操作
+  DOCPARSER_READ_DOCUMENT: 'docParser:readDocument',
+  DOCPARSER_SAVE_EXPORT: 'docParser:saveExport',
 } as const;
 
 export type ChannelName = typeof CHANNELS[keyof typeof CHANNELS];

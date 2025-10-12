@@ -52,7 +52,7 @@
 ```
 Nimbria/
 ├── src-electron/ipc/
-│   └── docParser.ipc.ts          # 新增：DocParser IPC 通道
+│   └── /DocPaser/docParser.ipc.ts          # 新增：DocParser IPC 通道
 ├── Client/
 │   ├── GUI/components/ProjectPage.MainPanel/DocParser/
 │   │   ├── TopBar.vue            # 修改：添加新建/加载 Schema 逻辑

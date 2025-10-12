@@ -22,6 +22,11 @@
         <template #prepend>
           <el-icon><Document /></el-icon>
         </template>
+        <template v-if="allowBrowse" #append>
+          <el-button :icon="FolderOpened" @click="handleBrowse">
+            浏览
+          </el-button>
+        </template>
       </el-input>
       
       <div v-if="fileInfo" class="file-info">
@@ -70,6 +75,7 @@ interface Props {
   readonly?: boolean
   allowBrowse?: boolean
   showPreview?: boolean
+  hideHeader?: boolean
   fileInfo?: FileInfo | null
   previewContent?: string
 }
@@ -80,6 +86,7 @@ const props = withDefaults(defineProps<Props>(), {
   readonly: false,
   allowBrowse: true,
   showPreview: false,
+  hideHeader: false,
   fileInfo: null,
   previewContent: ''
 })

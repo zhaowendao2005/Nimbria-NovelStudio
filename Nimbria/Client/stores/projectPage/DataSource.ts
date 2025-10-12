@@ -12,9 +12,23 @@ interface FileAPI {
   createFile?: (filePath: string, content: string) => Promise<{ success: boolean; error?: string }>
 }
 
+interface DocParserAPI {
+  createSchema?: (projectPath: string, schemaName: string, template?: string) => Promise<string>
+  loadSchema?: (schemaPath: string) => Promise<string>
+  saveSchema?: (schemaPath: string, content: string) => Promise<boolean>
+  listSchemas?: (projectPath: string) => Promise<string[]>
+  selectSchemaFile?: (defaultPath?: string) => Promise<{ canceled: boolean; filePaths: string[] }>
+  selectDocumentFile?: (defaultPath?: string) => Promise<{ canceled: boolean; filePaths: string[] }>
+  selectExportPath?: (defaultPath?: string, fileName?: string) => Promise<{ canceled: boolean; filePath?: string }>
+  readDocument?: (filePath: string) => Promise<string>
+  saveExport?: (filePath: string, data: Uint8Array, format?: string) => Promise<boolean>
+}
+
 interface NimbriaAPI {
   markdown?: MarkdownAPI
   file?: FileAPI
+  docParser?: DocParserAPI
+  getCurrentProjectPath?: () => string | null
 }
 
 /**
@@ -125,6 +139,26 @@ class ProjectPageDataSource {
   // ==================== DocParser 专用方法 ====================
   
   /**
+   * 创建新的 Schema
+   * @param projectPath 项目路径
+   * @param schemaName Schema 名称
+   * @param template 模板类型（默认 'excel'）
+   * @returns 创建的 Schema 文件路径
+   */
+  async createSchema(projectPath: string, schemaName: string, template: string = 'excel'): Promise<string> {
+    if (Environment.shouldUseMock()) {
+      const schemaPath = `${projectPath}/.docparser/schema/${schemaName}.schema.json`;
+      addMockSchema(schemaPath, JSON.stringify(docParserMockData.defaultSchema, null, 2));
+      return schemaPath;
+    }
+    const nimbriaAPI = window.nimbria as NimbriaAPI | undefined;
+    if (!nimbriaAPI?.docParser?.createSchema) {
+      throw new Error('DocParser API not available');
+    }
+    return await nimbriaAPI.docParser.createSchema(projectPath, schemaName, template);
+  }
+
+  /**
    * 列出Schema文件
    * @param projectPath 项目路径
    * @returns Schema文件路径列表
@@ -133,9 +167,11 @@ class ProjectPageDataSource {
     if (Environment.shouldUseMock()) {
       return getMockSchemaList();
     }
-    // Electron 环境：读取 .docparser 目录
-    // 需要实现：window.nimbria.file.listFiles(projectPath + '/.docparser')
-    throw new Error('listSchemaFiles 需要在 Electron 环境中实现');
+    const nimbriaAPI = window.nimbria as NimbriaAPI | undefined;
+    if (!nimbriaAPI?.docParser?.listSchemas) {
+      throw new Error('DocParser API not available');
+    }
+    return await nimbriaAPI.docParser.listSchemas(projectPath);
   }
 
   /**
@@ -147,18 +183,15 @@ class ProjectPageDataSource {
     if (Environment.shouldUseMock()) {
       const schema = docParserMockData.savedSchemas[schemaPath];
       if (!schema) {
-        // 返回默认Schema
         return JSON.stringify(docParserMockData.defaultSchema, null, 2);
       }
       return schema;
     }
-    // Electron 环境：使用 markdown.readFile 读取schema
     const nimbriaAPI = window.nimbria as NimbriaAPI | undefined;
-    const content = await nimbriaAPI?.markdown?.readFile(schemaPath);
-    if (!content) {
-      throw new Error('Failed to load schema');
+    if (!nimbriaAPI?.docParser?.loadSchema) {
+      throw new Error('DocParser API not available');
     }
-    return content;
+    return await nimbriaAPI.docParser.loadSchema(schemaPath);
   }
 
   /**
@@ -171,12 +204,65 @@ class ProjectPageDataSource {
       addMockSchema(schemaPath, schemaContent);
       return true;
     }
-    // Electron 环境：使用 markdown.writeFile 保存
     const nimbriaAPI = window.nimbria as NimbriaAPI | undefined;
-    const result = await nimbriaAPI?.markdown?.writeFile(schemaPath, schemaContent, {
-      createBackup: false
-    });
-    return result?.success || false;
+    if (!nimbriaAPI?.docParser?.saveSchema) {
+      throw new Error('DocParser API not available');
+    }
+    return await nimbriaAPI.docParser.saveSchema(schemaPath, schemaContent);
+  }
+  
+  /**
+   * 选择 Schema 文件（打开文件选择器）
+   * @param defaultPath 默认路径
+   * @returns 选中的文件路径，如果取消则返回 null
+   */
+  async selectSchemaFile(defaultPath?: string): Promise<string | null> {
+    if (Environment.shouldUseMock()) {
+      // Mock 环境：返回第一个 Schema
+      const schemas = getMockSchemaList();
+      return schemas.length > 0 ? schemas[0] : null;
+    }
+    const nimbriaAPI = window.nimbria as NimbriaAPI | undefined;
+    if (!nimbriaAPI?.docParser?.selectSchemaFile) {
+      throw new Error('DocParser API not available');
+    }
+    const result = await nimbriaAPI.docParser.selectSchemaFile(defaultPath);
+    return result.canceled || !result.filePaths[0] ? null : result.filePaths[0];
+  }
+
+  /**
+   * 选择待解析文档（打开文件选择器）
+   * @param defaultPath 默认路径
+   * @returns 选中的文件路径，如果取消则返回 null
+   */
+  async selectDocumentFile(defaultPath?: string): Promise<string | null> {
+    if (Environment.shouldUseMock()) {
+      return '/mock/document.txt';
+    }
+    const nimbriaAPI = window.nimbria as NimbriaAPI | undefined;
+    if (!nimbriaAPI?.docParser?.selectDocumentFile) {
+      throw new Error('DocParser API not available');
+    }
+    const result = await nimbriaAPI.docParser.selectDocumentFile(defaultPath);
+    return result.canceled || !result.filePaths[0] ? null : result.filePaths[0];
+  }
+
+  /**
+   * 选择导出路径（保存文件对话框）
+   * @param defaultPath 默认路径
+   * @param fileName 默认文件名
+   * @returns 选中的文件路径，如果取消则返回 null
+   */
+  async selectExportPath(defaultPath?: string, fileName: string = 'export.xlsx'): Promise<string | null> {
+    if (Environment.shouldUseMock()) {
+      return `/mock/exports/${fileName}`;
+    }
+    const nimbriaAPI = window.nimbria as NimbriaAPI | undefined;
+    if (!nimbriaAPI?.docParser?.selectExportPath) {
+      throw new Error('DocParser API not available');
+    }
+    const result = await nimbriaAPI.docParser.selectExportPath(defaultPath, fileName);
+    return result.canceled || !result.filePath ? null : result.filePath;
   }
 
   /**
@@ -188,29 +274,34 @@ class ProjectPageDataSource {
     if (Environment.shouldUseMock()) {
       return docParserMockData.sampleDocument;
     }
-    // Electron 环境：使用 markdown.readFile
     const nimbriaAPI = window.nimbria as NimbriaAPI | undefined;
-    const content = await nimbriaAPI?.markdown?.readFile(filePath);
-    if (!content) {
-      throw new Error('Failed to read document');
+    if (!nimbriaAPI?.docParser?.readDocument) {
+      throw new Error('DocParser API not available');
     }
-    return content;
+    return await nimbriaAPI.docParser.readDocument(filePath);
   }
 
   /**
    * 保存导出文件
    * @param filePath 导出文件路径
    * @param content 文件内容（Buffer或字符串）
+   * @param format 文件格式（'xlsx' | 'csv'）
    */
-  async saveExportedFile(filePath: string, content: ArrayBuffer | string): Promise<boolean> {
+  async saveExportedFile(filePath: string, content: ArrayBuffer | string, format: 'xlsx' | 'csv' = 'xlsx'): Promise<boolean> {
     if (Environment.shouldUseMock()) {
-      console.log('[Mock] 导出文件保存:', filePath, '大小:', 
+      console.log('[Mock] 导出文件保存:', filePath, '格式:', format, '大小:', 
         content instanceof ArrayBuffer ? content.byteLength : content.length);
       return true;
     }
-    // Electron 环境：需要实现二进制文件写入
-    // 可能需要：window.nimbria.file.writeBuffer(filePath, content)
-    throw new Error('saveExportedFile 需要在 Electron 环境中实现');
+    const nimbriaAPI = window.nimbria as NimbriaAPI | undefined;
+    if (!nimbriaAPI?.docParser?.saveExport) {
+      throw new Error('DocParser API not available');
+    }
+    // 转换为 Uint8Array
+    const uint8Array = content instanceof ArrayBuffer 
+      ? new Uint8Array(content) 
+      : new TextEncoder().encode(content);
+    return await nimbriaAPI.docParser.saveExport(filePath, uint8Array, format);
   }
 }
 

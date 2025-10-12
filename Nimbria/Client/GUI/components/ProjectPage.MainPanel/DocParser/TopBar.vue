@@ -4,15 +4,15 @@
       <el-button 
         type="primary" 
         :icon="DocumentAdd"
-        @click="emit('create-schema')"
+        @click="handleNewSchema"
       >
-        新建Schema
+        新建 Schema
       </el-button>
       <el-button 
         :icon="FolderOpened"
-        @click="emit('load-schema')"
+        @click="handleLoadSchema"
       >
-        加载Schema
+        加载 Schema
       </el-button>
       <el-button 
         :icon="Document"
@@ -47,17 +47,39 @@
         :icon="Download"
         :disabled="!canExport"
         :loading="exporting"
-        @click="emit('export')"
+        @click="handleExport"
       >
-        导出Excel
+        导出
       </el-button>
     </div>
+    
+    <!-- 新建 Schema 对话框 -->
+    <NewSchemaDialog
+      v-model="showNewSchemaDialog"
+      @confirm="handleSchemaCreated"
+      @cancel="showNewSchemaDialog = false"
+    />
+    
+    <!-- 导出配置对话框 -->
+    <ExportDialog
+      v-if="showExportDialog"
+      v-model="showExportDialog"
+      v-bind="exportDataInfo ? { dataInfo: exportDataInfo } : {}"
+      :default-file-name="exportFileName"
+      @confirm="handleExportConfirmed"
+      @cancel="showExportDialog = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
+import { useQuasar } from 'quasar'
 import { DocumentAdd, FolderOpened, Document, CircleCheck, Download } from '@element-plus/icons-vue'
+import NewSchemaDialog from './dialogs/NewSchemaDialog.vue'
+import ExportDialog from './dialogs/ExportDialog.vue'
+import { useDocParserStore } from '@stores/projectPage/docParser/docParser.store'
+import DataSource from '@stores/projectPage/DataSource'
 
 interface Props {
   hasSchema: boolean
@@ -77,9 +99,17 @@ const emit = defineEmits<{
   'load-schema': []
   'select-document': []
   'parse': []
-  'export': []
+  'export': [data: { exportPath: string; format: 'xlsx' | 'csv'; options: any }]
 }>()
 
+const $q = useQuasar()
+const docParserStore = useDocParserStore()
+
+// 对话框状态
+const showNewSchemaDialog = ref(false)
+const showExportDialog = ref(false)
+
+// 当前步骤
 const currentStep = computed(() => {
   if (props.hasParsedData) return 3
   if (props.hasDocument) return 2
@@ -87,9 +117,103 @@ const currentStep = computed(() => {
   return 0
 })
 
+// 按钮状态
 const canSelectDoc = computed(() => props.hasSchema)
 const canParse = computed(() => props.hasSchema && props.hasDocument)
 const canExport = computed(() => props.hasParsedData)
+
+// 导出数据信息
+const exportDataInfo = computed(() => {
+  if (!docParserStore.parsedData) return undefined
+  
+  const data = docParserStore.parsedData as any[]
+  const itemCount = data.length
+  const fieldCount = data.length > 0 ? Object.keys(data[0]).length : 0
+  const estimatedSize = `${Math.round(itemCount * fieldCount * 50 / 1024)} KB`
+  
+  return {
+    itemCount,
+    fieldCount,
+    estimatedSize
+  }
+})
+
+// 默认导出文件名
+const exportFileName = computed(() => {
+  const timestamp = new Date().toISOString().slice(0, 10)
+  return `export-${timestamp}.xlsx`
+})
+
+// 新建 Schema
+const handleNewSchema = () => {
+  showNewSchemaDialog.value = true
+}
+
+// Schema 创建成功
+const handleSchemaCreated = async (data: { schemaName: string; template: string }) => {
+  try {
+    const projectPath = docParserStore.projectPath || (window.nimbria as any)?.getCurrentProjectPath?.() || ''
+    if (!projectPath) {
+      $q.notify({
+        type: 'negative',
+        message: '无法获取项目路径'
+      })
+      return
+    }
+    
+    const schemaPath = await DataSource.createSchema(projectPath, data.schemaName, data.template)
+    
+    // 加载创建的 Schema
+    await docParserStore.loadSchemaFile(schemaPath)
+    
+    showNewSchemaDialog.value = false
+    
+    $q.notify({
+      type: 'positive',
+      message: `Schema "${data.schemaName}" 创建成功`
+    })
+  } catch (error) {
+    console.error('创建 Schema 失败:', error)
+    $q.notify({
+      type: 'negative',
+      message: `创建失败: ${error}`
+    })
+  }
+}
+
+// 加载 Schema
+const handleLoadSchema = async () => {
+  try {
+    const projectPath = docParserStore.projectPath || (window.nimbria as any)?.getCurrentProjectPath?.() || ''
+    const defaultPath = projectPath ? `${projectPath}/.docparser/schema` : undefined
+    
+    const selectedPath = await DataSource.selectSchemaFile(defaultPath)
+    if (selectedPath) {
+      await docParserStore.loadSchemaFile(selectedPath)
+    }
+  } catch (error) {
+    console.error('加载 Schema 失败:', error)
+    $q.notify({
+      type: 'negative',
+      message: `加载失败: ${error}`
+    })
+  }
+}
+
+// 导出
+const handleExport = () => {
+  showExportDialog.value = true
+}
+
+// 导出确认
+const handleExportConfirmed = (data: {
+  exportPath: string
+  format: 'xlsx' | 'csv'
+  options: any
+}) => {
+  showExportDialog.value = false
+  emit('export', data)
+}
 </script>
 
 <style scoped lang="scss">

@@ -5,6 +5,9 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { debounce } from 'lodash-es'
+import { useQuasar } from 'quasar'
+import DataSource from '@stores/projectPage/DataSource'
 import type { 
   DocParserSchema, 
   ParsedData, 
@@ -13,10 +16,14 @@ import type {
 } from './docParser.types'
 
 export const useDocParserStore = defineStore('projectPage-docParser', () => {
+  const $q = useQuasar()
+  
   // ==================== 状态 ====================
   
   const projectPath = ref<string>('')
   const currentSchema = ref<DocParserSchema | null>(null)
+  const currentSchemaPath = ref<string | null>(null) // 当前 Schema 文件路径
+  const isDirty = ref<boolean>(false) // 是否有未保存的更改
   const selectedFilePath = ref<string>('')
   const sourceContent = ref<string>('')
   const parsedData = ref<ParsedData | null>(null)
@@ -50,11 +57,96 @@ export const useDocParserStore = defineStore('projectPage-docParser', () => {
   }
   
   /**
-   * 更新Schema
+   * 防抖保存函数（3秒延迟）
+   */
+  const debouncedSave = debounce(async () => {
+    if (!currentSchemaPath.value || !isDirty.value) return
+    
+    try {
+      console.log('[DocParser Store] 开始自动保存 Schema:', currentSchemaPath.value)
+      
+      const schemaContent = JSON.stringify(currentSchema.value, null, 2)
+      await DataSource.saveSchema(currentSchemaPath.value, schemaContent)
+      
+      isDirty.value = false
+      console.log('[DocParser Store] Schema 自动保存成功')
+      
+      $q.notify({
+        type: 'positive',
+        message: 'Schema 已自动保存',
+        position: 'bottom-right',
+        timeout: 1000
+      })
+    } catch (err) {
+      console.error('[DocParser Store] Schema 自动保存失败:', err)
+      $q.notify({
+        type: 'negative',
+        message: `自动保存失败: ${err}`,
+        position: 'bottom-right'
+      })
+    }
+  }, 3000)
+  
+  /**
+   * 更新Schema（触发自动保存）
    */
   const updateSchema = (schema: JsonSchema) => {
     currentSchema.value = schema as DocParserSchema
-    console.log('[DocParser Store] Schema已更新')
+    isDirty.value = true
+    console.log('[DocParser Store] Schema已更新，触发自动保存')
+    debouncedSave()
+  }
+  
+  /**
+   * 更新Schema内容（提供字符串接口，用于 Monaco Editor）
+   */
+  const updateSchemaContent = (content: string) => {
+    try {
+      // 验证 JSON 格式
+      const schema = JSON.parse(content)
+      currentSchema.value = schema as DocParserSchema
+      isDirty.value = true
+      console.log('[DocParser Store] Schema 内容已更新，触发自动保存')
+      debouncedSave()
+    } catch (err) {
+      console.error('[DocParser Store] Schema JSON 格式错误:', err)
+      throw new Error(`JSON 格式错误: ${err}`)
+    }
+  }
+  
+  /**
+   * 加载 Schema 文件
+   */
+  const loadSchemaFile = async (schemaPath: string) => {
+    try {
+      loading.value = true
+      console.log('[DocParser Store] 加载 Schema 文件:', schemaPath)
+      
+      const content = await DataSource.loadSchema(schemaPath)
+      const schema = JSON.parse(content)
+      
+      currentSchema.value = schema as DocParserSchema
+      currentSchemaPath.value = schemaPath
+      isDirty.value = false
+      
+      console.log('[DocParser Store] Schema 文件加载成功')
+      $q.notify({
+        type: 'positive',
+        message: 'Schema 加载成功',
+        position: 'bottom-right'
+      })
+    } catch (err) {
+      error.value = `加载 Schema 失败: ${err}`
+      console.error('[DocParser Store] 加载 Schema 失败:', err)
+      $q.notify({
+        type: 'negative',
+        message: `加载 Schema 失败: ${err}`,
+        position: 'bottom-right'
+      })
+      throw err
+    } finally {
+      loading.value = false
+    }
   }
   
   /**
@@ -62,7 +154,46 @@ export const useDocParserStore = defineStore('projectPage-docParser', () => {
    */
   const clearSchema = () => {
     currentSchema.value = null
+    currentSchemaPath.value = null
+    isDirty.value = false
     console.log('[DocParser Store] Schema已清空')
+  }
+  
+  /**
+   * 手动保存 Schema
+   */
+  const saveSchema = async () => {
+    if (!currentSchemaPath.value) {
+      throw new Error('没有指定 Schema 文件路径')
+    }
+    
+    try {
+      loading.value = true
+      console.log('[DocParser Store] 手动保存 Schema:', currentSchemaPath.value)
+      
+      const schemaContent = JSON.stringify(currentSchema.value, null, 2)
+      await DataSource.saveSchema(currentSchemaPath.value, schemaContent)
+      
+      isDirty.value = false
+      console.log('[DocParser Store] Schema 保存成功')
+      
+      $q.notify({
+        type: 'positive',
+        message: 'Schema 保存成功',
+        position: 'bottom-right'
+      })
+    } catch (err) {
+      error.value = `保存 Schema 失败: ${err}`
+      console.error('[DocParser Store] 保存 Schema 失败:', err)
+      $q.notify({
+        type: 'negative',
+        message: `保存 Schema 失败: ${err}`,
+        position: 'bottom-right'
+      })
+      throw err
+    } finally {
+      loading.value = false
+    }
   }
   
   /**
@@ -233,12 +364,18 @@ export const useDocParserStore = defineStore('projectPage-docParser', () => {
    */
   const reset = () => {
     currentSchema.value = null
+    currentSchemaPath.value = null
+    isDirty.value = false
     selectedFilePath.value = ''
     sourceContent.value = ''
     parsedData.value = null
     exportConfig.value = null
     loading.value = false
     error.value = null
+    
+    // 取消未执行的防抖保存
+    debouncedSave.cancel()
+    
     console.log('[DocParser Store] 所有状态已重置')
   }
   
@@ -248,6 +385,8 @@ export const useDocParserStore = defineStore('projectPage-docParser', () => {
     // 状态
     projectPath,
     currentSchema,
+    currentSchemaPath,
+    isDirty,
     selectedFilePath,
     sourceContent,
     parsedData,
@@ -263,6 +402,9 @@ export const useDocParserStore = defineStore('projectPage-docParser', () => {
     // 方法
     initProject,
     updateSchema,
+    updateSchemaContent,
+    loadSchemaFile,
+    saveSchema,
     clearSchema,
     loadDocument,
     selectDocument,

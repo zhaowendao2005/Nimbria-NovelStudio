@@ -200,6 +200,56 @@ export interface IPCChannelMap {
     request: { projectPath: string }
     response: { success: boolean; data?: unknown; error?: string }
   }
+  
+  // DocParser 操作
+  'docParser:createSchema': {
+    request: { projectPath: string; schemaName: string; template?: string }
+    response: { success: boolean; data?: string; error?: string }
+  }
+  'docParser:loadSchema': {
+    request: { schemaPath: string }
+    response: { success: boolean; data?: string; error?: string }
+  }
+  'docParser:saveSchema': {
+    request: { schemaPath: string; content: string }
+    response: { success: boolean; data?: boolean; error?: string }
+  }
+  'docParser:listSchemas': {
+    request: { projectPath: string }
+    response: { success: boolean; data?: string[]; error?: string }
+  }
+  'docParser:selectSchemaFile': {
+    request: { defaultPath?: string }
+    response: { 
+      success: boolean
+      data?: { canceled: boolean; filePaths: string[] }
+      error?: string 
+    }
+  }
+  'docParser:selectDocumentFile': {
+    request: { defaultPath?: string }
+    response: { 
+      success: boolean
+      data?: { canceled: boolean; filePaths: string[] }
+      error?: string 
+    }
+  }
+  'docParser:selectExportPath': {
+    request: { defaultPath?: string; fileName?: string }
+    response: { 
+      success: boolean
+      data?: { canceled: boolean; filePath?: string }
+      error?: string 
+    }
+  }
+  'docParser:readDocument': {
+    request: { filePath: string }
+    response: { success: boolean; data?: string; error?: string }
+  }
+  'docParser:saveExport': {
+    request: { filePath: string; data: Uint8Array; format?: string }
+    response: { success: boolean; data?: boolean; error?: string }
+  }
 }
 
 export type IPCChannelName = keyof IPCChannelMap

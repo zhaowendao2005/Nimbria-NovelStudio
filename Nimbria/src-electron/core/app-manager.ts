@@ -19,6 +19,7 @@ import { getLogger, closeLogSystem, getLogFilePath } from '../utils/shared/logge
 import { getRecentProjects, upsertRecentProject, clearRecentProjects } from '../store/recent-projects-store'
 import { registerMarkdownHandlers } from '../ipc/main-renderer/markdown-handlers'
 import { registerFileHandlers } from '../ipc/main-renderer/file-handlers'
+import { registerDocParserHandlers } from '../ipc/main-renderer/docParser-handlers'
 import { createApplicationMenu, setupContextMenu } from './menu'
 
 const logger = getLogger('AppManager')
@@ -419,6 +420,10 @@ export class AppManager {
       processManager: this.windowManager!.getProcessManager()
     })
     logger.info('File IPC handlers registered')
+    
+    // 注册 DocParser IPC 处理器
+    registerDocParserHandlers()
+    logger.info('DocParser IPC handlers registered')
 
     ipcMain.handle('window:minimize', (event, request: IPCRequest<'window:minimize'>) => {
       return this.handleWindowOperationFromEvent(event, 'minimize', request)

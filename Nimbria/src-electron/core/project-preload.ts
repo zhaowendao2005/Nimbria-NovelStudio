@@ -193,6 +193,99 @@ contextBridge.exposeInMainWorld('nimbria', {
       return await ipcRenderer.invoke('file:createDirectory', dirPath)
     }
   },
+  
+  // DocParser 文档解析 API
+  docParser: {
+    // 创建 Schema
+    createSchema: async (projectPath: string, schemaName: string, template?: string): Promise<string> => {
+      const result = await ipcRenderer.invoke('docParser:createSchema', { projectPath, schemaName, template })
+      if (result.success) {
+        return result.data
+      } else {
+        throw new Error(result.error)
+      }
+    },
+    
+    // 加载 Schema
+    loadSchema: async (schemaPath: string): Promise<string> => {
+      const result = await ipcRenderer.invoke('docParser:loadSchema', { schemaPath })
+      if (result.success) {
+        return result.data
+      } else {
+        throw new Error(result.error)
+      }
+    },
+    
+    // 保存 Schema
+    saveSchema: async (schemaPath: string, content: string): Promise<boolean> => {
+      const result = await ipcRenderer.invoke('docParser:saveSchema', { schemaPath, content })
+      if (result.success) {
+        return result.data
+      } else {
+        throw new Error(result.error)
+      }
+    },
+    
+    // 列出 Schema 文件
+    listSchemas: async (projectPath: string): Promise<string[]> => {
+      const result = await ipcRenderer.invoke('docParser:listSchemas', { projectPath })
+      if (result.success) {
+        return result.data
+      } else {
+        throw new Error(result.error)
+      }
+    },
+    
+    // 选择 Schema 文件
+    selectSchemaFile: async (defaultPath?: string): Promise<{ canceled: boolean; filePaths: string[] }> => {
+      const result = await ipcRenderer.invoke('docParser:selectSchemaFile', { defaultPath })
+      if (result.success) {
+        return result.data
+      } else {
+        throw new Error(result.error)
+      }
+    },
+    
+    // 选择待解析文档
+    selectDocumentFile: async (defaultPath?: string): Promise<{ canceled: boolean; filePaths: string[] }> => {
+      const result = await ipcRenderer.invoke('docParser:selectDocumentFile', { defaultPath })
+      if (result.success) {
+        return result.data
+      } else {
+        throw new Error(result.error)
+      }
+    },
+    
+    // 选择导出路径
+    selectExportPath: async (defaultPath?: string, fileName?: string): Promise<{ canceled: boolean; filePath?: string }> => {
+      const result = await ipcRenderer.invoke('docParser:selectExportPath', { defaultPath, fileName })
+      if (result.success) {
+        return result.data
+      } else {
+        throw new Error(result.error)
+      }
+    },
+    
+    // 读取待解析文档
+    readDocument: async (filePath: string): Promise<string> => {
+      const result = await ipcRenderer.invoke('docParser:readDocument', { filePath })
+      if (result.success) {
+        return result.data
+      } else {
+        throw new Error(result.error)
+      }
+    },
+    
+    // 保存导出文件
+    saveExport: async (filePath: string, data: Uint8Array, format?: string): Promise<boolean> => {
+      const result = await ipcRenderer.invoke('docParser:saveExport', { filePath, data, format })
+      if (result.success) {
+        return result.data
+      } else {
+        throw new Error(result.error)
+      }
+    }
+  },
 
   // 🔥 事件通信 API
   on: (channel: string, callback: (...args: unknown[]) => void) => {
