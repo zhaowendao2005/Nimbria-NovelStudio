@@ -1,6 +1,6 @@
 <template>
   <div class="file-selector">
-    <div class="selector-header">
+    <div v-if="!hideHeader" class="selector-header">
       <h3>{{ title }}</h3>
       <el-button 
         v-if="allowBrowse"

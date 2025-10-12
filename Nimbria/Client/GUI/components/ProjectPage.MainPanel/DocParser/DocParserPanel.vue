@@ -42,16 +42,21 @@
       
       <!-- 文档选择区 -->
       <div class="content-section document-section">
-        <FileSelector
-          v-model="documentPath"
-          title="待解析文档"
-          placeholder="请选择待解析的文档文件"
-          :show-preview="true"
-          :preview-content="previewContent"
-          :file-info="documentInfo"
-          @browse="handleBrowseDocument"
-          @change="handleDocumentChange"
-        />
+        <div class="section-header">
+          <h3>待解析文档</h3>
+        </div>
+        <div class="section-body">
+          <FileSelector
+            v-model="documentPath"
+            :hide-header="true"
+            placeholder="请选择待解析的文档文件"
+            :show-preview="true"
+            :preview-content="previewContent"
+            :file-info="documentInfo"
+            @browse="handleBrowseDocument"
+            @change="handleDocumentChange"
+          />
+        </div>
       </div>
       
       <!-- 解析结果区 -->
@@ -75,7 +80,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { Edit } from '@element-plus/icons-vue'
+import { Edit, FolderOpened } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { 
   useDocParserStore, 
