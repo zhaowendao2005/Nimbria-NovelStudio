@@ -3,7 +3,7 @@
  * Store层调用Service层的解析功能
  */
 
-import { DocumentParser, SchemaValidator } from '@Service/docParser'
+import { DocumentParser, SchemaValidator } from '@service/docParser'
 import type { DocParserSchema, ParsedData } from './docParser.types'
 import { ElMessage } from 'element-plus'
 

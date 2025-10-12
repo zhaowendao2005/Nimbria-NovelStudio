@@ -40,6 +40,17 @@
       </button>
     </el-tooltip>
     
+    <!-- DocParser文档解析器 -->
+    <el-tooltip content="文档解析器" placement="right" :show-after="500">
+      <button 
+        class="nav-icon-btn"
+        :class="{ active: currentView === 'docparser' }"
+        @click="handleClick('docparser')"
+      >
+        <el-icon class="nav-icon"><DocumentCopy /></el-icon>
+      </button>
+    </el-tooltip>
+    
     <!-- 底部设置按钮 -->
     <div class="navbar-bottom">
       <el-tooltip content="设置" placement="right" :show-after="500">
@@ -55,13 +66,19 @@
 </template>
 
 <script setup lang="ts">
-import { Folder, Search, Calendar, Setting, HomeFilled } from '@element-plus/icons-vue'
+import { ref } from 'vue'
+import { Folder, Search, Calendar, Setting, HomeFilled, DocumentCopy } from '@element-plus/icons-vue'
+import { useMarkdownStore } from '@stores/projectPage/Markdown'
+import { usePaneLayoutStore } from '@stores/projectPage/paneLayout'
 
 /**
  * ProjectNavbar
  * 左侧窄导航栏（48px）
- * TODO: 扩展功能 - 添加活动状态切换、更多导航项
  */
+
+const markdownStore = useMarkdownStore()
+const paneLayoutStore = usePaneLayoutStore()
+const currentView = ref<string>('files') // 默认是文件浏览器
 
 const handleClick = async (type: string) => {
   console.log('Navbar clicked:', type)
@@ -74,6 +91,43 @@ const handleClick = async (type: string) => {
       console.error('Failed to show main window:', error)
     }
     return
+  }
+  
+  if (type === 'docparser') {
+    console.log('[ProjectNavbar] 打开DocParser标签页')
+    currentView.value = 'docparser'
+    
+    // 1. 打开DocParser标签页
+    const tab = markdownStore.openDocParser()
+    
+    if (!tab) {
+      console.error('[ProjectNavbar] Failed to create DocParser tab')
+      return
+    }
+      
+    // 2. 🔥 如果没有面板，先创建默认面板
+    if (!paneLayoutStore.focusedPane) {
+      console.log('[ProjectNavbar] No pane exists, creating default layout')
+      paneLayoutStore.resetToDefaultLayout()
+    }
+    
+    // 3. 在焦点面板中显示该 tab
+    if (paneLayoutStore.focusedPane) {
+      paneLayoutStore.openTabInPane(paneLayoutStore.focusedPane.id, tab.id)
+      console.log('[ProjectNavbar] Opened DocParser in focused pane:', {
+        paneId: paneLayoutStore.focusedPane.id,
+        tabId: tab.id
+      })
+    } else {
+      console.error('[ProjectNavbar] Failed to open DocParser: no focused pane available')
+    }
+    
+    return
+  }
+  
+  // 其他导航项
+  if (type === 'files') {
+    currentView.value = 'files'
   }
   
   // TODO: 实现其他导航逻辑

@@ -27,9 +27,13 @@
       
       <!-- 标签页内容区域 -->
       <div class="tab-content-area">
+        <!-- 根据标签页类型渲染不同组件 -->
         <MarkdownTab
-          v-if="localActiveTabId"
+          v-if="localActiveTabId && activeTabType === 'markdown'"
           :tab-id="localActiveTabId"
+        />
+        <DocParserPanel
+          v-else-if="localActiveTabId && activeTabType === 'docparser'"
         />
       </div>
     </div>
@@ -91,6 +95,7 @@ import { useMarkdownStore } from '@stores/projectPage/Markdown'
 import { usePaneLayoutStore } from '@stores/projectPage/paneLayout'
 import type { PaneContextMenuItem, SplitAction } from '@stores/projectPage/paneLayout/types'
 import MarkdownTab from '@components/ProjectPage.MainPanel/Markdown/MarkdownTab.vue'
+import { DocParserPanel } from '@components/ProjectPage.MainPanel/DocParser'
 import DraggableTabBar from './DraggableTabBar.vue'
 import ContextMenu from './ContextMenu.vue'
 
@@ -134,6 +139,15 @@ const paneTabIds = computed(() => {
 const localActiveTabId = ref<string | null>(
   paneLayoutStore.getActiveTabIdByPane(props.paneId)
 )
+
+/**
+ * 当前激活标签页的类型
+ */
+const activeTabType = computed(() => {
+  if (!localActiveTabId.value) return 'markdown'
+  const tab = markdownStore.openTabs.find(t => t.id === localActiveTabId.value)
+  return tab?.type || 'markdown'
+})
 
 /**
  * 监听 store 中的激活标签变化

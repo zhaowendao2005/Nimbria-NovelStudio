@@ -242,6 +242,35 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     }
   }
   
+  // 打开DocParser标签页
+  const openDocParser = () => {
+    // 检查是否已经打开了DocParser标签页
+    const existingTab = openTabs.value.find(tab => tab.type === 'docparser')
+    if (existingTab) {
+      // 如果已存在，直接切换到该标签页
+      activeTabId.value = existingTab.id
+      console.log('[Markdown] DocParser tab already exists, switching to it')
+      return existingTab
+    }
+    
+    // 创建新的DocParser标签页
+    const newTab: MarkdownTab = {
+      id: `docparser-${Date.now()}`,
+      type: 'docparser',
+      filePath: '', // DocParser不需要文件路径
+      fileName: '文档解析器',
+      content: '',
+      mode: 'edit', // DocParser不使用mode，但保持兼容
+      isDirty: false
+    }
+    
+    openTabs.value.push(newTab)
+    activeTabId.value = newTab.id
+    
+    console.log('[Markdown] DocParser tab created:', newTab.id)
+    return newTab
+  }
+  
   // 关闭标签页
   const closeTab = (tabId: string) => {
     const index = openTabs.value.findIndex(tab => tab.id === tabId)
@@ -829,6 +858,7 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     setProjectPath,
     initializeFileTree,
     openFile,
+    openDocParser,
     closeTab,
     switchTab,
     updateTabContent,

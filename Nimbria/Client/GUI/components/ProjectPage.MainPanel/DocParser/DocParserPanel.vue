@@ -77,17 +77,20 @@
 import { ref, computed, onMounted } from 'vue'
 import { Edit } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { useDocParserStore } from '@stores/projectPage/docParser'
-import { parseDocument } from '@stores/projectPage/docParser/parser'
-import { exportToExcel } from '@stores/projectPage/docParser/exporter'
+import { 
+  useDocParserStore, 
+  parseDocument, 
+  exportToExcel,
+  type DocParserSchema,
+  type JsonSchema
+} from '@stores/projectPage/docParser'
+import { docParserMockData } from '@stores/projectPage/docParser/docParser.mock'
 import DataSource from '@stores/projectPage/DataSource'
 import TopBar from './TopBar.vue'
 import FileSelector from './FileSelector.vue'
 import ResultPreview from './ResultPreview.vue'
 import ExportConfig from './ExportConfig.vue'
 import { JsonSchemaSection } from './SchemaEditor'
-import type { DocParserSchema, JsonSchema } from '@stores/projectPage/docParser/docParser.types'
-import { docParserMockData } from '@stores/projectPage/docParser/docParser.mock'
 
 const docParserStore = useDocParserStore()
 

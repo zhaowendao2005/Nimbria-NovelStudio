@@ -3,7 +3,7 @@
  * Store层调用Service层的导出功能
  */
 
-import { ExcelExporter } from '@Service/docParser'
+import { ExcelExporter } from '@service/docParser'
 import DataSource from '../DataSource'
 import type { ParsedData, ExportConfig } from './docParser.types'
 import { ElMessage } from 'element-plus'
