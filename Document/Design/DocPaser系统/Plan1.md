@@ -7,6 +7,25 @@
 **数据存储**：项目目录下的 `.docparser/` 文件夹（自动创建）  
 **UI布局**：长页面 + Flex + Overflow 滚动（参照 Markdown 系统的扁平化架构）
 
+### 架构设计原则
+
+1. **类型定义分散化**：不创建独立的`Types/`目录，各模块自己管理类型
+   - Store类型：`docParser.types.ts`
+   - Service类型：`docParser.service.types.ts`
+
+2. **统一使用Service**：同一功能模块在Service和Utils之间选Service
+   - `Client/Service/docParser/`：统一放置所有业务逻辑和工具
+   - 删除`Client/Utils/docParser/`
+
+3. **Mock优先策略**：短期不实现Electron层，用Mock模拟
+   - Mock数据统一在`docParser.mock.ts`
+   - 通过DataSource抽象层切换Mock/Electron
+   - 删除`src-electron/`相关规划
+
+4. **避免过度封装**：Electron相关代码直接写在electron层
+   - 不在Service层再封装一次文件操作
+   - DataSource是Mock/Electron的切换层（不是多余封装）
+
 ---
 
 ## 二、文件架构修改树
@@ -47,36 +66,23 @@ Nimbria/
 │   │       ├── docParser/                             [🆕 新增目录]
 │   │       │   ├── index.ts                           [🆕 导出]
 │   │       │   ├── docParser.store.ts                 [🆕 主Store]
-│   │       │   ├── docParser.utils.ts                 [🆕 工具函数]
+│   │       │   ├── docParser.types.ts                 [🆕 Store类型定义]
 │   │       │   ├── docParser.schemaUtils.ts          [📋 从JiuZhang精简]
 │   │       │   ├── docParser.parser.ts               [🆕 解析引擎]
 │   │       │   ├── docParser.exporter.ts             [🆕 Excel导出]
-│   │       │   └── types.ts                           [🆕 类型定义]
+│   │       │   └── docParser.mock.ts                  [🆕 Mock数据-模拟Electron API]
 │   │       ├── Markdown/                              [✅ 已存在-参考架构]
 │   │       ├── paneLayout/                            [✅ 已存在]
 │   │       ├── DataSource.ts                          [✏️ 修改-添加DocParser数据源]
 │   │       └── index.ts                               [✏️ 修改-导出DocParser]
-│   ├── Service/
-│   │   └── docParser/                                 [🆕 新增目录]
-│   │       ├── index.ts                               [🆕 导出]
-│   │       ├── fileService.ts                         [🆕 文件读写]
-│   │       ├── schemaService.ts                       [🆕 Schema管理]
-│   │       └── excelService.ts                        [🆕 Excel生成-使用xlsx库]
-│   ├── Types/
-│   │   └── docParser/                                 [🆕 新增目录]
-│   │       ├── index.ts                               [🆕 导出]
-│   │       ├── schema.ts                              [🆕 Schema类型]
-│   │       ├── parser.ts                              [🆕 解析器类型]
-│   │       └── exporter.ts                            [🆕 导出器类型]
-│   └── Utils/
+│   └── Service/
 │       └── docParser/                                 [🆕 新增目录]
 │           ├── index.ts                               [🆕 导出]
-│           ├── regexEngine.ts                         [🆕 正则引擎]
-│           ├── validation.ts                          [🆕 验证工具]
-│           └── formatting.ts                          [🆕 格式化工具]
-└── src-electron/                                       [可选-后端支持]
-    └── services/
-        └── docParserService.ts                         [🆕 Electron端文件操作]
+│           ├── docParser.service.types.ts             [🆕 Service专用类型]
+│           ├── regexEngine.ts                         [🆕 正则引擎工具]
+│           ├── schemaValidator.ts                     [🆕 Schema验证]
+│           ├── documentParser.ts                      [🆕 文档解析核心逻辑]
+│           └── excelExporter.ts                       [🆕 Excel生成-使用xlsx库]
 
 ```
 
@@ -218,7 +224,7 @@ Nimbria/
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { DocParserSchema, ParsedData, ExportConfig } from './types'
+import type { DocParserSchema, ParsedData, ExportConfig } from './docParser.types'
 import { parseDocument } from './docParser.parser'
 import { exportToExcel } from './docParser.exporter'
 import { DocParserDataSource } from '@stores/projectPage/DataSource'
@@ -393,7 +399,7 @@ export const useDocParserStore = defineStore('projectPage-docParser', () => {
 **在 JiuZhang 的 Schema 基础上扩展解析和导出字段**：
 
 ```typescript
-// types/docParser/schema.ts
+// stores/projectPage/docParser/docParser.types.ts
 
 import type { JsonSchema as BaseJsonSchema, JsonSchemaField as BaseJsonSchemaField } from '@types/shared'
 
@@ -601,7 +607,7 @@ target="Nimbria-NovelStudio/Nimbria/Client/GUI/components/ProjectPage.MainPanel/
 | 原路径 | 新路径 |
 |--------|--------|
 | `@/stores/modules/LlmBatch/JsonSchemaUtils` | `@stores/projectPage/docParser/docParser.schemaUtils` |
-| `@/stores/modules/LlmBatch/types` | `@types/docParser` |
+| `@/stores/modules/LlmBatch/types` | `@stores/projectPage/docParser/docParser.types` |
 | `@/stores/modules/LlmBatch` | `@stores/projectPage/docParser` |
 
 #### Step 3: 移除不需要的功能
@@ -961,7 +967,7 @@ const handleCopyJson = () => {
 ### 5.1 解析引擎 (`docParser.parser.ts`)
 
 ```typescript
-import type { DocParserSchema, ParsedData } from './types'
+import type { DocParserSchema, ParsedData } from './docParser.types'
 
 interface ParseRule {
   path: string[]
@@ -1108,7 +1114,7 @@ export async function parseDocument(
 
 ```typescript
 import * as XLSX from 'xlsx'
-import type { ParsedData, ExportConfig, DocParserSchema } from './types'
+import type { ParsedData, ExportConfig, DocParserSchema } from './docParser.types'
 
 /**
  * 从 Schema 提取导出配置
@@ -1332,26 +1338,45 @@ npm install --save-dev @types/xlsx
 
 ### Phase 1: 基础架构搭建（1天）
 1. ✅ 创建目录结构
-2. ✅ 定义类型系统 (`types/docParser/`)
+   - `Client/GUI/components/ProjectPage.MainPanel/DocParser/`
+   - `Client/stores/projectPage/docParser/`
+   - `Client/Service/docParser/`
+2. ✅ 定义类型系统
+   - Store类型：`docParser.types.ts`
+   - Service类型：`docParser.service.types.ts`
 3. ✅ 创建基础 Store (`docParser.store.ts`)
-4. ✅ 扩展 DataSource (`DataSource.ts`)
+4. ✅ 创建Mock数据 (`docParser.mock.ts`)
+5. ✅ 扩展 DataSource (`DataSource.ts`)
 
 ### Phase 2: 组件迁移（2天）
 1. ✅ 使用 MCP 批量复制 JsonSchemaEditor 组件
-2. ✅ 调整导入路径
-3. ✅ 移除 LLM 相关功能
+2. ✅ 批量替换导入路径
+   - `@/stores/modules/LlmBatch/types` → `@stores/projectPage/docParser/docParser.types`
+   - `@/stores/modules/LlmBatch/JsonSchemaUtils` → `@stores/projectPage/docParser/docParser.schemaUtils`
+3. ✅ 移除 LLM 相关功能（LlmSchemaGeneratorDialog等）
 4. ✅ 测试 Schema 编辑功能
 
 ### Phase 3: 核心功能实现（2天）
-1. ✅ 实现解析引擎 (`docParser.parser.ts`)
-2. ✅ 实现 Excel 导出器 (`docParser.exporter.ts`)
-3. ✅ 创建新增组件（TopBar, FileSelector, ResultPreview）
+1. ✅ 实现Service层
+   - `regexEngine.ts`：正则引擎
+   - `schemaValidator.ts`：Schema验证
+   - `documentParser.ts`：文档解析核心
+   - `excelExporter.ts`：Excel导出
+2. ✅ 实现Store层
+   - `docParser.parser.ts`：解析引擎调用
+   - `docParser.exporter.ts`：导出引擎调用
+3. ✅ 创建新增组件
+   - `TopBar.vue`：顶部工具栏
+   - `FileSelector.vue`：文件选择器
+   - `ResultPreview.vue`：结果预览（Tree+JSON双栏）
+   - `ExportConfig.vue`、`ExcelPreview.vue`：导出相关
 
 ### Phase 4: 集成与测试（1天）
-1. ✅ 集成导航栏
+1. ✅ 集成导航栏（ProjectPage.Shell.vue）
 2. ✅ 创建主容器组件 (`DocParserPanel.vue`)
-3. ✅ 端到端测试
+3. ✅ 端到端Mock测试
 4. ✅ 优化样式和交互
+5. ✅ 文档完善
 
 ---
 
@@ -1372,36 +1397,211 @@ npm install --save-dev @types/xlsx
 }
 ```
 
-### 9.2 文件操作抽象
+### 9.2 文件操作抽象与Mock实现
 
-**不要直接使用 `window.nimbria`**，而是通过 `DataSource` 抽象：
+**不要直接使用 `window.nimbria`**，而是通过 `DataSource` 抽象，Mock数据统一放在`docParser.mock.ts`：
 
 ```typescript
-// DocParserDataSource.ts
+// stores/projectPage/DataSource.ts（扩展部分）
+
+import { docParserMockData } from './docParser/docParser.mock'
+
 export class DocParserDataSource {
+  /**
+   * 读取Schema文件
+   */
   static async readSchemaFile(path: string): Promise<string> {
     if (Environment.shouldUseMock()) {
-      return mockSchemaContent
+      // 从Mock返回
+      return JSON.stringify(docParserMockData.defaultSchema, null, 2)
     }
+    // Electron环境
     return await window.nimbria.file.readFile(path)
   }
   
+  /**
+   * 写入Schema文件
+   */
   static async writeSchemaFile(path: string, content: string): Promise<boolean> {
     if (Environment.shouldUseMock()) {
-      console.log('[Mock] Write schema:', path)
+      console.log('[Mock] Write schema:', path, content.substring(0, 100))
+      // 保存到内存Mock
+      docParserMockData.savedSchemas[path] = content
       return true
     }
     return await window.nimbria.file.writeFile(path, content)
   }
+  
+  /**
+   * 读取文档文件
+   */
+  static async readDocumentFile(path: string): Promise<string> {
+    if (Environment.shouldUseMock()) {
+      return docParserMockData.sampleDocument
+    }
+    return await window.nimbria.file.readFile(path)
+  }
+  
+  /**
+   * 列出.docparser目录下的Schema文件
+   */
+  static async listSchemaFiles(projectPath: string): Promise<string[]> {
+    if (Environment.shouldUseMock()) {
+      return Object.keys(docParserMockData.savedSchemas)
+    }
+    const dirPath = `${projectPath}/.docparser`
+    return await window.nimbria.file.listFiles(dirPath, '.json')
+  }
 }
 ```
 
-### 9.3 Store 设计原则
+**Mock数据定义 (`docParser.mock.ts`)**：
 
-**参考 Markdown Store**：
+```typescript
+// stores/projectPage/docParser/docParser.mock.ts
+
+import type { DocParserSchema } from './docParser.types'
+
+interface DocParserMockData {
+  defaultSchema: DocParserSchema
+  savedSchemas: Record<string, string>
+  sampleDocument: string
+}
+
+export const docParserMockData: DocParserMockData = {
+  // 默认Schema模板
+  defaultSchema: {
+    $schema: 'http://json-schema.org/draft-07/schema#',
+    type: 'object',
+    properties: {
+      chapters: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            chapterTitle: {
+              type: 'string',
+              description: '章节标题',
+              'x-parse': {
+                regex: '^第[一二三四五六七八九十百]+章\\s+(.+)$',
+                mode: 'extract',
+                captureGroup: 1,
+                conditions: { lineStart: true }
+              },
+              'x-export': {
+                type: 'section-header',
+                mergeCols: 3,
+                format: {
+                  bold: true,
+                  fontSize: 14,
+                  alignment: 'center',
+                  background: '#f0f0f0'
+                }
+              }
+            },
+            questions: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  questionNumber: {
+                    type: 'string',
+                    'x-parse': {
+                      regex: '^(\\d+)、',
+                      mode: 'extract',
+                      captureGroup: 1
+                    },
+                    'x-export': {
+                      type: 'column',
+                      columnName: '题号',
+                      order: 1,
+                      width: 8
+                    }
+                  },
+                  questionContent: {
+                    type: 'string',
+                    'x-parse': {
+                      regex: '^\\d+、(.+?)(?=\\n答[：:])',
+                      flags: 's',
+                      mode: 'extract',
+                      captureGroup: 1
+                    },
+                    'x-export': {
+                      type: 'column',
+                      columnName: '题目',
+                      order: 2,
+                      width: 50
+                    }
+                  },
+                  answer: {
+                    type: 'string',
+                    'x-parse': {
+                      regex: '答[：:]\\s*(.+?)(?=\\n\\d+、|\\n第[一二三四五六七八九十百]+章|$)',
+                      flags: 's',
+                      mode: 'extract',
+                      captureGroup: 1
+                    },
+                    'x-export': {
+                      type: 'column',
+                      columnName: '答案',
+                      order: 3,
+                      width: 60
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  
+  // 保存的Schema（模拟文件系统）
+  savedSchemas: {},
+  
+  // 示例文档
+  sampleDocument: `第一章 测试章节
+
+1、这是第一个问题的内容？
+答：这是第一个问题的答案。
+
+2、这是第二个问题的内容？
+答：这是第二个问题的答案。
+
+第二章 另一个章节
+
+1、另一章的问题？
+答：另一章的答案。`
+}
+
+/**
+ * 重置Mock数据（用于测试）
+ */
+export function resetDocParserMock() {
+  docParserMockData.savedSchemas = {}
+}
+```
+
+### 9.3 架构要点总结
+
+**Store设计**（参考 Markdown Store）：
 - ✅ 扁平化状态，不嵌套对象
 - ✅ 使用 `computed` 派生数据，不存储冗余
 - ✅ 方法命名清晰：`load*`, `save*`, `create*`, `delete*`
+- ✅ 类型定义在同目录的 `docParser.types.ts`
+
+**Service设计**：
+- ✅ 统一使用Service，不分散到Utils
+- ✅ 职责清晰：工具函数、业务逻辑、数据转换
+- ✅ Service专用类型在 `docParser.service.types.ts`
+- ✅ 不封装Electron API，直接通过DataSource调用
+
+**Mock策略**：
+- ✅ 所有Mock数据集中在 `docParser.mock.ts`
+- ✅ DataSource是唯一的Mock/Electron切换点
+- ✅ Mock要完整，能支持组件完整运行
+- ✅ 后期接入Electron时只需修改DataSource
 
 ---
 
@@ -1430,4 +1630,93 @@ export class DocParserDataSource {
 - Element Plus（Tree 组件）
 - XLSX（Excel 生成）
 - Monaco Editor（已集成，用于代码编辑）
+
+---
+
+## 十一、架构调整记录
+
+### 调整日期
+2025年10月12日
+
+### 调整内容
+
+#### 1. 类型定义重构 ✅
+**原方案**：
+- 创建独立的 `Client/Types/docParser/` 目录
+- 包含 `schema.ts`、`parser.ts`、`exporter.ts`
+
+**新方案**：
+- Store类型：`stores/projectPage/docParser/docParser.types.ts`
+- Service类型：`Service/docParser/docParser.service.types.ts`
+- 遵循"各模块自己管理类型"的原则
+
+#### 2. Service与Utils统一 ✅
+**原方案**：
+- `Client/Service/docParser/`：文件读写、Schema管理、Excel生成
+- `Client/Utils/docParser/`：正则引擎、验证工具、格式化工具
+
+**新方案**：
+- 统一使用 `Client/Service/docParser/`
+- 包含：
+  - `regexEngine.ts`：正则引擎工具
+  - `schemaValidator.ts`：Schema验证
+  - `documentParser.ts`：文档解析核心逻辑
+  - `excelExporter.ts`：Excel生成
+- 删除 `Client/Utils/docParser/` 目录
+
+#### 3. Electron层暂缓 ✅
+**原方案**：
+- 在 `src-electron/services/` 添加 `docParserService.ts`
+- 在 `Client/Service/docParser/` 添加 `fileService.ts` 封装
+
+**新方案**：
+- 短期不实现Electron层
+- 使用Mock数据模拟：`docParser.mock.ts`
+- 通过DataSource抽象层切换Mock/Electron
+- 删除所有Electron相关文件规划
+- 删除Service层的文件操作封装
+
+#### 4. Mock系统完善 ✅
+**新增内容**：
+- `docParser.mock.ts`：集中管理Mock数据
+  - `defaultSchema`：默认Schema模板
+  - `savedSchemas`：模拟保存的Schema
+  - `sampleDocument`：示例文档
+- DataSource扩展：
+  - `readSchemaFile()`
+  - `writeSchemaFile()`
+  - `readDocumentFile()`
+  - `listSchemaFiles()`
+
+### 调整原因
+
+1. **遵循项目规范**：各模块自己管理类型，不创建独立Types目录
+2. **避免过度抽象**：Service与Utils职责重叠，统一为Service更清晰
+3. **简化开发流程**：先完成组件和业务逻辑，后期再接入Electron
+4. **提高可维护性**：Mock集中管理，DataSource作为唯一切换点
+
+### 最终架构
+
+```
+Nimbria/Client/
+├── GUI/components/ProjectPage.MainPanel/DocParser/
+│   ├── DocParserPanel.vue
+│   ├── TopBar.vue
+│   ├── SchemaEditor/（从JiuZhang复制的8个组件）
+│   ├── DocumentProcessor/（FileSelector、ParserEngine、ResultPreview）
+│   └── ExcelExporter/（ExportConfig、ExcelPreview）
+├── stores/projectPage/docParser/
+│   ├── docParser.store.ts
+│   ├── docParser.types.ts          [类型定义]
+│   ├── docParser.schemaUtils.ts
+│   ├── docParser.parser.ts
+│   ├── docParser.exporter.ts
+│   └── docParser.mock.ts           [Mock数据]
+└── Service/docParser/
+    ├── docParser.service.types.ts  [Service专用类型]
+    ├── regexEngine.ts
+    ├── schemaValidator.ts
+    ├── documentParser.ts
+    └── excelExporter.ts
+```
 
