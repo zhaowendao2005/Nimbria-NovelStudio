@@ -470,23 +470,44 @@ function handleUseDefaultsToggle(value: boolean) {
 
 // 获取继承状态图标
 function getInheritIcon(field: string): string {
-  if (useProviderDefaults) return 'settings'
+  if (useProviderDefaults.value) {
+    return 'cloud_download' // 全部使用提供商默认
+  }
+  
   const modelConfig = (modelData.value as any)?.config || {}
-  return field in modelConfig ? 'edit' : 'settings'
+  if (field in modelConfig) {
+    return 'build' // 已自定义配置
+  } else {
+    return 'cloud_download' // 继承自提供商
+  }
 }
 
 // 获取继承状态颜色
 function getInheritColor(field: string): string {
-  if (useProviderDefaults) return 'positive'
+  if (useProviderDefaults.value) {
+    return 'positive' // 全部使用提供商默认
+  }
+  
   const modelConfig = (modelData.value as any)?.config || {}
-  return field in modelConfig ? 'primary' : 'positive'
+  if (field in modelConfig) {
+    return 'orange' // 已自定义配置（橙色更醒目）
+  } else {
+    return 'positive' // 继承自提供商
+  }
 }
 
 // 获取继承状态提示
 function getInheritTooltip(field: string): string {
-  if (useProviderDefaults) return '继承自提供商'
+  if (useProviderDefaults.value) {
+    return '继承自提供商（全局模式）'
+  }
+  
   const modelConfig = (modelData.value as any)?.config || {}
-  return field in modelConfig ? '模型自定义配置' : '继承自提供商'
+  if (field in modelConfig) {
+    return '已自定义（覆盖提供商默认值）'
+  } else {
+    return '继承自提供商（未自定义）'
+  }
 }
 
 // 提交表单
