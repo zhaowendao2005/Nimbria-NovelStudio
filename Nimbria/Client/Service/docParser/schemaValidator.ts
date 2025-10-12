@@ -23,24 +23,54 @@ export class SchemaValidator {
     
     // 1. 基本结构验证
     if (!schema || typeof schema !== 'object') {
-      result.errors.push('Schema必须是一个对象')
+      result.errors.push('❌ [根节点] Schema必须是一个对象')
       result.valid = false
       return result
     }
     
-    if (schema.type !== 'object') {
-      result.errors.push('Schema根节点type必须是object')
-      result.valid = false
-    }
-    
-    if (!schema.properties || typeof schema.properties !== 'object') {
-      result.errors.push('Schema必须包含properties字段')
+    // 支持两种模式：object（单对象）和 array（对象数组）
+    if (schema.type !== 'object' && schema.type !== 'array') {
+      const currentType = schema.type || '未定义'
+      result.errors.push(`❌ [根节点.type] 必须是 "object" 或 "array"，当前值: "${String(currentType)}"`)
       result.valid = false
       return result
     }
     
-    // 2. 递归验证所有字段
-    this.validateProperties(schema.properties, [], result)
+    // 如果是 array 类型，验证 items
+    if (schema.type === 'array') {
+      if (!schema.items || typeof schema.items !== 'object' || Array.isArray(schema.items)) {
+        result.errors.push('❌ [根节点.items] array 类型的 Schema 必须包含 items 字段，且 items 必须是对象')
+        result.valid = false
+        return result
+      }
+      
+      const items = schema.items as DocParserSchemaField
+      if (items.type !== 'object') {
+        result.errors.push(`❌ [根节点.items.type] 必须是 "object"，当前值: "${items.type || '未定义'}"`)
+        result.valid = false
+        return result
+      }
+      
+      if (!items.properties || typeof items.properties !== 'object') {
+        result.errors.push('❌ [根节点.items.properties] array 类型 Schema 的 items 必须包含 properties 字段')
+        result.valid = false
+        return result
+      }
+      
+      // 验证 items 中的 properties
+      this.validateProperties(items.properties, ['items'], result)
+    } 
+    // 如果是 object 类型，验证 properties
+    else {
+      if (!schema.properties || typeof schema.properties !== 'object') {
+        result.errors.push('❌ [根节点.properties] object 类型的 Schema 必须包含 properties 字段')
+        result.valid = false
+        return result
+      }
+      
+      // 验证 properties
+      this.validateProperties(schema.properties, [], result)
+    }
     
     // 3. 验证导出配置
     this.validateExportConfig(schema, result)
@@ -60,11 +90,11 @@ export class SchemaValidator {
   ): void {
     Object.entries(properties).forEach(([key, field]) => {
       const currentPath = [...path, key]
-      const pathStr = currentPath.join('.')
+      const pathStr = currentPath.length > 0 ? currentPath.join('.') : '根节点'
       
       // 验证字段基本结构
       if (!field.type) {
-        result.errors.push(`${pathStr}: 缺少type字段`)
+        result.errors.push(`❌ [${pathStr}.type] 缺少 type 字段`)
         return
       }
       
@@ -79,15 +109,23 @@ export class SchemaValidator {
       }
       
       // 递归验证子字段
-      if (field.type === 'object' && field.properties) {
-        this.validateProperties(field.properties, currentPath, result)
+      if (field.type === 'object') {
+        if (!field.properties) {
+          result.errors.push(`❌ [${pathStr}.properties] object 类型字段必须包含 properties`)
+        } else {
+          this.validateProperties(field.properties, currentPath, result)
+        }
       }
       
       if (field.type === 'array' && field.items) {
         if (typeof field.items === 'object' && !Array.isArray(field.items)) {
           const items = field.items as DocParserSchemaField
-          if (items.type === 'object' && items.properties) {
-            this.validateProperties(items.properties, [...currentPath, '[]'], result)
+          if (items.type === 'object') {
+            if (!items.properties) {
+              result.errors.push(`❌ [${pathStr}.items.properties] array 的 items 为 object 类型时必须包含 properties`)
+            } else {
+              this.validateProperties(items.properties, [...currentPath, 'items'], result)
+            }
           }
         }
       }
@@ -102,32 +140,40 @@ export class SchemaValidator {
     path: string,
     result: SchemaValidationResult
   ): void {
-    // 验证regex
-    if (!metadata.regex) {
-      result.errors.push(`${path}: x-parse缺少regex字段`)
+    // 验证 pattern（正则表达式）
+    if (!metadata.pattern) {
+      result.errors.push(`❌ [${path}["x-parse"].pattern] 缺少 pattern 字段（正则表达式）`)
       return
     }
     
     // 验证正则表达式是否有效
-    if (!RegexEngine.validateRegex(metadata.regex, metadata.flags)) {
-      result.errors.push(`${path}: x-parse中的正则表达式无效`)
+    if (!RegexEngine.validateRegex(metadata.pattern, metadata.flags)) {
+      result.errors.push(`❌ [${path}["x-parse"].pattern] 正则表达式无效: "${metadata.pattern}"`)
     }
     
     // 验证mode
     if (!metadata.mode || !['extract', 'split', 'validate'].includes(metadata.mode)) {
-      result.errors.push(`${path}: x-parse的mode必须是extract、split或validate之一`)
+      result.errors.push(`❌ [${path}["x-parse"].mode] 必须是 "extract"、"split" 或 "validate" 之一，当前值: "${metadata.mode || '未定义'}"`)
     }
     
-    // 验证captureGroup
+    // 验证 captureGroup 或 captureGroups
     if (metadata.captureGroup !== undefined) {
       if (typeof metadata.captureGroup !== 'number' || metadata.captureGroup < 0) {
-        result.errors.push(`${path}: x-parse的captureGroup必须是非负整数`)
+        result.errors.push(`❌ [${path}["x-parse"].captureGroup] 必须是非负整数，当前值: ${metadata.captureGroup}`)
       }
     }
     
-    // 警告：如果是extract模式但没有指定captureGroup
-    if (metadata.mode === 'extract' && metadata.captureGroup === undefined) {
-      result.warnings.push(`${path}: extract模式建议指定captureGroup`)
+    if (metadata.captureGroups !== undefined) {
+      if (!Array.isArray(metadata.captureGroups)) {
+        result.errors.push(`❌ [${path}["x-parse"].captureGroups] 必须是数组，当前类型: ${typeof metadata.captureGroups}`)
+      } else if (metadata.captureGroups.some((g: any) => typeof g !== 'number' || g < 0)) {
+        result.errors.push(`❌ [${path}["x-parse"].captureGroups] 数组中的值必须是非负整数`)
+      }
+    }
+    
+    // 警告：如果是extract模式但没有指定captureGroup或captureGroups
+    if (metadata.mode === 'extract' && !metadata.captureGroup && !metadata.captureGroups) {
+      result.warnings.push(`⚠️ [${path}["x-parse"]] extract 模式建议指定 captureGroup 或 captureGroups`)
     }
   }
   
@@ -140,29 +186,29 @@ export class SchemaValidator {
     result: SchemaValidationResult
   ): void {
     // 验证type
-    if (!metadata.type || !['column', 'section-header', 'skip'].includes(metadata.type)) {
-      result.errors.push(`${path}: x-export的type必须是column、section-header或skip之一`)
+    if (!metadata.type || !['column', 'section-header', 'skip', 'ignore', 'merged-row'].includes(metadata.type)) {
+      result.errors.push(`❌ [${path}["x-export"].type] 必须是 "column"、"section-header" 或 "ignore" 之一，当前值: "${metadata.type || '未定义'}"`)
     }
     
     // column类型的验证
     if (metadata.type === 'column') {
       if (!metadata.columnName) {
-        result.warnings.push(`${path}: column类型建议指定columnName`)
+        result.warnings.push(`⚠️ [${path}["x-export"].columnName] column 类型建议指定 columnName`)
       }
       
-      if (metadata.order !== undefined && typeof metadata.order !== 'number') {
-        result.errors.push(`${path}: x-export的order必须是数字`)
+      if (metadata.columnOrder !== undefined && typeof metadata.columnOrder !== 'number') {
+        result.errors.push(`❌ [${path}["x-export"].columnOrder] 必须是数字，当前类型: ${typeof metadata.columnOrder}`)
       }
       
-      if (metadata.width !== undefined && typeof metadata.width !== 'number') {
-        result.errors.push(`${path}: x-export的width必须是数字`)
+      if (metadata.columnWidth !== undefined && typeof metadata.columnWidth !== 'number') {
+        result.errors.push(`❌ [${path}["x-export"].columnWidth] 必须是数字，当前类型: ${typeof metadata.columnWidth}`)
       }
     }
     
     // section-header类型的验证
     if (metadata.type === 'section-header') {
       if (metadata.mergeCols !== undefined && typeof metadata.mergeCols !== 'number') {
-        result.errors.push(`${path}: x-export的mergeCols必须是数字`)
+        result.errors.push(`❌ [${path}["x-export"].mergeCols] 必须是数字，当前类型: ${typeof metadata.mergeCols}`)
       }
     }
   }
@@ -174,7 +220,21 @@ export class SchemaValidator {
     schema: DocParserSchema,
     result: SchemaValidationResult
   ): void {
-    const exportFields = this.collectExportFields(schema.properties)
+    // 获取实际的 properties（支持 object 和 array 类型）
+    let properties: Record<string, DocParserSchemaField> | undefined
+    
+    if (schema.type === 'array' && schema.items) {
+      const items = schema.items as DocParserSchemaField
+      properties = items.properties
+    } else {
+      properties = schema.properties
+    }
+    
+    if (!properties) {
+      return
+    }
+    
+    const exportFields = this.collectExportFields(properties)
     
     if (exportFields.length === 0) {
       result.warnings.push('Schema中没有定义任何导出字段(x-export)')
@@ -233,10 +293,20 @@ export class SchemaValidator {
    */
   static quickValidate(schema: DocParserSchema): boolean {
     try {
-      return schema 
-        && schema.type === 'object' 
-        && schema.properties 
-        && Object.keys(schema.properties).length > 0
+      // 支持 object 和 array 两种类型
+      if (schema.type === 'object') {
+        return schema.properties && Object.keys(schema.properties).length > 0
+      }
+      
+      if (schema.type === 'array') {
+        const items = schema.items as DocParserSchemaField
+        return items 
+          && items.type === 'object' 
+          && items.properties 
+          && Object.keys(items.properties).length > 0
+      }
+      
+      return false
     } catch {
       return false
     }

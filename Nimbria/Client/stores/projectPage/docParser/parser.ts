@@ -22,15 +22,39 @@ export async function parseDocument(
   // 1. 验证Schema
   const validation = SchemaValidator.validate(schema)
   if (!validation.valid) {
-    const errorMsg = `Schema验证失败: ${validation.errors.join('; ')}`
-    ElMessage.error(errorMsg)
+    // 格式化错误信息，每个错误单独一行
+    const errorCount = validation.errors.length
+    const errorHeader = `Schema 验证失败（共 ${errorCount} 个错误）:\n\n`
+    const errorList = validation.errors.map((err, idx) => `${idx + 1}. ${err}`).join('\n')
+    const errorMsg = errorHeader + errorList
+    
+    console.error('[Parser] Schema 验证失败:')
+    validation.errors.forEach((err, idx) => {
+      console.error(`  ${idx + 1}. ${err}`)
+    })
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.error as any)({
+      message: errorMsg,
+      duration: 8000,
+      showClose: true,
+      dangerouslyUseHTMLString: false
+    })
+    
     throw new Error(errorMsg)
   }
   
   // 显示警告（如果有）
   if (validation.warnings.length > 0) {
-    validation.warnings.forEach(warning => {
-      ElMessage.warning(warning)
+    console.warn('[Parser] Schema 验证警告:')
+    validation.warnings.forEach((warning, idx) => {
+      console.warn(`  ${idx + 1}. ${warning}`)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(ElMessage.warning as any)({
+        message: warning,
+        duration: 5000,
+        showClose: true
+      })
     })
   }
   

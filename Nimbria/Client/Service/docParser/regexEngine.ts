@@ -143,13 +143,27 @@ export class RegexEngine {
    * 根据ParseMetadata创建RegexEngineConfig
    */
   static fromParseMetadata(metadata: ParseMetadata): RegexEngineConfig {
-    return {
-      regex: metadata.regex,
-      flags: metadata.flags,
-      mode: metadata.mode,
-      captureGroup: metadata.captureGroup,
-      conditions: metadata.conditions
+    const config: RegexEngineConfig = {
+      regex: metadata.pattern || '', // 使用 pattern 字段
+      mode: metadata.mode || 'extract' // 默认为 extract 模式
     }
+    
+    // 可选字段只有在存在时才添加
+    if (metadata.flags) {
+      config.flags = metadata.flags
+    }
+    
+    if (metadata.captureGroups?.[0] !== undefined) {
+      config.captureGroup = metadata.captureGroups[0]
+    } else if (metadata.captureGroup !== undefined) {
+      config.captureGroup = metadata.captureGroup
+    }
+    
+    if (metadata.conditions) {
+      config.conditions = metadata.conditions
+    }
+    
+    return config
   }
   
   /**

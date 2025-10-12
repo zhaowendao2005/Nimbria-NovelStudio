@@ -131,7 +131,8 @@ const handleCreateSchema = () => {
   // 使用默认模板
   const defaultSchema = docParserMockData.defaultSchema
   docParserStore.updateSchema(defaultSchema as JsonSchema)
-  ElMessage.success('已加载默认Schema模板')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(ElMessage.success as any)('已加载默认Schema模板')
 }
 
 const handleLoadSchema = async () => {
@@ -141,10 +142,12 @@ const handleLoadSchema = async () => {
     const schemaContent = await DataSource.loadSchema('default')
     const schema = JSON.parse(schemaContent)
     docParserStore.updateSchema(schema)
-    ElMessage.success('Schema加载成功')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.success as any)('Schema加载成功')
   } catch (error) {
     console.error('[DocParserPanel] 加载Schema失败:', error)
-    ElMessage.error('加载Schema失败')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.error as any)('加载Schema失败')
   }
 }
 
@@ -161,25 +164,99 @@ const handleSelectDocument = () => {
 
 const handleBrowseDocument = async () => {
   try {
-    // Mock环境：直接使用示例文档
-    const content = await DataSource.readDocumentFile('sample.txt')
-    previewContent.value = content.substring(0, 500) + '...'
-    docParserStore.loadDocument(content)
-    documentPath.value = 'sample.txt'
+    console.log('[DocParserPanel] 打开文件选择器')
+    
+    // 获取桌面路径作为默认路径
+    const defaultPath = undefined // 让系统使用默认路径（桌面）
+    
+    // 打开文件选择器
+    const selectedPath = await DataSource.selectDocumentFile(defaultPath)
+    
+    if (!selectedPath) {
+      console.log('[DocParserPanel] 用户取消选择')
+      return
+    }
+    
+    console.log('[DocParserPanel] 用户选择了文件:', selectedPath)
+    
+    // 读取文件内容
+    const content = await DataSource.readDocumentFile(selectedPath)
+    
+    // 更新预览内容（只显示前 500 字符）
+    previewContent.value = content.length > 500 
+      ? content.substring(0, 500) + '...' 
+      : content
+    
+    // 更新 Store
+    await docParserStore.loadDocument(content)
+    
+    // 更新文件路径和信息
+    documentPath.value = selectedPath
+    
+    // 提取文件名
+    const fileName = selectedPath.split(/[\\/]/).pop() || selectedPath
+    
     documentInfo.value = {
-      name: 'sample.txt',
+      name: fileName,
       size: content.length,
       mtime: new Date()
     }
-    ElMessage.success('文档加载成功')
+    
+    console.log('[DocParserPanel] 文档加载成功:', {
+      path: selectedPath,
+      size: content.length
+    })
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.success as any)('文档加载成功')
   } catch (error) {
     console.error('[DocParserPanel] 加载文档失败:', error)
-    ElMessage.error('加载文档失败')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.error as any)(`加载文档失败: ${error}`)
   }
 }
 
-const handleDocumentChange = (path: string) => {
-  console.log('[DocParserPanel] 文档路径变更:', path)
+const handleDocumentChange = async (path: string) => {
+  if (!path || !path.trim()) {
+    console.log('[DocParserPanel] 文档路径为空')
+    return
+  }
+  
+  try {
+    console.log('[DocParserPanel] 文档路径变更:', path)
+    
+    // 读取文件内容
+    const content = await DataSource.readDocumentFile(path)
+    
+    // 更新预览内容
+    previewContent.value = content.length > 500 
+      ? content.substring(0, 500) + '...' 
+      : content
+    
+    // 更新 Store
+    await docParserStore.loadDocument(content)
+    
+    // 提取文件名
+    const fileName = path.split(/[\\/]/).pop() || path
+    
+    documentInfo.value = {
+      name: fileName,
+      size: content.length,
+      mtime: new Date()
+    }
+    
+    console.log('[DocParserPanel] 文档加载成功 (手动输入):', {
+      path,
+      size: content.length
+    })
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.success as any)('文档加载成功')
+  } catch (error) {
+    console.error('[DocParserPanel] 加载文档失败 (手动输入):', error)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.error as any)(`加载文档失败: ${error}`)
+  }
 }
 
 // 解析操作
@@ -187,12 +264,14 @@ const handleParse = async () => {
   console.log('[DocParserPanel] 开始解析')
   
   if (!docParserStore.currentSchema) {
-    ElMessage.warning('请先定义Schema')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.warning as any)('请先定义Schema')
     return
   }
   
   if (!docParserStore.sourceContent) {
-    ElMessage.warning('请先选择文档')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.warning as any)('请先选择文档')
     return
   }
   
@@ -206,10 +285,12 @@ const handleParse = async () => {
     
     docParserStore.setParseResult(result)
     
-    ElMessage.success('解析完成')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.success as any)('解析完成')
   } catch (error) {
     console.error('[DocParserPanel] 解析失败:', error)
-    ElMessage.error(`解析失败: ${error}`)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.error as any)(`解析失败: ${error}`)
   } finally {
     loading.value = false
   }
@@ -220,7 +301,8 @@ const handleExport = () => {
   console.log('[DocParserPanel] 准备导出')
   
   if (!docParserStore.parsedData || !docParserStore.exportConfig) {
-    ElMessage.warning('没有可导出的数据')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.warning as any)('没有可导出的数据')
     return
   }
   
@@ -239,7 +321,8 @@ const handleExportConfirm = async (config: any) => {
   console.log('[DocParserPanel] 确认导出', config)
   
   if (!docParserStore.parsedData || !docParserStore.exportConfig) {
-    ElMessage.warning('没有可导出的数据')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.warning as any)('没有可导出的数据')
     return
   }
   
@@ -254,11 +337,13 @@ const handleExportConfirm = async (config: any) => {
     )
     
     if (success) {
-      ElMessage.success('导出成功')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(ElMessage.success as any)('导出成功')
     }
   } catch (error) {
     console.error('[DocParserPanel] 导出失败:', error)
-    ElMessage.error(`导出失败: ${error}`)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.error as any)(`导出失败: ${error}`)
   } finally {
     exporting.value = false
   }
@@ -267,7 +352,8 @@ const handleExportConfirm = async (config: any) => {
 const handleSelectOutputPath = () => {
   console.log('[DocParserPanel] 选择输出路径')
   // TODO: 实现文件保存对话框
-  ElMessage.info('请在配置中输入输出路径')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(ElMessage.info as any)('请在配置中输入输出路径')
 }
 </script>
 
@@ -311,7 +397,7 @@ const handleSelectOutputPath = () => {
   }
   
   &.export-section {
-    min-height: 300px;
+    min-height: 800px;
   }
 }
 
@@ -337,4 +423,5 @@ const handleSelectOutputPath = () => {
   overflow: auto;
 }
 </style>
+
 

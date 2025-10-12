@@ -3,15 +3,28 @@
  * 基于 JiuZhang 项目的 JsonSchema 基础上扩展
  */
 
-import type { JsonSchema as BaseJsonSchema, JsonSchemaField as BaseJsonSchemaField } from '@types/shared'
-
 // ==================== 扩展的 Schema 类型 ====================
 
-export interface DocParserSchema extends BaseJsonSchema {
-  properties: Record<string, DocParserSchemaField>
+export interface DocParserSchema {
+  $schema?: string
+  type: 'object' | 'array'
+  title?: string
+  description?: string
+  properties?: Record<string, DocParserSchemaField>
+  items?: DocParserSchemaField | DocParserSchemaField[]
+  required?: string[]
 }
 
-export interface DocParserSchemaField extends BaseJsonSchemaField {
+export interface DocParserSchemaField {
+  type?: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'null'
+  title?: string
+  description?: string
+  properties?: Record<string, DocParserSchemaField>
+  items?: DocParserSchemaField | DocParserSchemaField[]
+  required?: string[]
+  default?: any
+  enum?: any[]
+  
   // 🆕 解析规则（正则）
   'x-parse'?: ParseMetadata
   
@@ -19,20 +32,24 @@ export interface DocParserSchemaField extends BaseJsonSchemaField {
   'x-export'?: ExportMetadata
 }
 
+// 为了兼容性，也导出一个 JsonSchema 类型
+export type JsonSchema = DocParserSchema
+
 // ==================== 解析规则 ====================
 
 export interface ParseMetadata {
-  // 正则表达式（字符串形式）
-  regex?: string
+  // 正则表达式（字符串形式）- 使用 pattern 符合 JSON Schema 规范
+  pattern?: string
   
   // 正则 flags
   flags?: string  // 如 'gi', 'gm'
   
   // 匹配模式
-  mode?: 'match' | 'split' | 'extract' | 'test'
+  mode?: 'extract' | 'split' | 'validate'
   
-  // 提取组（用于 extract 模式）
-  captureGroup?: number  // 1, 2, 3...
+  // 提取组（用于 extract 模式）- 支持单个或多个捕获组
+  captureGroup?: number     // 单个捕获组: 1, 2, 3...
+  captureGroups?: number[]  // 多个捕获组: [1, 2, 3]
   
   // 前置条件（可选）
   conditions?: {

@@ -3,7 +3,7 @@
  * 提供文档解析相关的文件操作服务
  */
 
-import * as fs from 'fs-extra'
+import fs from 'fs-extra'
 import * as path from 'path'
 import { dialog } from 'electron'
 import { getLogger } from '../../utils/shared/logger'

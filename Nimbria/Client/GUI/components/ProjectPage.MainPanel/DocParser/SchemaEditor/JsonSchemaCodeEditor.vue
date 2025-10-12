@@ -2,8 +2,8 @@
   <div class="json-schema-code-editor">
     <div class="editor-header">
       <div class="editor-status">
-        <el-icon v-if="isDirty" :size="12" color="#409EFF" class="dirty-indicator">
-          <CircleFilled />
+        <el-icon v-if="isDirty" :size="14" color="#409EFF" class="dirty-indicator">
+          <Loading />
         </el-icon>
         <span v-if="hasError" class="error-badge">
           <el-icon :size="14"><WarningFilled /></el-icon>
@@ -51,8 +51,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { VueMonacoEditor } from '@guolao/vue-monaco-editor'
-import { CircleFilled, WarningFilled, DocumentChecked, Refresh } from '@element-plus/icons-vue'
+import { Loading, WarningFilled, DocumentChecked, Refresh } from '@element-plus/icons-vue'
 import { useDocParserStore } from '@stores/projectPage/docParser/docParser.store'
+
+// Monaco Editor 类型
+interface MonacoEditor {
+  getAction: (id: string) => { run: () => void } | undefined
+}
 
 // Props
 interface Props {
@@ -71,7 +76,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   'update:modelValue': [value: string]
   change: [value: string]
-  mount: [editor: any]
+  mount: [editor: MonacoEditor]
   error: [error: string | null]
 }>()
 
@@ -79,7 +84,7 @@ const emit = defineEmits<{
 const docParserStore = useDocParserStore()
 
 // 响应式数据
-const editorInstance = ref<any>(null)
+const editorInstance = ref<MonacoEditor | null>(null)
 const hasError = ref(false)
 const saving = ref(false)
 
@@ -134,7 +139,7 @@ const editorOptions = computed(() => ({
 }))
 
 // 方法
-const handleEditorMount = (editor: any) => {
+const handleEditorMount = (editor: MonacoEditor) => {
   editorInstance.value = editor
   emit('mount', editor)
   

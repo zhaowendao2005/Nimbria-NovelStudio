@@ -20,7 +20,7 @@ export class DocumentParser {
   static parse(content: string, schema: DocParserSchema): ParsedData {
     console.log('[DocumentParser] 开始解析文档')
     console.log('[DocumentParser] 文档长度:', content.length)
-    console.log('[DocumentParser] Schema:', schema)
+    console.log('[DocumentParser] Schema 类型:', schema.type)
     
     const context: ParseContext = {
       content,
@@ -30,8 +30,18 @@ export class DocumentParser {
     }
     
     try {
-      const result = this.parseObject(context, schema, [])
-      console.log('[DocumentParser] 解析完成:', result)
+      let result: any
+      
+      // 根据 Schema 的根节点类型选择解析方式
+      if (schema.type === 'array') {
+        // array 类型：解析为数组
+        result = this.parseArray(context, schema, [])
+      } else {
+        // object 类型：解析为对象
+        result = this.parseObject(context, schema, [])
+      }
+      
+      console.log('[DocumentParser] 解析完成，结果数量:', Array.isArray(result) ? result.length : 1)
       return result as ParsedData
     } catch (error) {
       console.error('[DocumentParser] 解析失败:', error)
@@ -204,8 +214,44 @@ export class DocumentParser {
    * 使用改进的算法，从外到内逐层解析
    */
   static parseAdvanced(content: string, schema: DocParserSchema): ParsedData {
-    console.log('[DocumentParser] 开始智能解析')
+    console.log('[DocumentParser] 开始智能解析，Schema 类型:', schema.type)
     
+    // 支持 array 类型的 Schema
+    if (schema.type === 'array') {
+      const items = schema.items as DocParserSchemaField
+      
+      if (!items || items.type !== 'object' || !items.properties) {
+        console.warn('[DocumentParser] array 类型的 Schema 无效，使用基础解析')
+        return this.parse(content, schema)
+      }
+      
+      // 查找 items 中是否有 x-parse 规则用于分割文档
+      if (items['x-parse']) {
+        // 如果 items 本身有 x-parse 规则，用它来分割文档
+        const parseConfig = RegexEngine.fromParseMetadata(items['x-parse'])
+        const segments = this.splitByRegex(content, parseConfig)
+        
+        console.log(`[DocumentParser] 文档分割为 ${segments.length} 段`)
+        
+        const parsedItems = segments.map((segment, index) => {
+          const itemContext: ParseContext = {
+            content: segment,
+            currentPosition: 0,
+            lines: segment.split('\n'),
+            currentLine: 0
+          }
+          
+          return this.parseObject(itemContext, items, [`[${index}]`])
+        })
+        
+        return parsedItems as ParsedData
+      } else {
+        // 没有 x-parse 规则，使用基础解析
+        return this.parse(content, schema)
+      }
+    }
+    
+    // object 类型的处理逻辑（原有逻辑）
     // 首先找到最外层的分隔符（通常是章节）
     const topLevelFields = Object.entries(schema.properties || {})
       .filter(([_, field]) => field.type === 'array')
