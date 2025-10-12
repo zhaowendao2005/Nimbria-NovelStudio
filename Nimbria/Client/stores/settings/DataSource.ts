@@ -15,8 +15,7 @@ import type {
   ModelRefreshResult,
 } from './types';
 import { 
-  llmProvidersMock, 
-  activeModelsMock 
+  llmProvidersMock
 } from './llm.mock';
 
 /**
@@ -59,23 +58,7 @@ export async function fetchProviders(): Promise<ModelProvider[]> {
   return [];
 }
 
-/**
- * 获取活动模型配置
- * TODO: 对接后端API - GET /api/llm/active-models
- */
-export async function fetchActiveModels(): Promise<ActiveModelConfig> {
-  await simulateDelay();
-  
-  if (useMockSource.value) {
-    return { ...activeModelsMock };
-  }
-  
-  // TODO: 真实API调用
-  // const response = await window.api.llm.getActiveModels();
-  // return response.data;
-  
-  return {};
-}
+// fetchActiveModels 已废弃 - 活动模型状态现在保存在每个provider的activeModels中
 
 /**
  * 添加新提供商
@@ -205,46 +188,9 @@ export async function deactivateProvider(providerId: string): Promise<ModelProvi
   throw new Error('Not implemented');
 }
 
-/**
- * 设置活动模型
- * TODO: 对接后端API - PUT /api/llm/active-models/:modelType
- */
-export async function setActiveModel(
-  modelType: string,
-  modelId: string
-): Promise<ActiveModelConfig> {
-  await simulateDelay();
-  
-  if (useMockSource.value) {
-    activeModelsMock[modelType] = modelId;
-    return { ...activeModelsMock };
-  }
-  
-  // TODO: 真实API调用
-  // const response = await window.api.llm.setActiveModel(modelType, modelId);
-  // return response.data;
-  
-  throw new Error('Not implemented');
-}
-
-/**
- * 清除活动模型
- * TODO: 对接后端API - DELETE /api/llm/active-models/:modelType
- */
-export async function clearActiveModel(modelType: string): Promise<ActiveModelConfig> {
-  await simulateDelay();
-  
-  if (useMockSource.value) {
-    delete activeModelsMock[modelType];
-    return { ...activeModelsMock };
-  }
-  
-  // TODO: 真实API调用
-  // const response = await window.api.llm.clearActiveModel(modelType);
-  // return response.data;
-  
-  throw new Error('Not implemented');
-}
+// setActiveModel 和 clearActiveModel 已废弃
+// 活动模型状态现在保存在每个provider的activeModels中
+// 使用store的toggleModelSelection和setPreferredModel方法代替
 
 /**
  * 刷新提供商模型列表
@@ -412,7 +358,6 @@ export async function exportConfig(): Promise<string> {
   if (useMockSource.value) {
     const config = {
       providers: llmProvidersMock,
-      activeModels: activeModelsMock,
       exportTime: new Date().toISOString(),
     };
     

@@ -25,6 +25,16 @@ export const openAIProviderMock: ModelProvider = {
     functionCalling: '支持',
     structuredOutput: '支持',
   },
+  activeModels: {
+    'LLM': {
+      selectedModels: ['gpt-3.5-turbo', 'gpt-4', 'gpt-4o'],
+      preferredModel: 'gpt-4o'
+    },
+    'TEXT_EMBEDDING': {
+      selectedModels: ['text-embedding-3-large', 'text-embedding-ada-002'],
+      preferredModel: 'text-embedding-3-large'
+    }
+  },
   supportedModels: [
     {
       type: 'LLM',
@@ -227,7 +237,6 @@ export const customProviderMock: ModelProvider = {
       ]
     }
   ],
-  lastRefreshed: undefined,
   refreshStatus: 'idle',
 };
 
@@ -239,12 +248,4 @@ export const llmProvidersMock: ModelProvider[] = [
   anthropicProviderMock,
   customProviderMock,
 ];
-
-/**
- * Mock数据：活动模型配置
- */
-export const activeModelsMock: ActiveModelConfig = {
-  'LLM': 'openai.gpt-4o',
-  'TEXT_EMBEDDING': 'openai.text-embedding-3-large',
-};
 

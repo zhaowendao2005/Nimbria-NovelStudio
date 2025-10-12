@@ -2,24 +2,20 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { 
   ModelProvider, 
-  ActiveModelConfig, 
   ModelConfig,
   ProviderConfig,
   ValidationResult,
   ModelRefreshResult,
   BatchRefreshResult
 } from './types';
-import { parseModelId, createModelId } from './types';
 import * as DataSource from './DataSource';
 
 /**
  * LLM配置状态管理
- * 基于JiuZhang项目的settings store
  */
 export const useSettingsLlmStore = defineStore('settings-llm', () => {
   // ==================== 状态 ====================
   const providers = ref<ModelProvider[]>([]);
-  const activeModels = ref<ActiveModelConfig>({});
   const loading = ref(false);
   const error = ref<string | null>(null);
   
@@ -57,25 +53,22 @@ export const useSettingsLlmStore = defineStore('settings-llm', () => {
   // 检查是否有错误状态
   const hasError = computed(() => Boolean(error.value));
 
-  // 获取活动模型的类型标签
+  // 获取所有提供商的活动模型类型（已选中的模型类型）
   const activeModelTypes = computed(() => {
-    const types = Object.keys(activeModels.value);
-    return types.map(type => {
-      const modelId = activeModels.value[type];
-      if (!modelId) return { type, provider: undefined, model: undefined };
-      
-      try {
-        const { providerId, modelName } = parseModelId(modelId);
-        
-        return {
-          type,
-          provider: providers.value.find(p => p.id === providerId),
-          model: modelName
-        };
-      } catch {
-        return { type, provider: undefined, model: undefined };
+    const typesSet = new Set<string>();
+    
+    providers.value.forEach(provider => {
+      if (provider.activeModels) {
+        Object.keys(provider.activeModels).forEach(type => {
+          const typeState = provider.activeModels![type];
+          if (typeState && typeState.selectedModels.length > 0) {
+            typesSet.add(type);
+          }
+        });
       }
     });
+    
+    return Array.from(typesSet).sort();
   });
 
   // ==================== 数据加载 ====================
@@ -95,19 +88,7 @@ export const useSettingsLlmStore = defineStore('settings-llm', () => {
     }
   }
 
-  async function loadActiveModels() {
-    try {
-      loading.value = true;
-      error.value = null;
-      activeModels.value = await DataSource.fetchActiveModels();
-      console.log('✅ [LLM Store] 成功加载活动模型');
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : '加载活动模型失败';
-      console.error('❌ [LLM Store] 加载活动模型失败:', err);
-    } finally {
-      loading.value = false;
-    }
-  }
+  // loadActiveModels已废弃 - 活动模型状态现在保存在每个provider的activeModels中
 
   // ==================== 提供商管理 ====================
 
@@ -213,13 +194,6 @@ export const useSettingsLlmStore = defineStore('settings-llm', () => {
           providers.value.splice(index, 1);
         }
         
-        // 清理相关的活动模型
-        for (const [modelType, modelId] of Object.entries(activeModels.value)) {
-          if (modelId && modelId.startsWith(`${providerId}.`)) {
-            delete activeModels.value[modelType];
-          }
-        }
-        
         console.log('✅ [LLM Store] 提供商已删除:', providerId);
       }
       
@@ -233,47 +207,101 @@ export const useSettingsLlmStore = defineStore('settings-llm', () => {
     }
   }
 
-  // ==================== 活动模型管理 ====================
+  // ==================== 活动模型管理（旧方法，已废弃）====================
+  // 注意：setActiveModel和clearActiveModel已废弃
+  // 请使用toggleModelSelection和setPreferredModel代替
 
-  async function setActiveModel(modelType: string, providerId: string, modelName: string) {
-    try {
-      loading.value = true;
-      error.value = null;
-      const modelId = createModelId(providerId, modelName);
-      const updatedActiveModels = await DataSource.setActiveModel(modelType, modelId);
+  // ==================== 提供商活动模型管理 ====================
+
+  /**
+   * 切换模型的选中状态（添加到或从selectedModels中移除）
+   */
+  function toggleModelSelection(providerId: string, modelType: string, modelName: string): boolean {
+    const provider = providers.value.find(p => p.id === providerId);
+    if (!provider) return false;
+
+    // 初始化activeModels
+    if (!provider.activeModels) {
+      provider.activeModels = {};
+    }
+
+    // 初始化该类型的状态
+    if (!provider.activeModels[modelType]) {
+      provider.activeModels[modelType] = {
+        selectedModels: []
+      };
+    }
+
+    const typeState = provider.activeModels[modelType]!;
+    const index = typeState.selectedModels.indexOf(modelName);
+
+    if (index > -1) {
+      // 已选中，移除
+      typeState.selectedModels.splice(index, 1);
       
-      // 更新本地状态
-      activeModels.value = updatedActiveModels;
+      // 如果移除的是首选模型，清除首选模型
+      if (typeState.preferredModel === modelName) {
+        delete typeState.preferredModel;
+      }
       
-      console.log('✅ [LLM Store] 活动模型已设置:', modelType, '→', modelId);
-      return true;
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : '设置活动模型失败';
-      console.error('❌ [LLM Store] 设置活动模型失败:', err);
-      return false;
-    } finally {
-      loading.value = false;
+      console.log('✅ [LLM Store] 模型已取消选中:', providerId, modelType, modelName);
+      return false; // 返回false表示已取消选中
+    } else {
+      // 未选中，添加
+      typeState.selectedModels.push(modelName);
+      
+      // 如果这是该类型的第一个选中模型，自动设为首选
+      if (typeState.selectedModels.length === 1) {
+        typeState.preferredModel = modelName;
+      }
+      
+      console.log('✅ [LLM Store] 模型已选中:', providerId, modelType, modelName);
+      return true; // 返回true表示已选中
     }
   }
 
-  async function clearActiveModel(modelType: string) {
-    try {
-      loading.value = true;
-      error.value = null;
-      const updatedActiveModels = await DataSource.clearActiveModel(modelType);
-      
-      // 更新本地状态
-      activeModels.value = updatedActiveModels;
-      
-      console.log('✅ [LLM Store] 活动模型已清除:', modelType);
-      return true;
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : '清除活动模型失败';
-      console.error('❌ [LLM Store] 清除活动模型失败:', err);
+  /**
+   * 设置首选模型（从已选中的模型中选择）
+   */
+  function setPreferredModel(providerId: string, modelType: string, modelName: string): boolean {
+    const provider = providers.value.find(p => p.id === providerId);
+    if (!provider || !provider.activeModels || !provider.activeModels[modelType]) {
       return false;
-    } finally {
-      loading.value = false;
     }
+
+    const typeState = provider.activeModels[modelType];
+    
+    // 检查模型是否在selectedModels中
+    if (!typeState.selectedModels.includes(modelName)) {
+      console.warn('⚠️ [LLM Store] 只能从已选中的模型中设置首选模型');
+      return false;
+    }
+
+    typeState.preferredModel = modelName;
+    console.log('✅ [LLM Store] 首选模型已设置:', providerId, modelType, modelName);
+    return true;
+  }
+
+  /**
+   * 检查模型是否被选中
+   */
+  function isModelSelected(providerId: string, modelType: string, modelName: string): boolean {
+    const provider = providers.value.find(p => p.id === providerId);
+    if (!provider || !provider.activeModels || !provider.activeModels[modelType]) {
+      return false;
+    }
+    return provider.activeModels[modelType].selectedModels.includes(modelName);
+  }
+
+  /**
+   * 检查模型是否为首选模型
+   */
+  function isPreferredModel(providerId: string, modelType: string, modelName: string): boolean {
+    const provider = providers.value.find(p => p.id === providerId);
+    if (!provider || !provider.activeModels || !provider.activeModels[modelType]) {
+      return false;
+    }
+    return provider.activeModels[modelType].preferredModel === modelName;
   }
 
   // ==================== 模型刷新 ====================
@@ -504,7 +532,7 @@ export const useSettingsLlmStore = defineStore('settings-llm', () => {
       
       if (success) {
         // 重新加载数据
-        await Promise.all([loadProviders(), loadActiveModels()]);
+        await loadProviders();
         console.log('✅ [LLM Store] 配置已导入');
         return { success: true };
       }
@@ -586,14 +614,18 @@ export const useSettingsLlmStore = defineStore('settings-llm', () => {
           if (modelGroup) {
             modelGroup.models = modelGroup.models.filter(m => m.name !== modelName);
           }
-        }
-        
-        // 如果删除的是活动模型，清除活动状态
-        const activeModelId = activeModels.value[modelType];
-        if (activeModelId) {
-          const { providerId: activePId, modelName: activeMName } = parseModelId(activeModelId);
-          if (activePId === providerId && activeMName === modelName) {
-            delete activeModels.value[modelType];
+          
+          // 如果删除的是选中的模型，从selectedModels中移除
+          if (provider.activeModels && provider.activeModels[modelType]) {
+            const typeState = provider.activeModels[modelType];
+            const index = typeState.selectedModels.indexOf(modelName);
+            if (index > -1) {
+              typeState.selectedModels.splice(index, 1);
+            }
+            // 如果删除的是首选模型，清除首选模型
+            if (typeState.preferredModel === modelName) {
+              delete typeState.preferredModel;
+            }
           }
         }
 
@@ -655,15 +687,21 @@ export const useSettingsLlmStore = defineStore('settings-llm', () => {
 
   // ==================== 工具方法 ====================
 
-  function getActiveModelInfo(modelType: string): { providerId: string; modelName: string } | null {
-    const modelId = activeModels.value[modelType];
-    if (!modelId) return null;
-    
-    try {
-      return parseModelId(modelId);
-    } catch {
-      return null;
+  // getActiveModelInfo已废弃，现在首选模型保存在provider.activeModels中
+  // 使用新的方法获取首选模型：
+  function getPreferredModelInfo(modelType: string): { providerId: string; modelName: string } | null {
+    for (const provider of providers.value) {
+      if (provider.activeModels && provider.activeModels[modelType]) {
+        const typeState = provider.activeModels[modelType];
+        if (typeState.preferredModel) {
+          return {
+            providerId: provider.id,
+            modelName: typeState.preferredModel
+          };
+        }
+      }
     }
+    return null;
   }
 
   function clearError() {
@@ -674,17 +712,13 @@ export const useSettingsLlmStore = defineStore('settings-llm', () => {
 
   async function initialize() {
     console.log('🚀 [LLM Store] 初始化开始');
-    await Promise.all([
-      loadProviders(),
-      loadActiveModels()
-    ]);
+    await loadProviders();
     console.log('✅ [LLM Store] 初始化完成');
   }
 
   return {
     // 状态
     providers,
-    activeModels,
     loading,
     error,
     modelRefreshStatus,
@@ -702,7 +736,6 @@ export const useSettingsLlmStore = defineStore('settings-llm', () => {
 
     // 数据加载
     loadProviders,
-    loadActiveModels,
 
     // 提供商管理
     activateProvider,
@@ -711,9 +744,11 @@ export const useSettingsLlmStore = defineStore('settings-llm', () => {
     addProvider,
     removeProvider,
 
-    // 活动模型管理
-    setActiveModel,
-    clearActiveModel,
+    // 提供商活动模型管理
+    toggleModelSelection,
+    setPreferredModel,
+    isModelSelected,
+    isPreferredModel,
 
     // 模型刷新
     refreshProviderModels,
@@ -737,7 +772,7 @@ export const useSettingsLlmStore = defineStore('settings-llm', () => {
     importConfig,
 
     // 工具方法
-    getActiveModelInfo,
+    getPreferredModelInfo,
     clearError,
     initialize,
   };

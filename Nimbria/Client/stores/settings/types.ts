@@ -84,6 +84,21 @@ export interface ProviderConfig {
 }
 
 /**
+ * 模型类型的活动状态
+ */
+export interface ModelTypeActiveState {
+  selectedModels: string[];  // 该类型下被选中的模型名称列表（活动模型）
+  preferredModel?: string;   // 该类型下的首选模型名称（从selectedModels中选择）
+}
+
+/**
+ * 提供商的活动模型配置
+ */
+export interface ProviderActiveModels {
+  [modelType: string]: ModelTypeActiveState;
+}
+
+/**
  * 模型提供商接口
  */
 export interface ModelProvider {
@@ -96,6 +111,7 @@ export interface ModelProvider {
   baseUrl: string;
   defaultConfig: ModelConfig;
   supportedModels: SupportedModel[];
+  activeModels?: ProviderActiveModels; // 该提供商的活动模型配置
   logo?: string;
   lastRefreshed?: Date;
   refreshStatus?: RefreshStatus;

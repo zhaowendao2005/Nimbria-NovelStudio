@@ -21,18 +21,18 @@
               <span>{{ modelType }}</span>
             </div>
             <q-badge
-              v-if="activeModels[modelType]"
+              v-if="getPreferredModelId(modelType)"
               color="positive"
               label="已设置"
             />
           </div>
 
-          <!-- 当前选中的模型 -->
-          <div v-if="activeModels[modelType]" class="model-type-card__current">
+          <!-- 当前首选模型 -->
+          <div v-if="getPreferredModelId(modelType)" class="model-type-card__current">
             <div class="current-model">
               <div class="current-model__info">
-                <div class="current-model__name">{{ getModelDisplayName(activeModels[modelType]) }}</div>
-                <div class="current-model__provider">{{ getProviderDisplayName(activeModels[modelType]) }}</div>
+                <div class="current-model__name">{{ getModelDisplayName(getPreferredModelId(modelType)!) }}</div>
+                <div class="current-model__provider">{{ getProviderDisplayName(getPreferredModelId(modelType)!) }}</div>
               </div>
               <q-btn
                 flat
@@ -43,24 +43,24 @@
                 color="grey-7"
                 @click="handleClearModel(modelType)"
               >
-                <q-tooltip>清除</q-tooltip>
+                <q-tooltip>清除首选模型</q-tooltip>
               </q-btn>
             </div>
           </div>
 
-          <!-- 选择器 -->
+          <!-- 选择器（从已选中的模型中选择首选） -->
           <div class="model-type-card__selector">
             <q-select
-              :model-value="activeModels[modelType] || null"
+              :model-value="getPreferredModelId(modelType)"
               :options="getAvailableModels(modelType)"
-              label="选择模型"
+              label="选择首选模型"
               outlined
               dense
               emit-value
               map-options
               option-value="value"
               option-label="label"
-              @update:model-value="(value) => handleSelectModel(modelType, value)"
+              @update:model-value="(value: string) => handleSelectModel(modelType, value)"
             >
               <template v-slot:no-option>
                 <q-item>
@@ -73,7 +73,7 @@
               <template v-slot:option="scope">
                 <q-item v-bind="scope.itemProps">
                   <q-item-section avatar>
-                    <div class="option-logo">{{ scope.opt.logo }}</div>
+                    <q-icon :name="scope.opt.logo" size="24px" color="primary" />
                   </q-item-section>
                   <q-item-section>
                     <q-item-label>{{ scope.opt.label }}</q-item-label>
@@ -98,35 +98,32 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { ModelProvider, ActiveModelConfig } from '@stores/settings'
-import { parseModelId } from '@stores/settings'
+import { useQuasar } from 'quasar'
+import { useSettingsLlmStore } from '@stores/settings'
+import type { ModelProvider } from '@stores/settings'
 
-const props = defineProps<{
-  activeModels: ActiveModelConfig
-  providers: ModelProvider[]
-}>()
+const $q = useQuasar()
+const settingsStore = useSettingsLlmStore()
 
-const emit = defineEmits<{
-  'set-active': [payload: { modelType: string; providerId: string; modelName: string }]
-  'clear-active': [modelType: string]
-}>()
-
-// 获取所有可用的模型类型
+// 获取所有有选中模型的类型
 const modelTypes = computed(() => {
   const types = new Set<string>()
   
-  props.providers
-    .filter(p => p.status === 'active')
-    .forEach(provider => {
-      provider.supportedModels.forEach(modelGroup => {
-        types.add(modelGroup.type)
+  settingsStore.providers.forEach((provider: ModelProvider) => {
+    if (provider.activeModels) {
+      Object.keys(provider.activeModels).forEach(type => {
+        const typeState = provider.activeModels![type]
+        if (typeState && typeState.selectedModels.length > 0) {
+          types.add(type)
+        }
       })
-    })
+    }
+  })
   
   return Array.from(types).sort()
 })
 
-// 获取特定模型类型的可用模型选项
+// 获取该类型下所有已选中的模型（从所有提供商）
 function getAvailableModels(modelType: string) {
   const options: Array<{
     value: string
@@ -135,53 +132,66 @@ function getAvailableModels(modelType: string) {
     logo: string
   }> = []
 
-  props.providers
-    .filter(p => p.status === 'active')
-    .forEach(provider => {
-      const modelGroup = provider.supportedModels.find(g => g.type === modelType)
-      if (modelGroup) {
-        modelGroup.models.forEach(model => {
+  settingsStore.providers.forEach((provider: ModelProvider) => {
+    if (provider.activeModels && provider.activeModels[modelType]) {
+      const typeState = provider.activeModels[modelType]
+      
+      // 只显示selectedModels中的模型
+      typeState.selectedModels.forEach((modelName: string) => {
+        const modelGroup = provider.supportedModels.find((g: any) => g.type === modelType)
+        const model = modelGroup?.models.find((m: any) => m.name === modelName)
+        
+        if (model) {
           options.push({
-            value: `${provider.id}::${model.name}`, // 使用::分隔符
+            value: `${provider.id}::${modelName}`,
             label: (model as any).displayName || model.name,
             provider: provider.displayName,
-            logo: provider.logo || '🤖'
+            logo: 'dns' // Quasar icon name
           })
-        })
-      }
-    })
+        }
+      })
+    }
+  })
 
   return options
 }
 
-// 获取模型显示名称
-function getModelDisplayName(modelId: string): string {
-  try {
-    const { providerId, modelName } = parseModelId(modelId)
-    const provider = props.providers.find(p => p.id === providerId)
-    if (provider) {
-      for (const modelGroup of provider.supportedModels) {
-        const model = modelGroup.models.find(m => m.name === modelName)
-        if (model) {
-          return (model as any).displayName || model.name
-        }
+// 获取当前首选模型的ID (providerId::modelName)
+function getPreferredModelId(modelType: string): string | null {
+  for (const provider of settingsStore.providers) {
+    if (provider.activeModels && provider.activeModels[modelType]) {
+      const typeState = provider.activeModels[modelType]
+      if (typeState.preferredModel) {
+        return `${provider.id}::${typeState.preferredModel}`
       }
     }
-    return modelName
-  } catch {
-    return modelId
   }
+  return null
+}
+
+// 获取模型显示名称
+function getModelDisplayName(modelId: string | null): string {
+  if (!modelId) return ''
+  const [providerId, modelName] = modelId.split('::')
+  const provider = settingsStore.providers.find((p: ModelProvider) => p.id === providerId)
+  
+  if (provider) {
+    for (const modelGroup of provider.supportedModels) {
+      const model = modelGroup.models.find((m: any) => m.name === modelName)
+      if (model) {
+        return (model as any).displayName || model.name
+      }
+    }
+  }
+  return modelName || ''
 }
 
 // 获取提供商显示名称
-function getProviderDisplayName(modelId: string): string {
-  try {
-    const { providerId } = parseModelId(modelId)
-    const provider = props.providers.find(p => p.id === providerId)
-    return provider?.displayName || providerId
-  } catch {
-    return '未知'
-  }
+function getProviderDisplayName(modelId: string | null): string {
+  if (!modelId) return ''
+  const [providerId] = modelId.split('::')
+  const provider = settingsStore.providers.find((p: ModelProvider) => p.id === providerId)
+  return provider?.displayName || providerId || ''
 }
 
 // 获取模型类型图标
@@ -199,21 +209,48 @@ function getModelTypeIcon(modelType: string): string {
   return iconMap[modelType] || 'memory'
 }
 
-// 选择模型
+// 选择首选模型
 function handleSelectModel(modelType: string, modelId: string | null) {
   if (!modelId) return
   
-  try {
-    const { providerId, modelName } = parseModelId(modelId)
-    emit('set-active', { modelType, providerId, modelName })
-  } catch (error) {
-    console.error('Invalid model ID:', modelId, error)
+  const [providerId, modelName] = modelId.split('::')
+  const success = settingsStore.setPreferredModel(providerId, modelType, modelName)
+  
+  const displayName = getModelDisplayName(modelId)
+  
+  if (success) {
+    $q.notify({
+      type: 'positive',
+      message: `已设置 ${modelType} 的首选模型为: ${displayName}`,
+      position: 'top'
+    })
+  } else {
+    $q.notify({
+      type: 'negative',
+      message: '设置首选模型失败',
+      position: 'top'
+    })
   }
 }
 
-// 清除模型
+// 清除首选模型
 function handleClearModel(modelType: string) {
-  emit('clear-active', modelType)
+  // 找到该类型的首选模型所在的provider
+  for (const provider of settingsStore.providers) {
+    if (provider.activeModels && provider.activeModels[modelType]) {
+      const typeState = provider.activeModels[modelType]
+      if (typeState.preferredModel) {
+        delete typeState.preferredModel
+        
+        $q.notify({
+          type: 'positive',
+          message: `已清除 ${modelType} 的首选模型`,
+          position: 'top'
+        })
+        return
+      }
+    }
+  }
 }
 </script>
 

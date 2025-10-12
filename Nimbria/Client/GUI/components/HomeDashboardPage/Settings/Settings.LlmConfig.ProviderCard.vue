@@ -4,7 +4,9 @@
       <!-- 头部：Logo + 名称 + 状态 -->
       <div class="provider-card__header">
         <div class="provider-card__info">
-          <div class="provider-card__logo">{{ provider.logo || '🤖' }}</div>
+          <div class="provider-card__logo">
+            <q-icon name="dns" size="32px" color="primary" />
+          </div>
           <div class="provider-card__identity">
             <div class="provider-card__name">{{ provider.displayName }}</div>
             <div class="provider-card__id">{{ provider.id }}</div>
@@ -337,51 +339,29 @@ function formatDate(date: Date): string {
 // ==================== 模型交互逻辑 ====================
 
 /**
- * 判断模型是否为活动模型
+ * 判断模型是否被选中（活动模型）
  */
 function isActiveModel(modelType: string, modelName: string): boolean {
-  const activeModelId = settingsStore.activeModels[modelType]
-  if (!activeModelId) return false
-  
-  try {
-    const { providerId, modelName: activeModelName } = parseModelId(activeModelId)
-    return providerId === props.provider.id && activeModelName === modelName
-  } catch {
-    return false
-  }
+  return settingsStore.isModelSelected(props.provider.id, modelType, modelName)
 }
 
 /**
- * 点击模型chip - 切换活动状态
+ * 点击模型chip - 切换选中状态
  */
-async function handleModelClick(model: any, modelType: string) {
-  const isActive = isActiveModel(modelType, model.name)
+function handleModelClick(model: any, modelType: string) {
+  const isSelected = settingsStore.toggleModelSelection(
+    props.provider.id,
+    modelType,
+    model.name
+  )
   
-  if (isActive) {
-    // 取消活动
-    const success = await settingsStore.clearActiveModel(modelType)
-    if (success) {
-      $q.notify({
-        type: 'positive',
-        message: `已取消 ${modelType} 的活动模型`,
-        position: 'top'
-      })
-    }
-  } else {
-    // 设为活动
-    const success = await settingsStore.setActiveModel(
-      modelType,
-      props.provider.id,
-      model.name
-    )
-    if (success) {
-      $q.notify({
-        type: 'positive',
-        message: `已将 ${model.displayName || model.name} 设为 ${modelType} 的活动模型`,
-        position: 'top'
-      })
-    }
-  }
+  $q.notify({
+    type: 'positive',
+    message: isSelected 
+      ? `已选中模型: ${(model as any).displayName || model.name}`
+      : `已取消选中模型: ${(model as any).displayName || model.name}`,
+    position: 'top'
+  })
 }
 
 /**

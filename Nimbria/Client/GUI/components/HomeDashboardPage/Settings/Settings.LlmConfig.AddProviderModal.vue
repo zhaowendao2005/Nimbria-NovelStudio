@@ -36,7 +36,7 @@
                 @click="handleQuickAdd('openai')"
               >
                 <div class="quick-btn-content">
-                  <span class="quick-btn-logo">🤖</span>
+                  <q-icon name="dns" size="24px" class="quick-btn-icon" />
                   <span>OpenAI</span>
                 </div>
               </q-btn>
@@ -48,7 +48,7 @@
                 @click="handleQuickAdd('anthropic')"
               >
                 <div class="quick-btn-content">
-                  <span class="quick-btn-logo">🧠</span>
+                  <q-icon name="psychology" size="24px" class="quick-btn-icon" />
                   <span>Anthropic</span>
                 </div>
               </q-btn>
@@ -60,7 +60,7 @@
                 @click="handleQuickAdd('azure')"
               >
                 <div class="quick-btn-content">
-                  <span class="quick-btn-logo">☁️</span>
+                  <q-icon name="cloud" size="24px" class="quick-btn-icon" />
                   <span>Azure OpenAI</span>
                 </div>
               </q-btn>

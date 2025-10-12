@@ -11,7 +11,9 @@
         <q-form @submit="handleSubmit" class="config-form">
           <!-- 提供商信息 -->
           <div class="provider-info">
-            <div class="provider-info__logo">{{ provider.logo || '🤖' }}</div>
+            <div class="provider-info__logo">
+              <q-icon name="dns" size="32px" color="primary" />
+            </div>
             <div class="provider-info__details">
               <div class="provider-info__name">{{ provider.displayName }}</div>
               <div class="provider-info__id">{{ provider.id }}</div>
