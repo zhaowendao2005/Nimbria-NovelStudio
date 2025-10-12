@@ -39,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { ref, watch } from 'vue';
 import { ElTree } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import TreeSchemaNode from './TreeSchemaNode.vue';
@@ -63,7 +63,8 @@ const convertSchemaToTree = (schema: JsonSchema) => {
     // 🔍 调试日志：查看原始 Schema
     console.log('[JsonSchemaPreviewPane] 转换 Schema:', JSON.stringify(schema, null, 2));
     
-    if (schema && schema.properties) {
+    // ✅ 修复：同时支持 object 和 array 类型的根节点
+    if (schema && (schema.properties || schema.items)) {
       treeData.value = treeConverter.jsonSchemaToTreeData(schema);
       
       // 🔍 调试日志：查看转换后的树数据

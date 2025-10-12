@@ -299,6 +299,23 @@ export const treeConverter = {
       return node
     }
 
+    // ✅ 修复：支持 array 和 object 两种根节点类型
+    if (schema.type === 'array' && schema.items) {
+      // 处理根节点为 array 的情况
+      const itemsField = schema.items as JsonSchemaField
+      
+      if (itemsField.type === 'object' && itemsField.properties) {
+        // array 的 items 是 object 类型，展开其 properties
+        return Object.entries(itemsField.properties).map(([name, field]) =>
+          convertNode(name, field, name, itemsField.required)
+        )
+      } else {
+        // array 的 items 是简单类型，创建一个虚拟节点
+        return [convertNode('items', itemsField, 'items', [])]
+      }
+    }
+    
+    // 处理根节点为 object 的情况
     if (!schema.properties) return []
 
     return Object.entries(schema.properties).map(([name, field]) =>
