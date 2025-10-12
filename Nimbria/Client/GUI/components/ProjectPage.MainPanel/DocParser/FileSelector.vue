@@ -143,6 +143,7 @@ const formatDate = (date: Date): string => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding: 0 12px;
 }
 
 .file-info {

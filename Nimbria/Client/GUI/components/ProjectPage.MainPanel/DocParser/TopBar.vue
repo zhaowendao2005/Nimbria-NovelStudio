@@ -97,10 +97,12 @@ const canExport = computed(() => props.hasParsedData)
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
+  padding: 10px 24px;
+  margin: 0 8px;
   background: var(--el-bg-color);
   border-bottom: 1px solid var(--el-border-color-light);
   gap: 20px;
+  
 }
 
 .topbar-left,

@@ -293,16 +293,16 @@ const handleSelectOutputPath = () => {
   overflow: hidden;
   
   &.schema-section {
-    min-height: 300px;
+    min-height: 700px;
   }
   
   &.document-section {
-    min-height: 200px;
+    min-height: 300px;
   }
   
   &.result-section {
     flex: 1;
-    min-height: 400px;
+    min-height: 600px;
   }
   
   &.export-section {

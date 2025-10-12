@@ -100,13 +100,59 @@ const addRootField = () => {
 .json-schema-preview-pane {
   width: 100%;
   height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
-.preview-row, .tree-col, .code-col {
+.preview-row {
+  height: 100%;
+  flex: 1;
+  display: flex;
+}
+
+.tree-col, .code-col {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.preview-header {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--el-bg-color-page);
+  border-bottom: 1px solid var(--el-border-color);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.preview-tree {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+.code-preview {
+  flex: 1;
+  min-height: 0;
   height: 100%;
 }
-
-/* 样式由全局 style.scss 中的 .json-schema-section 提供 */
 
 :deep(.el-tree-node__content) {
   padding: 0 !important;
