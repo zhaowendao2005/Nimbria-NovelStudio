@@ -262,9 +262,20 @@
               <template v-slot:body-cell-status="props">
                 <q-td :props="props">
                   <q-badge
-                    :color="props.row.isInherited ? 'positive' : 'primary'"
-                    :label="props.row.isInherited ? '继承' : '自定义'"
-                  />
+                    :color="getInheritColor(props.row.fieldKey)"
+                    :icon="getInheritIcon(props.row.fieldKey)"
+                  >
+                    <template v-if="getFieldState(props.row.fieldKey) === 'modified'">
+                      待保存
+                    </template>
+                    <template v-else-if="getFieldState(props.row.fieldKey) === 'customized'">
+                      自定义
+                    </template>
+                    <template v-else>
+                      继承
+                    </template>
+                  </q-badge>
+                  <q-tooltip>{{ getInheritTooltip(props.row.fieldKey) }}</q-tooltip>
                 </q-td>
               </template>
 
@@ -380,6 +391,20 @@ const form = ref({
   systemPromptSeparator: '\n\n'
 })
 
+// 🆕 保存原始配置，用于检测是否修改
+const originalConfig = ref<typeof form.value | null>(null)
+
+// 🆕 配置字段列表（用于遍历检查）
+const configFields = [
+  'contextLength',
+  'maxTokens',
+  'completionMode',
+  'agentThought',
+  'functionCalling',
+  'structuredOutput',
+  'systemPromptSeparator'
+] as const
+
 const completionModeOptions = [
   { label: '对话', value: '对话' },
   { label: '补全', value: '补全' }
@@ -415,13 +440,16 @@ const inheritanceRows = computed(() => {
 
   return Object.keys(fieldLabels).map(field => {
     const isInherited = !(field in modelConfig)
+    const isModified = isFieldModified(field) // 🆕 检查是否被修改
     const providerValue = (providerConfig as any)[field]
     const modelValue = (modelConfig as any)[field] || '-'
     const effectiveValue = isInherited ? providerValue : modelValue
 
     return {
       field: fieldLabels[field],
+      fieldKey: field, // 🆕 保存字段key，用于获取状态
       isInherited,
+      isModified, // 🆕 添加修改状态
       providerValue: String(providerValue),
       modelValue: String(modelValue),
       effectiveValue: String(effectiveValue)
@@ -455,6 +483,9 @@ function loadModelConfig() {
     systemPromptSeparator: effectiveConfig.systemPromptSeparator
   }
 
+  // 🆕 保存原始配置的深拷贝
+  originalConfig.value = { ...form.value }
+
   // 检查是否有自定义配置
   const hasCustomConfig = modelData.value && (modelData.value as any).config
   useProviderDefaults.value = !hasCustomConfig
@@ -468,46 +499,67 @@ function handleUseDefaultsToggle(value: boolean) {
   }
 }
 
+// 🆕 判断字段是否被修改（相对于原始值）
+function isFieldModified(field: string): boolean {
+  if (!originalConfig.value) return false
+  return (form.value as any)[field] !== (originalConfig.value as any)[field]
+}
+
+// 🆕 获取字段状态：inherited（继承）| customized（已自定义）| modified（已修改未保存）
+function getFieldState(field: string): 'inherited' | 'customized' | 'modified' {
+  // 如果开启了"使用提供商默认"，所有字段都是继承状态
+  if (useProviderDefaults.value) return 'inherited'
+  
+  // 检查是否被修改（相对于加载时的值）
+  if (isFieldModified(field)) return 'modified'
+  
+  // 检查是否有保存的自定义配置，且值与提供商默认值不同
+  const modelConfig = (modelData.value as any)?.config || {}
+  const providerConfig = provider.value?.defaultConfig
+  
+  if (!providerConfig) return 'inherited'
+  
+  // 如果模型配置中没有这个字段，肯定是继承
+  if (!(field in modelConfig)) return 'inherited'
+  
+  // 如果模型配置中有这个字段，但值和提供商默认值一样，也算继承
+  const modelValue = (modelConfig as any)[field]
+  const providerValue = (providerConfig as any)[field]
+  
+  return modelValue === providerValue ? 'inherited' : 'customized'
+}
+
 // 获取继承状态图标
 function getInheritIcon(field: string): string {
-  if (useProviderDefaults.value) {
-    return 'cloud_download' // 全部使用提供商默认
+  const state = getFieldState(field)
+  const iconMap = {
+    inherited: 'settings',      // ⚙️ 继承
+    customized: 'save',          // 💾 已保存的自定义
+    modified: 'edit_note'        // 📝 已修改未保存
   }
-  
-  const modelConfig = (modelData.value as any)?.config || {}
-  if (field in modelConfig) {
-    return 'build' // 已自定义配置
-  } else {
-    return 'cloud_download' // 继承自提供商
-  }
+  return iconMap[state]
 }
 
 // 获取继承状态颜色
 function getInheritColor(field: string): string {
-  if (useProviderDefaults.value) {
-    return 'positive' // 全部使用提供商默认
+  const state = getFieldState(field)
+  const colorMap = {
+    inherited: 'positive',  // 绿色 - 继承中
+    customized: 'primary',  // 蓝色 - 已自定义
+    modified: 'warning'     // 橙色 - 待保存
   }
-  
-  const modelConfig = (modelData.value as any)?.config || {}
-  if (field in modelConfig) {
-    return 'orange' // 已自定义配置（橙色更醒目）
-  } else {
-    return 'positive' // 继承自提供商
-  }
+  return colorMap[state]
 }
 
 // 获取继承状态提示
 function getInheritTooltip(field: string): string {
-  if (useProviderDefaults.value) {
-    return '继承自提供商（全局模式）'
+  const state = getFieldState(field)
+  const tooltipMap = {
+    inherited: '继承自提供商（未修改）',
+    customized: '模型自定义配置（已保存）',
+    modified: '已修改，保存后生效'
   }
-  
-  const modelConfig = (modelData.value as any)?.config || {}
-  if (field in modelConfig) {
-    return '已自定义（覆盖提供商默认值）'
-  } else {
-    return '继承自提供商（未自定义）'
-  }
+  return tooltipMap[state]
 }
 
 // 提交表单
@@ -552,6 +604,9 @@ async function handleSubmit() {
         }
       )
     }
+
+    // 🆕 保存成功后，更新原始配置为当前值（清除"已修改"状态）
+    originalConfig.value = { ...form.value }
 
     emit('config-updated')
     isOpen.value = false

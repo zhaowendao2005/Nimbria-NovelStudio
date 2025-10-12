@@ -5,7 +5,7 @@
         "request": "launch",
         "runtimeArgs": [
             "run-script",
-            "dev:electron"
+            "dev:electron:no-lint"
         ],
         "runtimeExecutable": "npm",
         "console": "integratedTerminal",
