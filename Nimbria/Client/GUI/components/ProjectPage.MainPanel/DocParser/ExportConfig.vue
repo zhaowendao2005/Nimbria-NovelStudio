@@ -40,7 +40,16 @@
       <div class="config-section">
         <h4>
           列配置
-          <el-tag size="small" type="info">{{ columns.length }} 列</el-tag>
+          <el-tag size="small" type="info">
+            {{ columns.filter(c => c.type === 'column').length }} 列
+          </el-tag>
+          <el-tag 
+            v-if="columns.filter(c => c.type === 'section-header').length > 0" 
+            size="small" 
+            type="warning"
+          >
+            {{ columns.filter(c => c.type === 'section-header').length }} 章节标题
+          </el-tag>
         </h4>
         
         <el-table 
@@ -50,14 +59,44 @@
           max-height="300"
         >
           <el-table-column type="index" label="#" width="50" />
-          <el-table-column prop="name" label="列名" min-width="120" />
+          <el-table-column prop="name" label="列名" min-width="120">
+            <template #default="{ row }">
+              <span>{{ row.name }}</span>
+              <el-tag 
+                v-if="row.type === 'section-header'" 
+                size="small" 
+                type="warning"
+                style="margin-left: 8px"
+              >
+                合并{{ row.mergeCols }}列
+              </el-tag>
+            </template>
+          </el-table-column>
           <el-table-column prop="field" label="字段路径" min-width="150">
             <template #default="{ row }">
               <el-tag size="small">{{ row.field.join('.') }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="width" label="列宽" width="80" />
-          <el-table-column prop="order" label="顺序" width="70" />
+          <el-table-column label="类型" width="100">
+            <template #default="{ row }">
+              <el-tag 
+                :type="row.type === 'column' ? 'primary' : 'warning'"
+                size="small"
+              >
+                {{ row.type === 'column' ? '普通列' : '章节标题' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="width" label="列宽" width="80">
+            <template #default="{ row }">
+              {{ row.type === 'column' ? row.width : '-' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="order" label="顺序" width="70">
+            <template #default="{ row }">
+              {{ row.type === 'column' ? row.order : '-' }}
+            </template>
+          </el-table-column>
           <el-table-column label="操作" width="80" fixed="right">
             <template #default="{ $index }">
               <el-button 
@@ -146,8 +185,46 @@ const localConfig = ref<LocalExportConfig>({
   includeSectionHeaders: false
 })
 
+// 合并普通列和章节标题，统一显示
 const columns = computed(() => {
-  return props.config.columns || []
+  const result: Array<{
+    name: string
+    field: string[]
+    width: number
+    order: number
+    type: 'column' | 'section-header'
+    mergeCols?: number
+  }> = []
+  
+  // 添加普通列
+  if (props.config.columns) {
+    props.config.columns.forEach(col => {
+      result.push({
+        name: col.name,
+        field: col.field,
+        width: col.width,
+        order: col.order,
+        type: 'column'
+      })
+    })
+  }
+  
+  // 添加章节标题
+  if (props.config.sectionHeaders) {
+    props.config.sectionHeaders.forEach(header => {
+      result.push({
+        name: '（章节标题）',
+        field: header.field,
+        width: 0,
+        order: -1, // 让它排在最前面
+        type: 'section-header',
+        mergeCols: header.mergeCols
+      })
+    })
+  }
+  
+  // 按 order 排序
+  return result.sort((a, b) => a.order - b.order)
 })
 
 const refreshConfig = () => {

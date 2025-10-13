@@ -74,14 +74,31 @@ export class ExcelExporter {
           results.push(...itemRows)
         })
       } else if (typeof obj === 'object' && obj !== null) {
-        // 检查当前对象是否应该作为一行
+        // 🆕 检查是否有 section-header 字段需要插入
+        let sectionHeaderInserted = false
+        if (config.sectionHeaders && config.sectionHeaders.length > 0) {
+          for (const sectionConfig of config.sectionHeaders) {
+            const sectionValue = this.getValueByPath(obj, sectionConfig.field, parentPath)
+            if (sectionValue !== undefined && sectionValue !== null && sectionValue !== '') {
+              // 插入章节标题行（合并多列）
+              const sectionRow = new Array(config.columns.length).fill('')
+              sectionRow[0] = sectionValue
+              // 标记这是一个需要合并的行
+              results.push(['__SECTION_HEADER__', sectionConfig.mergeCols, ...sectionRow])
+              sectionHeaderInserted = true
+              break // 只插入第一个匹配的 section-header
+            }
+          }
+        }
+        
+        // 检查当前对象是否应该作为数据行
         const hasLeafData = config.columns.some(col => {
           const value = this.getValueByPath(obj, col.field, parentPath)
           return value !== undefined && value !== null
         })
         
         if (hasLeafData) {
-          // 创建一行
+          // 创建一行数据
           const row = config.columns.map(col => {
             return this.getValueByPath(obj, col.field, parentPath) || ''
           })
@@ -138,13 +155,42 @@ export class ExcelExporter {
    * 创建工作表
    */
   private static createWorksheet(rows: any[][], config: ExportConfig): XLSX.WorkSheet {
-    const worksheet = XLSX.utils.aoa_to_sheet(rows)
+    // 🆕 处理 section-header 行，提取合并信息
+    const merges: XLSX.Range[] = []
+    const processedRows: any[][] = []
+    
+    rows.forEach((row, rowIndex) => {
+      if (Array.isArray(row) && row[0] === '__SECTION_HEADER__') {
+        // 这是一个章节标题行
+        const mergeCols = row[1] as number
+        const actualRow = row.slice(2) // 去掉标记和 mergeCols
+        
+        processedRows.push(actualRow)
+        
+        // 添加合并单元格配置
+        const currentRowIndex = processedRows.length - 1
+        merges.push({
+          s: { r: currentRowIndex, c: 0 },  // start
+          e: { r: currentRowIndex, c: mergeCols - 1 }  // end
+        })
+      } else {
+        // 普通数据行
+        processedRows.push(row)
+      }
+    })
+    
+    const worksheet = XLSX.utils.aoa_to_sheet(processedRows)
     
     // 设置列宽
     const colWidths = config.columns.map(col => ({
       wch: col.width || 15
     }))
     worksheet['!cols'] = colWidths
+    
+    // 🆕 应用合并单元格
+    if (merges.length > 0) {
+      worksheet['!merges'] = merges
+    }
     
     // 冻结首行（表头）
     worksheet['!freeze'] = { xSplit: 0, ySplit: 1 }
