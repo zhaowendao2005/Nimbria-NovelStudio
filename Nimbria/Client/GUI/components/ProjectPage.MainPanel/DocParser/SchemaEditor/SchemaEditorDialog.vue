@@ -1068,12 +1068,19 @@ const handleEditField = (node: TreeNodeData) => {
   const parentPath = node.fieldPath.includes('.')
     ? node.fieldPath.split('.').slice(0, -1).join('.')
     : ''
+  
+  // 🆕 传递完整的节点数据，包括 x-parse 和 x-export
   const initialData = {
     name: node.fieldName,
     type: node.type,
     description: node.description || '',
-    required: node.isRequired
+    required: node.isRequired,
+    // 传递扩展字段（使用正确的字段名）
+    ...(node['x-parse'] && { 'x-parse': node['x-parse'] }),
+    ...(node['x-export'] && { 'x-export': node['x-export'] })
   }
+  
+  console.log('📋 [SchemaEditorDialog] 传递给对话框的初始数据:', JSON.stringify(initialData, null, 2))
   openFieldDialog('edit', parentPath, node.fieldName, initialData)
 }
 
