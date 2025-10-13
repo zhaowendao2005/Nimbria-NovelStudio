@@ -1,0 +1,239 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "multi-region",
+  "title": "解剖学题库解析Schema",
+  "description": "支持题目答案分离的题库解析",
+  
+  "regions": [
+    {
+      "name": "questions",
+      "description": "题目区域",
+      "range": {
+        "start": 1,
+        "end": 51158
+      },
+      "outputAs": "questions",
+      "schema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "chapter": {
+              "type": "string",
+              "description": "章节名称",
+              "x-parse": {
+                "pattern": "^# (第.+章.+)$",
+                "mode": "extract",
+                "captureGroups": [1],
+                "flags": "m"
+              }
+            },
+            "questionType": {
+              "type": "string",
+              "description": "题型",
+              "x-parse": {
+                "pattern": "^# (.+、.+型题.*)$",
+                "mode": "extract",
+                "captureGroups": [1],
+                "flags": "m"
+              }
+            },
+            "questionNumber": {
+              "type": "string",
+              "description": "题号",
+              "x-parse": {
+                "pattern": "^(\\d+)\\.",
+                "mode": "extract",
+                "captureGroups": [1],
+                "flags": "m"
+              }
+            },
+            "questionContent": {
+              "type": "string",
+              "description": "题目内容",
+              "x-parse": {
+                "pattern": "^\\d+\\.\\s*(.+?)$",
+                "mode": "extract",
+                "captureGroups": [1],
+                "flags": "m"
+              }
+            },
+            "optionA": {
+              "type": "string",
+              "x-parse": {
+                "pattern": "^A\\.\\s*(.+?)$",
+                "mode": "extract",
+                "captureGroups": [1],
+                "flags": "m"
+              }
+            },
+            "optionB": {
+              "type": "string",
+              "x-parse": {
+                "pattern": "^B\\.\\s*(.+?)$",
+                "mode": "extract",
+                "captureGroups": [1],
+                "flags": "m"
+              }
+            },
+            "optionC": {
+              "type": "string",
+              "x-parse": {
+                "pattern": "^C\\.\\s*(.+?)$",
+                "mode": "extract",
+                "captureGroups": [1],
+                "flags": "m"
+              }
+            },
+            "optionD": {
+              "type": "string",
+              "x-parse": {
+                "pattern": "^D\\.\\s*(.+?)$",
+                "mode": "extract",
+                "captureGroups": [1],
+                "flags": "m"
+              }
+            },
+            "optionE": {
+              "type": "string",
+              "x-parse": {
+                "pattern": "^E\\.\\s*(.+?)$",
+                "mode": "extract",
+                "captureGroups": [1],
+                "flags": "m"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "answers",
+      "description": "答案区域",
+      "marker": {
+        "start": "# 附录 参考答案"
+      },
+      "outputAs": "answers",
+      "schema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "chapter": {
+              "type": "string",
+              "x-parse": {
+                "pattern": "^# (第.+章.+)$",
+                "mode": "extract",
+                "captureGroups": [1],
+                "flags": "m"
+              }
+            },
+            "questionType": {
+              "type": "string",
+              "x-parse": {
+                "pattern": "^# (.+、.+型题.*)$",
+                "mode": "extract",
+                "captureGroups": [1],
+                "flags": "m"
+              }
+            },
+            "answerLine": {
+              "type": "string",
+              "description": "答案行（如：1.C 2.B 3.D）",
+              "x-parse": {
+                "pattern": "^([\\d.A-Z\\s]+)$",
+                "mode": "extract",
+                "captureGroups": [1],
+                "flags": "m"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  
+  "postProcessors": [
+    {
+      "type": "merge-lookup",
+      "sourceField": "questions",
+      "description": "将答案与题目关联",
+      "matchStrategy": {
+        "fields": ["chapter", "questionType", "questionNumber"],
+        "algorithm": "exact",
+        "confidence": 0.95
+      }
+    }
+  ],
+  
+  "export": {
+    "outputField": "merged",
+    "columns": [
+      {
+        "field": "chapter",
+        "name": "章节",
+        "order": 1,
+        "width": 20
+      },
+      {
+        "field": "questionType",
+        "name": "题型",
+        "order": 2,
+        "width": 25
+      },
+      {
+        "field": "questionNumber",
+        "name": "题号",
+        "order": 3,
+        "width": 8
+      },
+      {
+        "field": "questionContent",
+        "name": "题目内容",
+        "order": 4,
+        "width": 50
+      },
+      {
+        "field": "optionA",
+        "name": "A",
+        "order": 5,
+        "width": 25
+      },
+      {
+        "field": "optionB",
+        "name": "B",
+        "order": 6,
+        "width": 25
+      },
+      {
+        "field": "optionC",
+        "name": "C",
+        "order": 7,
+        "width": 25
+      },
+      {
+        "field": "optionD",
+        "name": "D",
+        "order": 8,
+        "width": 25
+      },
+      {
+        "field": "optionE",
+        "name": "E",
+        "order": 9,
+        "width": 25
+      },
+      {
+        "field": "answer",
+        "name": "答案",
+        "order": 10,
+        "width": 10,
+        "format": {
+          "bold": true,
+          "alignment": "center"
+        }
+      }
+    ]
+  }
+}
+
