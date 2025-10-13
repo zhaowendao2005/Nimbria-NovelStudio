@@ -32,6 +32,8 @@ Nimbria 的 DocParser 文档解析系统是一个强大的文本解析和数据�
 - **智能正则解析**: 支持多种解析模式（extract/split/validate）和条件匹配
 - **嵌套结构支持**: 解析数组、对象等复杂数据结构
 - **灵活导出配置**: Excel/CSV 导出，支持列配置和样式自定义
+- **🆕 智能 Word 导出**: 自动检测图片、表格内容并导出到 Word 文档
+- **🆕 联合导出模式**: Excel + Word 双格式导出，支持内容保留策略
 - **实时预览**: 树形 + JSON 双视图预览解析结果
 - **标签页集成**: 作为特殊标签页类型，支持分屏、拖拽等操作
 - **Mock 优先开发**: 完整的 Mock 数据支持，便于前端独立开发
@@ -39,10 +41,12 @@ Nimbria 的 DocParser 文档解析系统是一个强大的文本解析和数据�
 ### 💡 典型应用场景
 
 1. **题目库整理**: 从Word/PDF文档中批量提取题目、选项、答案
-2. **日志分析**: 解析服务器日志文件，提取关键信息
-3. **文档转换**: Markdown → Excel，文本 → 结构化数据
-4. **数据清洗**: 从非结构化文本中提取规范化数据
-5. **批量处理**: 一次性处理大量同格式文档
+2. **🆕 图表题目分离**: 自动识别包含图片、表格的题目，分别导出到 Excel 和 Word
+3. **日志分析**: 解析服务器日志文件，提取关键信息
+4. **文档转换**: Markdown → Excel，文本 → 结构化数据
+5. **数据清洗**: 从非结构化文本中提取规范化数据
+6. **🆕 多格式输出**: 根据内容复杂度自动选择最适合的导出格式
+7. **批量处理**: 一次性处理大量同格式文档
 
 ---
 
@@ -52,11 +56,12 @@ Nimbria 的 DocParser 文档解析系统是一个强大的文本解析和数据�
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  定义Schema │ --> │  选择文档   │ --> │  执行解析   │ --> │  导出Excel  │
+│  定义Schema │ --> │  选择文档   │ --> │  执行解析   │ --> │ 智能导出    │
 │             │     │             │     │             │     │             │
-│ • 新建/加载 │     │ • 浏览文件  │     │ • 解析数据  │     │ • 配置列    │
-│ • 可视化编辑│     │ • 预览内容  │     │ • 实时预览  │     │ • 选择路径  │
-│ • 正则配置  │     │             │     │ • 查看结果  │     │ • 确认导出  │
+│ • 新建/加载 │     │ • 浏览文件  │     │ • 解析数据  │     │ • Excel导出 │
+│ • 可视化编辑│     │ • 预览内容  │     │ • 内容检测  │     │ • Word导出  │
+│ • 正则配置  │     │             │     │ • 实时预览  │     │ • 格式选择  │
+│ • Word配置  │     │             │     │ • 标记分类  │     │ • 路径配置  │
 └─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
 ```
 
@@ -65,8 +70,8 @@ Nimbria 的 DocParser 文档解析系统是一个强大的文本解析和数据�
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │  TopBar - 工具栏                                                  │
-│  [新建Schema] [加载Schema] [选择文档] [开始解析] [快速导出]      │
-│                    进度: ■■■■□ Schema → 文档 → 解析 → 导出       │
+│  [新建Schema] [加载Schema] [选择文档] [开始解析] [Excel导出] [Word导出] │
+│                    进度: ■■■■□ Schema → 文档 → 解析 → 智能导出    │
 ├──────────────────────────┬───────────────────────────────────────┤
 │  左侧区域 (50%)          │  右侧区域 (50%)                       │
 │                          │                                       │
@@ -88,10 +93,11 @@ Nimbria 的 DocParser 文档解析系统是一个强大的文本解析和数据�
 │  │ 导出配置         │   │                                       │
 │  │                  │   │                                       │
 │  │ 📋 列配置表格    │   │                                       │
+│  │ 📄 Word导出设置  │   │                                       │
 │  │ ⚙️  高级选项     │   │                                       │
 │  │ 💾 输出路径      │   │                                       │
-│  │                  │   │                                       │
-│  │ [确认导出]       │   │                                       │
+│  │ 📊 导出预览      │   │                                       │
+│  │ [Excel导出] [Word导出] │                               │
 │  └──────────────────┘   │                                       │
 └──────────────────────────┴───────────────────────────────────────┘
 ```
@@ -166,14 +172,22 @@ Nimbria 的 DocParser 文档解析系统是一个强大的文本解析和数据�
 └─ 解析耗时: 0.3 秒
 ```
 
-#### 4️⃣ 导出Excel阶段
+#### 4️⃣ 智能导出阶段
 
-**快速导出流程**:
-1. 点击TopBar的"快速导出"按钮
-2. 系统自动检查导出配置：
-   - ✅ 输出路径已设置 → 直接导出
-   - ❌ 输出路径未设置 → 提示选择路径
-3. 导出成功提示
+**智能导出流程**:
+1. 点击TopBar的"Excel导出"或"Word导出"按钮
+2. 系统自动进行内容分析：
+   - 🔍 检测图片引用（Markdown `![]()`、HTML `<img>`）
+   - 🔍 检测表格内容（Markdown 表格、HTML `<table>`）
+   - 📊 统计需要 Word 导出的数据项
+3. 根据检测结果智能决策：
+   - 🟢 无复杂内容 → 标准 Excel 导出
+   - 🟡 有图表内容 + Word导出已启用 → Excel + Word 联合导出
+   - 🔵 仅 Excel 导出 → 图表内容显示为占位文本
+4. 执行导出任务：
+   - 显示导出进度（Excel/Word 分别显示）
+   - 完成后弹出文件夹
+   - 提示导出统计信息（总数、Excel数、Word数）
 
 **导出配置项**:
 
@@ -185,6 +199,12 @@ Nimbria 的 DocParser 文档解析系统是一个强大的文本解析和数据�
 | 包含表头 | 是否显示列名 | ✅ |
 | 冻结首行 | 固定表头 | ✅ |
 | 章节标题 | 包含分组信息 | ❌ |
+| **🆕 Word导出** | **启用Word文档导出** | **❌** |
+| **🆕 Word文档名** | **Word文件名（可留空）** | **自动生成** |
+| **🆕 检测图片** | **识别图片引用** | **✅** |
+| **🆕 检测表格** | **识别表格内容** | **✅** |
+| **🆕 Excel保留** | **Word导出后在Excel中保留** | **✅** |
+| **🆕 替代文本** | **Excel中的占位文本** | **详见Word文档** |
 
 **列配置表格**:
 ```
@@ -207,7 +227,9 @@ Nimbria 的 DocParser 文档解析系统是一个强大的文本解析和数据�
 | `Ctrl + O` | 加载Schema |
 | `Ctrl + S` | 保存Schema（自动3秒防抖） |
 | `Ctrl + P` | 开始解析 |
-| `Ctrl + E` | 快速导出 |
+| `Ctrl + E` | Excel导出 |
+| `Ctrl + W` | 🆕 Word导出 |
+| `Ctrl + Shift + E` | 🆕 联合导出（Excel + Word） |
 | `Ctrl + /` | 折叠/展开全部 |
 
 ---
@@ -253,6 +275,8 @@ Nimbria 的 DocParser 文档解析系统是一个强大的文本解析和数据�
 │  - saveSchema() → 保存 Schema                    │
 │  - readDocumentFile() → 读取待解析文档           │
 │  - saveExportedFile() → 保存导出文件             │
+│  - 🆕 saveWordDocument() → 保存 Word 文档        │
+│  - 🆕 generateWordPath() → 生成 Word 文件路径    │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -263,7 +287,8 @@ DocParserPanel (主容器)
 ├── TopBar (工具栏)
 │   ├── Schema 管理 (新建/加载/保存)
 │   ├── 解析按钮
-│   └── 导出按钮
+│   ├── Excel 导出按钮
+│   └── 🆕 Word 导出按钮
 ├── FileSelector (文件选择器)
 │   └── 选择待解析文档
 ├── SchemaEditor (Schema 编辑区)
@@ -282,6 +307,8 @@ DocParserPanel (主容器)
 │   └── 统计信息
 └── ExportConfig (导出配置)
     ├── 列配置
+    ├── 🆕 Word 导出设置
+    ├── 🆕 导出预览统计
     ├── 样式配置
     └── 导出格式选择
 ```
@@ -313,14 +340,17 @@ DocParserPanel (主容器)
 | `Client/stores/projectPage/docParser/exporter.ts` | 导出逻辑封装 |
 | `Client/stores/projectPage/docParser/index.ts` | 统一导出 |
 
-### Service 层 (6个文件)
+### Service 层 (9个文件)
 
 | 文件路径 | 职责 |
 |---------|------|
 | `Client/Service/docParser/regexEngine.ts` | 正则表达式引擎 |
 | `Client/Service/docParser/schemaValidator.ts` | Schema 验证器 |
-| `Client/Service/docParser/documentParser.ts` | 文档解析器 |
-| `Client/Service/docParser/excelExporter.ts` | Excel 导出器 |
+| `Client/Service/docParser/documentParser.ts` | 文档解析器（已扩展内容检测） |
+| `Client/Service/docParser/excelExporter.ts` | Excel 导出器（已扩展Word处理） |
+| **🆕 `Client/Service/docParser/contentDetector.ts`** | **内容检测器（图片、表格识别）** |
+| **🆕 `Client/Service/docParser/wordExporter.ts`** | **Word 文档导出器** |
+| **🆕 `Client/Service/docParser/exportCoordinator.ts`** | **导出协调器（Excel+Word联合）** |
 | `Client/Service/docParser/docParser.service.types.ts` | Service 层类型 |
 | `Client/Service/docParser/index.ts` | 统一导出 |
 
@@ -333,13 +363,84 @@ DocParserPanel (主容器)
 | `Client/GUI/components/ProjectPage.MainPanel/PaneSystem/PaneContent.vue` | 支持 docparser 标签页类型 |
 | `Client/GUI/components/ProjectPage.Navigation/ProjectNavbar.vue` | 添加文档解析器入口 |
 | `Client/stores/projectPage/Markdown/markdown.store.ts` | 新增 openDocParser() 方法 |
-| `package.json` | 新增依赖: xlsx, @guolao/vue-monaco-editor |
+| `package.json` | 新增依赖: xlsx, @guolao/vue-monaco-editor, docx（Word导出） |
 
 ---
 
 ## 🔧 技术实现细节
 
-### 1. JSON Schema 扩展
+### 1. 🆕 Word 导出系统
+
+#### 内容检测机制
+
+Word 导出功能通过 `ContentDetector` 服务自动识别需要单独处理的内容：
+
+```typescript
+// 图片检测（支持 Markdown 和 HTML 格式）
+const markdownImageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g  // ![alt](src)
+const htmlImageRegex = /<img[^>]+>/gi                   // <img ...>
+
+// 表格检测（支持 Markdown 和 HTML 格式）
+const markdownTableRegex = /^\s*\|.*\|\s*\n\s*\|[\s\-:]+\|\s*$/gm
+const htmlTableRegex = /<table[^>]*>[\s\S]*?<\/table>/gi
+```
+
+#### 导出决策流程
+
+```typescript
+interface ContentDetectionResult {
+  hasImages: boolean        // 是否包含图片
+  hasTables: boolean        // 是否包含表格
+  imageCount: number        // 图片数量
+  tableCount: number        // 表格数量
+  imageReferences: string[] // 图片引用列表
+  detectionReasons: string[] // 检测原因
+}
+
+// 根据检测结果决定导出策略
+if (detectionResult.hasImages || detectionResult.hasTables) {
+  item.needsWordExport = true
+  item.wordExportReason = detectionResult.detectionReasons
+}
+```
+
+#### 联合导出架构
+
+`ExportCoordinator` 协调 Excel 和 Word 的联合导出：
+
+```typescript
+// 1. 数据分析阶段
+const stats = {
+  totalItems: data.length,
+  wordItems: data.filter(item => item.needsWordExport).length,
+  excelItems: data.length, // Excel 始终包含所有项
+  retainedInExcelItems: calculateRetainedItems(data, config)
+}
+
+// 2. 并行导出阶段
+const [excelResult, wordResult] = await Promise.all([
+  ExcelExporter.export(data, config),
+  WordExporter.export(data.filter(item => item.needsWordExport), config)
+])
+```
+
+#### Excel 内容处理策略
+
+Excel 导出器根据 Word 导出配置决定内容处理方式：
+
+```typescript
+// 策略1: 保留原内容（默认）
+if (wordConfig.retainInExcel) {
+  excelCell.value = originalContent
+}
+
+// 策略2: 使用占位文本
+else {
+  excelCell.value = wordConfig.replacementText || "详见 Word 文档"
+}
+```
+
+### 2. JSON Schema 扩展
 
 #### 自定义扩展字段
 
@@ -368,6 +469,14 @@ interface ExportMetadata {
   columnOrder?: number           // 列顺序
   columnWidth?: number           // 列宽度
   format?: string                // 格式化字符串
+  // 🆕 Word 导出配置
+  wordExport?: {
+    enabled?: boolean           // 启用 Word 导出检测
+    retainInExcel?: boolean     // 导出到 Word 时是否在 Excel 中保留
+    detectImages?: boolean      // 检测图片（默认 true）
+    detectTables?: boolean      // 检测表格（默认 true）
+    replacementText?: string    // Excel 中的替代文本
+  }
 }
 ```
 
@@ -390,7 +499,14 @@ interface ExportMetadata {
         "x-export": {
           "columnName": "标题",
           "columnOrder": 1,
-          "columnWidth": 30
+          "columnWidth": 30,
+          "wordExport": {
+            "enabled": true,
+            "detectImages": true,
+            "detectTables": true,
+            "retainInExcel": true,
+            "replacementText": "详见 Word 文档"
+          }
         }
       },
       "content": {

@@ -79,6 +79,14 @@ export interface ExportMetadata {
     background?: string
     border?: boolean
   }
+  // 🆕 Word 导出配置
+  wordExport?: {
+    enabled?: boolean           // 启用 Word 导出检测
+    retainInExcel?: boolean     // 导出到 Word 时是否在 Excel 中保留
+    detectImages?: boolean      // 检测图片（默认 true）
+    detectTables?: boolean      // 检测表格（默认 true）
+    replacementText?: string    // Excel 中的替代文本（默认："详见 Word 文档"）
+  }
 }
 
 // ==================== 导出配置结果 ====================
@@ -96,6 +104,14 @@ export interface ExportConfig {
     mergeCols: number
     format?: ExportMetadata['format']
   }>
+  // 🆕 Word 导出配置
+  wordExport?: {
+    enabled: boolean              // 全局启用 Word 导出
+    outputPath?: string           // Word 文档输出路径
+    filename?: string             // Word 文档文件名
+    includeChapters?: boolean     // 是否包含章节信息
+    imageHandling?: 'keep' | 'reference' | 'remove'  // 图片处理方式
+  }
 }
 
 // ==================== 解析结果 ====================
@@ -108,8 +124,18 @@ export interface ParsedData {
       questionNumber?: string
       questionContent?: string
       answer?: string
+      // 🆕 Word 导出标记
+      needsWordExport?: boolean     // 是否需要导出到 Word
+      hasImages?: boolean           // 是否包含图片
+      hasTables?: boolean           // 是否包含表格
+      wordExportReason?: string[]   // 导出原因列表
     }>
   }>
+  // 🆕 Word 导出标记（通用）
+  needsWordExport?: boolean
+  hasImages?: boolean
+  hasTables?: boolean
+  wordExportReason?: string[]
 }
 
 // ==================== 树节点数据（从 JiuZhang 精简） ====================
@@ -135,4 +161,35 @@ export type JsonSchemaType = 'string' | 'number' | 'integer' | 'boolean' | 'obje
 
 // 从JiuZhang项目兼容的类型
 export type { JsonSchema, JsonSchemaField } from '@types/shared'
+
+// ==================== Word 导出相关工具类型 ====================
+
+// 内容检测结果
+export interface ContentDetectionResult {
+  hasImages: boolean
+  hasTables: boolean
+  imageCount: number
+  tableCount: number
+  imageReferences: string[]   // 图片引用列表
+  detectionReasons: string[]  // 检测到的具体原因
+}
+
+// Word 导出选项
+export interface WordExportOptions {
+  filename: string
+  includeImages: boolean
+  includeChapters: boolean
+  imageHandling: 'keep' | 'reference' | 'remove'
+  replacementText: string
+}
+
+// Word 导出结果
+export interface WordExportResult {
+  success: boolean
+  wordPath?: string
+  excelPath?: string
+  exportedItemCount: number
+  retainedInExcelCount: number
+  errors?: string[]
+}
 

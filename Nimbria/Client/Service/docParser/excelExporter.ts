@@ -98,9 +98,12 @@ export class ExcelExporter {
         })
         
         if (hasLeafData) {
+          // 🆕 检查是否需要处理 Word 导出
+          const processedObj = this.processWordExportData(obj, config)
+          
           // 创建一行数据
           const row = config.columns.map(col => {
-            return this.getValueByPath(obj, col.field, parentPath) || ''
+            return this.getValueByPath(processedObj, col.field, parentPath) || ''
           })
           results.push(row)
         }
@@ -285,6 +288,73 @@ export class ExcelExporter {
     // TODO: 实现章节标题插入
     // 需要在数据行之间插入章节标题行
     console.log('[ExcelExporter] 添加章节标题（占位）')
+  }
+
+  /**
+   * 🆕 处理 Word 导出数据
+   * 根据配置决定是否需要替换内容或保留原内容
+   */
+  private static processWordExportData(obj: any, config: ExportConfig): any {
+    // 如果没有启用 Word 导出或对象没有标记，直接返回原对象
+    if (!config.wordExport?.enabled || !obj.needsWordExport) {
+      return obj
+    }
+
+    console.log('[ExcelExporter] 处理 Word 导出数据:', obj.wordExportReason)
+    
+    const processedObj = { ...obj }
+    
+    // 查找需要处理的字段
+    config.columns.forEach(column => {
+      const fieldPath = column.field
+      const fieldValue = this.getValueByPath(obj, fieldPath)
+      
+      if (typeof fieldValue === 'string' && fieldValue.trim()) {
+        // 检查该字段是否配置了 Word 导出
+        const wordExportConfig = this.getWordExportConfigForField(fieldPath, config)
+        
+        if (wordExportConfig) {
+          const shouldRetainInExcel = wordExportConfig.retainInExcel !== false // 默认保留
+          
+          if (!shouldRetainInExcel) {
+            // 不保留在 Excel 中，使用替代文本
+            const replacementText = wordExportConfig.replacementText || '详见 Word 文档'
+            this.setValueByPath(processedObj, fieldPath, replacementText)
+            console.log(`[ExcelExporter] 字段 ${fieldPath.join('.')} 替换为: ${replacementText}`)
+          }
+          // 如果 shouldRetainInExcel 为 true，保持原内容不变
+        }
+      }
+    })
+    
+    return processedObj
+  }
+
+  /**
+   * 🆕 获取字段的 Word 导出配置
+   */
+  private static getWordExportConfigForField(fieldPath: string[], config: ExportConfig): any {
+    // 简化实现：检查全局 Word 导出配置
+    // 在实际应用中，这里可能需要更复杂的字段级配置查找
+    return config.wordExport?.enabled ? {
+      retainInExcel: true, // 默认保留
+      replacementText: '详见 Word 文档'
+    } : null
+  }
+
+  /**
+   * 🆕 根据路径设置值
+   */
+  private static setValueByPath(obj: any, path: string[], value: any): void {
+    let current = obj
+    for (let i = 0; i < path.length - 1; i++) {
+      const key = path[i]
+      if (!(key in current) || typeof current[key] !== 'object') {
+        current[key] = {}
+      }
+      current = current[key]
+    }
+    current[path[path.length - 1]] = value
   }
 }
 

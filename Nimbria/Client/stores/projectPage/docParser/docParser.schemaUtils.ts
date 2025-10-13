@@ -152,20 +152,55 @@ export const schemaUtils = {
     const parts = path.split('.')
     let current: any = newSchema
 
+    // 确保根级有 properties
+    if (!current.properties) {
+      current.properties = {}
+    }
+
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i]
       if (part.endsWith('[]')) {
         const fieldName = part.slice(0, -2)
+        // 确保数组字段存在
+        if (!current.properties[fieldName]) {
+          current.properties[fieldName] = {
+            type: 'array',
+            items: { type: 'object', properties: {} }
+          }
+        }
         current = current.properties[fieldName].items
+        // 确保 items 有 properties
+        if (!current.properties) {
+          current.properties = {}
+        }
       } else {
+        // 确保对象字段存在
+        if (!current.properties[part]) {
+          current.properties[part] = {
+            type: 'object',
+            properties: {}
+          }
+        }
         current = current.properties[part]
+        // 确保对象有 properties
+        if (!current.properties) {
+          current.properties = {}
+        }
       }
     }
 
     const lastPart = parts[parts.length - 1]
     if (lastPart.endsWith('[]')) {
       const fieldName = lastPart.slice(0, -2)
-      current.properties[fieldName].items = field
+      // 确保数组字段存在
+      if (!current.properties[fieldName]) {
+        current.properties[fieldName] = {
+          type: 'array',
+          items: field
+        }
+      } else {
+        current.properties[fieldName].items = field
+      }
     } else {
       current.properties[lastPart] = field
     }

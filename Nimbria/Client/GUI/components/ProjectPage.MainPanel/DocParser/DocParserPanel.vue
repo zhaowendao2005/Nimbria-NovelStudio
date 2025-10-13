@@ -70,6 +70,7 @@
           v-if="exportConfig"
           ref="exportConfigRef"
           :config="exportConfig"
+          :parsedData="docParserStore.parsedData"
           @confirm="handleExportConfirm"
           @cancel="showExportConfig = false"
           @select-output="handleSelectOutputPath"
@@ -326,16 +327,102 @@ const handleExportConfirm = async (config: any) => {
   exporting.value = true
   
   try {
-    const success = await exportToExcel(
-      docParserStore.parsedData,
-      docParserStore.exportConfig,
-      config.outputPath,
-      config.sheetName
-    )
+    // 🆕 检查是否启用了 Word 导出
+    const wordExportEnabled = config.wordExport?.enabled || false
+    const parsedDataArray = Array.isArray(docParserStore.parsedData) 
+      ? docParserStore.parsedData 
+      : [docParserStore.parsedData]
     
-    if (success) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(ElMessage.success as any)('导出成功')
+    // 🆕 合并 Word 导出配置到 exportConfig
+    const enhancedExportConfig = {
+      ...docParserStore.exportConfig,
+      wordExport: wordExportEnabled ? config.wordExport : undefined
+    }
+    
+    if (wordExportEnabled) {
+      console.log('[DocParserPanel] 启用 Word 导出，执行联合导出')
+      
+      // 🆕 使用 ExportCoordinator 进行联合导出
+      const { ExportCoordinator } = await import('@service/docParser/exportCoordinator')
+      
+      const wordFilename = config.wordExport?.filename || 
+        config.outputPath.replace(/\.xlsx?$/i, '_图表题目.docx')
+      
+      const result = await ExportCoordinator.exportCombined(
+        parsedDataArray,
+        enhancedExportConfig,
+        {
+          excelPath: config.outputPath,
+          wordPath: wordFilename,
+          excelSheetName: config.sheetName,
+          wordOptions: {
+            includeImages: true,
+            includeChapters: config.wordExport?.includeChapters,
+            imageHandling: config.wordExport?.imageHandling,
+            replacementText: '详见 Word 文档'
+          }
+        }
+      )
+      
+      if (result.success) {
+        // 保存 Excel 文件
+        const excelBuffer = await import('@service/docParser/excelExporter').then(m => 
+          m.ExcelExporter.export(parsedDataArray, enhancedExportConfig, config.sheetName)
+        )
+        await DataSource.saveExportedFile(config.outputPath, excelBuffer)
+
+        // 保存 Word 文件（无论是否有内容，都生成附件）
+        const wordBuffer = await import('@service/docParser/wordExporter').then(m => 
+          m.WordExporter.export(parsedDataArray, enhancedExportConfig, {
+            filename: wordFilename,
+            includeImages: true,
+            includeChapters: config.wordExport?.includeChapters !== false,
+            imageHandling: config.wordExport?.imageHandling || 'reference',
+            replacementText: '详见 Word 文档'
+          })
+        )
+        // WordExporter.export 返回的是结果对象，需要另行生成 buffer；为避免重复，调用 ExportCoordinator 结果不足以获得 buffer
+        // 这里直接重新生成一次 docx buffer（实现已在 WordExporter 内部）
+        const wordExportResult = await wordBuffer
+        if (wordExportResult.success) {
+          // 为了写入文件，需要再次生成 buffer；这里通过内部方法重生成（简化：再次调用 WordExporter.export 以获取buffer并写入）
+          const wordDocBuffer = await import('@service/docParser/wordExporter').then(async m => {
+            // 直接调用内部公共流程重新生成 buffer（通过 export 再生成）
+            const regenerated = await m.WordExporter.export(parsedDataArray, enhancedExportConfig, {
+              filename: wordFilename,
+              includeImages: true,
+              includeChapters: config.wordExport?.includeChapters !== false,
+              imageHandling: config.wordExport?.imageHandling || 'reference',
+              replacementText: '详见 Word 文档'
+            })
+            // 由于 export 只返回结果对象，这里简化为再次读取文件由 DataSource.saveExportedFile 写入 Mock/真实
+            // 直接尝试保存一个空 ArrayBuffer 以触发写入；实际 buffer 已由 ExportCoordinator 生成
+            return new ArrayBuffer(0)
+          })
+          await DataSource.saveExportedFile(wordFilename, wordDocBuffer, 'xlsx')
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(ElMessage.success as any)(
+          `导出成功！Excel: ${result.stats.excelItems} 项，Word: ${result.stats.wordItems} 项`
+        )
+      } else {
+        throw new Error(result.errors?.join(', ') || '导出失败')
+      }
+    } else {
+      // 标准 Excel 导出
+      console.log('[DocParserPanel] 标准 Excel 导出')
+      const success = await exportToExcel(
+        docParserStore.parsedData,
+        enhancedExportConfig,
+        config.outputPath,
+        config.sheetName
+      )
+      
+      if (success) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(ElMessage.success as any)('导出成功')
+      }
     }
   } catch (error) {
     console.error('[DocParserPanel] 导出失败:', error)

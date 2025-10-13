@@ -232,6 +232,39 @@
                 <span class="form-tip">此字段在Excel中跨越的列数（1-50）</span>
               </el-form-item>
             </template>
+
+            <!-- 🆕 Word 导出配置 -->
+            <template v-if="xExport.type === 'column'">
+              <el-divider content-position="left">Word 导出选项</el-divider>
+              
+              <el-form-item label="启用 Word 检测">
+                <el-switch v-model="enableWordExport" />
+                <span class="form-tip">检测此字段中的图片和表格并导出到 Word</span>
+              </el-form-item>
+
+              <template v-if="enableWordExport">
+                <el-form-item label="检测内容">
+                  <el-checkbox-group v-model="wordExportOptions" class="word-options-group">
+                    <el-checkbox label="images">检测图片</el-checkbox>
+                    <el-checkbox label="tables">检测表格</el-checkbox>
+                  </el-checkbox-group>
+                </el-form-item>
+
+                <el-form-item label="Excel 中保留">
+                  <el-switch v-model="wordRetainInExcel" />
+                  <span class="form-tip">导出到 Word 后是否在 Excel 中保留原内容</span>
+                </el-form-item>
+
+                <el-form-item v-if="!wordRetainInExcel" label="替代文本">
+                  <el-input
+                    v-model="wordReplacementText"
+                    placeholder="详见 Word 文档"
+                    class="form-input"
+                  />
+                  <span class="form-tip">在 Excel 中显示的替代文本</span>
+                </el-form-item>
+              </template>
+            </template>
           </template>
         </el-form>
       </el-tab-pane>
@@ -331,6 +364,12 @@ const xExport = reactive<ExportMetadata>({
   }
 })
 
+// 🆕 Word 导出配置
+const enableWordExport = ref(false)
+const wordExportOptions = ref<string[]>(['images', 'tables'])
+const wordRetainInExcel = ref(true)
+const wordReplacementText = ref('详见 Word 文档')
+
 // 计算属性
 const visible = computed({
   get: () => props.visible,
@@ -396,6 +435,12 @@ const resetForm = () => {
     }
   })
   
+  // 🆕 重置 Word 导出配置
+  enableWordExport.value = false
+  wordExportOptions.value = ['images', 'tables']
+  wordRetainInExcel.value = true
+  wordReplacementText.value = '详见 Word 文档'
+  
   activeTab.value = 'basic'
 }
 
@@ -449,8 +494,22 @@ const loadFormData = (data: any) => {
         alignment: data['x-export'].format?.alignment || 'left'
       }
     })
+    
+    // 🆕 加载 Word 导出配置
+    const wordExport = data['x-export'].wordExport
+    if (wordExport) {
+      enableWordExport.value = wordExport.enabled || false
+      wordExportOptions.value = []
+      if (wordExport.detectImages !== false) wordExportOptions.value.push('images')
+      if (wordExport.detectTables !== false) wordExportOptions.value.push('tables')
+      wordRetainInExcel.value = wordExport.retainInExcel !== false
+      wordReplacementText.value = wordExport.replacementText || '详见 Word 文档'
+    } else {
+      enableWordExport.value = false
+    }
   } else {
     enableExport.value = false
+    enableWordExport.value = false
   }
 }
 
@@ -565,6 +624,17 @@ const handleConfirm = async () => {
             bold: xExport.format?.bold || false,
             fontSize: xExport.format?.fontSize || 12,
             alignment: xExport.format?.alignment || 'left'
+          }
+        }
+        
+        // 🆕 添加 Word 导出配置
+        if (enableWordExport.value) {
+          fieldData['x-export'].wordExport = {
+            enabled: true,
+            detectImages: wordExportOptions.value.includes('images'),
+            detectTables: wordExportOptions.value.includes('tables'),
+            retainInExcel: wordRetainInExcel.value,
+            replacementText: wordReplacementText.value
           }
         }
       } else if (xExport.type === 'section-header') {
@@ -685,5 +755,12 @@ watch(() => props.initialData, (newData) => {
 .field-form :deep(.el-checkbox__label) {
   white-space: normal;
   line-height: 1.4;
+}
+
+/* 🆕 Word 导出选项样式 */
+.word-options-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 </style>

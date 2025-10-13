@@ -6,6 +6,7 @@
 import type { DocParserSchema, DocParserSchemaField, ParsedData } from '@stores/projectPage/docParser/docParser.types'
 import type { ParseContext } from './docParser.service.types'
 import { RegexEngine } from './regexEngine'
+import { ContentDetector } from './contentDetector'
 
 /**
  * 文档解析器
@@ -42,7 +43,11 @@ export class DocumentParser {
       }
       
       console.log('[DocumentParser] 解析完成，结果数量:', Array.isArray(result) ? result.length : 1)
-      return result as ParsedData
+      
+      // 🆕 添加内容检测和 Word 导出标记
+      const processedResult = this.addWordExportMarkers(result, schema)
+      
+      return processedResult as ParsedData
     } catch (error) {
       console.error('[DocumentParser] 解析失败:', error)
       throw error
@@ -318,6 +323,177 @@ export class DocumentParser {
     }
     
     return segments.filter(s => s.trim().length > 0)
+  }
+
+  /**
+   * 🆕 为解析结果添加 Word 导出标记
+   */
+  private static addWordExportMarkers(result: any, schema: DocParserSchema): any {
+    console.log('[DocumentParser] 开始添加 Word 导出标记')
+    
+    if (Array.isArray(result)) {
+      // 数组类型：对每个项目进行检测
+      return result.map((item, index) => this.processItemForWordExport(item, schema, index))
+    } else if (typeof result === 'object' && result !== null) {
+      // 对象类型：直接检测
+      return this.processItemForWordExport(result, schema, 0)
+    }
+    
+    return result
+  }
+
+  /**
+   * 🆕 处理单个项目的 Word 导出检测
+   */
+  private static processItemForWordExport(item: any, schema: DocParserSchema, index: number): any {
+    if (!item || typeof item !== 'object') {
+      return item
+    }
+
+    // 获取需要检测的字段配置
+    const fieldsWithWordExport = this.getFieldsWithWordExportConfig(schema)
+    
+    if (fieldsWithWordExport.length === 0) {
+      // 没有配置 Word 导出的字段，使用默认检测
+      return this.addDefaultWordExportDetection(item, index)
+    }
+
+    // 基于配置进行检测
+    let needsWordExport = false
+    let hasImages = false
+    let hasTables = false
+    const wordExportReasons: string[] = []
+
+    fieldsWithWordExport.forEach(fieldConfig => {
+      const fieldValue = this.getFieldValue(item, fieldConfig.fieldPath)
+      
+      if (typeof fieldValue === 'string' && fieldValue.trim()) {
+        const detection = ContentDetector.detect(fieldValue)
+        const wordConfig = fieldConfig.wordExport
+
+        // 检查是否需要导出到 Word
+        const shouldDetectImages = wordConfig?.detectImages !== false
+        const shouldDetectTables = wordConfig?.detectTables !== false
+
+        if (shouldDetectImages && detection.hasImages) {
+          hasImages = true
+          needsWordExport = true
+          wordExportReasons.push(`${fieldConfig.fieldPath.join('.')}: 检测到${detection.imageCount}个图片`)
+        }
+
+        if (shouldDetectTables && detection.hasTables) {
+          hasTables = true
+          needsWordExport = true
+          wordExportReasons.push(`${fieldConfig.fieldPath.join('.')}: 检测到${detection.tableCount}个表格`)
+        }
+      }
+    })
+
+    // 添加标记
+    const processedItem = { ...item }
+    if (needsWordExport) {
+      processedItem.needsWordExport = true
+      processedItem.hasImages = hasImages
+      processedItem.hasTables = hasTables
+      processedItem.wordExportReason = wordExportReasons
+      
+      console.log(`[DocumentParser] 项目 ${index} 标记为需要 Word 导出:`, wordExportReasons)
+    }
+
+    return processedItem
+  }
+
+  /**
+   * 🆕 获取配置了 Word 导出的字段
+   */
+  private static getFieldsWithWordExportConfig(schema: DocParserSchema): Array<{
+    fieldPath: string[]
+    wordExport?: any
+  }> {
+    const fields: Array<{ fieldPath: string[], wordExport?: any }> = []
+    
+    if (schema.type === 'array' && schema.items && !Array.isArray(schema.items)) {
+      // 数组项是对象
+      this.collectWordExportFields(schema.items, fields, [])
+    } else if (schema.type === 'object' && schema.properties) {
+      // 根对象
+      this.collectWordExportFields(schema, fields, [])
+    }
+    
+    return fields
+  }
+
+  /**
+   * 🆕 递归收集配置了 Word 导出的字段
+   */
+  private static collectWordExportFields(
+    schemaField: DocParserSchemaField, 
+    fields: Array<{ fieldPath: string[], wordExport?: any }>, 
+    currentPath: string[]
+  ): void {
+    if (!schemaField.properties) return
+
+    Object.entries(schemaField.properties).forEach(([key, field]) => {
+      const fieldPath = [...currentPath, key]
+      
+      // 检查当前字段是否配置了 Word 导出
+      if (field['x-export']?.wordExport?.enabled) {
+        fields.push({
+          fieldPath,
+          wordExport: field['x-export'].wordExport
+        })
+      }
+      
+      // 递归检查子字段
+      if (field.type === 'object' && field.properties) {
+        this.collectWordExportFields(field, fields, fieldPath)
+      }
+    })
+  }
+
+  /**
+   * 🆕 添加默认的 Word 导出检测（当没有配置时）
+   */
+  private static addDefaultWordExportDetection(item: any, index: number): any {
+    // 默认检测常见的题目和答案字段
+    const commonFields = ['questionContent', 'answer', 'content', 'text', 'description']
+    const fieldsToCheck = commonFields.filter(field => 
+      typeof item[field] === 'string' && item[field].trim()
+    )
+    
+    if (fieldsToCheck.length === 0) {
+      return item
+    }
+
+    const detection = ContentDetector.detectInFields(item, fieldsToCheck)
+    
+    if (detection.hasImages || detection.hasTables) {
+      const processedItem = { ...item }
+      processedItem.needsWordExport = true
+      processedItem.hasImages = detection.hasImages
+      processedItem.hasTables = detection.hasTables
+      processedItem.wordExportReason = detection.detectionReasons
+      
+      console.log(`[DocumentParser] 项目 ${index} 默认检测标记为需要 Word 导出:`, detection.detectionReasons)
+      return processedItem
+    }
+    
+    return item
+  }
+
+  /**
+   * 🆕 根据字段路径获取值
+   */
+  private static getFieldValue(obj: any, path: string[]): any {
+    let current = obj
+    for (const key of path) {
+      if (current && typeof current === 'object' && key in current) {
+        current = current[key]
+      } else {
+        return undefined
+      }
+    }
+    return current
   }
 }
 
