@@ -112,13 +112,36 @@
         <div class="section-header">
           <span class="section-title">JSON Schema代码</span>
           <div class="section-actions">
+            <!-- 类型选择 -->
+            <el-select 
+              v-model="schemaRootType" 
+              size="small" 
+              style="width: 100px;"
+              @change="handleRootTypeChange"
+            >
+              <el-option label="Object" value="object" />
+              <el-option label="Array" value="array" />
+            </el-select>
+            
+            <!-- 清空按钮 -->
             <el-button 
               size="small" 
               :icon="RefreshRight"
-              @click="handleFormatCode"
+              @click="handleClearSchema"
             >
-              格式化
+              清空
             </el-button>
+            
+            <!-- 示例按钮 -->
+            <el-button 
+              size="small" 
+              :icon="Document"
+              @click="handleLoadExample"
+            >
+              示例
+            </el-button>
+            
+            <!-- 复制按钮 -->
             <el-button 
               size="small" 
               :icon="CopyDocument"
@@ -162,7 +185,7 @@
 import { ref, computed, watch, reactive } from 'vue'
 import { 
   Upload, Share, Plus, MoreFilled, Edit, Delete, 
-  RefreshRight, CopyDocument 
+  RefreshRight, CopyDocument, Document
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import TreeSchemaNode from './TreeSchemaNode.vue'
@@ -194,6 +217,7 @@ const emit = defineEmits<{
 // 响应式数据
 const saving = ref(false)
 const workingSchema = ref<JsonSchema>({ ...props.initialSchema })
+const schemaRootType = ref<'object' | 'array'>(props.initialSchema.type || 'object')
 
 // 本地类型（避免全局类型未导出导致的阻塞）
 interface FieldEditForm {
@@ -401,29 +425,62 @@ const handleFieldConfirm = (fieldData: any, context: any) => {
     
     // 根级或对象类型父级：写入 Schema；数组父级：仅维护可视化树
     if (!context.parentPath) {
-      if (!workingSchema.value.properties) {
-        workingSchema.value.properties = {}
-        console.log('🏗️ [SchemaEditorDialog] 初始化properties对象')
-      }
-      const newField: any = {
-        type: fieldData.type,
-        description: fieldData.description,
-        required: fieldData.required
-      }
-      if (fieldData.type === 'array') {
-        newField.items = []
+      // ✅ 检查根节点类型
+      if (workingSchema.value.type === 'array') {
+        // Array 类型：添加到 items.properties 中
+        console.log('🏗️ [SchemaEditorDialog] 根节点是 array 类型，添加到 items.properties')
+        if (!workingSchema.value.items) {
+          workingSchema.value.items = { type: 'object', properties: {} }
+        }
+        const itemsObj = workingSchema.value.items as any
+        if (!itemsObj.properties) {
+          itemsObj.properties = {}
+        }
+        const newField: any = {
+          type: fieldData.type,
+          description: fieldData.description,
+          required: fieldData.required
+        }
+        if (fieldData.type === 'array') {
+          newField.items = []
+        } else {
+          newField.items = fieldData.items ?? templateFactory.getTemplateItems(fieldData.type)
+        }
+        // 🆕 保存扩展字段
+        if (fieldData['x-parse']) {
+          newField['x-parse'] = fieldData['x-parse']
+        }
+        if (fieldData['x-export']) {
+          newField['x-export'] = fieldData['x-export']
+        }
+        itemsObj.properties[fieldName] = newField
       } else {
-        // 为所有类型补齐 items 占位（统一格式）
-        newField.items = fieldData.items ?? templateFactory.getTemplateItems(fieldData.type)
+        // Object 类型：添加到 properties 中
+        console.log('🏗️ [SchemaEditorDialog] 根节点是 object 类型，添加到 properties')
+        if (!workingSchema.value.properties) {
+          workingSchema.value.properties = {}
+          console.log('🏗️ [SchemaEditorDialog] 初始化properties对象')
+        }
+        const newField: any = {
+          type: fieldData.type,
+          description: fieldData.description,
+          required: fieldData.required
+        }
+        if (fieldData.type === 'array') {
+          newField.items = []
+        } else {
+          // 为所有类型补齐 items 占位（统一格式）
+          newField.items = fieldData.items ?? templateFactory.getTemplateItems(fieldData.type)
+        }
+        // 🆕 保存扩展字段
+        if (fieldData['x-parse']) {
+          newField['x-parse'] = fieldData['x-parse']
+        }
+        if (fieldData['x-export']) {
+          newField['x-export'] = fieldData['x-export']
+        }
+        workingSchema.value.properties[fieldName] = newField as JsonSchemaField
       }
-      // 🆕 保存扩展字段
-      if (fieldData['x-parse']) {
-        newField['x-parse'] = fieldData['x-parse']
-      }
-      if (fieldData['x-export']) {
-        newField['x-export'] = fieldData['x-export']
-      }
-      workingSchema.value.properties[fieldName] = newField as JsonSchemaField
     } else {
       const parentField = schemaUtils.getFieldByPath(workingSchema.value, context.parentPath)
       const parentType = (parentField as any)?.type
@@ -481,7 +538,8 @@ const handleFieldConfirm = (fieldData: any, context: any) => {
     console.log('✅ [SchemaEditorDialog] 字段已添加到workingSchema:', fieldName)
     console.log('📄 [SchemaEditorDialog] 更新后的workingSchema:', JSON.stringify(workingSchema.value, null, 2))
     
-    ElMessage.success(`字段 "${fieldName}" 添加成功`)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.success as any)(`字段 "${fieldName}" 添加成功`)
   } else if (context?.mode === 'edit') {
     console.log('✏️ [SchemaEditorDialog] 执行编辑字段模式')
     console.log('📍 [SchemaEditorDialog] 原始字段路径:', context.fieldPath)
@@ -618,7 +676,8 @@ const handleFieldConfirm = (fieldData: any, context: any) => {
     console.log('✅ [SchemaEditorDialog] 字段编辑完成')
     console.log('📄 [SchemaEditorDialog] 更新后的workingSchema:', JSON.stringify(workingSchema.value, null, 2))
     
-    ElMessage.success(`字段编辑成功: ${context.originalFieldName} -> ${fieldName}`)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.success as any)(`字段编辑成功: ${context.originalFieldName} -> ${fieldName}`)
   }
   
   fieldDialogVisible.value = false
@@ -634,31 +693,187 @@ const handleCodeChange = (newCode: string) => {
   const parsed = schemaUtils.parseSchemaFromJson(newCode)
   if (parsed) {
     workingSchema.value = parsed
+    // 同步更新树数据
+    treeData.value = treeConverter.jsonSchemaToTreeData(parsed)
   }
 }
 
-const handleFormatCode = () => {
-  ElMessage.success('代码已格式化')
+const handleRootTypeChange = (type: 'object' | 'array') => {
+  console.log('🔄 [SchemaEditorDialog] 根节点类型切换:', type)
+  if (type === 'object') {
+    workingSchema.value = {
+      ...workingSchema.value,
+      type,
+      properties: workingSchema.value.properties || {}
+    }
+    delete (workingSchema.value as any).items
+  } else {
+    workingSchema.value = {
+      ...workingSchema.value,
+      type,
+      items: workingSchema.value.items || { type: 'object', properties: {} }
+    }
+    delete (workingSchema.value as any).properties
+  }
+  // 同步更新树数据
+  treeData.value = treeConverter.jsonSchemaToTreeData(workingSchema.value)
+}
+
+const handleClearSchema = () => {
+  ElMessageBox.confirm('确定要清空 Schema 吗？将保留基本结构。', '确认清空', {
+    type: 'warning'
+  }).then(() => {
+    // 清空为基本格式
+    if (schemaRootType.value === 'object') {
+      // Object 类型：只保留 properties
+      const newSchema: any = {
+        type: 'object',
+        properties: {}
+      }
+      workingSchema.value = newSchema
+    } else {
+      // Array 类型：只保留 items
+      const newSchema: any = {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {}
+        }
+      }
+      workingSchema.value = newSchema
+    }
+    // 同步更新树数据
+    treeData.value = treeConverter.jsonSchemaToTreeData(workingSchema.value)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.success as any)('Schema 已清空')
+  }).catch(() => {
+    // 用户取消
+  })
+}
+
+const handleLoadExample = () => {
+  // 根据类型加载示例
+  if (schemaRootType.value === 'object') {
+    workingSchema.value = {
+      type: 'object',
+      title: '配置文档解析',
+      description: '示例：解析配置文档',
+      properties: {
+        projectName: {
+          type: 'string',
+          description: '项目名称',
+          'x-parse': {
+            pattern: '项目名称[：:]\\s*(.+)',
+            mode: 'extract',
+            captureGroups: [1],
+            flags: 'm'
+          },
+          'x-export': {
+            type: 'column',
+            columnName: '项目名称',
+            columnOrder: 1,
+            columnWidth: 25
+          }
+        },
+        version: {
+          type: 'string',
+          description: '版本号',
+          'x-parse': {
+            pattern: '版本[：:]\\s*([\\d.]+)',
+            mode: 'extract',
+            captureGroups: [1],
+            flags: 'm'
+          },
+          'x-export': {
+            type: 'column',
+            columnName: '版本',
+            columnOrder: 2,
+            columnWidth: 15
+          }
+        }
+      },
+      required: ['projectName']
+    }
+  } else {
+    workingSchema.value = {
+      type: 'array',
+      title: '题目解析',
+      description: '示例：解析题目列表',
+      items: {
+        type: 'object',
+        properties: {
+          questionNumber: {
+            type: 'string',
+            description: '题号',
+            'x-parse': {
+              pattern: '^(\\d+)\\.',
+              mode: 'extract',
+              captureGroups: [1],
+              flags: 'm'
+            },
+            'x-export': {
+              type: 'column',
+              columnName: '题号',
+              columnOrder: 1,
+              columnWidth: 8
+            }
+          },
+          questionContent: {
+            type: 'string',
+            description: '题目内容',
+            'x-parse': {
+              pattern: '(?<=^\\d+\\.)(.+?)(?=\\n[A-D]\\.|$)',
+              mode: 'extract',
+              captureGroups: [1],
+              flags: 'ms'
+            },
+            'x-export': {
+              type: 'column',
+              columnName: '题目内容',
+              columnOrder: 2,
+              columnWidth: 50
+            }
+          },
+          answer: {
+            type: 'string',
+            description: '答案',
+            'x-parse': {
+              pattern: '答案[：:]?\\s*([A-D])',
+              mode: 'extract',
+              captureGroups: [1],
+              flags: 'i'
+            },
+            'x-export': {
+              type: 'column',
+              columnName: '答案',
+              columnOrder: 3,
+              columnWidth: 8,
+              format: {
+                bold: true,
+                alignment: 'center'
+              }
+            }
+          }
+        },
+        required: ['questionNumber', 'questionContent', 'answer']
+      }
+    }
+  }
+  // 同步更新树数据
+  treeData.value = treeConverter.jsonSchemaToTreeData(workingSchema.value)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(ElMessage.success as any)('已加载示例 Schema')
 }
 
 const handleCopyCode = async () => {
   try {
     await navigator.clipboard.writeText(schemaJson.value)
-    ElMessage.success('代码已复制到剪贴板')
-  } catch (error) {
-    ElMessage.error('复制失败')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.success as any)('代码已复制到剪贴板')
+  } catch {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.error as any)('复制失败')
   }
-}
-
-// LLM生成
-const openLlmGenerator = () => {
-  llmDialogVisible.value = true
-}
-
-const handleLlmConfirm = (generatedSchema: JsonSchema) => {
-  workingSchema.value = generatedSchema
-  llmDialogVisible.value = false
-  ElMessage.success('Schema生成成功')
 }
 
 // 其他功能
@@ -674,21 +889,26 @@ const handleJsonImport = async () => {
       })
       
       workingSchema.value = generatedSchema
-      ElMessage.success('JSON导入成功')
-    } catch (parseError) {
-      ElMessage.error('剪贴板内容不是有效的JSON格式')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(ElMessage.success as any)('JSON导入成功')
+    } catch {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(ElMessage.error as any)('剪贴板内容不是有效的JSON格式')
     }
-  } catch (clipboardError) {
-    ElMessage.error('读取剪贴板失败，请手动粘贴JSON数据')
+  } catch {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.error as any)('读取剪贴板失败，请手动粘贴JSON数据')
   }
 }
 
 const handleShare = async () => {
   try {
     await navigator.clipboard.writeText(schemaJson.value)
-    ElMessage.success('Schema已复制到剪贴板，可以分享给其他人')
-  } catch (error) {
-    ElMessage.error('分享失败')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.success as any)('Schema已复制到剪贴板，可以分享给其他人')
+  } catch {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.error as any)('分享失败')
   }
 }
 
@@ -701,7 +921,8 @@ const handleFieldNameChange = (node: TreeNodeData, newName: string) => {
   
   if (!schemaUtils.isValidFieldName(newName)) {
     console.error('❌ [SchemaEditorDialog] 字段名格式不正确:', newName)
-    ElMessage.error('字段名格式不正确')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.error as any)('字段名格式不正确')
     return
   }
   
@@ -716,7 +937,8 @@ const handleFieldNameChange = (node: TreeNodeData, newName: string) => {
   workingSchema.value = treeConverter.treeDataToSchema(treeData.value)
   console.log('📄 [SchemaEditorDialog] 重命名后的workingSchema:', JSON.stringify(workingSchema.value, null, 2))
   
-  ElMessage.success(`字段重命名成功: ${node.fieldName} -> ${newName}`)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(ElMessage.success as any)(`字段重命名成功: ${node.fieldName} -> ${newName}`)
   console.log('🏁 [SchemaEditorDialog] handleFieldNameChange 执行结束')
 }
 
@@ -737,7 +959,8 @@ const handleFieldTypeChange = (node: TreeNodeData, newType: JsonSchemaType) => {
   treeData.value = updateNodeType(treeData.value)
   workingSchema.value = treeConverter.treeDataToSchema(treeData.value)
   
-  ElMessage.success('字段类型已更新')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(ElMessage.success as any)('字段类型已更新')
 }
 
 const handleFieldRequiredToggle = (node: TreeNodeData) => {
@@ -756,7 +979,8 @@ const handleFieldRequiredToggle = (node: TreeNodeData) => {
   treeData.value = toggleNodeRequired(treeData.value)
   workingSchema.value = treeConverter.treeDataToSchema(treeData.value)
   
-  ElMessage.success(node.isRequired ? '已设为非必填' : '已设为必填')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(ElMessage.success as any)(node.isRequired ? '已设为非必填' : '已设为必填')
 }
 
 const handleAddChildField = (parentNode: TreeNodeData, childType: JsonSchemaType, fieldName?: string) => {
@@ -800,7 +1024,8 @@ const handleDeleteField = (node: TreeNodeData) => {
     treeData.value = removeNode(treeData.value)
     workingSchema.value = treeConverter.treeDataToSchema(treeData.value)
     
-    ElMessage.success('字段删除成功')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ElMessage.success as any)('字段删除成功')
   }).catch(() => {
     // 用户取消删除
   })

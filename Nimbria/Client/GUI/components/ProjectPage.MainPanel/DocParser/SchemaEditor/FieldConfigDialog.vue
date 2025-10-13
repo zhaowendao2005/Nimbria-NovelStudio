@@ -155,7 +155,7 @@
             <el-form-item label="导出类型" required>
               <el-select v-model="xExport.type" class="form-input">
                 <el-option label="column - 普通列" value="column" />
-                <el-option label="section-header - 章节标题" value="section-header" />
+                <el-option label="section-header - 多行合并" value="section-header" />
                 <el-option label="ignore - 不导出" value="ignore" />
               </el-select>
             </el-form-item>
@@ -219,16 +219,17 @@
               </el-form-item>
             </template>
 
-            <!-- 章节标题配置（仅 section-header 类型） -->
+            <!-- 多行合并配置（仅 section-header 类型） -->
             <template v-if="xExport.type === 'section-header'">
-              <el-form-item label="合并列数">
+              <el-form-item label="跨越列数">
                 <el-input-number
                   v-model="xExport.mergeCols"
                   :min="1"
-                  placeholder="合并列数"
+                  :max="50"
+                  placeholder="跨越列数"
                   class="form-input"
                 />
-                <span class="form-tip">章节标题跨越的列数</span>
+                <span class="form-tip">此字段在Excel中跨越的列数（1-50）</span>
               </el-form-item>
             </template>
           </template>

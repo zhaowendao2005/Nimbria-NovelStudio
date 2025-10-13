@@ -449,13 +449,23 @@ const handleTypeChange = (newType: JsonSchemaType) => {
 
 /* 操作按钮 */
 .node-actions {
+  position: absolute;
+  right: 8px;
+  top: -2px;
   display: flex;
   align-items: center;
   opacity: 0;
   transition: opacity 0.2s ease;
   flex-shrink: 0;
-  margin-left: 12px; /* 🔧 与内容保持距离 */
-  min-width: 180px; /* 🔧 确保操作按钮组有足够的显示空间 */
+  background: white;
+  padding: 2px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+}
+
+.tree-schema-node {
+  position: relative; /* 为绝对定位的子元素提供参考 */
 }
 
 .tree-schema-node:hover .node-actions {
