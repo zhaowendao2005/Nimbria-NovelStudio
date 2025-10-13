@@ -7,12 +7,16 @@
 
 export interface DocParserSchema {
   $schema?: string
-  type: 'object' | 'array'
+  type: 'object' | 'array' | 'multi-region'  // 🆕 支持多区域类型
   title?: string
   description?: string
   properties?: Record<string, DocParserSchemaField>
   items?: DocParserSchemaField | DocParserSchemaField[]
   required?: string[]
+  
+  // 🆕 多区域配置（仅当 type === 'multi-region' 时使用）
+  regions?: ParseRegion[]
+  postProcessors?: PostProcessorConfig[]
 }
 
 export interface DocParserSchemaField {
@@ -191,5 +195,61 @@ export interface WordExportResult {
   exportedItemCount: number
   retainedInExcelCount: number
   errors?: string[]
+}
+
+// ==================== 🆕 多区域解析相关类型 ====================
+
+// 解析区域定义
+export interface ParseRegion {
+  name: string                    // 区域名称（如 'questions', 'answers'）
+  description?: string            // 区域说明
+  outputAs?: string              // 输出字段名（默认同 name）
+  
+  // 提取方式1：按行范围
+  range?: {
+    start: number                 // 起始行号（从1开始）
+    end: number                   // 结束行号
+  }
+  
+  // 提取方式2：按标记识别（二选一）
+  marker?: {
+    start: string                 // 起始标记（如 "# 附录 参考答案"）
+    end?: string                  // 结束标记（可选，默认到文档末尾）
+  }
+  
+  schema: DocParserSchema         // 该区域的解析规则（可以是 object 或 array）
+}
+
+// 后处理器配置
+export interface PostProcessorConfig {
+  type: 'merge-lookup' | 'cross-reference' | 'transform'
+  description?: string
+  
+  // merge-lookup 专用配置
+  source?: string                 // 源数据区域名
+  lookup?: string                 // 查找表区域名
+  matchFields?: string[]          // 匹配字段列表
+  strategy?: 'exact' | 'fuzzy' | 'position'  // 匹配策略
+  confidence?: number             // 置信度阈值（0-1）
+  
+  // cross-reference 专用配置
+  sourceField?: string
+  targetField?: string
+  
+  // transform 专用配置
+  transformFn?: string            // 转换函数名称
+}
+
+// 多区域解析结果
+export interface MultiRegionParseResult {
+  regions: Record<string, any>    // 各区域的解析结果
+  merged?: any                    // 合并后的最终结果
+  statistics?: {
+    totalItems: number
+    regionStats: Record<string, {
+      itemCount: number
+      matchedCount?: number
+    }>
+  }
 }
 

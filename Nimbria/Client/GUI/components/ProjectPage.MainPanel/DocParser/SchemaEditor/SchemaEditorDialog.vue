@@ -32,6 +32,69 @@
 
     <!-- 主要编辑区域 -->
     <div class="editor-content">
+      <!-- 🆕 Multi-Region 专用编辑器 -->
+      <template v-if="schemaRootType === 'multi-region'">
+        <!-- 左侧：多区域配置 -->
+        <div class="visual-editor-section">
+          <div class="section-header">
+            <span class="section-title">多区域配置</span>
+          </div>
+          <div class="editor-container">
+            <MultiRegionEditor
+              v-model="workingSchema"
+              @update:model-value="handleMultiRegionUpdate"
+            />
+          </div>
+        </div>
+
+        <!-- 右侧：代码编辑器 -->
+        <div class="code-editor-section">
+          <div class="section-header">
+            <span class="section-title">JSON Schema代码</span>
+            <div class="section-actions">
+              <!-- 类型选择 -->
+              <el-select 
+                v-model="schemaRootType" 
+                size="small" 
+                style="width: 160px;"
+                @change="handleRootTypeChange"
+              >
+                <el-option label="Object" value="object" />
+                <el-option label="Array" value="array" />
+                <el-option label="Multi-Region (多区域)" value="multi-region" />
+              </el-select>
+              
+              <!-- 清空按钮 -->
+              <el-button 
+                size="small" 
+                :icon="RefreshRight"
+                @click="handleClearSchema"
+              >
+                清空
+              </el-button>
+              
+              <!-- 复制按钮 -->
+              <el-button 
+                size="small" 
+                :icon="CopyDocument"
+                @click="handleCopyCode"
+              >
+                复制
+              </el-button>
+            </div>
+          </div>
+          <div class="editor-container">
+            <JsonSchemaCodeEditor 
+              v-model="schemaJson"
+              :read-only="false"
+              @change="handleCodeChange"
+            />
+          </div>
+        </div>
+      </template>
+      
+      <!-- 原有的 Object/Array 编辑器 -->
+      <template v-else>
       <!-- 左侧：可视化编辑器 -->
       <div class="visual-editor-section">
         <div class="section-header">
@@ -116,11 +179,12 @@
             <el-select 
               v-model="schemaRootType" 
               size="small" 
-              style="width: 100px;"
+              style="width: 160px;"
               @change="handleRootTypeChange"
             >
               <el-option label="Object" value="object" />
               <el-option label="Array" value="array" />
+              <el-option label="Multi-Region (多区域)" value="multi-region" />
             </el-select>
             
             <!-- 清空按钮 -->
@@ -159,6 +223,7 @@
           />
         </div>
       </div>
+      </template>
     </div>
 
     <!-- 字段配置对话框 -->
@@ -191,6 +256,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import TreeSchemaNode from './TreeSchemaNode.vue'
 import JsonSchemaCodeEditor from './JsonSchemaCodeEditor.vue'
 import FieldConfigDialog from './FieldConfigDialog.vue'
+import MultiRegionEditor from './MultiRegionEditor.vue'
 import { treeConverter, schemaUtils, schemaGenerator, templateFactory } from '@stores/projectPage/docParser/docParser.schemaUtils'
 import type { 
   JsonSchema, 
@@ -217,7 +283,7 @@ const emit = defineEmits<{
 // 响应式数据
 const saving = ref(false)
 const workingSchema = ref<JsonSchema>({ ...props.initialSchema })
-const schemaRootType = ref<'object' | 'array'>(props.initialSchema.type || 'object')
+const schemaRootType = ref<'object' | 'array' | 'multi-region'>(props.initialSchema.type || 'object')
 
 // 本地类型（避免全局类型未导出导致的阻塞）
 interface FieldEditForm {
@@ -698,7 +764,7 @@ const handleCodeChange = (newCode: string) => {
   }
 }
 
-const handleRootTypeChange = (type: 'object' | 'array') => {
+const handleRootTypeChange = (type: 'object' | 'array' | 'multi-region') => {
   console.log('🔄 [SchemaEditorDialog] 根节点类型切换:', type)
   if (type === 'object') {
     workingSchema.value = {
@@ -707,16 +773,37 @@ const handleRootTypeChange = (type: 'object' | 'array') => {
       properties: workingSchema.value.properties || {}
     }
     delete (workingSchema.value as any).items
-  } else {
+    delete (workingSchema.value as any).regions
+    delete (workingSchema.value as any).postProcessors
+  } else if (type === 'array') {
     workingSchema.value = {
       ...workingSchema.value,
       type,
       items: workingSchema.value.items || { type: 'object', properties: {} }
     }
     delete (workingSchema.value as any).properties
+    delete (workingSchema.value as any).regions
+    delete (workingSchema.value as any).postProcessors
+  } else if (type === 'multi-region') {
+    // 🆕 多区域模式
+    workingSchema.value = {
+      ...workingSchema.value,
+      type,
+      regions: workingSchema.value.regions || [],
+      postProcessors: workingSchema.value.postProcessors || []
+    }
+    delete (workingSchema.value as any).properties
+    delete (workingSchema.value as any).items
   }
-  // 同步更新树数据
-  treeData.value = treeConverter.jsonSchemaToTreeData(workingSchema.value)
+  // 同步更新树数据（仅非 multi-region 模式）
+  if (type !== 'multi-region') {
+    treeData.value = treeConverter.jsonSchemaToTreeData(workingSchema.value)
+  }
+}
+
+// 🆕 处理 MultiRegionEditor 的更新
+const handleMultiRegionUpdate = (newSchema: JsonSchema) => {
+  workingSchema.value = newSchema
 }
 
 const handleClearSchema = () => {

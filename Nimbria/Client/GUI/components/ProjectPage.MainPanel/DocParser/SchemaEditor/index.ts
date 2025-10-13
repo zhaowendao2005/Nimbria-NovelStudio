@@ -5,3 +5,6 @@ export { default as TreeSchemaNode } from './TreeSchemaNode.vue';
 export { default as SchemaEditorDialog } from './SchemaEditorDialog.vue';
 export { default as FieldConfigDialog } from './FieldConfigDialog.vue';
 export { default as JsonSchemaCodeEditor } from './JsonSchemaCodeEditor.vue';
+export { default as MultiRegionEditor } from './MultiRegionEditor.vue';
+export { default as RegionConfigDialog } from './RegionConfigDialog.vue';
+export { default as PostProcessorPanel } from './PostProcessorPanel.vue';
