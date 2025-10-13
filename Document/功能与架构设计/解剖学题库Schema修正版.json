@@ -1,0 +1,128 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "multi-region",
+  "title": "解剖学题库完整解析Schema（修正版）",
+  "description": "解析题目答案分离的解剖学题库，通过章节、题型、题号三级匹配关联数据",
+  "regions": [
+    {
+      "name": "questions",
+      "description": "题目内容区域（第1-51158行）",
+      "range": {
+        "start": 1,
+        "end": 51158
+      },
+      "schema": {
+        "type": "array",
+        "title": "题目列表",
+        "description": "使用全局匹配提取所有题目",
+        "items": {
+          "type": "object",
+          "x-parse": {
+            "pattern": "^\\d+[.、][\\s\\S]*?(?=^\\d+[.、]|$)",
+            "mode": "extract",
+            "flags": "gm"
+          },
+          "properties": {
+            "questionNumber": {
+              "type": "string",
+              "description": "题号",
+              "x-parse": {
+                "pattern": "^(\\d+)[.、]",
+                "mode": "extract",
+                "captureGroups": [1]
+              },
+              "x-export": {
+                "type": "column",
+                "columnName": "题号",
+                "columnOrder": 1,
+                "columnWidth": 8
+              }
+            },
+            "questionContent": {
+              "type": "string",
+              "description": "完整题目内容（包含题干和选项）",
+              "x-parse": {
+                "pattern": "^\\d+[.、]\\s*([\\s\\S]+)",
+                "mode": "extract",
+                "captureGroups": [1]
+              },
+              "x-export": {
+                "type": "column",
+                "columnName": "题目内容",
+                "columnOrder": 2,
+                "columnWidth": 80
+              }
+            }
+          },
+          "required": ["questionNumber", "questionContent"]
+        }
+      }
+    },
+    {
+      "name": "answers",
+      "description": "答案区域（从'附录 参考答案'开始到文档末尾）",
+      "marker": {
+        "start": "# 附录 参考答案"
+      },
+      "schema": {
+        "type": "array",
+        "title": "答案列表",
+        "description": "使用全局匹配提取所有答案",
+        "items": {
+          "type": "object",
+          "x-parse": {
+            "pattern": "^\\d+[.、][\\s\\S]*?(?=^\\d+[.、]|$)",
+            "mode": "extract",
+            "flags": "gm"
+          },
+          "properties": {
+            "questionNumber": {
+              "type": "string",
+              "description": "题号",
+              "x-parse": {
+                "pattern": "^(\\d+)[.、]",
+                "mode": "extract",
+                "captureGroups": [1]
+              }
+            },
+            "answerContent": {
+              "type": "string",
+              "description": "答案内容",
+              "x-parse": {
+                "pattern": "^\\d+[.、]\\s*([\\s\\S]+)",
+                "mode": "extract",
+                "captureGroups": [1]
+              },
+              "x-export": {
+                "type": "column",
+                "columnName": "答案",
+                "columnOrder": 3,
+                "columnWidth": 50,
+                "format": {
+                  "bold": true,
+                  "alignment": "left"
+                }
+              }
+            }
+          },
+          "required": ["questionNumber", "answerContent"]
+        }
+      }
+    }
+  ],
+  "postProcessors": [
+    {
+      "type": "merge-lookup",
+      "name": "关联题目和答案",
+      "description": "通过题号关联题目和答案",
+      "sourceRegion": "questions",
+      "lookupRegion": "answers",
+      "matchFields": {
+        "source": "questionNumber",
+        "lookup": "questionNumber"
+      },
+      "strategy": "exact",
+      "mergeMode": "extend"
+    }
+  ]
+}

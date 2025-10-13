@@ -339,6 +339,26 @@ export const useDocParserStore = defineStore('projectPage-docParser', () => {
       traverse(schema.items, [])
     }
     
+    // 🆕 支持 multi-region 类型的 regions
+    if (schema.type === 'multi-region' && schema.regions) {
+      console.log('[DocParser Store] Schema是multi-region类型，遍历regions')
+      
+      schema.regions.forEach(region => {
+        const regionName = region.outputAs || region.name
+        console.log(`[DocParser Store] 处理region: ${regionName}`)
+        
+        if (region.schema) {
+          if (region.schema.properties) {
+            // 对象类型的region
+            traverse(region.schema, [regionName])
+          } else if (region.schema.type === 'array' && region.schema.items && !Array.isArray(region.schema.items)) {
+            // 数组类型的region
+            traverse(region.schema.items, [regionName])
+          }
+        }
+      })
+    }
+    
     // 按 order 排序
     config.columns.sort((a, b) => a.order - b.order)
     

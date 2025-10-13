@@ -223,6 +223,7 @@ export interface ParseRegion {
 // 后处理器配置
 export interface PostProcessorConfig {
   type: 'merge-lookup' | 'cross-reference' | 'transform'
+  name?: string                       // 可选的后处理器名称
   description?: string
   
   // merge-lookup 专用配置

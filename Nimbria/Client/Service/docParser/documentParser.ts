@@ -36,10 +36,10 @@ export class DocumentParser {
       // 根据 Schema 的根节点类型选择解析方式
       if (schema.type === 'array') {
         // array 类型：解析为数组
-        result = this.parseArray(context, schema, [])
+        result = this.parseArray(context, schema as DocParserSchemaField, [])
       } else {
         // object 类型：解析为对象
-        result = this.parseObject(context, schema, [])
+        result = this.parseObject(context, schema as DocParserSchemaField, [])
       }
       
       console.log('[DocumentParser] 解析完成，结果数量:', Array.isArray(result) ? result.length : 1)
@@ -147,7 +147,7 @@ export class DocumentParser {
           result.push(item)
         } else {
           // 基本类型直接使用匹配值
-          result.push(this.convertValue(match.value, itemSchema.type))
+          result.push(this.convertValue(match.value, itemSchema.type || 'string'))
         }
       })
     } else if (itemSchema.type === 'object') {
@@ -185,7 +185,7 @@ export class DocumentParser {
     
     console.log(`[DocumentParser] ${path.join('.')} 匹配值: ${match.value}`)
     
-    return this.convertValue(match.value, schema.type)
+    return this.convertValue(match.value, schema.type || 'string')
   }
   
   /**
@@ -220,6 +220,11 @@ export class DocumentParser {
    */
   static parseAdvanced(content: string, schema: DocParserSchema): ParsedData {
     console.log('[DocumentParser] 开始智能解析，Schema 类型:', schema.type)
+    
+    // 🆕 支持 multi-region 类型的 Schema
+    if (schema.type === 'multi-region') {
+      return this.parseMultiRegion(content, schema)
+    }
     
     // 支持 array 类型的 Schema
     if (schema.type === 'array') {
@@ -417,7 +422,7 @@ export class DocumentParser {
       this.collectWordExportFields(schema.items, fields, [])
     } else if (schema.type === 'object' && schema.properties) {
       // 根对象
-      this.collectWordExportFields(schema, fields, [])
+      this.collectWordExportFields(schema as DocParserSchemaField, fields, [])
     }
     
     return fields
@@ -494,6 +499,228 @@ export class DocumentParser {
       }
     }
     return current
+  }
+
+  /**
+   * 🆕 解析多区域文档
+   */
+  private static parseMultiRegion(content: string, schema: DocParserSchema): ParsedData {
+    console.log('[DocumentParser] 开始多区域解析')
+    
+    if (!schema.regions || schema.regions.length === 0) {
+      throw new Error('Multi-region schema 必须包含至少一个 region')
+    }
+    
+    const regionResults: Record<string, any> = {}
+    
+    // 1. 解析每个区域
+    console.log(`[DocumentParser] 共有 ${schema.regions?.length} 个区域需要解析`)
+    
+    schema.regions?.forEach((region, index) => {
+      console.log(`[DocumentParser] 解析区域 ${index + 1}/${schema.regions?.length}: ${region.name}`)
+      
+      try {
+        // 提取区域文本
+        const regionContent = this.extractRegionContent(content, region)
+        console.log(`[DocumentParser] 区域 "${region.name}" 提取到 ${regionContent.length} 个字符`)
+        
+        // 解析区域内容
+        const regionResult = this.parse(regionContent, region.schema)
+        
+        // 存储结果（使用 outputAs 或 name）
+        const outputKey = region.outputAs || region.name
+        regionResults[outputKey] = regionResult
+        
+        console.log(`[DocumentParser] 区域 "${region.name}" 解析完成，输出为: ${outputKey}`)
+        
+      } catch (error) {
+        console.error(`[DocumentParser] 区域 "${region.name}" 解析失败:`, error)
+        throw new Error(`区域 "${region.name}" 解析失败: ${String(error)}`)
+      }
+    })
+    
+    // 2. 执行后处理器（数据关联）
+    let finalResult = regionResults
+    
+    if (schema.postProcessors && schema.postProcessors.length > 0) {
+      console.log(`[DocumentParser] 开始执行 ${schema.postProcessors.length} 个后处理器`)
+      
+      schema.postProcessors.forEach((processor, index) => {
+        console.log(`[DocumentParser] 执行后处理器 ${index + 1}: ${processor.name || processor.type}`)
+        
+        try {
+          finalResult = this.executePostProcessor(finalResult, processor)
+        } catch (error) {
+          console.error(`[DocumentParser] 后处理器 "${processor.name || processor.type}" 执行失败:`, error)
+          throw new Error(`后处理器 "${processor.name || processor.type}" 执行失败: ${String(error)}`)
+        }
+      })
+    }
+    
+    console.log('[DocumentParser] 多区域解析完成')
+    return finalResult as ParsedData
+  }
+
+  /**
+   * 🆕 提取指定区域的文档内容
+   */
+  private static extractRegionContent(content: string, region: any): string {
+    const lines = content.split('\n')
+    
+    if (region.range) {
+      // 按行范围提取
+      const start = Math.max(0, region.range.start - 1) // 转换为0基索引
+      const end = Math.min(lines.length, region.range.end)
+      
+      console.log(`[DocumentParser] 按行范围提取: ${region.range.start}-${region.range.end} (实际: ${start}-${end})`)
+      
+      return lines.slice(start, end).join('\n')
+      
+    } else if (region.marker) {
+      // 按标记符提取
+      const startMarker = region.marker?.start
+      const endMarker = region.marker?.end
+      
+      console.log(`[DocumentParser] 按标记符提取: "${startMarker}" 到 "${endMarker || '文档末尾'}"`)
+      
+      let startLine = -1
+      let endLine = lines.length
+      
+      // 查找起始标记
+      if (!startMarker) {
+        throw new Error(`区域 "${region.name}" 的起始标记不能为空`)
+      }
+      
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i]?.includes(startMarker)) {
+          startLine = i
+          break
+        }
+      }
+      
+      if (startLine === -1) {
+        throw new Error(`未找到起始标记: "${startMarker}"`)
+      }
+      
+      // 查找结束标记（如果指定了）
+      if (endMarker && typeof endMarker === 'string') {
+        for (let i = startLine + 1; i < lines.length; i++) {
+          if (lines[i]?.includes(endMarker)) {
+            endLine = i
+            break
+          }
+        }
+      }
+      
+      console.log(`[DocumentParser] 标记符定位: 第${startLine + 1}行 到 第${endLine}行`)
+      
+      return lines.slice(startLine, endLine).join('\n')
+      
+    } else {
+      throw new Error(`区域 "${region.name}" 必须指定 range 或 marker`)
+    }
+  }
+
+  /**
+   * 🆕 执行后处理器
+   */
+  private static executePostProcessor(regionResults: Record<string, any>, processor: any): Record<string, any> {
+    console.log(`[DocumentParser] 执行后处理器: ${processor.type}`)
+    
+    if (processor.type === 'merge-lookup') {
+      return this.executeMergeLookup(regionResults, processor)
+    } else {
+      console.warn(`[DocumentParser] 暂不支持的后处理器类型: ${processor.type}`)
+      return regionResults
+    }
+  }
+
+  /**
+   * 🆕 执行 merge-lookup 后处理器
+   */
+  private static executeMergeLookup(regionResults: Record<string, any>, processor: any): Record<string, any> {
+    const sourceData = regionResults[processor.sourceRegion]
+    const lookupData = regionResults[processor.lookupRegion]
+    
+    if (!sourceData || !lookupData) {
+      console.error(`[DocumentParser] 后处理器数据源不存在: source=${processor.sourceRegion}, lookup=${processor.lookupRegion}`)
+      return regionResults
+    }
+    
+    console.log(`[DocumentParser] merge-lookup: ${processor.sourceRegion} (${Array.isArray(sourceData) ? sourceData.length : 1}条) + ${processor.lookupRegion} (${Array.isArray(lookupData) ? lookupData.length : 1}条)`)
+    
+    // 确保数据是数组格式
+    const sourceArray = Array.isArray(sourceData) ? sourceData : [sourceData]
+    const lookupArray = Array.isArray(lookupData) ? lookupData : [lookupData]
+    
+    // 创建查找索引（提高性能）
+    const lookupIndex = new Map<string, any>()
+    lookupArray.forEach(item => {
+      const lookupKey = this.generateMatchKey(item, processor.matchFields.lookup, processor)
+      if (lookupKey) {
+        lookupIndex.set(lookupKey, item)
+      }
+    })
+    
+    console.log(`[DocumentParser] 创建查找索引，包含 ${lookupIndex.size} 项`)
+    
+    // 关联数据
+    let matchedCount = 0
+    const mergedSource = sourceArray.map(sourceItem => {
+      const sourceKey = this.generateMatchKey(sourceItem, processor.matchFields.source, processor)
+      
+      if (sourceKey && lookupIndex.has(sourceKey)) {
+        const lookupItem = lookupIndex.get(sourceKey)
+        matchedCount++
+        
+        if (processor.mergeMode === 'nest') {
+          // 嵌套模式：将查找结果作为子对象
+          return {
+            ...sourceItem,
+            [processor.lookupRegion]: lookupItem
+          }
+        } else {
+          // 扩展模式：合并字段（默认）
+          return {
+            ...sourceItem,
+            ...lookupItem
+          }
+        }
+      } else {
+        // 没有匹配到，保持原数据
+        return sourceItem
+      }
+    })
+    
+    console.log(`[DocumentParser] 数据关联完成: ${matchedCount}/${sourceArray.length} 项匹配成功`)
+    
+    // 更新结果
+    const result = { ...regionResults }
+    result[processor.sourceRegion] = mergedSource
+    
+    return result
+  }
+
+  /**
+   * 🆕 生成匹配键
+   */
+  private static generateMatchKey(item: any, fieldName: string, processor: any): string | null {
+    // 如果是特殊的 matchKey 字段，需要动态生成
+    if (fieldName === 'matchKey') {
+      const chapterNumber = item.chapterNumber || ''
+      const questionType = item.questionType || ''
+      const questionNumber = item.questionNumber || ''
+      
+      if (!chapterNumber || !questionType || !questionNumber) {
+        return null
+      }
+      
+      return `${chapterNumber}-${questionType}-${questionNumber}`
+    }
+    
+    // 普通字段直接取值
+    const value = item[fieldName]
+    return value ? String(value).trim() : null
   }
 }
 
