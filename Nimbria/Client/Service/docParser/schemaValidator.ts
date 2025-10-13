@@ -28,16 +28,17 @@ export class SchemaValidator {
       return result
     }
     
-    // 支持两种模式：object（单对象）和 array（对象数组）
-    if (schema.type !== 'object' && schema.type !== 'array') {
+    // 支持三种模式：object（单对象）、array（对象数组）和 multi-region（多区域）
+    if (schema.type !== 'object' && schema.type !== 'array' && schema.type !== 'multi-region') {
       const currentType = schema.type || '未定义'
-      result.errors.push(`❌ [根节点.type] 必须是 "object" 或 "array"，当前值: "${String(currentType)}"`)
+      result.errors.push(`❌ [根节点.type] 必须是 "object"、"array" 或 "multi-region"，当前值: "${String(currentType)}"`)
       result.valid = false
       return result
     }
     
-    // 如果是 array 类型，验证 items
+    // 验证不同类型的Schema结构
     if (schema.type === 'array') {
+      // array 类型，验证 items
       if (!schema.items || typeof schema.items !== 'object' || Array.isArray(schema.items)) {
         result.errors.push('❌ [根节点.items] array 类型的 Schema 必须包含 items 字段，且 items 必须是对象')
         result.valid = false
@@ -59,9 +60,29 @@ export class SchemaValidator {
       
       // 验证 items 中的 properties
       this.validateProperties(items.properties, ['items'], result)
-    } 
-    // 如果是 object 类型，验证 properties
-    else {
+      
+    } else if (schema.type === 'multi-region') {
+      // multi-region 类型，验证 regions 和 postProcessors
+      if (!schema.regions || !Array.isArray(schema.regions) || schema.regions.length === 0) {
+        result.errors.push('❌ [根节点.regions] multi-region 类型的 Schema 必须包含至少一个 region')
+        result.valid = false
+        return result
+      }
+      
+      // 验证每个 region
+      schema.regions.forEach((region, index) => {
+        this.validateRegion(region, index, result)
+      })
+      
+      // 验证 postProcessors（可选）
+      if (schema.postProcessors && Array.isArray(schema.postProcessors)) {
+        schema.postProcessors.forEach((processor, index) => {
+          this.validatePostProcessor(processor, index, result)
+        })
+      }
+      
+    } else {
+      // object 类型，验证 properties
       if (!schema.properties || typeof schema.properties !== 'object') {
         result.errors.push('❌ [根节点.properties] object 类型的 Schema 必须包含 properties 字段')
         result.valid = false
@@ -72,12 +93,143 @@ export class SchemaValidator {
       this.validateProperties(schema.properties, [], result)
     }
     
-    // 3. 验证导出配置
-    this.validateExportConfig(schema, result)
+    // 3. 验证导出配置（multi-region类型不需要根级导出配置）
+    if (schema.type !== 'multi-region') {
+      this.validateExportConfig(schema, result)
+    }
     
     result.valid = result.errors.length === 0
     
     return result
+  }
+  
+  /**
+   * 验证 region 配置
+   */
+  private static validateRegion(
+    region: any,
+    index: number,
+    result: SchemaValidationResult
+  ): void {
+    const path = `regions[${index}]`
+    
+    // 验证 name（必填）
+    if (!region.name || typeof region.name !== 'string') {
+      result.errors.push(`❌ [${path}.name] region 必须有一个字符串类型的 name`)
+      return
+    }
+    
+    // 验证提取方式（range 或 marker 二选一）
+    const hasRange = region.range && typeof region.range === 'object'
+    const hasMarker = region.marker && typeof region.marker === 'object'
+    
+    if (!hasRange && !hasMarker) {
+      result.errors.push(`❌ [${path}] region 必须指定 range 或 marker 其中之一`)
+      return
+    }
+    
+    if (hasRange && hasMarker) {
+      result.warnings.push(`⚠️ [${path}] region 同时指定了 range 和 marker，将优先使用 range`)
+    }
+    
+    // 验证 range 配置
+    if (hasRange) {
+      if (typeof region.range.start !== 'number' || region.range.start < 1) {
+        result.errors.push(`❌ [${path}.range.start] 必须是大于等于1的整数`)
+      }
+      if (typeof region.range.end !== 'number' || region.range.end < 1) {
+        result.errors.push(`❌ [${path}.range.end] 必须是大于等于1的整数`)
+      }
+      if (region.range.start && region.range.end && region.range.start > region.range.end) {
+        result.errors.push(`❌ [${path}.range] start (${region.range.start}) 不能大于 end (${region.range.end})`)
+      }
+    }
+    
+    // 验证 marker 配置
+    if (hasMarker) {
+      if (!region.marker.start || typeof region.marker.start !== 'string') {
+        result.errors.push(`❌ [${path}.marker.start] 必须是非空字符串`)
+      }
+      if (region.marker.end !== undefined && typeof region.marker.end !== 'string') {
+        result.errors.push(`❌ [${path}.marker.end] 必须是字符串类型`)
+      }
+    }
+    
+    // 验证 schema（必填）
+    if (!region.schema || typeof region.schema !== 'object') {
+      result.errors.push(`❌ [${path}.schema] region 必须包含一个 schema 对象`)
+      return
+    }
+    
+    // 递归验证 region 的 schema（但不支持嵌套 multi-region）
+    if (region.schema.type === 'multi-region') {
+      result.errors.push(`❌ [${path}.schema] region 的 schema 不能是 multi-region 类型`)
+      return
+    }
+    
+    // 使用主验证逻辑验证 region 的 schema
+    const regionSchemaValidation = SchemaValidator.validate(region.schema)
+    if (!regionSchemaValidation.valid) {
+      regionSchemaValidation.errors.forEach(error => {
+        result.errors.push(`❌ [${path}.schema] ${error}`)
+      })
+    }
+    regionSchemaValidation.warnings.forEach(warning => {
+      result.warnings.push(`⚠️ [${path}.schema] ${warning}`)
+    })
+  }
+  
+  /**
+   * 验证 postProcessor 配置
+   */
+  private static validatePostProcessor(
+    processor: any,
+    index: number,
+    result: SchemaValidationResult
+  ): void {
+    const path = `postProcessors[${index}]`
+    
+    // 验证 type（必填）
+    const validTypes = ['merge-lookup', 'cross-reference', 'transform']
+    if (!processor.type || !validTypes.includes(processor.type)) {
+      result.errors.push(`❌ [${path}.type] 必须是 ${validTypes.map(t => `"${t}"`).join('、')} 之一，当前值: "${processor.type || '未定义'}"`)
+      return
+    }
+    
+    // 验证 merge-lookup 特有配置
+    if (processor.type === 'merge-lookup') {
+      if (!processor.sourceRegion || typeof processor.sourceRegion !== 'string') {
+        result.errors.push(`❌ [${path}.sourceRegion] merge-lookup 类型必须指定 sourceRegion`)
+      }
+      if (!processor.lookupRegion || typeof processor.lookupRegion !== 'string') {
+        result.errors.push(`❌ [${path}.lookupRegion] merge-lookup 类型必须指定 lookupRegion`)
+      }
+      if (!processor.matchFields || typeof processor.matchFields !== 'object') {
+        result.errors.push(`❌ [${path}.matchFields] merge-lookup 类型必须指定 matchFields`)
+      } else {
+        if (!processor.matchFields.source || typeof processor.matchFields.source !== 'string') {
+          result.errors.push(`❌ [${path}.matchFields.source] 必须是字符串类型`)
+        }
+        if (!processor.matchFields.lookup || typeof processor.matchFields.lookup !== 'string') {
+          result.errors.push(`❌ [${path}.matchFields.lookup] 必须是字符串类型`)
+        }
+      }
+      
+      // 验证可选字段
+      if (processor.strategy) {
+        const validStrategies = ['exact', 'fuzzy', 'position-based']
+        if (!validStrategies.includes(processor.strategy)) {
+          result.warnings.push(`⚠️ [${path}.strategy] 推荐使用 ${validStrategies.map(s => `"${s}"`).join('、')} 之一，当前值: "${processor.strategy}"`)
+        }
+      }
+      
+      if (processor.mergeMode) {
+        const validModes = ['extend', 'nest']
+        if (!validModes.includes(processor.mergeMode)) {
+          result.warnings.push(`⚠️ [${path}.mergeMode] 推荐使用 ${validModes.map(m => `"${m}"`).join('、')} 之一，当前值: "${processor.mergeMode}"`)
+        }
+      }
+    }
   }
   
   /**
@@ -293,7 +445,7 @@ export class SchemaValidator {
    */
   static quickValidate(schema: DocParserSchema): boolean {
     try {
-      // 支持 object 和 array 两种类型
+      // 支持 object、array 和 multi-region 三种类型
       if (schema.type === 'object') {
         return schema.properties && Object.keys(schema.properties).length > 0
       }
@@ -304,6 +456,17 @@ export class SchemaValidator {
           && items.type === 'object' 
           && items.properties 
           && Object.keys(items.properties).length > 0
+      }
+      
+      if (schema.type === 'multi-region') {
+        return schema.regions 
+          && Array.isArray(schema.regions) 
+          && schema.regions.length > 0
+          && schema.regions.every(region => 
+            region.name 
+            && (region.range || region.marker)
+            && region.schema
+          )
       }
       
       return false
