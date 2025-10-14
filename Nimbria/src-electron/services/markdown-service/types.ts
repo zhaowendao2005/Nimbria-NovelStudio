@@ -98,5 +98,6 @@ export interface WriteOptions {
 export interface ReadOptions {
   encoding?: BufferEncoding
   parseFrontMatter?: boolean
+  forceFullRead?: boolean // 🔥 强制完整读取大文件
 }
 

@@ -29,13 +29,49 @@ export function registerMarkdownHandlers() {
   })
 
   // 读取文件
-  ipcMain.handle(CHANNELS.MARKDOWN_READ_FILE, async (_event, filePath: string) => {
+  ipcMain.handle(CHANNELS.MARKDOWN_READ_FILE, async (_event, filePath: string, options = {}) => {
     try {
       logger.debug('IPC: markdown:readFile', filePath)
-      const content = await markdownService.reader.readMarkdownFile(filePath)
+      const content = await markdownService.reader.readMarkdownFile(filePath, options)
       return { success: true, data: content }
     } catch (error) {
       logger.error('IPC: markdown:readFile failed', error)
+      return { success: false, error: String(error) }
+    }
+  })
+
+  // 🔥 获取文件信息（包含大文件检测）
+  ipcMain.handle('markdown:getFileInfo', async (_event, filePath: string) => {
+    try {
+      logger.debug('IPC: markdown:getFileInfo', filePath)
+      const info = await markdownService.reader.getFileInfo(filePath)
+      return { success: true, data: info }
+    } catch (error) {
+      logger.error('IPC: markdown:getFileInfo failed', error)
+      return { success: false, error: String(error) }
+    }
+  })
+
+  // 🔥 读取文件指定范围
+  ipcMain.handle('markdown:readFileRange', async (_event, filePath: string, startLine: number, endLine: number) => {
+    try {
+      logger.debug('IPC: markdown:readFileRange', { filePath, startLine, endLine })
+      const content = await markdownService.reader.readFileRange(filePath, startLine, endLine)
+      return { success: true, data: content }
+    } catch (error) {
+      logger.error('IPC: markdown:readFileRange failed', error)
+      return { success: false, error: String(error) }
+    }
+  })
+
+  // 🔥 在文件中搜索
+  ipcMain.handle('markdown:searchInFile', async (_event, filePath: string, searchTerm: string, maxResults?: number) => {
+    try {
+      logger.debug('IPC: markdown:searchInFile', { filePath, searchTerm, maxResults })
+      const results = await markdownService.reader.searchInFile(filePath, searchTerm, maxResults)
+      return { success: true, data: results }
+    } catch (error) {
+      logger.error('IPC: markdown:searchInFile failed', error)
       return { success: false, error: String(error) }
     }
   })

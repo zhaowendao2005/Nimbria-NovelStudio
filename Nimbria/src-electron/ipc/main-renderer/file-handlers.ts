@@ -7,6 +7,7 @@ import * as path from 'path'
 import { CHANNELS } from './channel-definitions'
 import type { ProjectFileSystem } from '../../services/file-service/project-fs'
 import type { ProcessManager } from '../../services/window-service/process-manager'
+import type { FileWatcherService } from '../../services/file-service/file-watcher'
 import { getLogger } from '../../utils/shared/logger'
 
 const logger = getLogger('FileHandlers')
@@ -17,6 +18,7 @@ const logger = getLogger('FileHandlers')
 export function registerFileHandlers(deps: {
   projectFileSystem: ProjectFileSystem
   processManager: ProcessManager
+  fileWatcher: FileWatcherService
 }) {
   /**
    * 创建文件
@@ -129,6 +131,56 @@ export function registerFileHandlers(deps: {
         success: false,
         error: String(error)
       }
+    }
+  })
+
+  /**
+   * 🔥 启动文件监听
+   */
+  ipcMain.handle('file-watcher:start', async (event, watchPath: string, options = {}) => {
+    try {
+      logger.info(`Starting file watcher: ${watchPath}`)
+      
+      const window = BrowserWindow.fromWebContents(event.sender)
+      if (!window) {
+        return { success: false, error: 'Window not found' }
+      }
+      
+      const windowProcess = deps.processManager.getProcessByWindowId(window.id)
+      if (!windowProcess || windowProcess.type !== 'project') {
+        return { success: false, error: 'Not a project window' }
+      }
+      
+      // 启动监听
+      const result = await deps.fileWatcher.startWatch(watchPath, windowProcess.id, options)
+      
+      if (result.success) {
+        // 设置事件处理器，将文件变更事件转发给前端
+        deps.fileWatcher.addEventHandler((changeEvent) => {
+          // 只转发给相关的项目窗口
+          if (changeEvent.projectId === windowProcess.id) {
+            window.webContents.send('file-watcher:change', changeEvent)
+          }
+        })
+      }
+      
+      return result
+    } catch (error) {
+      logger.error('File watcher start error:', error)
+      return { success: false, error: String(error) }
+    }
+  })
+
+  /**
+   * 🔥 停止文件监听
+   */
+  ipcMain.handle('file-watcher:stop', async (event, watcherId: string) => {
+    try {
+      logger.info(`Stopping file watcher: ${watcherId}`)
+      return await deps.fileWatcher.stopWatch(watcherId)
+    } catch (error) {
+      logger.error('File watcher stop error:', error)
+      return { success: false, error: String(error) }
     }
   })
   

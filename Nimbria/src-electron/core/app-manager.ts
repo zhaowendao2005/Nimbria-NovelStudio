@@ -14,6 +14,7 @@ import type { IPCRequest, IPCResponse, WindowOperationResult } from '../types/ip
 
 import { WindowManager } from '../services/window-service/window-manager'
 import { ProjectFileSystem } from '../services/file-service/project-fs'
+import { FileWatcherService } from '../services/file-service/file-watcher'
 import { ProjectManager } from '../services/project-service/project-manager'
 import { getLogger, closeLogSystem, getLogFilePath } from '../utils/shared/logger'
 import { getRecentProjects, upsertRecentProject, clearRecentProjects } from '../store/recent-projects-store'
@@ -30,6 +31,7 @@ export class AppManager {
   private windowManager: WindowManager | null = null
   private mainProcess: WindowProcess | null = null
   private projectFileSystem!: ProjectFileSystem
+  private fileWatcher!: FileWatcherService
   private projectManager!: ProjectManager
   private llmConfigManager!: LlmConfigManager
   private transferMap?: Map<string, { sourceWebContentsId: number; tabId: string }>
@@ -73,9 +75,10 @@ export class AppManager {
 
   private initializeFileSystem() {
     this.projectFileSystem = new ProjectFileSystem()
+    this.fileWatcher = new FileWatcherService()
     this.projectManager = new ProjectManager()
     this.llmConfigManager = new LlmConfigManager()
-    logger.info('File system, project management and LLM config services initialized')
+    logger.info('File system, file watcher, project management and LLM config services initialized')
   }
 
   private initializeWindowManager() {
@@ -426,7 +429,8 @@ export class AppManager {
     // 注册文件/目录创建 IPC 处理器（传入依赖）
     registerFileHandlers({
       projectFileSystem: this.projectFileSystem,
-      processManager: this.windowManager!.getProcessManager()
+      processManager: this.windowManager!.getProcessManager(),
+      fileWatcher: this.fileWatcher
     })
     logger.info('File IPC handlers registered')
     

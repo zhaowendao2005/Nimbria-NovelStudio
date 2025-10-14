@@ -4,12 +4,22 @@ import { docParserMockData, addMockSchema, getMockSchemaList } from './docParser
 
 // 定义 Nimbria API 接口类型
 interface MarkdownAPI {
-  readFile?: (filePath: string) => Promise<string>
+  readFile?: (filePath: string, options?: { forceFullRead?: boolean }) => Promise<string>
   writeFile?: (filePath: string, content: string, options?: { createBackup?: boolean }) => Promise<{ success: boolean; error?: string }>
+  getFileInfo?: (filePath: string) => Promise<{ success: boolean; data?: any; error?: string }>
+  readFileRange?: (filePath: string, startLine: number, endLine: number) => Promise<{ success: boolean; data?: string; error?: string }>
+  searchInFile?: (filePath: string, searchTerm: string, maxResults?: number) => Promise<{ success: boolean; data?: any[]; error?: string }>
 }
 
 interface FileAPI {
   createFile?: (filePath: string, content: string) => Promise<{ success: boolean; error?: string }>
+}
+
+interface FileWatcherAPI {
+  startWatch?: (watchPath: string, options?: any) => Promise<{ success: boolean; watcherId?: string; error?: string }>
+  stopWatch?: (watcherId: string) => Promise<{ success: boolean; error?: string }>
+  onFileChange?: (callback: (event: any) => void) => void
+  removeFileChangeListener?: () => void
 }
 
 interface DocParserAPI {
@@ -27,6 +37,7 @@ interface DocParserAPI {
 interface NimbriaAPI {
   markdown?: MarkdownAPI
   file?: FileAPI
+  fileWatcher?: FileWatcherAPI
   docParser?: DocParserAPI
   getCurrentProjectPath?: () => string | null
 }
@@ -53,13 +64,91 @@ class ProjectPageDataSource {
   /**
    * 获取文件内容
    */
-  async getFileContent(filePath: string) {
+  async getFileContent(filePath: string, options?: { forceFullRead?: boolean }) {
     if (Environment.shouldUseMock()) {
       return MockFileAPI.getFileContent(filePath);
     }
     // Electron 环境：使用原有的 markdown.readFile API
     const nimbriaAPI = window.nimbria as NimbriaAPI | undefined
-    return nimbriaAPI?.markdown?.readFile(filePath);
+    return nimbriaAPI?.markdown?.readFile(filePath, options);
+  }
+
+  /**
+   * 🔥 获取文件信息（包含大文件检测）
+   */
+  async getFileInfo(filePath: string) {
+    if (Environment.shouldUseMock()) {
+      // Mock 环境返回模拟数据
+      return {
+        path: filePath,
+        size: Math.random() * 10 * 1024 * 1024, // 随机大小
+        isLarge: Math.random() > 0.7, // 30% 概率为大文件
+        encoding: 'utf-8'
+      };
+    }
+    
+    const nimbriaAPI = window.nimbria as NimbriaAPI | undefined;
+    if (!nimbriaAPI?.markdown?.getFileInfo) {
+      throw new Error('File info API not available');
+    }
+    
+    const result = await nimbriaAPI.markdown.getFileInfo(filePath);
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to get file info');
+    }
+    
+    return result.data;
+  }
+
+  /**
+   * 🔥 读取文件指定范围
+   */
+  async readFileRange(filePath: string, startLine: number, endLine: number): Promise<string> {
+    if (Environment.shouldUseMock()) {
+      // Mock 环境返回模拟内容
+      const lines = [];
+      for (let i = startLine; i <= endLine; i++) {
+        lines.push(`Line ${i}: Mock content for ${filePath}`);
+      }
+      return lines.join('\n');
+    }
+    
+    const nimbriaAPI = window.nimbria as NimbriaAPI | undefined;
+    if (!nimbriaAPI?.markdown?.readFileRange) {
+      throw new Error('File range API not available');
+    }
+    
+    const result = await nimbriaAPI.markdown.readFileRange(filePath, startLine, endLine);
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to read file range');
+    }
+    
+    return result.data || '';
+  }
+
+  /**
+   * 🔥 在文件中搜索
+   */
+  async searchInFile(filePath: string, searchTerm: string, maxResults?: number) {
+    if (Environment.shouldUseMock()) {
+      // Mock 环境返回模拟搜索结果
+      return [
+        { line: 1, content: `Mock result containing ${searchTerm}`, index: 0 },
+        { line: 5, content: `Another ${searchTerm} result`, index: 100 }
+      ];
+    }
+    
+    const nimbriaAPI = window.nimbria as NimbriaAPI | undefined;
+    if (!nimbriaAPI?.markdown?.searchInFile) {
+      throw new Error('Search API not available');
+    }
+    
+    const result = await nimbriaAPI.markdown.searchInFile(filePath, searchTerm, maxResults);
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to search in file');
+    }
+    
+    return result.data || [];
   }
 
   /**

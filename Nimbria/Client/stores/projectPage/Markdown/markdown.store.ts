@@ -131,13 +131,14 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
       let targetPath = path || projectPath.value
       
       if (!targetPath) {
-        // 从当前项目窗口获取项目路径
-        const nimbriaAPI = window.nimbria as ExtendedNimbriaAPI | undefined
-        targetPath = nimbriaAPI?.getCurrentProjectPath?.() || null
-        if (targetPath) {
-          projectPath.value = targetPath
-          console.log('Auto-detected project path:', targetPath)
-        }
+      // 从当前项目窗口获取项目路径
+      const nimbriaAPI = window.nimbria as ExtendedNimbriaAPI | undefined
+      const detectedPath = nimbriaAPI?.getCurrentProjectPath?.() || null
+      if (detectedPath) {
+        targetPath = detectedPath
+        projectPath.value = detectedPath
+        console.log('Auto-detected project path:', detectedPath)
+      }
       }
       
       if (!targetPath) {
@@ -159,8 +160,13 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
         maxDepth: 10
       })
       
-      fileTree.value = tree
-      console.log('File tree loaded:', tree.length, 'items')
+      if (tree) {
+        fileTree.value = tree
+        console.log('File tree loaded:', tree.length, 'items')
+      }
+      
+      // 🔥 启动文件监听（仅在 Electron 环境下）
+      await startFileWatcher(targetPath)
     } catch (error) {
       console.error('Failed to load file tree:', error)
       
@@ -170,6 +176,108 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
         timeout: 3000
       })
     }
+  }
+
+  /**
+   * 🔥 启动文件监听
+   */
+  const startFileWatcher = async (watchPath: string) => {
+    try {
+      if (Environment.shouldUseMock()) return
+      
+      const nimbriaAPI = window.nimbria as any
+      if (!nimbriaAPI?.fileWatcher?.startWatch) {
+        console.warn('[FileWatcher] API not available')
+        return
+      }
+      
+      // 启动文件监听
+      const result = await nimbriaAPI.fileWatcher.startWatch(watchPath, {
+        ignored: ['**/node_modules/**', '**/.git/**', '**/dist/**'],
+        ignoreInitial: true
+      })
+      
+      if (result.success) {
+        console.log('[FileWatcher] Started watching:', watchPath)
+        
+        // 监听文件变更事件
+        nimbriaAPI.fileWatcher.onFileChange?.((event: any) => {
+          handleFileChange(event)
+        })
+      } else {
+        console.error('[FileWatcher] Failed to start:', result.error)
+      }
+    } catch (error) {
+      console.error('[FileWatcher] Error:', error)
+    }
+  }
+
+  /**
+   * 🔥 处理文件变更事件
+   */
+  const handleFileChange = (event: any) => {
+    console.log('[FileWatcher] File change detected:', event)
+    
+    const { type, path } = event
+    
+    // 只处理 Markdown 文件和目录变更
+    if (!path.endsWith('.md') && !path.endsWith('.markdown') && type !== 'addDir' && type !== 'unlinkDir') {
+      return
+    }
+    
+    // 防抖处理，避免频繁刷新
+    if (fileWatcherDebounceTimer.value) {
+      clearTimeout(fileWatcherDebounceTimer.value)
+    }
+    fileWatcherDebounceTimer.value = setTimeout(() => {
+      refreshFileTree()
+    }, 500)
+  }
+
+  // 文件监听防抖计时器
+  const fileWatcherDebounceTimer = ref<NodeJS.Timeout | null>(null)
+
+  /**
+   * 🔥 刷新文件树（保持展开状态）
+   */
+  const refreshFileTree = async () => {
+    try {
+      console.log('[FileTree] Refreshing file tree...')
+      
+      // 保存当前展开状态
+      const expandedPaths = new Set<string>()
+      const saveExpandedState = (nodes: MarkdownFile[]) => {
+        nodes.forEach(node => {
+          if (node.isFolder && node.children) {
+            // 这里需要根据实际的展开状态判断逻辑
+            expandedPaths.add(node.path)
+            saveExpandedState(node.children)
+          }
+        })
+      }
+      saveExpandedState(fileTree.value)
+      
+      // 重新加载文件树（不传递路径，使用当前项目路径）
+      await initializeFileTree()
+      
+      // 恢复展开状态（需要在下一个 tick 执行）
+      setTimeout(() => {
+        restoreExpandedState(expandedPaths)
+      }, 100)
+      
+      console.log('[FileTree] File tree refreshed')
+    } catch (error) {
+      console.error('[FileTree] Failed to refresh:', error)
+    }
+  }
+
+  /**
+   * 🔥 恢复展开状态
+   */
+  const restoreExpandedState = (expandedPaths: Set<string>) => {
+    // 这个方法需要与文件树组件配合实现
+    // 暂时先打印日志，具体实现需要在组件中处理
+    console.log('[FileTree] Restoring expanded state for:', Array.from(expandedPaths))
   }
   
   /**
