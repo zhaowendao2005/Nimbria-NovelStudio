@@ -216,54 +216,67 @@ export const useSettingsLlmStore = defineStore('settings-llm', () => {
   /**
    * 切换模型的选中状态（添加到或从selectedModels中移除）
    */
-  function toggleModelSelection(providerId: string, modelType: string, modelName: string): boolean {
+  async function toggleModelSelection(providerId: string, modelType: string, modelName: string): Promise<boolean> {
     const provider = providers.value.find(p => p.id === providerId);
     if (!provider) return false;
 
-    // 初始化activeModels
-    if (!provider.activeModels) {
-      provider.activeModels = {};
-    }
-
-    // 初始化该类型的状态
-    if (!provider.activeModels[modelType]) {
-      provider.activeModels[modelType] = {
-        selectedModels: []
-      };
-    }
-
-    const typeState = provider.activeModels[modelType]!;
-    const index = typeState.selectedModels.indexOf(modelName);
-
-    if (index > -1) {
-      // 已选中，移除
-      typeState.selectedModels.splice(index, 1);
+    // 获取当前选中状态
+    const isCurrentlySelected = isModelSelected(providerId, modelType, modelName);
+    
+    try {
+      // 调用后端API持久化
+      await DataSource.toggleModelSelection(providerId, modelType, modelName);
       
-      // 如果移除的是首选模型，清除首选模型
-      if (typeState.preferredModel === modelName) {
-        delete typeState.preferredModel;
+      // 乐观更新本地状态
+      // 初始化activeModels
+      if (!provider.activeModels) {
+        provider.activeModels = {};
       }
-      
-      console.log('✅ [LLM Store] 模型已取消选中:', providerId, modelType, modelName);
-      return false; // 返回false表示已取消选中
-    } else {
-      // 未选中，添加
-      typeState.selectedModels.push(modelName);
-      
-      // 如果这是该类型的第一个选中模型，自动设为首选
-      if (typeState.selectedModels.length === 1) {
-        typeState.preferredModel = modelName;
+
+      // 初始化该类型的状态
+      if (!provider.activeModels[modelType]) {
+        provider.activeModels[modelType] = {
+          selectedModels: []
+        };
       }
-      
-      console.log('✅ [LLM Store] 模型已选中:', providerId, modelType, modelName);
-      return true; // 返回true表示已选中
+
+      const typeState = provider.activeModels[modelType]!;
+      const index = typeState.selectedModels.indexOf(modelName);
+
+      if (index > -1) {
+        // 已选中，移除
+        typeState.selectedModels.splice(index, 1);
+        
+        // 如果移除的是首选模型，清除首选模型
+        if (typeState.preferredModel === modelName) {
+          delete typeState.preferredModel;
+        }
+        
+        console.log('✅ [LLM Store] 模型已取消选中并持久化:', providerId, modelType, modelName);
+        return false; // 返回false表示已取消选中
+      } else {
+        // 未选中，添加
+        typeState.selectedModels.push(modelName);
+        
+        // 如果这是该类型的第一个选中模型，自动设为首选
+        if (typeState.selectedModels.length === 1) {
+          typeState.preferredModel = modelName;
+        }
+        
+        console.log('✅ [LLM Store] 模型已选中并持久化:', providerId, modelType, modelName);
+        return true; // 返回true表示已选中
+      }
+    } catch (error) {
+      console.error('❌ [LLM Store] 切换模型选择状态失败:', error);
+      // 持久化失败，不修改本地状态
+      return isCurrentlySelected;
     }
   }
 
   /**
    * 设置首选模型（从已选中的模型中选择）
    */
-  function setPreferredModel(providerId: string, modelType: string, modelName: string): boolean {
+  async function setPreferredModel(providerId: string, modelType: string, modelName: string): Promise<boolean> {
     const provider = providers.value.find(p => p.id === providerId);
     if (!provider || !provider.activeModels || !provider.activeModels[modelType]) {
       return false;
@@ -277,9 +290,18 @@ export const useSettingsLlmStore = defineStore('settings-llm', () => {
       return false;
     }
 
-    typeState.preferredModel = modelName;
-    console.log('✅ [LLM Store] 首选模型已设置:', providerId, modelType, modelName);
-    return true;
+    try {
+      // 调用后端API持久化
+      await DataSource.setPreferredModel(providerId, modelType, modelName);
+      
+      // 乐观更新本地状态
+      typeState.preferredModel = modelName;
+      console.log('✅ [LLM Store] 首选模型已设置并持久化:', providerId, modelType, modelName);
+      return true;
+    } catch (error) {
+      console.error('❌ [LLM Store] 设置首选模型失败:', error);
+      return false;
+    }
   }
 
   /**

@@ -348,20 +348,28 @@ function isActiveModel(modelType: string, modelName: string): boolean {
 /**
  * 点击模型chip - 切换选中状态
  */
-function handleModelClick(model: any, modelType: string) {
-  const isSelected = settingsStore.toggleModelSelection(
-    props.provider.id,
-    modelType,
-    model.name
-  )
-  
-  $q.notify({
-    type: 'positive',
-    message: isSelected 
-      ? `已选中模型: ${(model as any).displayName || model.name}`
-      : `已取消选中模型: ${(model as any).displayName || model.name}`,
-    position: 'top'
-  })
+async function handleModelClick(model: any, modelType: string) {
+  try {
+    const isSelected = await settingsStore.toggleModelSelection(
+      props.provider.id,
+      modelType,
+      model.name
+    )
+    
+    $q.notify({
+      type: 'positive',
+      message: isSelected 
+        ? `已选中模型: ${(model as any).displayName || model.name}`
+        : `已取消选中模型: ${(model as any).displayName || model.name}`,
+      position: 'top'
+    })
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: `操作失败: ${error instanceof Error ? error.message : '未知错误'}`,
+      position: 'top'
+    })
+  }
 }
 
 /**

@@ -20,6 +20,13 @@ import {
   llmProvidersMock
 } from './llm.mock';
 
+// 确保 window.nimbria 类型可用
+declare global {
+  interface Window {
+    nimbria: import('../../types/core/window').NimbriaWindowAPI;
+  }
+}
+
 /**
  * 数据源配置
  */
@@ -224,13 +231,18 @@ export async function refreshProviderModels(
   
   // 真实IPC调用
   const response = await window.nimbria.llm.refreshModels(providerId);
-  return {
+  const result: ModelRefreshResult = {
     providerId: response.providerId || providerId,
     success: response.success,
-    modelsCount: response.modelsCount,
-    duration: response.duration,
-    error: response.error
+    modelsCount: response.modelsCount || 0,
+    duration: response.duration || 0
   };
+  
+  if (response.error) {
+    result.error = response.error;
+  }
+  
+  return result;
 }
 
 /**
@@ -355,14 +367,14 @@ export async function testNewProviderConnection(
   if (!response.success) {
     return {
       success: false,
-      error: response.error
+      error: response.error || '连接失败'
     };
   }
   
   return {
     success: true,
-    discoveredModels: response.discoveredModels,
-    modelsCount: response.modelsCount
+    discoveredModels: response.discoveredModels || [],
+    modelsCount: response.modelsCount || 0
   };
 }
 
@@ -469,6 +481,38 @@ export async function importConfig(configContent: string): Promise<boolean> {
 }
 
 // ==================== 模型管理（新增）====================
+
+/**
+ * 切换模型选择状态
+ */
+export async function toggleModelSelection(
+  providerId: string,
+  modelType: string,
+  modelName: string
+): Promise<boolean> {
+  // 真实IPC调用
+  const response = await window.nimbria.llm.toggleModelSelection(providerId, modelType, modelName);
+  if (!response.success) {
+    throw new Error(response.error || '切换模型选择状态失败');
+  }
+  return true;
+}
+
+/**
+ * 设置首选模型
+ */
+export async function setPreferredModel(
+  providerId: string,
+  modelType: string,
+  modelName: string
+): Promise<boolean> {
+  // 真实IPC调用
+  const response = await window.nimbria.llm.setPreferredModel(providerId, modelType, modelName);
+  if (!response.success) {
+    throw new Error(response.error || '设置首选模型失败');
+  }
+  return true;
+}
 
 /**
  * 设置模型显示名

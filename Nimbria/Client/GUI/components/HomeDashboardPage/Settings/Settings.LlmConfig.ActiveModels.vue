@@ -210,24 +210,32 @@ function getModelTypeIcon(modelType: string): string {
 }
 
 // 选择首选模型
-function handleSelectModel(modelType: string, modelId: string | null) {
+async function handleSelectModel(modelType: string, modelId: string | null) {
   if (!modelId) return
   
   const [providerId, modelName] = modelId.split('::')
-  const success = settingsStore.setPreferredModel(providerId, modelType, modelName)
-  
   const displayName = getModelDisplayName(modelId)
   
-  if (success) {
-    $q.notify({
-      type: 'positive',
-      message: `已设置 ${modelType} 的首选模型为: ${displayName}`,
-      position: 'top'
-    })
-  } else {
+  try {
+    const success = await settingsStore.setPreferredModel(providerId, modelType, modelName)
+    
+    if (success) {
+      $q.notify({
+        type: 'positive',
+        message: `已设置 ${modelType} 的首选模型为: ${displayName}`,
+        position: 'top'
+      })
+    } else {
+      $q.notify({
+        type: 'negative',
+        message: '设置首选模型失败',
+        position: 'top'
+      })
+    }
+  } catch (error) {
     $q.notify({
       type: 'negative',
-      message: '设置首选模型失败',
+      message: `设置首选模型失败: ${error instanceof Error ? error.message : '未知错误'}`,
       position: 'top'
     })
   }
