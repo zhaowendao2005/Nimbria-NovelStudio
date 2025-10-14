@@ -1,6 +1,6 @@
 <template>
   <div class="llm-config">
-    <h5 class="settings-title">LLM 配置</h5>
+    <h5 class="settings-title">模型服务</h5>
     <p class="settings-description">管理大语言模型提供商和活动模型</p>
 
     <!-- 顶部操作栏 -->

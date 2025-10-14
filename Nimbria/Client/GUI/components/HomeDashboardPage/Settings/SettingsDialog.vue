@@ -62,14 +62,9 @@
             <SettingsCacheManagement />
           </section>
 
-          <!-- LLM配置 -->
+          <!-- 模型服务 -->
           <section :id="'section-llm'" class="settings-section">
             <SettingsLlmConfig />
-          </section>
-
-          <!-- AI配置 -->
-          <section :id="'section-ai'" class="settings-section">
-            <SettingsAIConfig />
           </section>
 
           <!-- 主题设置 -->
@@ -86,7 +81,6 @@
 import { ref, computed, watch } from 'vue'
 import SettingsCacheManagement from './Settings.CacheManagement.vue'
 import SettingsLlmConfig from './Settings.LlmConfig.vue'
-import SettingsAIConfig from './Settings.AIConfig.vue'
 import SettingsThemeSettings from './Settings.ThemeSettings.vue'
 
 /**
@@ -120,8 +114,7 @@ const contentRef = ref<HTMLElement>()
 // 菜单项配置
 const menuItems = [
   { id: 'cache', label: '缓存管理', icon: 'storage' },
-  { id: 'llm', label: 'LLM配置', icon: 'psychology' },
-  { id: 'ai', label: 'AI配置', icon: 'smart_toy' },
+  { id: 'llm', label: '模型服务', icon: 'psychology' },
   { id: 'theme', label: '主题设置', icon: 'palette' }
 ]
 
