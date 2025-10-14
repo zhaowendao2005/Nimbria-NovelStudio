@@ -23,7 +23,7 @@ import {
 /**
  * 数据源配置
  */
-const useMockSource = ref(true); // TODO: 未来切换为false，使用真实数据源
+const useMockSource = ref(false); // 使用真实的 Electron 后端数据源
 
 /**
  * 配置数据源

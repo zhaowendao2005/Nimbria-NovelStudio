@@ -157,7 +157,7 @@ export class AppManager {
     if (isDevEnvironment) {
       const url = process.env.APP_URL
       if (url) void windowProcess.window.loadURL(url)
-      windowProcess.window.webContents.openDevTools()
+      windowProcess.window.webContents.openDevTools({ mode: 'detach' })
       return
     }
 
@@ -182,7 +182,7 @@ export class AppManager {
       logger.info('Main window finished loading')
       // 🔥 调试模式下也开启 DevTools
       if (isDebugMode) {
-        windowProcess.window.webContents.openDevTools()
+        windowProcess.window.webContents.openDevTools({ mode: 'detach' })
         logger.info('DevTools opened in debug mode')
       }
     })
@@ -209,7 +209,7 @@ export class AppManager {
         const projectUrl = `${baseUrl}#/project`  // 导航到项目页路由
         void windowProcess.window.loadURL(projectUrl)
       }
-      windowProcess.window.webContents.openDevTools()
+      windowProcess.window.webContents.openDevTools({ mode: 'detach' })
       return
     }
 
@@ -222,7 +222,7 @@ export class AppManager {
     // 🔥 调试模式下自动打开 DevTools
     if (isDebugMode) {
       windowProcess.window.webContents.on('did-finish-load', () => {
-        windowProcess.window.webContents.openDevTools()
+        windowProcess.window.webContents.openDevTools({ mode: 'detach' })
         logger.info('DevTools opened for project window in debug mode')
       })
     }
@@ -290,7 +290,7 @@ export class AppManager {
         const detachedUrl = `${baseUrl}#/project-detached?${params.toString()}`
         await detachedWindow.loadURL(detachedUrl)
       }
-      detachedWindow.webContents.openDevTools()
+      detachedWindow.webContents.openDevTools({ mode: 'detach' })
     } else {
       // 🔥 修复生产环境路径问题（与主窗口逻辑一致）
       const indexPath = path.join(app.getAppPath(), 'index.html')
@@ -300,7 +300,7 @@ export class AppManager {
       // 🔥 调试模式下自动打开 DevTools
       if (isDebugMode) {
         detachedWindow.webContents.on('did-finish-load', () => {
-          detachedWindow.webContents.openDevTools()
+          detachedWindow.webContents.openDevTools({ mode: 'detach' })
           logger.info('DevTools opened for detached window in debug mode')
         })
       }
@@ -345,7 +345,12 @@ export class AppManager {
     windowProcess.window.webContents.on('before-input-event', (event, input) => {
       // F12 键
       if (input.type === 'keyDown' && input.key === 'F12') {
-        windowProcess.window.webContents.toggleDevTools()
+        // 手动检查 DevTools 状态，以 detach 模式打开
+        if (windowProcess.window.webContents.isDevToolsOpened()) {
+          windowProcess.window.webContents.closeDevTools()
+        } else {
+          windowProcess.window.webContents.openDevTools({ mode: 'detach' })
+        }
         event.preventDefault()
         logger.info('DevTools toggled via F12 shortcut')
       }
@@ -355,7 +360,7 @@ export class AppManager {
           input.key === 'I' && 
           (input.control || input.meta) && 
           input.shift) {
-        windowProcess.window.webContents.openDevTools()
+        windowProcess.window.webContents.openDevTools({ mode: 'detach' })
         event.preventDefault()
         logger.info('DevTools opened via Ctrl+Shift+I shortcut')
       }

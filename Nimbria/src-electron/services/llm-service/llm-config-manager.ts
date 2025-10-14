@@ -3,7 +3,8 @@
  * 负责YAML配置文件的读写和管理
  */
 
-import * as fs from 'fs-extra';
+import { existsSync, mkdirSync } from 'fs';
+import { readFile, writeFile } from 'fs/promises';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { app } from 'electron';
@@ -27,8 +28,8 @@ export class LlmConfigManager {
    */
   private ensureConfigDir(): void {
     try {
-      if (!fs.existsSync(this.configDir)) {
-        fs.mkdirSync(this.configDir, { recursive: true });
+      if (!existsSync(this.configDir)) {
+        mkdirSync(this.configDir, { recursive: true });
         logger.info(`Created LLM config directory: ${this.configDir}`);
       }
     } catch (error) {
@@ -42,12 +43,12 @@ export class LlmConfigManager {
    */
   async loadProviders(): Promise<ModelProvider[]> {
     try {
-      if (!fs.existsSync(this.providersPath)) {
+      if (!existsSync(this.providersPath)) {
         logger.info('Providers file not found, returning empty array');
         return [];
       }
       
-      const content = await fs.readFile(this.providersPath, 'utf8');
+      const content = await readFile(this.providersPath, 'utf8');
       const data = yaml.load(content) as ProvidersYamlData;
       
       if (!data || !Array.isArray(data.providers)) {
@@ -56,10 +57,15 @@ export class LlmConfigManager {
       }
       
       // 转换Date字段
-      const providers = data.providers.map(provider => ({
-        ...provider,
-        lastRefreshed: provider.lastRefreshed ? new Date(provider.lastRefreshed) : undefined
-      }));
+      const providers = data.providers.map(provider => {
+        const result: ModelProvider = {
+          ...provider,
+        };
+        if (provider.lastRefreshed) {
+          result.lastRefreshed = new Date(provider.lastRefreshed);
+        }
+        return result;
+      });
       
       logger.info(`Loaded ${providers.length} providers from config file`);
       return providers;
@@ -81,7 +87,7 @@ export class LlmConfigManager {
         sortKeys: false
       });
       
-      await fs.writeFile(this.providersPath, content, 'utf8');
+      await writeFile(this.providersPath, content, 'utf8');
       logger.info(`Saved ${providers.length} providers to config file`);
     } catch (error) {
       logger.error('Failed to save providers:', error);
@@ -125,17 +131,18 @@ export class LlmConfigManager {
         throw new Error(`Provider not found: ${providerId}`);
       }
       
-      // 合并更新
-      providers[index] = { 
+      // 合并更新（保持所有必需字段）
+      const updatedProvider = { 
         ...providers[index], 
         ...updates,
         id: providerId // 确保ID不被修改
-      };
+      } as ModelProvider;
+      providers[index] = updatedProvider;
       
       await this.saveProviders(providers);
       
       logger.info(`Updated provider: ${providerId}`);
-      return providers[index];
+      return updatedProvider;
     } catch (error) {
       logger.error('Failed to update provider:', error);
       throw error;

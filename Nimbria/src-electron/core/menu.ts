@@ -34,7 +34,7 @@ export function createApplicationMenu(isDebugMode: boolean) {
           accelerator: 'CmdOrCtrl+Shift+I',
           click: (_menuItem, browserWindow) => {
             if (browserWindow && !browserWindow.isDestroyed()) {
-              browserWindow.webContents.openDevTools()
+              browserWindow.webContents.openDevTools({ mode: 'detach' })
               logger.info('DevTools opened via menu')
             }
           }
