@@ -20,6 +20,8 @@ import { getRecentProjects, upsertRecentProject, clearRecentProjects } from '../
 import { registerMarkdownHandlers } from '../ipc/main-renderer/markdown-handlers'
 import { registerFileHandlers } from '../ipc/main-renderer/file-handlers'
 import { registerDocParserHandlers } from '../ipc/main-renderer/docParser-handlers'
+import { registerLlmHandlers } from '../ipc/main-renderer/llm-handlers'
+import { LlmConfigManager } from '../services/llm-service/llm-config-manager'
 import { createApplicationMenu, setupContextMenu } from './menu'
 
 const logger = getLogger('AppManager')
@@ -29,6 +31,7 @@ export class AppManager {
   private mainProcess: WindowProcess | null = null
   private projectFileSystem!: ProjectFileSystem
   private projectManager!: ProjectManager
+  private llmConfigManager!: LlmConfigManager
   private transferMap?: Map<string, { sourceWebContentsId: number; tabId: string }>
 
   boot() {
@@ -71,7 +74,8 @@ export class AppManager {
   private initializeFileSystem() {
     this.projectFileSystem = new ProjectFileSystem()
     this.projectManager = new ProjectManager()
-    logger.info('File system and project management services initialized')
+    this.llmConfigManager = new LlmConfigManager()
+    logger.info('File system, project management and LLM config services initialized')
   }
 
   private initializeWindowManager() {
@@ -424,6 +428,12 @@ export class AppManager {
     // 注册 DocParser IPC 处理器
     registerDocParserHandlers()
     logger.info('DocParser IPC handlers registered')
+    
+    // 注册 LLM 配置 IPC 处理器
+    registerLlmHandlers({
+      llmConfigManager: this.llmConfigManager
+    })
+    logger.info('LLM IPC handlers registered')
 
     ipcMain.handle('window:minimize', (event, request: IPCRequest<'window:minimize'>) => {
       return this.handleWindowOperationFromEvent(event, 'minimize', request)

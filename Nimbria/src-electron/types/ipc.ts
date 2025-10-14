@@ -24,6 +24,16 @@ import type {
   CanInitializeResult
 } from '../services/project-service/types'
 
+// LLM服务相关类型
+import type {
+  ModelProvider,
+  ModelConfig,
+  DiscoveredModel,
+  ValidationResult,
+  ModelRefreshResult,
+  ConnectionTestResult
+} from '../services/llm-service/types'
+
 export { 
   ProjectData, ProjectResult, SaveResult, RecentProject, BroadcastMessage, 
   FileSystemItem, GlobOptions, WatchOptions,
@@ -249,6 +259,64 @@ export interface IPCChannelMap {
   'docParser:saveExport': {
     request: { filePath: string; data: Uint8Array; format?: string }
     response: { success: boolean; data?: boolean; error?: string }
+  }
+
+  // LLM配置管理操作
+  'llm:get-providers': {
+    request: void
+    response: { success: boolean; providers?: ModelProvider[]; error?: string }
+  }
+  'llm:add-provider': {
+    request: { provider: Omit<ModelProvider, 'id' | 'lastRefreshed' | 'refreshStatus'> }
+    response: { success: boolean; provider?: ModelProvider; error?: string }
+  }
+  'llm:remove-provider': {
+    request: { providerId: string }
+    response: { success: boolean; error?: string }
+  }
+  'llm:update-provider-config': {
+    request: { providerId: string; config: Partial<ModelProvider> }
+    response: { success: boolean; provider?: ModelProvider; error?: string }
+  }
+  'llm:activate-provider': {
+    request: { providerId: string }
+    response: { success: boolean; provider?: ModelProvider; error?: string }
+  }
+  'llm:deactivate-provider': {
+    request: { providerId: string }
+    response: { success: boolean; provider?: ModelProvider; error?: string }
+  }
+  'llm:refresh-models': {
+    request: { providerId: string }
+    response: { success: boolean; providerId?: string; modelsCount?: number; duration?: number; error?: string }
+  }
+  'llm:test-connection': {
+    request: { providerId: string }
+    response: { success: boolean; message?: string; error?: string }
+  }
+  'llm:test-new-connection': {
+    request: { baseUrl: string; apiKey: string }
+    response: { success: boolean; discoveredModels?: DiscoveredModel[]; modelsCount?: number; error?: string }
+  }
+  'llm:validate-provider': {
+    request: { config: Partial<ModelProvider> }
+    response: { isValid: boolean; errors?: string[]; warnings?: string[] }
+  }
+  'llm:update-model-config': {
+    request: { providerId: string; modelType: string; modelName: string; config: Partial<ModelConfig> }
+    response: { success: boolean; error?: string }
+  }
+  'llm:set-model-display-name': {
+    request: { providerId: string; modelName: string; displayName: string }
+    response: { success: boolean; error?: string }
+  }
+  'llm:toggle-model-selection': {
+    request: { providerId: string; modelType: string; modelName: string }
+    response: { success: boolean; error?: string }
+  }
+  'llm:set-preferred-model': {
+    request: { providerId: string; modelType: string; modelName: string }
+    response: { success: boolean; error?: string }
   }
 }
 

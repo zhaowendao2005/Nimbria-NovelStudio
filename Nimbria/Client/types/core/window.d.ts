@@ -1,4 +1,5 @@
 import type { BroadcastMessage, ProjectData, ProjectResult, RecentProject, SaveResult } from './project'
+import type { ModelProvider, ModelConfig, DiscoveredModel } from '../../stores/settings/types'
 
 /**
  * Nimbria 多窗口系统 API 接口定义
@@ -331,6 +332,149 @@ export interface NimbriaWindowAPI {
      * @returns 操作结果
      */
     createDirectory(dirPath: string): Promise<{ success: boolean; error?: string }>
+  }
+
+  /**
+   * LLM配置管理 API
+   * 
+   * 提供LLM提供商和模型的配置、管理和测试功能。
+   * 支持多提供商管理、模型发现、连接测试等功能。
+   * 
+   * 调用示例:
+   * ```typescript
+   * // 获取所有提供商
+   * const result = await window.nimbria.llm.getProviders()
+   * if (result.success) {
+   *   console.log('提供商列表:', result.providers)
+   * }
+   * 
+   * // 添加新提供商
+   * await window.nimbria.llm.addProvider({
+   *   name: 'openai',
+   *   displayName: 'OpenAI',
+   *   description: 'OpenAI官方API',
+   *   apiKey: 'sk-xxxxx',
+   *   baseUrl: 'https://api.openai.com/v1',
+   *   status: 'active',
+   *   defaultConfig: { ... },
+   *   supportedModels: []
+   * })
+   * 
+   * // 测试新连接
+   * const testResult = await window.nimbria.llm.testNewConnection(
+   *   'https://api.openai.com/v1',
+   *   'sk-xxxxx'
+   * )
+   * ```
+   */
+  llm: {
+    /**
+     * 获取所有提供商
+     * @returns 提供商列表
+     */
+    getProviders(): Promise<{ success: boolean; providers?: ModelProvider[]; error?: string }>
+    
+    /**
+     * 添加新提供商
+     * @param provider 提供商配置（不包含id、lastRefreshed、refreshStatus）
+     * @returns 创建的提供商
+     */
+    addProvider(provider: Omit<ModelProvider, 'id' | 'lastRefreshed' | 'refreshStatus'>): Promise<{ success: boolean; provider?: ModelProvider; error?: string }>
+    
+    /**
+     * 删除提供商
+     * @param providerId 提供商ID
+     * @returns 操作结果
+     */
+    removeProvider(providerId: string): Promise<{ success: boolean; error?: string }>
+    
+    /**
+     * 更新提供商配置
+     * @param providerId 提供商ID
+     * @param config 要更新的配置
+     * @returns 更新后的提供商
+     */
+    updateProviderConfig(providerId: string, config: Partial<ModelProvider>): Promise<{ success: boolean; provider?: ModelProvider; error?: string }>
+    
+    /**
+     * 激活提供商
+     * @param providerId 提供商ID
+     * @returns 更新后的提供商
+     */
+    activateProvider(providerId: string): Promise<{ success: boolean; provider?: ModelProvider; error?: string }>
+    
+    /**
+     * 停用提供商
+     * @param providerId 提供商ID
+     * @returns 更新后的提供商
+     */
+    deactivateProvider(providerId: string): Promise<{ success: boolean; provider?: ModelProvider; error?: string }>
+    
+    /**
+     * 刷新提供商的模型列表
+     * @param providerId 提供商ID
+     * @returns 刷新结果
+     */
+    refreshModels(providerId: string): Promise<{ success: boolean; providerId?: string; modelsCount?: number; duration?: number; error?: string }>
+    
+    /**
+     * 测试提供商连接
+     * @param providerId 提供商ID
+     * @returns 测试结果
+     */
+    testConnection(providerId: string): Promise<{ success: boolean; message?: string; error?: string }>
+    
+    /**
+     * 测试新连接并发现模型
+     * @param baseUrl API基础URL
+     * @param apiKey API密钥
+     * @returns 测试结果和发现的模型
+     */
+    testNewConnection(baseUrl: string, apiKey: string): Promise<{ success: boolean; discoveredModels?: DiscoveredModel[]; modelsCount?: number; error?: string }>
+    
+    /**
+     * 验证提供商配置
+     * @param config 提供商配置
+     * @returns 验证结果
+     */
+    validateProvider(config: Partial<ModelProvider>): Promise<{ isValid: boolean; errors?: string[]; warnings?: string[] }>
+    
+    /**
+     * 更新模型配置
+     * @param providerId 提供商ID
+     * @param modelType 模型类型
+     * @param modelName 模型名称
+     * @param config 模型配置
+     * @returns 操作结果
+     */
+    updateModelConfig(providerId: string, modelType: string, modelName: string, config: Partial<ModelConfig>): Promise<{ success: boolean; error?: string }>
+    
+    /**
+     * 设置模型显示名称
+     * @param providerId 提供商ID
+     * @param modelName 模型名称
+     * @param displayName 显示名称
+     * @returns 操作结果
+     */
+    setModelDisplayName(providerId: string, modelName: string, displayName: string): Promise<{ success: boolean; error?: string }>
+    
+    /**
+     * 切换模型选择状态
+     * @param providerId 提供商ID
+     * @param modelType 模型类型
+     * @param modelName 模型名称
+     * @returns 操作结果
+     */
+    toggleModelSelection(providerId: string, modelType: string, modelName: string): Promise<{ success: boolean; error?: string }>
+    
+    /**
+     * 设置首选模型
+     * @param providerId 提供商ID
+     * @param modelType 模型类型
+     * @param modelName 模型名称
+     * @returns 操作结果
+     */
+    setPreferredModel(providerId: string, modelType: string, modelName: string): Promise<{ success: boolean; error?: string }>
   }
 
   /**

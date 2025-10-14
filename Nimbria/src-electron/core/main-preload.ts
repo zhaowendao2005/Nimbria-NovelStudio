@@ -83,6 +83,36 @@ contextBridge.exposeInMainWorld('nimbria', {
       defaultPath?: string
       filters?: Array<{ name: string; extensions: string[] }>
     }) => channelInvoke('file:save-dialog', options)
+  },
+
+  llm: {
+    getProviders: () => channelInvoke('llm:get-providers', undefined),
+    addProvider: (provider: IPCRequest<'llm:add-provider'>['provider']) => 
+      channelInvoke('llm:add-provider', { provider }),
+    removeProvider: (providerId: string) => 
+      channelInvoke('llm:remove-provider', { providerId }),
+    updateProviderConfig: (providerId: string, config: IPCRequest<'llm:update-provider-config'>['config']) =>
+      channelInvoke('llm:update-provider-config', { providerId, config }),
+    activateProvider: (providerId: string) => 
+      channelInvoke('llm:activate-provider', { providerId }),
+    deactivateProvider: (providerId: string) => 
+      channelInvoke('llm:deactivate-provider', { providerId }),
+    refreshModels: (providerId: string) => 
+      channelInvoke('llm:refresh-models', { providerId }),
+    testConnection: (providerId: string) => 
+      channelInvoke('llm:test-connection', { providerId }),
+    testNewConnection: (baseUrl: string, apiKey: string) =>
+      channelInvoke('llm:test-new-connection', { baseUrl, apiKey }),
+    validateProvider: (config: IPCRequest<'llm:validate-provider'>['config']) =>
+      channelInvoke('llm:validate-provider', { config }),
+    updateModelConfig: (providerId: string, modelType: string, modelName: string, config: IPCRequest<'llm:update-model-config'>['config']) =>
+      channelInvoke('llm:update-model-config', { providerId, modelType, modelName, config }),
+    setModelDisplayName: (providerId: string, modelName: string, displayName: string) =>
+      channelInvoke('llm:set-model-display-name', { providerId, modelName, displayName }),
+    toggleModelSelection: (providerId: string, modelType: string, modelName: string) =>
+      channelInvoke('llm:toggle-model-selection', { providerId, modelType, modelName }),
+    setPreferredModel: (providerId: string, modelType: string, modelName: string) =>
+      channelInvoke('llm:set-preferred-model', { providerId, modelType, modelName })
   }
 })
 

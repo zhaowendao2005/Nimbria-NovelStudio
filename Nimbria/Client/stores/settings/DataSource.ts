@@ -43,35 +43,32 @@ function simulateDelay(ms: number = 300): Promise<void> {
 
 /**
  * 获取所有提供商
- * TODO: 对接后端API - GET /api/llm/providers
  */
 export async function fetchProviders(): Promise<ModelProvider[]> {
-  await simulateDelay();
-  
   if (useMockSource.value) {
+    await simulateDelay();
     // 深拷贝避免引用问题
     return JSON.parse(JSON.stringify(llmProvidersMock));
   }
   
-  // TODO: 真实API调用
-  // const response = await window.api.llm.getProviders();
-  // return response.data;
-  
-  return [];
+  // 真实IPC调用
+  const response = await window.nimbria.llm.getProviders();
+  if (!response.success) {
+    throw new Error(response.error || '获取提供商列表失败');
+  }
+  return response.providers || [];
 }
 
 // fetchActiveModels 已废弃 - 活动模型状态现在保存在每个provider的activeModels中
 
 /**
  * 添加新提供商
- * TODO: 对接后端API - POST /api/llm/providers
  */
 export async function addProvider(
   provider: Omit<ModelProvider, 'id'> & { id?: string }
 ): Promise<ModelProvider> {
-  await simulateDelay();
-  
   if (useMockSource.value) {
+    await simulateDelay();
     const newProvider: ModelProvider = {
       ...provider,
       id: provider.id || `provider-${Date.now()}`,
@@ -83,21 +80,20 @@ export async function addProvider(
     return newProvider;
   }
   
-  // TODO: 真实API调用
-  // const response = await window.api.llm.addProvider(provider);
-  // return response.data;
-  
-  throw new Error('Not implemented');
+  // 真实IPC调用
+  const response = await window.nimbria.llm.addProvider(provider as Omit<ModelProvider, 'id' | 'lastRefreshed' | 'refreshStatus'>);
+  if (!response.success) {
+    throw new Error(response.error || '添加提供商失败');
+  }
+  return response.provider!;
 }
 
 /**
  * 删除提供商
- * TODO: 对接后端API - DELETE /api/llm/providers/:id
  */
 export async function removeProvider(providerId: string): Promise<boolean> {
-  await simulateDelay();
-  
   if (useMockSource.value) {
+    await simulateDelay();
     const index = llmProvidersMock.findIndex(p => p.id === providerId);
     if (index > -1) {
       llmProvidersMock.splice(index, 1);
@@ -106,24 +102,23 @@ export async function removeProvider(providerId: string): Promise<boolean> {
     return false;
   }
   
-  // TODO: 真实API调用
-  // const response = await window.api.llm.removeProvider(providerId);
-  // return response.success;
-  
-  return false;
+  // 真实IPC调用
+  const response = await window.nimbria.llm.removeProvider(providerId);
+  if (!response.success) {
+    throw new Error(response.error || '删除提供商失败');
+  }
+  return response.success;
 }
 
 /**
  * 更新提供商配置
- * TODO: 对接后端API - PATCH /api/llm/providers/:id/config
  */
 export async function updateProviderConfig(
   providerId: string,
   config: Partial<ProviderConfig>
 ): Promise<ModelProvider> {
-  await simulateDelay();
-  
   if (useMockSource.value) {
+    await simulateDelay();
     const provider = llmProvidersMock.find(p => p.id === providerId);
     if (!provider) {
       throw new Error(`Provider ${providerId} not found`);
@@ -135,21 +130,20 @@ export async function updateProviderConfig(
     return provider;
   }
   
-  // TODO: 真实API调用
-  // const response = await window.api.llm.updateProviderConfig(providerId, config);
-  // return response.data;
-  
-  throw new Error('Not implemented');
+  // 真实IPC调用
+  const response = await window.nimbria.llm.updateProviderConfig(providerId, config);
+  if (!response.success) {
+    throw new Error(response.error || '更新提供商配置失败');
+  }
+  return response.provider!;
 }
 
 /**
  * 激活提供商
- * TODO: 对接后端API - POST /api/llm/providers/:id/activate
  */
 export async function activateProvider(providerId: string): Promise<ModelProvider> {
-  await simulateDelay();
-  
   if (useMockSource.value) {
+    await simulateDelay();
     const provider = llmProvidersMock.find(p => p.id === providerId);
     if (!provider) {
       throw new Error(`Provider ${providerId} not found`);
@@ -159,21 +153,20 @@ export async function activateProvider(providerId: string): Promise<ModelProvide
     return provider;
   }
   
-  // TODO: 真实API调用
-  // const response = await window.api.llm.activateProvider(providerId);
-  // return response.data;
-  
-  throw new Error('Not implemented');
+  // 真实IPC调用
+  const response = await window.nimbria.llm.activateProvider(providerId);
+  if (!response.success) {
+    throw new Error(response.error || '激活提供商失败');
+  }
+  return response.provider!;
 }
 
 /**
  * 停用提供商
- * TODO: 对接后端API - POST /api/llm/providers/:id/deactivate
  */
 export async function deactivateProvider(providerId: string): Promise<ModelProvider> {
-  await simulateDelay();
-  
   if (useMockSource.value) {
+    await simulateDelay();
     const provider = llmProvidersMock.find(p => p.id === providerId);
     if (!provider) {
       throw new Error(`Provider ${providerId} not found`);
@@ -183,11 +176,12 @@ export async function deactivateProvider(providerId: string): Promise<ModelProvi
     return provider;
   }
   
-  // TODO: 真实API调用
-  // const response = await window.api.llm.deactivateProvider(providerId);
-  // return response.data;
-  
-  throw new Error('Not implemented');
+  // 真实IPC调用
+  const response = await window.nimbria.llm.deactivateProvider(providerId);
+  if (!response.success) {
+    throw new Error(response.error || '停用提供商失败');
+  }
+  return response.provider!;
 }
 
 // setActiveModel 和 clearActiveModel 已废弃
@@ -196,14 +190,12 @@ export async function deactivateProvider(providerId: string): Promise<ModelProvi
 
 /**
  * 刷新提供商模型列表
- * TODO: 对接后端API - POST /api/llm/providers/:id/refresh
  */
 export async function refreshProviderModels(
   providerId: string
 ): Promise<ModelRefreshResult> {
-  await simulateDelay(1000); // 模拟较长的网络请求
-  
   if (useMockSource.value) {
+    await simulateDelay(1000); // 模拟较长的网络请求
     const provider = llmProvidersMock.find(p => p.id === providerId);
     if (!provider) {
       return {
@@ -230,23 +222,25 @@ export async function refreshProviderModels(
     };
   }
   
-  // TODO: 真实API调用
-  // const response = await window.api.llm.refreshProviderModels(providerId);
-  // return response.data;
-  
-  throw new Error('Not implemented');
+  // 真实IPC调用
+  const response = await window.nimbria.llm.refreshModels(providerId);
+  return {
+    providerId: response.providerId || providerId,
+    success: response.success,
+    modelsCount: response.modelsCount,
+    duration: response.duration,
+    error: response.error
+  };
 }
 
 /**
  * 验证提供商配置
- * TODO: 对接后端API - POST /api/llm/providers/validate
  */
 export async function validateProvider(
   config: Partial<ModelProvider>
 ): Promise<ValidationResult> {
-  await simulateDelay();
-  
   if (useMockSource.value) {
+    await simulateDelay();
     const errors: string[] = [];
     const warnings: string[] = [];
     
@@ -275,23 +269,23 @@ export async function validateProvider(
     };
   }
   
-  // TODO: 真实API调用
-  // const response = await window.api.llm.validateProvider(config);
-  // return response.data;
-  
-  throw new Error('Not implemented');
+  // 真实IPC调用
+  const response = await window.nimbria.llm.validateProvider(config);
+  return {
+    isValid: response.isValid,
+    errors: response.errors || [],
+    warnings: response.warnings || []
+  };
 }
 
 /**
  * 测试提供商连接
- * TODO: 对接后端API - POST /api/llm/providers/:id/test
  */
 export async function testProviderConnection(
   providerId: string
 ): Promise<{ success: boolean; message: string }> {
-  await simulateDelay(1500);
-  
   if (useMockSource.value) {
+    await simulateDelay(1500);
     const provider = llmProvidersMock.find(p => p.id === providerId);
     if (!provider) {
       return {
@@ -307,23 +301,22 @@ export async function testProviderConnection(
     };
   }
   
-  // TODO: 真实API调用
-  // const response = await window.api.llm.testProviderConnection(providerId);
-  // return response.data;
-  
-  throw new Error('Not implemented');
+  // 真实IPC调用
+  const response = await window.nimbria.llm.testConnection(providerId);
+  return {
+    success: response.success,
+    message: response.message || (response.success ? '连接成功' : response.error || '连接失败')
+  };
 }
 
 /**
  * 测试新提供商连接并发现模型
- * TODO: 对接后端API - POST /api/llm/test-connection
  */
 export async function testNewProviderConnection(
   config: { baseUrl: string; apiKey: string }
 ): Promise<ConnectionTestResult> {
-  await simulateDelay(2000); // 模拟较长的连接测试
-  
   if (useMockSource.value) {
+    await simulateDelay(2000); // 模拟较长的连接测试
     // 模拟连接测试和模型发现
     const discoveredModels: DiscoveredModel[] = [
       {
@@ -357,16 +350,24 @@ export async function testNewProviderConnection(
     };
   }
   
-  // TODO: 真实API调用
-  // const response = await window.api.llm.testNewProviderConnection(config);
-  // return response.data;
+  // 真实IPC调用
+  const response = await window.nimbria.llm.testNewConnection(config.baseUrl, config.apiKey);
+  if (!response.success) {
+    return {
+      success: false,
+      error: response.error
+    };
+  }
   
-  throw new Error('Not implemented');
+  return {
+    success: true,
+    discoveredModels: response.discoveredModels,
+    modelsCount: response.modelsCount
+  };
 }
 
 /**
  * 更新模型配置
- * TODO: 对接后端API - PATCH /api/llm/providers/:id/models/:modelName/config
  */
 export async function updateModelConfig(
   providerId: string,
@@ -374,9 +375,8 @@ export async function updateModelConfig(
   modelName: string,
   config: Partial<ModelConfig>
 ): Promise<ModelProvider> {
-  await simulateDelay();
-  
   if (useMockSource.value) {
+    await simulateDelay();
     const provider = llmProvidersMock.find(p => p.id === providerId);
     if (!provider) {
       throw new Error(`Provider ${providerId} not found`);
@@ -399,11 +399,20 @@ export async function updateModelConfig(
     return provider;
   }
   
-  // TODO: 真实API调用
-  // const response = await window.api.llm.updateModelConfig(providerId, modelType, modelName, config);
-  // return response.data;
+  // 真实IPC调用
+  const response = await window.nimbria.llm.updateModelConfig(providerId, modelType, modelName, config);
+  if (!response.success) {
+    throw new Error(response.error || '更新模型配置失败');
+  }
   
-  throw new Error('Not implemented');
+  // 重新获取提供商数据
+  const providersResponse = await window.nimbria.llm.getProviders();
+  const provider = providersResponse.providers?.find(p => p.id === providerId);
+  if (!provider) {
+    throw new Error('Provider not found after update');
+  }
+  
+  return provider;
 }
 
 /**
@@ -463,16 +472,14 @@ export async function importConfig(configContent: string): Promise<boolean> {
 
 /**
  * 设置模型显示名
- * TODO: 对接后端API - PATCH /api/llm/providers/:providerId/models/:modelName/display-name
  */
 export async function setModelDisplayName(
   providerId: string,
   modelName: string,
   displayName: string
 ): Promise<boolean> {
-  await simulateDelay();
-  
   if (useMockSource.value) {
+    await simulateDelay();
     const provider = llmProvidersMock.find(p => p.id === providerId);
     if (!provider) {
       return false;
@@ -491,11 +498,9 @@ export async function setModelDisplayName(
     return false;
   }
   
-  // TODO: 真实API调用
-  // const response = await window.api.llm.setModelDisplayName(providerId, modelName, displayName);
-  // return response.success;
-  
-  return false;
+  // 真实IPC调用
+  const response = await window.nimbria.llm.setModelDisplayName(providerId, modelName, displayName);
+  return response.success;
 }
 
 /**
