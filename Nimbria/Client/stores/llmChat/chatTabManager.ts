@@ -18,6 +18,11 @@ export interface ChatTab {
   isDirty: boolean             // 是否有未保存内容
 }
 
+/**
+ * 最大显示标签页数量
+ */
+const MAX_VISIBLE_TABS = 10
+
 export const useChatTabManager = defineStore('chatTabManager', {
   state: () => ({
     tabs: [] as ChatTab[],
@@ -25,6 +30,24 @@ export const useChatTabManager = defineStore('chatTabManager', {
   }),
 
   getters: {
+    /**
+     * 获取可见的标签页（限制数量）
+     */
+    visibleTabs(): ChatTab[] {
+      // 确保活动标签页总是可见
+      if (this.activeTab) {
+        const activeIndex = this.tabs.findIndex(tab => tab.id === this.activeTabId)
+        if (activeIndex >= MAX_VISIBLE_TABS) {
+          // 如果活动标签页超出可见范围，调整可见窗口
+          const start = Math.max(0, activeIndex - MAX_VISIBLE_TABS + 1)
+          return this.tabs.slice(start, start + MAX_VISIBLE_TABS)
+        }
+      }
+      
+      // 默认显示前10个标签页
+      return this.tabs.slice(0, MAX_VISIBLE_TABS)
+    },
+
     /**
      * 获取活动标签页
      */
@@ -50,6 +73,20 @@ export const useChatTabManager = defineStore('chatTabManager', {
     },
 
     /**
+     * 获取总标签页数量
+     */
+    totalTabsCount(): number {
+      return this.tabs.length
+    },
+
+    /**
+     * 是否有更多标签页未显示
+     */
+    hasMoreTabs(): boolean {
+      return this.tabs.length > MAX_VISIBLE_TABS
+    },
+
+    /**
      * 根据对话 ID 获取标签页
      */
     getTabByConversationId(): (conversationId: string) => ChatTab | null {
@@ -63,32 +100,36 @@ export const useChatTabManager = defineStore('chatTabManager', {
     /**
      * 打开对话（创建新标签页或激活已有标签页）
      */
-    openConversation(conversationId: string, title: string = '新对话'): void {
-      console.log('📂 [ChatTabManager] 打开对话:', conversationId)
+    openConversation(conversationId: string, title: string = '新对话', activate: boolean = true): void {
+      console.log('📂 [ChatTabManager] 打开对话:', conversationId, '激活:', activate)
 
       const existingTab = this.tabs.find(tab => tab.conversationId === conversationId)
       
       if (existingTab) {
-        // 激活已有标签页
-        console.log('✅ [ChatTabManager] 激活已有标签页:', existingTab.id)
-        this.setActiveTab(existingTab.id)
+        // 激活已有标签页（如果需要）
+        if (activate) {
+          console.log('✅ [ChatTabManager] 激活已有标签页:', existingTab.id)
+          this.setActiveTab(existingTab.id)
+        }
       } else {
         // 创建新标签页
         const newTab: ChatTab = {
           id: nanoid(),
           conversationId,
           title,
-          isActive: true,
+          isActive: activate,
           isDirty: false
         }
         
         console.log('🆕 [ChatTabManager] 创建新标签页:', newTab.id)
         
-        // 将所有现有标签页设为非激活
-        this.tabs.forEach(tab => { tab.isActive = false })
+        if (activate) {
+          // 将所有现有标签页设为非激活
+          this.tabs.forEach(tab => { tab.isActive = false })
+          this.activeTabId = newTab.id
+        }
         
         this.tabs.push(newTab)
-        this.activeTabId = newTab.id
       }
     },
 

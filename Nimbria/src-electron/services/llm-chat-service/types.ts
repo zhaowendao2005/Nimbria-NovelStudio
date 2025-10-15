@@ -93,6 +93,25 @@ export interface MessageErrorEvent {
 }
 
 /**
+ * 对话创建事件数据
+ */
+export interface ConversationStartEvent {
+  conversationId: string
+  modelId: string
+  settings: ConversationSettings
+}
+
+export interface ConversationCreatedEvent {
+  conversationId: string
+  conversation: Conversation
+}
+
+export interface ConversationErrorEvent {
+  conversationId: string
+  error: string
+}
+
+/**
  * LocalStorage 存储结构
  */
 export interface ConversationsStorage {

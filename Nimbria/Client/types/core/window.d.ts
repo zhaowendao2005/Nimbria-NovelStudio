@@ -190,6 +190,9 @@ export interface NimbriaWindowAPI {
     repairProject(projectPath: string): Promise<ProjectOperationResult>
     /** 获取项目统计 */
     getProjectStats(projectPath: string): Promise<ProjectStats>
+    
+    /** 获取当前项目路径 */
+    getCurrentProjectPath?: () => Promise<string | null>
   }
 
   /**
@@ -605,6 +608,62 @@ export interface NimbriaWindowAPI {
      */
     restoreBackup(backupPath: string): Promise<{ success: boolean; error?: string }>
   }
+
+  /**
+   * LLM Chat API
+   * 
+   * 提供 LLM 对话功能，包括对话管理、消息发送和流式响应。
+   * 支持事件驱动的对话创建和实时消息流。
+   */
+  llmChat: {
+    // 对话管理
+    createConversation: (args: { modelId: string; settings?: any }) => Promise<{ success: boolean; conversationId?: string; error?: string }>
+    getConversations: () => Promise<{ success: boolean; conversations?: any[]; error?: string }>
+    getConversation: (conversationId: string) => Promise<{ success: boolean; conversation?: any; error?: string }>
+    deleteConversation: (conversationId: string) => Promise<{ success: boolean; error?: string }>
+    updateTitle: (conversationId: string, title: string) => Promise<{ success: boolean; error?: string }>
+    updateSettings: (conversationId: string, settings: any) => Promise<{ success: boolean; error?: string }>
+    
+    // 消息管理
+    sendMessage: (args: { conversationId: string; content: string }) => Promise<{ success: boolean; messageId?: string; error?: string }>
+    regenerateMessage: (conversationId: string) => Promise<{ success: boolean; error?: string }>
+    deleteMessage: (conversationId: string, messageId: string) => Promise<{ success: boolean; error?: string }>
+    
+    // 模型管理
+    switchModel: (conversationId: string, modelId: string) => Promise<{ success: boolean; error?: string }>
+    
+    // 对话创建事件监听
+    onConversationStart: (callback: (data: { conversationId: string; modelId: string; settings: any }) => void) => void
+    onConversationCreated: (callback: (data: { conversationId: string; conversation: any }) => void) => void
+    onConversationError: (callback: (data: { conversationId: string; error: string }) => void) => void
+
+    // 流式响应监听
+    onStreamChunk: (callback: (data: { conversationId: string; messageId: string; chunk: string }) => void) => void
+    onStreamComplete: (callback: (data: { conversationId: string; messageId: string }) => void) => void
+    onStreamError: (callback: (data: { conversationId: string; error: string }) => void) => void
+    
+    // LocalStorage 通信（已废弃）
+    onStorageSave?: (callback: (data: any) => void) => void
+    onStorageLoadRequest?: (callback: () => void) => void
+    sendStorageLoadResponse?: (data: any) => void
+  }
+
+  /**
+   * Database API
+   * 
+   * 提供项目数据库操作功能，包括 LLM 对话数据的存储和检索。
+   */
+  database: {
+    // LLM Chat 数据库操作
+    llmGetConversations: (args: { projectPath: string }) => Promise<{ success: boolean; conversations?: any[]; error?: string }>
+    llmGetConversation: (args: { projectPath: string; conversationId: string }) => Promise<{ success: boolean; conversation?: any; error?: string }>
+    llmCreateConversation: (args: { projectPath: string; conversation: any }) => Promise<{ success: boolean; error?: string }>
+    llmAddMessage: (args: { projectPath: string; conversationId: string; message: any }) => Promise<{ success: boolean; error?: string }>
+    llmDeleteConversation: (args: { projectPath: string; conversationId: string }) => Promise<{ success: boolean; error?: string }>
+    llmUpdateConversationTitle: (args: { projectPath: string; conversationId: string; title: string }) => Promise<{ success: boolean; error?: string }>
+    llmSearchConversations: (args: { projectPath: string; query: string }) => Promise<{ success: boolean; conversations?: any[]; error?: string }>
+  }
+
 
   /**
    * 🔥 事件通信 API

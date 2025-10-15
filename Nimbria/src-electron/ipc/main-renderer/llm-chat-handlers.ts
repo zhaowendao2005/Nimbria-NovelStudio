@@ -11,7 +11,10 @@ import type {
   MessageStartEvent,
   MessageChunkEvent,
   MessageCompleteEvent,
-  MessageErrorEvent
+  MessageErrorEvent,
+  ConversationStartEvent,
+  ConversationCreatedEvent,
+  ConversationErrorEvent
 } from '../../services/llm-chat-service/types'
 
 export function registerLlmChatHandlers(llmChatService: LlmChatService) {
@@ -41,21 +44,40 @@ export function registerLlmChatHandlers(llmChatService: LlmChatService) {
     })
   })
 
+  // 对话创建事件监听器
+  llmChatService.on('conversation:start', (data: ConversationStartEvent) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-chat:conversation-start', data)
+    })
+  })
+
+  llmChatService.on('conversation:created', (data: ConversationCreatedEvent) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-chat:conversation-created', data)
+    })
+  })
+
+  llmChatService.on('conversation:error', (data: ConversationErrorEvent) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-chat:conversation-error', data)
+    })
+  })
+
   // ========== IPC Handlers（简化为纯调用） ==========
 
   /**
-   * 创建新对话
+   * 创建新对话（事件驱动模式）
    */
   ipcMain.handle('llm-chat:create-conversation', async (event, args: {
     modelId: string
     settings?: Partial<ConversationSettings>
   }) => {
     try {
-      const conversation = await llmChatService.createConversation(
+      const conversationId = await llmChatService.createConversation(
         args.modelId,
         args.settings
       )
-      return { success: true, conversation }
+      return { success: true, conversationId }
     } catch (error: any) {
       console.error('Failed to create conversation:', error)
       return { success: false, error: error.message }

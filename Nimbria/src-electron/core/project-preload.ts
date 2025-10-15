@@ -253,6 +253,17 @@ contextBridge.exposeInMainWorld('nimbria', {
     switchModel: (conversationId: string, modelId: string) =>
       ipcRenderer.invoke('llm-chat:switch-model', { conversationId, modelId }),
     
+    // 对话创建事件监听
+    onConversationStart: (callback: (data: { conversationId: string; modelId: string; settings: any }) => void) => {
+      ipcRenderer.on('llm-chat:conversation-start', (_, data) => callback(data))
+    },
+    onConversationCreated: (callback: (data: { conversationId: string; conversation: any }) => void) => {
+      ipcRenderer.on('llm-chat:conversation-created', (_, data) => callback(data))
+    },
+    onConversationError: (callback: (data: { conversationId: string; error: string }) => void) => {
+      ipcRenderer.on('llm-chat:conversation-error', (_, data) => callback(data))
+    },
+
     // 流式响应监听
     onStreamChunk: (callback: (data: { conversationId: string; messageId: string; chunk: string }) => void) => {
       ipcRenderer.on('llm-chat:stream-chunk', (_, data) => callback(data))
@@ -274,6 +285,25 @@ contextBridge.exposeInMainWorld('nimbria', {
     sendStorageLoadResponse: (data: any) => {
       ipcRenderer.send('llm-chat:storage-load-response', data)
     }
+  },
+
+  // Database API
+  database: {
+    // LLM Chat 数据库操作
+    llmGetConversations: (args: { projectPath: string }) => 
+      ipcRenderer.invoke('database:llm-get-conversations', args),
+    llmGetConversation: (args: { projectPath: string; conversationId: string }) => 
+      ipcRenderer.invoke('database:llm-get-conversation', args),
+    llmCreateConversation: (args: { projectPath: string; conversation: any }) => 
+      ipcRenderer.invoke('database:llm-create-conversation', args),
+    llmAddMessage: (args: { projectPath: string; conversationId: string; message: any }) => 
+      ipcRenderer.invoke('database:llm-add-message', args),
+    llmDeleteConversation: (args: { projectPath: string; conversationId: string }) => 
+      ipcRenderer.invoke('database:llm-delete-conversation', args),
+    llmUpdateConversationTitle: (args: { projectPath: string; conversationId: string; title: string }) => 
+      ipcRenderer.invoke('database:llm-update-conversation-title', args),
+    llmSearchConversations: (args: { projectPath: string; query: string }) => 
+      ipcRenderer.invoke('database:llm-search-conversations', args)
   },
   
   // DocParser 文档解析 API

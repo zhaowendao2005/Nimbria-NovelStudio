@@ -5,6 +5,7 @@
  */
 
 import { EventEmitter } from 'events'
+import { nanoid } from 'nanoid'
 import { LangChainClient } from './langchain-client'
 import { ConversationManager } from './conversation-manager'
 import { ContextManager } from './context-manager'
@@ -16,7 +17,10 @@ import type {
   MessageStartEvent,
   MessageChunkEvent,
   MessageCompleteEvent,
-  MessageErrorEvent
+  MessageErrorEvent,
+  ConversationStartEvent,
+  ConversationCreatedEvent,
+  ConversationErrorEvent
 } from './types'
 import type { ModelConfig, ModelProvider } from '../llm-service/types'
 
@@ -90,30 +94,107 @@ export class LlmChatService extends EventEmitter {
   }
 
   /**
-   * 创建新对话
+   * 创建新对话（事件驱动模式）
    */
   async createConversation(
     modelId: string,
     userSettings?: Partial<ConversationSettings>
-  ): Promise<Conversation> {
-    // 获取模型配置
-    const modelConfig = await this.getModelConfig(modelId)
+  ): Promise<string> {
+    // 立即生成对话 ID
+    const conversationId = nanoid()
 
-    // 从 ModelConfig 继承默认设置
-    const defaultSettings: ConversationSettings = {
-      temperature: 0.7,
-      maxTokens: modelConfig.maxTokens,
-      contextWindow: modelConfig.contextLength,
-      timeout: modelConfig.timeout,
-      maxRetries: modelConfig.maxRetries,
-      completionMode: modelConfig.completionMode,
-      systemPrompt: undefined
+    // 发送开始事件
+    this.emit('conversation:start', {
+      conversationId,
+      modelId,
+      settings: userSettings || {}
+    } as ConversationStartEvent)
+
+    // 异步处理对话创建
+    this.processConversationCreationAsync(conversationId, modelId, userSettings)
+
+    return conversationId
+  }
+
+  /**
+   * 异步处理对话创建
+   */
+  private async processConversationCreationAsync(
+    conversationId: string,
+    modelId: string,
+    userSettings?: Partial<ConversationSettings>
+  ): Promise<void> {
+    try {
+      // 获取模型配置
+      const modelConfig = await this.getModelConfig(modelId)
+
+      // 从 ModelConfig 继承默认设置
+      const defaultSettings: ConversationSettings = {
+        temperature: 0.7,
+        maxTokens: modelConfig.maxTokens,
+        contextWindow: modelConfig.contextLength,
+        timeout: modelConfig.timeout,
+        maxRetries: modelConfig.maxRetries,
+        completionMode: modelConfig.completionMode,
+        systemPrompt: undefined
+      }
+
+      // 用户设置覆盖默认设置
+      const finalSettings = { ...defaultSettings, ...userSettings }
+
+      // 创建对话（带重试逻辑）
+      const conversation = await this.createConversationWithRetry(
+        conversationId,
+        modelId,
+        finalSettings
+      )
+
+      // 发送成功事件
+      this.emit('conversation:created', {
+        conversationId,
+        conversation
+      } as ConversationCreatedEvent)
+
+    } catch (error) {
+      console.error('❌ [LlmChatService] 对话创建失败:', error)
+      
+      // 发送错误事件
+      this.emit('conversation:error', {
+        conversationId,
+        error: error instanceof Error ? error.message : String(error)
+      } as ConversationErrorEvent)
     }
+  }
 
-    // 用户设置覆盖默认设置
-    const finalSettings = { ...defaultSettings, ...userSettings }
-
-    return this.conversationManager.createConversation(modelId, finalSettings)
+  /**
+   * 带重试逻辑的对话创建
+   */
+  private async createConversationWithRetry(
+    conversationId: string,
+    modelId: string,
+    settings: ConversationSettings,
+    maxRetries: number = 3,
+    retryDelay: number = 100
+  ): Promise<Conversation> {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await this.conversationManager.createConversation(
+          conversationId,
+          modelId,
+          settings
+        )
+      } catch (error) {
+        if (error instanceof Error && error.message === 'Project database not available') {
+          if (attempt < maxRetries) {
+            console.warn(`⚠️ [LlmChatService] 数据库未就绪，重试 ${attempt}/${maxRetries}`)
+            await new Promise(resolve => setTimeout(resolve, retryDelay * attempt))
+            continue
+          }
+        }
+        throw error
+      }
+    }
+    throw new Error('Unexpected error in createConversationWithRetry')
   }
 
   /**

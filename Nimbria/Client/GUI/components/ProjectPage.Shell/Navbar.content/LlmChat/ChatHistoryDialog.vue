@@ -81,10 +81,10 @@
                   {{ conversation.modelId }}
                   <span class="q-mx-sm">•</span>
                   <q-icon name="chat" size="14px" class="q-mr-xs" />
-                  {{ conversation.messageCount || 0 }} 条消息
+                  {{ conversation.messages?.length || 0 }} 条消息
                   <span class="q-mx-sm">•</span>
                   <q-icon name="access_time" size="14px" class="q-mr-xs" />
-                  {{ formatDate(conversation.updatedAt) }}
+                  {{ formatDate(new Date(conversation.updatedAt)) }}
                 </q-item-label>
               </q-item-section>
               
@@ -146,10 +146,11 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useQuasar } from 'quasar'
-import { useLlmChatStore } from '@/stores/llmChat/llmChatStore'
-import { useChatTabManager } from '@/stores/llmChat/chatTabManager'
+import { useLlmChatStore } from '@stores/llmChat/llmChatStore'
+import { useChatTabManager } from '@stores/llmChat/chatTabManager'
 import { formatDistanceToNow } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
+import type { Conversation } from '../../../../../types/llmChat'
 
 // Props
 interface Props {
@@ -197,7 +198,7 @@ const filteredConversations = computed(() => {
   // 搜索过滤
   if (searchQuery.value.trim()) {
     const query = searchQuery.value.toLowerCase()
-    result = result.filter(conv => 
+    result = result.filter((conv: Conversation) => 
       conv.title.toLowerCase().includes(query) ||
       conv.modelId.toLowerCase().includes(query)
     )
@@ -210,17 +211,17 @@ const filteredConversations = computed(() => {
   const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate())
 
   if (selectedFilter.value === 'today') {
-    result = result.filter(conv => new Date(conv.updatedAt) >= today)
+    result = result.filter((conv: Conversation) => new Date(conv.updatedAt) >= today)
   } else if (selectedFilter.value === 'week') {
-    result = result.filter(conv => new Date(conv.updatedAt) >= weekAgo)
+    result = result.filter((conv: Conversation) => new Date(conv.updatedAt) >= weekAgo)
   } else if (selectedFilter.value === 'month') {
-    result = result.filter(conv => new Date(conv.updatedAt) >= monthAgo)
+    result = result.filter((conv: Conversation) => new Date(conv.updatedAt) >= monthAgo)
   } else if (selectedFilter.value === 'recent') {
     result = result.slice(0, 20)
   }
 
   // 按更新时间排序
-  return result.sort((a, b) => {
+  return result.sort((a: Conversation, b: Conversation) => {
     return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   })
 })
@@ -233,8 +234,8 @@ const formatDate = (date: Date | string) => {
   return formatDistanceToNow(dateObj, { addSuffix: true, locale: zhCN })
 }
 
-const onSearchQueryChange = async (value: string) => {
-  if (!value.trim()) return
+const onSearchQueryChange = async (value: string | number | null) => {
+  if (!value || typeof value !== 'string' || !value.trim()) return
 
   isSearching.value = true
   
@@ -266,7 +267,7 @@ const openConversation = async (conversation: any) => {
   closeDialog()
 }
 
-const editConversationTitle = async (conversation: any) => {
+const editConversationTitle = (conversation: Conversation) => {
   $q.dialog({
     title: '重命名对话',
     message: '请输入新的对话标题',
@@ -301,11 +302,10 @@ const editConversationTitle = async (conversation: any) => {
   })
 }
 
-const confirmDeleteConversation = (conversation: any) => {
+const confirmDeleteConversation = (conversation: Conversation) => {
   $q.dialog({
     title: '删除对话',
     message: `确定要删除对话"${conversation.title}"吗？此操作不可恢复。`,
-    cancel: true,
     persistent: true,
     ok: {
       label: '删除',
@@ -342,7 +342,6 @@ const confirmClearAllHistory = () => {
   $q.dialog({
     title: '清空所有历史',
     message: `确定要删除所有 ${totalConversations.value} 个对话吗？此操作不可恢复。`,
-    cancel: true,
     persistent: true,
     ok: {
       label: '清空',

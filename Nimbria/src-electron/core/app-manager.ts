@@ -57,8 +57,9 @@ export class AppManager {
     logger.info('Log file:', getLogFilePath())
     logger.info('='.repeat(80))
     
-    this.initializeFileSystem()
     await this.initializeDatabase()
+    this.initializeFileSystem()
+    this.setupDatabaseEventListeners() // 添加数据库事件监听器
     this.initializeWindowManager()
     this.registerIpcHandlers()
     
@@ -99,25 +100,17 @@ export class AppManager {
     const conversationManager = new ConversationManager()
     const contextManager = new ContextManager()
     
-    // 设置存储回调（暂时使用空实现，实际存储在渲染进程）
-    conversationManager.setStorageCallbacks(
-      async (data) => {
-        // TODO: 通过 IPC 保存到渲染进程的 localStorage
-        console.log('Saving conversations to storage:', data.conversations.length)
-      },
-      async () => {
-        // TODO: 通过 IPC 从渲染进程的 localStorage 加载
-        console.log('Loading conversations from storage')
-        return { conversations: [] }
-      }
-    )
-    
     this.llmChatService = new LlmChatService(
       this.llmConfigManager,
+      this.databaseService, // 传入数据库服务
       conversationManager,
       contextManager
     )
-    this.llmChatService.initialize()
+    
+    // 异步初始化 LLM Chat 服务（不阻塞启动）
+    void this.llmChatService.initialize().catch(error => {
+      logger.error('Failed to initialize LLM Chat service:', error)
+    })
     
     logger.info('File system, file watcher, project management, LLM config and LLM chat services initialized')
   }
@@ -134,6 +127,33 @@ export class AppManager {
     const initId = await this.databaseService.initialize()
     
     logger.info('Database service initialization started, initId:', initId)
+  }
+
+  /**
+   * 设置数据库事件监听器
+   */
+  private setupDatabaseEventListeners() {
+    // 监听项目数据库创建完成事件
+    this.databaseService.on('database:project-created', async (data) => {
+      logger.info(`📢 [AppManager] 项目数据库创建完成: ${data.projectPath}`)
+      
+      // 通知 LLM Chat 服务切换项目
+      if (this.llmChatService) {
+        try {
+          await this.llmChatService.switchProject(data.projectPath)
+          logger.info(`✅ [AppManager] LLM Chat 服务已切换到项目: ${data.projectPath}`)
+        } catch (error) {
+          logger.error(`❌ [AppManager] LLM Chat 服务切换项目失败:`, error)
+        }
+      }
+    })
+
+    // 监听数据库错误事件
+    this.databaseService.on('database:project-error', (data) => {
+      logger.error(`❌ [AppManager] 项目数据库错误: ${data.projectPath}`, data.error)
+    })
+
+    logger.info('Database event listeners setup completed')
   }
 
   private initializeWindowManager() {
@@ -594,6 +614,8 @@ export class AppManager {
         // ✅ 自动创建项目数据库
         const operationId = await this.databaseService.createProjectDatabase(process.projectPath)
         logger.info(`Auto-started project database creation, operationId: ${operationId}`)
+        
+        // 注意：LLM Chat 服务的项目切换将在数据库创建完成事件中处理
       }
       
       return {

@@ -51,6 +51,7 @@ export class ConversationManager {
    * 创建新对话
    */
   async createConversation(
+    conversationId: string,
     modelId: string,
     settings: ConversationSettings
   ): Promise<Conversation> {
@@ -59,7 +60,7 @@ export class ConversationManager {
     }
 
     const conversation: Conversation = {
-      id: nanoid(),
+      id: conversationId, // 使用预生成的 ID
       title: '新对话',
       modelId,
       messages: [],

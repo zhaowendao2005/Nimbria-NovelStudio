@@ -142,6 +142,17 @@ contextBridge.exposeInMainWorld('nimbria', {
     switchModel: (conversationId: string, modelId: string) =>
       ipcRenderer.invoke('llm-chat:switch-model', { conversationId, modelId }),
     
+    // 对话创建事件监听
+    onConversationStart: (callback: (data: { conversationId: string; modelId: string; settings: any }) => void) => {
+      ipcRenderer.on('llm-chat:conversation-start', (_, data) => callback(data))
+    },
+    onConversationCreated: (callback: (data: { conversationId: string; conversation: any }) => void) => {
+      ipcRenderer.on('llm-chat:conversation-created', (_, data) => callback(data))
+    },
+    onConversationError: (callback: (data: { conversationId: string; error: string }) => void) => {
+      ipcRenderer.on('llm-chat:conversation-error', (_, data) => callback(data))
+    },
+
     // 流式响应监听
     onStreamChunk: (callback: (data: { conversationId: string; messageId: string; chunk: string }) => void) => {
       ipcRenderer.on('llm-chat:stream-chunk', (_, data) => callback(data))

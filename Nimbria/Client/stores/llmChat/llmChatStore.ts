@@ -13,7 +13,7 @@ import type {
   StreamComplete,
   StreamError,
   ModelOption
-} from '@types/llmChat'
+} from '../../types/llmChat'
 
 interface LlmChatState {
   // 对话数据
@@ -120,21 +120,99 @@ export const useLlmChatStore = defineStore('llmChat', {
      * 初始化Store
      */
     async initialize() {
+      console.log('🚀 [Store] 开始初始化 LLM Chat Store')
+      
+      // 检查 window.nimbria 可用性
+      console.log('🔍 [Store] window.nimbria 可用性:', !!window.nimbria)
+      console.log('🔍 [Store] window.nimbria.llmChat 可用性:', !!window.nimbria?.llmChat)
+      
       // 加载UI设置
       this.loadUISettings()
       
       // 加载对话列表
       await this.loadConversations()
       
-      // 设置流式响应监听器
-      this.setupStreamListeners()
+      // 设置流式响应监听器（带重试机制）
+      await this.setupStreamListenersWithRetry()
+      
+      console.log('✅ [Store] LLM Chat Store 初始化完成')
+    },
+
+    /**
+     * 设置流式响应监听器（带重试机制）
+     */
+    async setupStreamListenersWithRetry(maxRetries: number = 5, delay: number = 100) {
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        console.log(`🔄 [Store] 尝试设置事件监听器 (${attempt}/${maxRetries})`)
+        
+        if (window.nimbria?.llmChat) {
+          console.log('✅ [Store] window.nimbria.llmChat 可用，设置监听器')
+          this.setupStreamListeners()
+          return
+        }
+        
+        console.warn(`⚠️ [Store] window.nimbria.llmChat 不可用，${delay}ms 后重试...`)
+        await new Promise(resolve => setTimeout(resolve, delay))
+        delay *= 2 // 指数退避
+      }
+      
+      console.error('❌ [Store] 设置事件监听器失败，已达到最大重试次数')
     },
 
     /**
      * 设置流式响应监听器
      */
     setupStreamListeners() {
-      if (!window.nimbria?.llmChat) return
+      if (!window.nimbria?.llmChat) {
+        console.warn('⚠️ [Store] window.nimbria.llmChat 不可用')
+        return
+      }
+
+      console.log('🔧 [Store] 设置事件监听器...')
+      
+      // 调试：列出 llmChat 对象的所有属性
+      console.log('🔍 [Store] llmChat 对象属性:', Object.keys(window.nimbria.llmChat))
+      console.log('🔍 [Store] onConversationStart 类型:', typeof window.nimbria.llmChat.onConversationStart)
+      console.log('🔍 [Store] onConversationCreated 类型:', typeof window.nimbria.llmChat.onConversationCreated)
+      console.log('🔍 [Store] onConversationError 类型:', typeof window.nimbria.llmChat.onConversationError)
+
+      // 监听对话创建开始
+      if (window.nimbria.llmChat.onConversationStart) {
+        console.log('✅ [Store] 设置 onConversationStart 监听器')
+        window.nimbria.llmChat.onConversationStart((data: any) => {
+          console.log('🚀 [Store] 对话创建开始:', data.conversationId)
+          // 可以在这里显示加载状态
+        })
+      } else {
+        console.warn('❌ [Store] onConversationStart 方法不存在')
+      }
+
+      // 监听对话创建成功
+      if (window.nimbria.llmChat.onConversationCreated) {
+        console.log('✅ [Store] 设置 onConversationCreated 监听器')
+        window.nimbria.llmChat.onConversationCreated((data: any) => {
+          console.log('✅ [Store] 对话创建成功:', data.conversationId)
+          
+          // 添加到对话列表
+          this.conversations.push(data.conversation)
+          
+          // 设置为活跃对话
+          this.activeConversationId = data.conversationId
+        })
+      } else {
+        console.warn('❌ [Store] onConversationCreated 方法不存在')
+      }
+
+      // 监听对话创建错误
+      if (window.nimbria.llmChat.onConversationError) {
+        console.log('✅ [Store] 设置 onConversationError 监听器')
+        window.nimbria.llmChat.onConversationError((data: any) => {
+          console.error('❌ [Store] 对话创建失败:', data.conversationId, data.error)
+          // TODO: 显示错误提示
+        })
+      } else {
+        console.warn('❌ [Store] onConversationError 方法不存在')
+      }
 
       // 监听流式块
       window.nimbria.llmChat.onStreamChunk((data: StreamChunk) => {
@@ -189,25 +267,43 @@ export const useLlmChatStore = defineStore('llmChat', {
         
         // 尝试从数据库加载
         const projectPath = await this.getCurrentProjectPath()
+        console.log('🔍 [Store] 当前项目路径:', projectPath)
+        console.log('🔍 [Store] database API 可用性:', !!window.nimbria?.database?.llmGetConversations)
         
         if (projectPath && window.nimbria?.database?.llmGetConversations) {
+          console.log('📂 [Store] 从数据库加载对话...')
           // 使用数据库加载
           const response = await window.nimbria.database.llmGetConversations({ projectPath })
+          console.log('📂 [Store] 数据库响应:', response)
           
           if (response.success && response.conversations) {
             this.conversations = response.conversations
+            console.log('✅ [Store] 从数据库加载了', response.conversations.length, '个对话')
+            
+            // 同步到标签页管理器
+            await this.syncConversationsToTabs()
             return
+          } else {
+            console.warn('⚠️ [Store] 数据库加载失败，回退到 IPC 方法')
           }
+        } else {
+          console.warn('⚠️ [Store] 项目路径或数据库 API 不可用，使用 IPC 方法')
         }
         
         // 备选方案：使用旧的 IPC 方法
+        console.log('📞 [Store] 使用 IPC 方法加载对话...')
         const response = await window.nimbria.llmChat.getConversations()
+        console.log('📞 [Store] IPC 响应:', response)
         
         if (response.success && response.conversations) {
           this.conversations = response.conversations
+          console.log('✅ [Store] 从 IPC 加载了', response.conversations.length, '个对话')
+          
+          // 同步到标签页管理器
+          await this.syncConversationsToTabs()
         }
       } catch (error) {
-        console.error('加载对话列表失败:', error)
+        console.error('❌ [Store] 加载对话列表失败:', error)
       } finally {
         this.isLoading = false
       }
@@ -234,7 +330,7 @@ export const useLlmChatStore = defineStore('llmChat', {
     },
 
     /**
-     * 创建新对话
+     * 创建新对话（事件驱动模式）
      */
     async createConversation(modelId?: string): Promise<string | null> {
       try {
@@ -248,10 +344,9 @@ export const useLlmChatStore = defineStore('llmChat', {
           modelId: selectedModelId
         })
 
-        if (response.success && response.conversation) {
-          this.conversations.push(response.conversation)
-          this.activeConversationId = response.conversation.id
-          return response.conversation.id
+        if (response.success && response.conversationId) {
+          // 立即返回对话 ID，实际对话数据通过事件监听器处理
+          return response.conversationId
         }
 
         return null
@@ -528,18 +623,46 @@ export const useLlmChatStore = defineStore('llmChat', {
      */
     async getCurrentProjectPath(): Promise<string> {
       try {
-        // 这里需要从项目管理 store 获取当前项目路径
-        // 临时实现：从 window 对象获取
-        if (window.nimbria?.project?.getCurrentProjectPath) {
-          return await window.nimbria.project.getCurrentProjectPath()
+        // 从 window 对象获取（project-preload.ts 中的实现）
+        if (window.nimbria?.getCurrentProjectPath) {
+          const projectPath = window.nimbria.getCurrentProjectPath()
+          console.log('🔍 [Store] getCurrentProjectPath 返回:', projectPath)
+          return projectPath || ''
         }
         
         // 备选方案：从 localStorage 获取
         const lastProjectPath = localStorage.getItem('nimbria_last_project_path')
+        console.log('🔍 [Store] localStorage 项目路径:', lastProjectPath)
         return lastProjectPath || ''
       } catch (error) {
-        console.error('获取项目路径失败:', error)
+        console.error('❌ [Store] 获取项目路径失败:', error)
         return ''
+      }
+    },
+
+    /**
+     * 同步对话到标签页管理器
+     */
+    async syncConversationsToTabs() {
+      try {
+        // 动态导入标签页管理器
+        const { useChatTabManager } = await import('@stores/llmChat/chatTabManager')
+        const tabManager = useChatTabManager()
+        
+        console.log('🔄 [Store] 同步对话到标签页管理器...')
+        
+        // 清空现有标签页
+        tabManager.$reset()
+        
+        // 为每个对话创建标签页（但不激活）
+        this.conversations.forEach(conversation => {
+          console.log('🏷️ [Store] 同步对话标签:', conversation.id, '标题:', conversation.title)
+          tabManager.openConversation(conversation.id, conversation.title, false) // false = 不激活
+        })
+        
+        console.log('✅ [Store] 已同步', this.conversations.length, '个对话到标签页管理器')
+      } catch (error) {
+        console.error('❌ [Store] 同步对话到标签页管理器失败:', error)
       }
     },
 
