@@ -79,11 +79,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import CommandPalette from '@components/ProjectPage.Shell/CommandPalette/CommandPalette.vue'
 import RightSidebar from '@components/ProjectPage.Shell/RightSidebar/RightSidebar.vue'
 import { useCommandPaletteStore } from '@stores/projectPage/commandPalette'
 import { useRightSidebarStore } from '@stores/projectPage/rightSidebar'
+import { useLeftSidebarStore } from '@stores/projectPage/leftSidebar'
 
 /**
  * ProjectMainLayout
@@ -94,6 +95,7 @@ import { useRightSidebarStore } from '@stores/projectPage/rightSidebar'
 
 const commandStore = useCommandPaletteStore()
 const rightSidebarStore = useRightSidebarStore()
+const leftSidebarStore = useLeftSidebarStore()
 
 // ==================== 窗口控制状态 ====================
 const isMaximized = ref(false)
@@ -156,7 +158,8 @@ async function closeWindow() {
 }
 
 // ==================== 面板宽度状态 ====================
-const leftWidth = ref('328px')  // 48px导航 + 280px文件树
+// 左侧栏宽度：从 leftSidebarStore 动态计算
+const leftWidth = computed(() => leftSidebarStore.width)
 
 // ==================== 拖拽状态 ====================
 let isDragging = false
@@ -166,6 +169,11 @@ let startWidth = 0
 
 // ==================== 左侧分隔器拖拽 ====================
 const startDragLeft = (e: MouseEvent) => {
+  // 如果内容区不可见，不允许拖拽
+  if (!leftSidebarStore.isContentVisible) {
+    return
+  }
+  
   isDragging = true
   dragType = 'left'
   startX = e.clientX
@@ -200,8 +208,10 @@ const handleDrag = (e: MouseEvent) => {
   
   if (dragType === 'left') {
     // 左栏拖拽（向右增大，向左减小）
+    // 最小宽度：导航栏(48px) + 最小内容区(152px) = 200px
+    // 最大宽度：600px
     const newWidth = Math.max(200, Math.min(600, startWidth + deltaX))
-    leftWidth.value = `${newWidth}px`
+    leftSidebarStore.setWidth(newWidth)
   } else if (dragType === 'right') {
     // 右栏拖拽（向左增大，向右减小）
     const newWidth = Math.max(200, Math.min(600, startWidth - deltaX))

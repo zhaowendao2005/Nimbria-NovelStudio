@@ -81,10 +81,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed } from 'vue'
 import { Folder, Search, Calendar, Setting, HomeFilled, DocumentCopy, ChatDotRound } from '@element-plus/icons-vue'
 import { useMarkdownStore } from '@stores/projectPage/Markdown'
 import { usePaneLayoutStore } from '@stores/projectPage/paneLayout'
+import { useLeftSidebarStore } from '@stores/projectPage/leftSidebar'
 
 /**
  * ProjectNavbar
@@ -99,7 +100,10 @@ const emit = defineEmits<{
 
 const markdownStore = useMarkdownStore()
 const paneLayoutStore = usePaneLayoutStore()
-const currentView = ref<string>('files') // 默认是文件浏览器
+const leftSidebarStore = useLeftSidebarStore()
+
+// 从 store 读取当前视图
+const currentView = computed(() => leftSidebarStore.currentView)
 
 const handleClick = async (type: string) => {
   console.log('Navbar clicked:', type)
@@ -141,8 +145,8 @@ const handleClick = async (type: string) => {
         tabId: tab.id
       })
       
-      // 更新当前视图为docparser（但不触发内容区切换）
-      currentView.value = 'docparser'
+      // 更新 leftSidebarStore 的当前视图
+      leftSidebarStore.setView('docparser')
     } else {
       console.error('[ProjectNavbar] Failed to open DocParser: no focused pane available')
     }
@@ -151,7 +155,6 @@ const handleClick = async (type: string) => {
   }
   
   // 其他导航项 - 触发左侧内容区切换
-  currentView.value = type
   emit('navClick', type)
 }
 </script>
