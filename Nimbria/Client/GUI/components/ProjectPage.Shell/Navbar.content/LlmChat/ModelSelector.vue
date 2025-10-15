@@ -66,8 +66,10 @@
           >
             <el-checkbox :label="model.id" :disabled="!model.isActive">
               <div class="model-info">
-                <span class="model-name">{{ model.name }}</span>
-                <el-tag v-if="!model.isActive" size="small" type="info">未激活</el-tag>
+                <div class="model-name">
+                  <span>{{ model.name }}</span>
+                  <el-tag v-if="!model.isActive" size="small" type="info">未激活</el-tag>
+                </div>
                 <span class="model-provider">{{ model.provider }}</span>
               </div>
             </el-checkbox>
@@ -299,17 +301,20 @@ onMounted(() => {
 .model-info {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-}
-
-.model-name {
-  font-weight: 500;
-  color: var(--el-text-color-primary);
-}
-
-.model-provider {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
+  gap: 2px;
+  
+  .model-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+    color: var(--el-text-color-primary);
+  }
+  
+  .model-provider {
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+  }
 }
 </style>
 

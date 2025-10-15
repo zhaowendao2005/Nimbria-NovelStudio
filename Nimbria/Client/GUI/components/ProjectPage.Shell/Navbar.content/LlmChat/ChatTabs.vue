@@ -66,10 +66,10 @@
       </div>
     </div>
     
-    <!-- 更多按钮（当行数超过限制时显示） -->
+    <!-- 更多按钮（当对话数超过限制时显示） -->
     <div v-if="hasMore" class="more-indicator">
       <el-button text size="small" @click="showAllTabs">
-        <el-icon><component :is="'ArrowDown'" /></el-icon>
+        <el-icon><component :is="'MoreFilled'" /></el-icon>
         更多 ({{ hiddenCount }})
       </el-button>
     </div>
@@ -84,10 +84,8 @@ import { Setting } from '@element-plus/icons-vue'
 
 const chatStore = useChatStore()
 
-// 最大显示行数
-const maxLines = ref(3)
-// 每行最多显示的标签数（根据宽度动态计算）
-const itemsPerLine = ref(4)
+// 最大显示的对话数量（横向滚动）
+const maxDisplayCount = ref(10)
 
 // 编辑状态
 const editingTabId = ref<string | null>(null)
@@ -97,8 +95,6 @@ const editingTitle = ref('')
 const activeConversationId = computed(() => chatStore.activeConversationId)
 
 const allConversations = computed(() => chatStore.activeConversations)
-
-const maxDisplayCount = computed(() => maxLines.value * itemsPerLine.value)
 
 const displayConversations = computed(() => {
   const conversations = allConversations.value
@@ -114,8 +110,6 @@ const displayConversations = computed(() => {
 const hasMore = computed(() => allConversations.value.length > maxDisplayCount.value)
 
 const hiddenCount = computed(() => Math.max(0, allConversations.value.length - maxDisplayCount.value))
-
-const maxHeight = computed(() => `${maxLines.value * 40}px`)
 
 // 方法
 const handleTabClick = (id: string) => {
@@ -211,14 +205,7 @@ const handleClearConversation = async () => {
 
 const showAllTabs = () => {
   // TODO: 显示所有对话的对话框
-  ElMessage.info('功能开发中')
-}
-
-// 监听窗口大小变化，动态计算每行可显示的标签数
-const updateItemsPerLine = () => {
-  const containerWidth = 280 // 左侧栏最小宽度
-  const itemWidth = 120 // 标签最大宽度
-  itemsPerLine.value = Math.max(2, Math.floor(containerWidth / itemWidth))
+  ElMessage.info('历史记录对话框开发中')
 }
 
 // 初始化时创建一个默认对话
@@ -227,9 +214,6 @@ watch(() => allConversations.value.length, (length) => {
     chatStore.createConversation()
   }
 }, { immediate: true })
-
-// 初始化
-updateItemsPerLine()
 </script>
 
 <style scoped lang="scss">
@@ -261,9 +245,20 @@ updateItemsPerLine()
 .tabs-wrapper {
   flex: 1;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 4px;
   min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  
+  &::-webkit-scrollbar {
+    height: 4px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: var(--el-border-color-darker);
+    border-radius: 2px;
+  }
 }
 
 .tab-item {
@@ -336,11 +331,13 @@ updateItemsPerLine()
 }
 
 .more-indicator {
-  padding: 0 8px 8px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--el-border-color);
   text-align: center;
   
   .el-button {
     width: 100%;
+    font-size: 12px;
   }
 }
 </style>
