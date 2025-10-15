@@ -13,10 +13,22 @@
     <!-- 文件浏览器图标 -->
     <el-tooltip content="文件浏览器" placement="right" :show-after="500">
       <button 
-        class="nav-icon-btn active"
+        class="nav-icon-btn"
+        :class="{ active: currentView === 'files' }"
         @click="handleClick('files')"
       >
         <el-icon class="nav-icon"><Folder /></el-icon>
+      </button>
+    </el-tooltip>
+    
+    <!-- LLM对话图标 -->
+    <el-tooltip content="AI助手" placement="right" :show-after="500">
+      <button 
+        class="nav-icon-btn"
+        :class="{ active: currentView === 'chat' }"
+        @click="handleClick('chat')"
+      >
+        <el-icon class="nav-icon"><ChatDotRound /></el-icon>
       </button>
     </el-tooltip>
     
@@ -24,6 +36,7 @@
     <el-tooltip content="搜索" placement="right" :show-after="500">
       <button 
         class="nav-icon-btn"
+        :class="{ active: currentView === 'search' }"
         @click="handleClick('search')"
       >
         <el-icon class="nav-icon"><Search /></el-icon>
@@ -34,6 +47,7 @@
     <el-tooltip content="笔记本" placement="right" :show-after="500">
       <button 
         class="nav-icon-btn"
+        :class="{ active: currentView === 'notebook' }"
         @click="handleClick('notebook')"
       >
         <el-icon class="nav-icon"><Calendar /></el-icon>
@@ -44,6 +58,7 @@
     <el-tooltip content="文档解析器" placement="right" :show-after="500">
       <button 
         class="nav-icon-btn"
+        :class="{ active: currentView === 'docparser' }"
         @click="handleClick('docparser')"
       >
         <el-icon class="nav-icon"><DocumentCopy /></el-icon>
@@ -55,6 +70,7 @@
       <el-tooltip content="设置" placement="right" :show-after="500">
         <button 
           class="nav-icon-btn"
+          :class="{ active: currentView === 'settings' }"
           @click="handleClick('settings')"
         >
           <el-icon class="nav-icon"><Setting /></el-icon>
@@ -66,14 +82,20 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Folder, Search, Calendar, Setting, HomeFilled, DocumentCopy } from '@element-plus/icons-vue'
+import { Folder, Search, Calendar, Setting, HomeFilled, DocumentCopy, ChatDotRound } from '@element-plus/icons-vue'
 import { useMarkdownStore } from '@stores/projectPage/Markdown'
 import { usePaneLayoutStore } from '@stores/projectPage/paneLayout'
 
 /**
  * ProjectNavbar
  * 左侧窄导航栏（48px）
+ * 支持动态高亮和内容区切换
  */
+
+// 定义 emit
+const emit = defineEmits<{
+  navClick: [type: string]
+}>()
 
 const markdownStore = useMarkdownStore()
 const paneLayoutStore = usePaneLayoutStore()
@@ -82,6 +104,7 @@ const currentView = ref<string>('files') // 默认是文件浏览器
 const handleClick = async (type: string) => {
   console.log('Navbar clicked:', type)
   
+  // 主页按钮 - 特殊处理，显示主窗口
   if (type === 'home') {
     try {
       await window.nimbria.window.showMain()
@@ -92,6 +115,7 @@ const handleClick = async (type: string) => {
     return
   }
   
+  // 文档解析器 - 特殊处理，在主内容区创建panel
   if (type === 'docparser') {
     console.log('[ProjectNavbar] 打开DocParser标签页')
     
@@ -116,6 +140,9 @@ const handleClick = async (type: string) => {
         paneId: paneLayoutStore.focusedPane.id,
         tabId: tab.id
       })
+      
+      // 更新当前视图为docparser（但不触发内容区切换）
+      currentView.value = 'docparser'
     } else {
       console.error('[ProjectNavbar] Failed to open DocParser: no focused pane available')
     }
@@ -123,12 +150,9 @@ const handleClick = async (type: string) => {
     return
   }
   
-  // 其他导航项
-  if (type === 'files') {
-    currentView.value = 'files'
-  }
-  
-  // TODO: 实现其他导航逻辑
+  // 其他导航项 - 触发左侧内容区切换
+  currentView.value = type
+  emit('navClick', type)
 }
 </script>
 
