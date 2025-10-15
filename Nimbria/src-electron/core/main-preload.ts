@@ -113,6 +113,56 @@ contextBridge.exposeInMainWorld('nimbria', {
       channelInvoke('llm:toggle-model-selection', { providerId, modelType, modelName }),
     setPreferredModel: (providerId: string, modelType: string, modelName: string) =>
       channelInvoke('llm:set-preferred-model', { providerId, modelType, modelName })
+  },
+
+  llmChat: {
+    // 对话管理
+    createConversation: (args: { modelId: string; settings?: any }) =>
+      ipcRenderer.invoke('llm-chat:create-conversation', args),
+    getConversations: () =>
+      ipcRenderer.invoke('llm-chat:get-conversations'),
+    getConversation: (conversationId: string) =>
+      ipcRenderer.invoke('llm-chat:get-conversation', { conversationId }),
+    deleteConversation: (conversationId: string) =>
+      ipcRenderer.invoke('llm-chat:delete-conversation', { conversationId }),
+    updateTitle: (conversationId: string, title: string) =>
+      ipcRenderer.invoke('llm-chat:update-title', { conversationId, title }),
+    updateSettings: (conversationId: string, settings: any) =>
+      ipcRenderer.invoke('llm-chat:update-settings', { conversationId, settings }),
+    
+    // 消息管理
+    sendMessage: (args: { conversationId: string; content: string }) =>
+      ipcRenderer.invoke('llm-chat:send-message', args),
+    regenerateMessage: (conversationId: string) =>
+      ipcRenderer.invoke('llm-chat:regenerate-message', { conversationId }),
+    deleteMessage: (conversationId: string, messageId: string) =>
+      ipcRenderer.invoke('llm-chat:delete-message', { conversationId, messageId }),
+    
+    // 模型管理
+    switchModel: (conversationId: string, modelId: string) =>
+      ipcRenderer.invoke('llm-chat:switch-model', { conversationId, modelId }),
+    
+    // 流式响应监听
+    onStreamChunk: (callback: (data: { conversationId: string; messageId: string; chunk: string }) => void) => {
+      ipcRenderer.on('llm-chat:stream-chunk', (_, data) => callback(data))
+    },
+    onStreamComplete: (callback: (data: { conversationId: string; messageId: string }) => void) => {
+      ipcRenderer.on('llm-chat:stream-complete', (_, data) => callback(data))
+    },
+    onStreamError: (callback: (data: { conversationId: string; error: string }) => void) => {
+      ipcRenderer.on('llm-chat:stream-error', (_, data) => callback(data))
+    },
+    
+    // LocalStorage 通信
+    onStorageSave: (callback: (data: any) => void) => {
+      ipcRenderer.on('llm-chat:storage-save', (_, data) => callback(data))
+    },
+    onStorageLoadRequest: (callback: () => void) => {
+      ipcRenderer.on('llm-chat:storage-load-request', () => callback())
+    },
+    sendStorageLoadResponse: (data: any) => {
+      ipcRenderer.send('llm-chat:storage-load-response', data)
+    }
   }
 })
 

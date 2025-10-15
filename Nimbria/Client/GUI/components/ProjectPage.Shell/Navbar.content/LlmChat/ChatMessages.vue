@@ -110,7 +110,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
-import { useChatStore } from '@stores/chat/chatStore'
+import { useLlmChatStore } from '@stores/llmChat/llmChatStore'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useClipboard } from '@vueuse/core'
 import type { ChatMessage } from './types'
@@ -148,14 +148,14 @@ const escapeHtml = (text: string): string => {
   return div.innerHTML
 }
 
-const chatStore = useChatStore()
+const llmChatStore = useLlmChatStore()
 const { copy } = useClipboard()
 
 const messagesContainer = ref<HTMLElement>()
 const showTimestamp = ref(true)
 
 // 计算属性
-const activeConversation = computed(() => chatStore.activeConversation)
+const activeConversation = computed(() => llmChatStore.activeConversation)
 const messages = computed(() => activeConversation.value?.messages || [])
 
 // 格式化时间
@@ -192,7 +192,7 @@ const handleMessageAction = async (command: string, message: ChatMessage) => {
       break
       
     case 'regenerate':
-      await chatStore.regenerateMessage(message.id)
+      await llmChatStore.regenerateMessage(message.id)
       break
       
     case 'delete':
@@ -202,7 +202,7 @@ const handleMessageAction = async (command: string, message: ChatMessage) => {
           cancelButtonText: '取消',
           type: 'warning'
         })
-        chatStore.deleteMessage(message.id)
+        llmChatStore.deleteMessage(message.id)
         ElMessage.success('消息已删除')
       } catch {
         // 用户取消

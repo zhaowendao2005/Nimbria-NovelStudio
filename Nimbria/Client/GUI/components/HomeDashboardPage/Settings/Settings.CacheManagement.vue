@@ -64,6 +64,7 @@
 
         <q-card-section>
           <ul class="cache-warning-list">
+            <li>LLM对话历史与设置</li>
             <li>分屏布局状态</li>
             <li>Markdown编辑器状态</li>
             <li>项目页面状态</li>

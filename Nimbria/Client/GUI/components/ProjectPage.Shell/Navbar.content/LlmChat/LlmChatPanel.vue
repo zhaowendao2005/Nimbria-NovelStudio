@@ -13,16 +13,16 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { useChatStore } from '@stores/chat/chatStore'
+import { useLlmChatStore } from '@stores/llmChat/llmChatStore'
 import ChatTabs from './ChatTabs.vue'
 import ChatMessages from './ChatMessages.vue'
 import ChatInput from './ChatInput.vue'
 
-const chatStore = useChatStore()
+const llmChatStore = useLlmChatStore()
 
-onMounted(() => {
-  // 从LocalStorage加载数据
-  chatStore.loadFromLocalStorage()
+onMounted(async () => {
+  // 初始化Store
+  await llmChatStore.initialize()
 })
 </script>
 

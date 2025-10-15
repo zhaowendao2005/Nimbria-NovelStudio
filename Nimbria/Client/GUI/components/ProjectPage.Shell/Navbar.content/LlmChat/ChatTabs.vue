@@ -1,7 +1,7 @@
 <template>
   <div class="chat-tabs">
     <!-- 多行标签容器 -->
-    <div class="tabs-container" :style="{ maxHeight: maxHeight }">
+    <div class="tabs-container">
       <div class="tabs-wrapper">
         <!-- 对话标签 -->
         <div
@@ -12,11 +12,6 @@
           @click="handleTabClick(conversation.id)"
           @dblclick="handleTabEdit(conversation.id)"
         >
-          <!-- 固定图标 -->
-          <el-icon v-if="conversation.isPinned" class="pin-icon">
-            <component :is="'Unlock'" />
-          </el-icon>
-          
           <!-- 标签标题 -->
           <span v-if="editingTabId !== conversation.id" class="tab-title">
             {{ conversation.title }}
@@ -78,11 +73,11 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useChatStore } from '@stores/chat/chatStore'
+import { useLlmChatStore } from '@stores/llmChat/llmChatStore'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Setting } from '@element-plus/icons-vue'
 
-const chatStore = useChatStore()
+const llmChatStore = useLlmChatStore()
 
 // 最大显示的对话数量（横向滚动）
 const maxDisplayCount = ref(10)
@@ -92,18 +87,15 @@ const editingTabId = ref<string | null>(null)
 const editingTitle = ref('')
 
 // 计算属性
-const activeConversationId = computed(() => chatStore.activeConversationId)
+const activeConversationId = computed(() => llmChatStore.activeConversationId)
 
-const allConversations = computed(() => chatStore.activeConversations)
+const allConversations = computed(() => llmChatStore.conversations)
 
 const displayConversations = computed(() => {
   const conversations = allConversations.value
   
-  // 优先显示固定的对话
-  const pinned = conversations.filter(c => c.isPinned)
-  const unpinned = conversations.filter(c => !c.isPinned)
-  
-  const sorted = [...pinned, ...unpinned]
+  // 按更新时间排序，最新的在前
+  const sorted = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt)
   return sorted.slice(0, maxDisplayCount.value)
 })
 
@@ -113,7 +105,7 @@ const hiddenCount = computed(() => Math.max(0, allConversations.value.length - m
 
 // 方法
 const handleTabClick = (id: string) => {
-  chatStore.setActiveConversation(id)
+  llmChatStore.setActiveConversation(id)
 }
 
 const handleTabEdit = (id: string) => {
@@ -126,7 +118,7 @@ const handleTabEdit = (id: string) => {
 
 const handleTitleSave = (id: string) => {
   if (editingTitle.value.trim()) {
-    chatStore.updateConversationTitle(id, editingTitle.value.trim())
+    llmChatStore.updateConversationTitle(id, editingTitle.value.trim())
   }
   editingTabId.value = null
   editingTitle.value = ''
@@ -149,20 +141,20 @@ const handleTabClose = async (id: string) => {
         }
       )
       
-      chatStore.deleteConversation(id)
+      llmChatStore.deleteConversation(id)
       ElMessage.success('对话已关闭')
     } catch {
       // 用户取消
     }
   } else {
-    chatStore.deleteConversation(id)
+    llmChatStore.deleteConversation(id)
   }
 }
 
 const handleToolboxCommand = (command: string) => {
   switch (command) {
     case 'new':
-      chatStore.createConversation()
+      llmChatStore.createConversation()
       ElMessage.success('已创建新对话')
       break
     case 'history':
@@ -180,7 +172,7 @@ const handleToolboxCommand = (command: string) => {
 }
 
 const handleClearConversation = async () => {
-  const conversation = chatStore.activeConversation
+  const conversation = llmChatStore.activeConversation
   if (!conversation) return
   
   try {
@@ -196,7 +188,8 @@ const handleClearConversation = async () => {
     
     conversation.messages = []
     conversation.updatedAt = new Date()
-    chatStore.saveToLocalStorage()
+    // 通过后端API保存更改
+    await llmChatStore.updateConversationSettings(conversation.id, {})
     ElMessage.success('对话已清空')
   } catch {
     // 用户取消
@@ -208,12 +201,7 @@ const showAllTabs = () => {
   ElMessage.info('历史记录对话框开发中')
 }
 
-// 初始化时创建一个默认对话
-watch(() => allConversations.value.length, (length) => {
-  if (length === 0 && !chatStore.activeConversationId) {
-    chatStore.createConversation()
-  }
-}, { immediate: true })
+// 注意：不自动创建对话，由用户点击"创建新对话"按钮或发送第一条消息时创建
 </script>
 
 <style scoped lang="scss">

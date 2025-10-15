@@ -22,7 +22,11 @@ import { registerMarkdownHandlers } from '../ipc/main-renderer/markdown-handlers
 import { registerFileHandlers } from '../ipc/main-renderer/file-handlers'
 import { registerDocParserHandlers } from '../ipc/main-renderer/docParser-handlers'
 import { registerLlmHandlers } from '../ipc/main-renderer/llm-handlers'
+import { registerLlmChatHandlers } from '../ipc/main-renderer/llm-chat-handlers'
 import { LlmConfigManager } from '../services/llm-service/llm-config-manager'
+import { LlmChatService } from '../services/llm-chat-service/llm-chat-service'
+import { ConversationManager } from '../services/llm-chat-service/conversation-manager'
+import { ContextManager } from '../services/llm-chat-service/context-manager'
 import { createApplicationMenu, setupContextMenu } from './menu'
 
 const logger = getLogger('AppManager')
@@ -34,6 +38,7 @@ export class AppManager {
   private fileWatcher!: FileWatcherService
   private projectManager!: ProjectManager
   private llmConfigManager!: LlmConfigManager
+  private llmChatService!: LlmChatService
   private transferMap?: Map<string, { sourceWebContentsId: number; tabId: string }>
 
   boot() {
@@ -78,7 +83,32 @@ export class AppManager {
     this.fileWatcher = new FileWatcherService()
     this.projectManager = new ProjectManager()
     this.llmConfigManager = new LlmConfigManager()
-    logger.info('File system, file watcher, project management and LLM config services initialized')
+    
+    // 初始化 LLM Chat 服务
+    const conversationManager = new ConversationManager()
+    const contextManager = new ContextManager()
+    
+    // 设置存储回调（暂时使用空实现，实际存储在渲染进程）
+    conversationManager.setStorageCallbacks(
+      async (data) => {
+        // TODO: 通过 IPC 保存到渲染进程的 localStorage
+        console.log('Saving conversations to storage:', data.conversations.length)
+      },
+      async () => {
+        // TODO: 通过 IPC 从渲染进程的 localStorage 加载
+        console.log('Loading conversations from storage')
+        return { conversations: [] }
+      }
+    )
+    
+    this.llmChatService = new LlmChatService(
+      this.llmConfigManager,
+      conversationManager,
+      contextManager
+    )
+    this.llmChatService.initialize()
+    
+    logger.info('File system, file watcher, project management, LLM config and LLM chat services initialized')
   }
 
   private initializeWindowManager() {
@@ -443,6 +473,10 @@ export class AppManager {
       llmConfigManager: this.llmConfigManager
     })
     logger.info('LLM IPC handlers registered')
+    
+    // 注册 LLM Chat IPC 处理器
+    registerLlmChatHandlers(this.llmChatService)
+    logger.info('LLM Chat IPC handlers registered')
 
     ipcMain.handle('window:minimize', (event, request: IPCRequest<'window:minimize'>) => {
       return this.handleWindowOperationFromEvent(event, 'minimize', request)

@@ -110,11 +110,12 @@ export interface ChatState {
  * 模型选择项
  */
 export interface ModelOption {
-  id: string
+  id: string // 格式: providerId/modelName
   name: string
+  displayName?: string
   provider: string
+  type: string // 模型类型，如 'chat', 'completion'
   isActive: boolean
-  isSelected: boolean
 }
 
 /**

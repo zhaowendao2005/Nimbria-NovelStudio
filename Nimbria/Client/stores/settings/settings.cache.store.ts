@@ -58,6 +58,17 @@ export const useSettingsCacheStore = defineStore('settings-cache', () => {
     const keys = Object.keys(data)
     const items = []
 
+    // LLM Chat 对话缓存
+    const llmChatKeys = keys.filter(k => k.includes('nimbria_llm_chat'))
+    if (llmChatKeys.length > 0) {
+      items.push({
+        key: 'llmChat',
+        name: 'LLM对话历史',
+        icon: 'chat',
+        size: calculateModuleSize(llmChatKeys, data)
+      })
+    }
+
     // 分屏布局缓存
     const paneKeys = keys.filter(k => k.includes('pane'))
     if (paneKeys.length > 0) {
@@ -104,9 +115,10 @@ export const useSettingsCacheStore = defineStore('settings-cache', () => {
 
     // 其他缓存
     const otherKeys = keys.filter(k => 
+      !k.includes('nimbria_llm_chat') &&
       !k.includes('pane') && 
       !k.includes('markdown') && 
-      !k.includes('project')
+      !k.includes('project')  
     )
     if (otherKeys.length > 0) {
       items.push({
