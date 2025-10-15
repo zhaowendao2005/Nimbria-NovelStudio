@@ -1,22 +1,26 @@
 /**
  * LLM Chat 主服务类
  * 协调各个组件，提供统一的服务接口
+ * 使用 EventEmitter 实现事件驱动架构
  */
 
+import { EventEmitter } from 'events'
 import { LangChainClient } from './langchain-client'
 import { ConversationManager } from './conversation-manager'
 import { ContextManager } from './context-manager'
 import type {
   Conversation,
   ConversationSettings,
-  StreamCallbacks,
   LangChainClientConfig,
   ChatMessage,
-  ConversationsStorage
+  MessageStartEvent,
+  MessageChunkEvent,
+  MessageCompleteEvent,
+  MessageErrorEvent
 } from './types'
 import type { ModelConfig, ModelProvider } from '../llm-service/types'
 
-export class LlmChatService {
+export class LlmChatService extends EventEmitter {
   private conversationManager: ConversationManager
   private contextManager: ContextManager
   private activeClients: Map<string, LangChainClient> = new Map()
@@ -27,6 +31,7 @@ export class LlmChatService {
     conversationManager: ConversationManager,
     contextManager: ContextManager
   ) {
+    super()
     this.llmConfigManager = llmConfigManager
     this.conversationManager = conversationManager
     this.contextManager = contextManager
@@ -70,17 +75,19 @@ export class LlmChatService {
   }
 
   /**
-   * 发送消息（流式）
+   * 发送消息（流式，立即返回 messageId）
    */
   async sendMessage(
     conversationId: string,
-    content: string,
-    callbacks?: StreamCallbacks
+    content: string
   ): Promise<string> {
     const conversation = this.conversationManager.getConversation(conversationId)
     if (!conversation) {
       throw new Error(`Conversation ${conversationId} not found`)
     }
+
+    // 立即生成 messageId
+    const aiMessageId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
 
     // 添加用户消息
     await this.conversationManager.addMessage(conversationId, {
@@ -88,35 +95,14 @@ export class LlmChatService {
       content
     })
 
-    // 准备发送的消息列表（包含上下文管理）
-    const messagesToSend = await this.prepareMessages(conversation, content)
+    // 发送开始事件
+    this.emit('message:start', {
+      conversationId,
+      messageId: aiMessageId
+    } as MessageStartEvent)
 
-    // 获取或创建 LangChain 客户端
-    const client = await this.getOrCreateClient(conversation.modelId)
-
-    // 创建 AI 消息的 ID（用于流式响应）
-    const aiMessageId = `msg_${Date.now()}`
-    let aiMessageContent = ''
-
-    // 流式发送
-    await client.chatStream(messagesToSend, {
-      onChunk: (chunk: string) => {
-        aiMessageContent += chunk
-        callbacks?.onChunk?.(chunk)
-      },
-      onComplete: async () => {
-        // 保存 AI 回复
-        await this.conversationManager.addMessage(conversationId, {
-          role: 'assistant',
-          content: aiMessageContent
-        })
-        callbacks?.onComplete?.()
-      },
-      onError: (error: Error) => {
-        console.error('Stream error:', error)
-        callbacks?.onError?.(error)
-      }
-    })
+    // 异步处理流式响应（不阻塞返回）
+    this.processStreamAsync(conversationId, aiMessageId, content)
 
     return aiMessageId
   }
@@ -124,10 +110,7 @@ export class LlmChatService {
   /**
    * 重新生成最后一条消息
    */
-  async regenerateLastMessage(
-    conversationId: string,
-    callbacks?: StreamCallbacks
-  ): Promise<void> {
+  async regenerateLastMessage(conversationId: string): Promise<string> {
     const conversation = this.conversationManager.getConversation(conversationId)
     if (!conversation) {
       throw new Error(`Conversation ${conversationId} not found`)
@@ -155,8 +138,8 @@ export class LlmChatService {
       throw new Error('No user message found to regenerate')
     }
 
-    // 重新发送
-    await this.sendMessage(conversationId, lastUserMessage, callbacks)
+    // 调用 sendMessage（会自动触发事件）
+    return this.sendMessage(conversationId, lastUserMessage)
   }
 
   /**
@@ -336,6 +319,62 @@ export class LlmChatService {
     )
 
     return trimmedMessages
+  }
+
+  /**
+   * 私有方法：异步处理流式响应
+   */
+  private async processStreamAsync(
+    conversationId: string,
+    messageId: string,
+    content: string
+  ): Promise<void> {
+    try {
+      const conversation = this.conversationManager.getConversation(conversationId)
+      if (!conversation) {
+        throw new Error(`Conversation ${conversationId} not found`)
+      }
+
+      const messagesToSend = await this.prepareMessages(conversation, content)
+      const client = await this.getOrCreateClient(conversation.modelId)
+
+      let aiMessageContent = ''
+
+      await client.chatStream(messagesToSend, {
+        onChunk: (chunk: string) => {
+          aiMessageContent += chunk
+          this.emit('message:chunk', {
+            conversationId,
+            messageId,
+            chunk
+          } as MessageChunkEvent)
+        },
+        onComplete: async () => {
+          await this.conversationManager.addMessage(conversationId, {
+            role: 'assistant',
+            content: aiMessageContent
+          })
+          this.emit('message:complete', {
+            conversationId,
+            messageId
+          } as MessageCompleteEvent)
+        },
+        onError: (error: Error) => {
+          this.emit('message:error', {
+            conversationId,
+            messageId,
+            error: error.message
+          } as MessageErrorEvent)
+        }
+      })
+    } catch (error: any) {
+      console.error('[LlmChatService] Stream processing error:', error)
+      this.emit('message:error', {
+        conversationId,
+        messageId,
+        error: error.message
+      } as MessageErrorEvent)
+    }
   }
 }
 

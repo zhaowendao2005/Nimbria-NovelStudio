@@ -1,13 +1,48 @@
 /**
  * LLM Chat IPC 处理器
  * 处理前端与后端的通信
+ * 使用事件驱动架构，监听 Service 事件并转发到前端
  */
 
 import { ipcMain, BrowserWindow } from 'electron'
 import type { LlmChatService } from '../../services/llm-chat-service/llm-chat-service'
-import type { ConversationSettings } from '../../services/llm-chat-service/types'
+import type {
+  ConversationSettings,
+  MessageStartEvent,
+  MessageChunkEvent,
+  MessageCompleteEvent,
+  MessageErrorEvent
+} from '../../services/llm-chat-service/types'
 
 export function registerLlmChatHandlers(llmChatService: LlmChatService) {
+  // ========== 事件监听器（统一处理流式事件） ==========
+
+  llmChatService.on('message:start', (data: MessageStartEvent) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-chat:message-start', data)
+    })
+  })
+
+  llmChatService.on('message:chunk', (data: MessageChunkEvent) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-chat:stream-chunk', data)
+    })
+  })
+
+  llmChatService.on('message:complete', (data: MessageCompleteEvent) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-chat:stream-complete', data)
+    })
+  })
+
+  llmChatService.on('message:error', (data: MessageErrorEvent) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-chat:stream-error', data)
+    })
+  })
+
+  // ========== IPC Handlers（简化为纯调用） ==========
+
   /**
    * 创建新对话
    */
@@ -113,40 +148,10 @@ export function registerLlmChatHandlers(llmChatService: LlmChatService) {
     content: string
   }) => {
     try {
-      const senderWindow = BrowserWindow.fromWebContents(event.sender)
-      if (!senderWindow) {
-        return { success: false, error: 'Window not found' }
-      }
-
       const messageId = await llmChatService.sendMessage(
         args.conversationId,
-        args.content,
-        {
-          onChunk: (chunk: string) => {
-            // 发送流式块到前端
-            senderWindow.webContents.send('llm-chat:stream-chunk', {
-              conversationId: args.conversationId,
-              messageId,
-              chunk
-            })
-          },
-          onComplete: () => {
-            // 发送完成信号
-            senderWindow.webContents.send('llm-chat:stream-complete', {
-              conversationId: args.conversationId,
-              messageId
-            })
-          },
-          onError: (error: Error) => {
-            // 发送错误信号
-            senderWindow.webContents.send('llm-chat:stream-error', {
-              conversationId: args.conversationId,
-              error: error.message
-            })
-          }
-        }
+        args.content
       )
-
       return { success: true, messageId }
     } catch (error: any) {
       console.error('Failed to send message:', error)
@@ -161,37 +166,8 @@ export function registerLlmChatHandlers(llmChatService: LlmChatService) {
     conversationId: string
   }) => {
     try {
-      const senderWindow = BrowserWindow.fromWebContents(event.sender)
-      if (!senderWindow) {
-        return { success: false, error: 'Window not found' }
-      }
-
-      await llmChatService.regenerateLastMessage(
-        args.conversationId,
-        {
-          onChunk: (chunk: string) => {
-            senderWindow.webContents.send('llm-chat:stream-chunk', {
-              conversationId: args.conversationId,
-              messageId: 'regenerate',
-              chunk
-            })
-          },
-          onComplete: () => {
-            senderWindow.webContents.send('llm-chat:stream-complete', {
-              conversationId: args.conversationId,
-              messageId: 'regenerate'
-            })
-          },
-          onError: (error: Error) => {
-            senderWindow.webContents.send('llm-chat:stream-error', {
-              conversationId: args.conversationId,
-              error: error.message
-            })
-          }
-        }
-      )
-
-      return { success: true }
+      const messageId = await llmChatService.regenerateLastMessage(args.conversationId)
+      return { success: true, messageId }
     } catch (error: any) {
       console.error('Failed to regenerate message:', error)
       return { success: false, error: error.message }

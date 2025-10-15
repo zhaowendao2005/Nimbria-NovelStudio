@@ -25,15 +25,28 @@ Nimbria 的 LLM Chat 服务提供了一个基于 LangChain 的通用对话系统
 
 ## 🏗️ 系统架构
 
+### 架构设计原则
+
+**事件驱动架构（Event-Driven Architecture）**:
+- `LlmChatService` 继承 `EventEmitter`，通过事件发射消息状态
+- IPC Handler 层纯粹监听服务事件并转发，不参与业务逻辑
+- 职责分离：Service 专注业务，IPC 专注通信
+- 优势：解耦、可扩展、支持多窗口广播
+
 ### 整体架构图
 
 ```mermaid
 graph TD
-    A[前端 LlmChatPanel] -->|IPC| B[主进程 LlmChatHandlers]
-    B --> C[LlmChatService]
+    A[前端 LlmChatPanel] -->|IPC Call| B[主进程 LlmChatHandlers]
+    B --> C[LlmChatService EventEmitter]
     C --> D[LangChainClient]
     D --> E[LangChain ChatOpenAI]
     E --> F[OpenAI API]
+    
+    C -->|Event: message:chunk| B
+    C -->|Event: message:complete| B
+    C -->|Event: message:error| B
+    B -->|IPC Emit| A
     
     C --> G[ConversationManager]
     G --> H[LocalStorage via IPC]
@@ -60,7 +73,7 @@ graph TD
     end
 ```
 
-### 数据流
+### 数据流（事件驱动）
 
 ```
 用户输入消息
@@ -69,22 +82,35 @@ graph TD
     ↓
 llmChatStore.sendMessage()
     ↓
-IPC: llm-chat:send-message
+IPC Call: llm-chat:send-message
     ↓
 主进程 LlmChatHandlers
     ↓
-LlmChatService.sendMessage()
+LlmChatService.sendMessage() → 立即返回 messageId
     ↓
-LangChainClient.chat() [流式]
+Service 发射事件: message:start
     ↓
-逐块返回内容
+Service 异步处理流式响应
     ↓
-IPC: llm-chat:stream-chunk
+LangChainClient.chatStream()
     ↓
-前端更新 UI
+每个块 → Service 发射事件: message:chunk
     ↓
-对话完成，保存到 LocalStorage
+IPC Handler 监听事件 → 转发到所有窗口
+    ↓
+前端接收 IPC: llm-chat:stream-chunk
+    ↓
+更新 UI
+    ↓
+流式完成 → Service 发射事件: message:complete
+    ↓
+保存到 LocalStorage
 ```
+
+**关键改进**：
+1. ✅ `sendMessage` 立即返回 `messageId`，不等待流式完成
+2. ✅ 使用事件解耦 IPC 回调与服务逻辑
+3. ✅ 支持多窗口自动广播流式数据
 
 ---
 
@@ -305,9 +331,26 @@ class ContextManager {
 
 **职责**: 协调各个组件，提供统一的服务接口
 
+**架构**: 继承 `EventEmitter`，使用事件驱动模式
+
+**事件类型**:
+```typescript
+// 消息开始
+'message:start' → { conversationId: string; messageId: string }
+
+// 流式块
+'message:chunk' → { conversationId: string; messageId: string; chunk: string }
+
+// 流式完成
+'message:complete' → { conversationId: string; messageId: string }
+
+// 流式错误
+'message:error' → { conversationId: string; messageId: string; error: string }
+```
+
 **核心方法**:
 ```typescript
-class LlmChatService {
+class LlmChatService extends EventEmitter {
   private conversationManager: ConversationManager
   private contextManager: ContextManager
   private llmConfigManager: LlmConfigManager
@@ -322,26 +365,16 @@ class LlmChatService {
     settings?: Partial<ConversationSettings>
   ): Promise<Conversation>
   
-  // 发送消息（流式）
+  // 发送消息（立即返回 messageId）
   async sendMessage(
     conversationId: string,
-    content: string,
-    options?: {
-      onChunk?: (chunk: string) => void
-      onComplete?: () => void
-      onError?: (error: Error) => void
-    }
-  ): Promise<void>
+    content: string
+  ): Promise<string>  // ✅ 返回 messageId，不再需要回调
   
   // 重新生成最后一条消息
   async regenerateLastMessage(
-    conversationId: string,
-    options?: {
-      onChunk?: (chunk: string) => void
-      onComplete?: () => void
-      onError?: (error: Error) => void
-    }
-  ): Promise<void>
+    conversationId: string
+  ): Promise<string>  // ✅ 返回 messageId
   
   // 删除消息
   async deleteMessage(
@@ -350,7 +383,7 @@ class LlmChatService {
   ): Promise<void>
   
   // 获取对话列表
-  async getConversations(): Promise<Conversation[]>
+  getConversations(): Conversation[]
   
   // 删除对话
   async deleteConversation(conversationId: string): Promise<void>
@@ -361,13 +394,17 @@ class LlmChatService {
     settings: Partial<ConversationSettings>
   ): Promise<void>
   
-  // 获取可用模型列表
-  async getAvailableModels(): Promise<ActiveModel[]>
-  
   // 切换对话使用的模型
   async switchModel(
     conversationId: string,
     modelId: string
+  ): Promise<void>
+  
+  // 私有方法：异步处理流式响应
+  private async processStreamAsync(
+    conversationId: string,
+    messageId: string,
+    content: string
   ): Promise<void>
   
   // 获取或创建 LangChain 客户端
@@ -380,6 +417,12 @@ class LlmChatService {
   ): Promise<ChatMessage[]>
 }
 ```
+
+**事件驱动优势**:
+1. ✅ **解耦**: Service 不依赖 IPC，可独立测试
+2. ✅ **多窗口**: 事件自动广播到所有窗口
+3. ✅ **可扩展**: 轻松添加日志、监控等监听器
+4. ✅ **无循环依赖**: `messageId` 立即生成，回调中安全使用
 
 ---
 
@@ -514,6 +557,46 @@ class LlmChatService {
 
 ## 🔗 IPC 通信协议
 
+### 事件驱动 IPC 架构
+
+```typescript
+// IPC Handler 注册事件监听器
+export function registerLlmChatHandlers(llmChatService: LlmChatService) {
+  // ========== 事件监听器（统一处理流式事件） ==========
+  
+  llmChatService.on('message:start', (data) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-chat:message-start', data)
+    })
+  })
+
+  llmChatService.on('message:chunk', (data) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-chat:stream-chunk', data)
+    })
+  })
+
+  llmChatService.on('message:complete', (data) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-chat:stream-complete', data)
+    })
+  })
+
+  llmChatService.on('message:error', (data) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-chat:stream-error', data)
+    })
+  })
+
+  // ========== IPC Handlers（简化为纯调用） ==========
+  
+  ipcMain.handle('llm-chat:send-message', async (event, args) => {
+    const messageId = await llmChatService.sendMessage(args.conversationId, args.content)
+    return { success: true, messageId }
+  })
+}
+```
+
 ### 对话管理 IPC
 
 | 通道名 | 请求类型 | 响应类型 | 用途 |
@@ -529,18 +612,18 @@ class LlmChatService {
 
 | 通道名 | 请求类型 | 响应类型 | 用途 |
 |-------|---------|----------|------|
-| `llm-chat:send-message` | `{ conversationId: string; content: string; fileReferences?: FileReference[] }` | `{ success: boolean; messageId?: string }` | 发送消息 |
+| `llm-chat:send-message` | `{ conversationId: string; content: string }` | `{ success: boolean; messageId: string }` | 发送消息（立即返回 messageId） |
+| `llm-chat:message-start` | - | `{ conversationId: string; messageId: string }` | **[新增]** 消息开始（可选监听） |
 | `llm-chat:stream-chunk` | - | `{ conversationId: string; messageId: string; chunk: string }` | 流式响应块（主进程 → 渲染进程） |
 | `llm-chat:stream-complete` | - | `{ conversationId: string; messageId: string }` | 流式响应完成 |
-| `llm-chat:stream-error` | - | `{ conversationId: string; error: string }` | 流式响应错误 |
-| `llm-chat:regenerate-message` | `{ conversationId: string; messageId: string }` | `{ success: boolean }` | 重新生成消息 |
+| `llm-chat:stream-error` | - | `{ conversationId: string; messageId: string; error: string }` | 流式响应错误 |
+| `llm-chat:regenerate-message` | `{ conversationId: string }` | `{ success: boolean; messageId: string }` | 重新生成消息 |
 | `llm-chat:delete-message` | `{ conversationId: string; messageId: string }` | `{ success: boolean }` | 删除消息 |
 
 ### 模型管理 IPC
 
 | 通道名 | 请求类型 | 响应类型 | 用途 |
 |-------|---------|----------|------|
-| `llm-chat:get-available-models` | `undefined` | `{ success: boolean; models?: ActiveModel[] }` | 获取可用模型 |
 | `llm-chat:switch-model` | `{ conversationId: string; modelId: string }` | `{ success: boolean }` | 切换对话模型 |
 
 ---

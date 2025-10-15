@@ -58,12 +58,38 @@ export interface LangChainClientConfig {
 }
 
 /**
- * 流式响应回调
+ * 流式响应回调（已废弃，使用事件替代）
+ * @deprecated 使用 EventEmitter 事件替代
  */
 export interface StreamCallbacks {
   onChunk?: (chunk: string) => void
   onComplete?: () => void
   onError?: (error: Error) => void
+}
+
+/**
+ * 消息事件数据
+ */
+export interface MessageStartEvent {
+  conversationId: string
+  messageId: string
+}
+
+export interface MessageChunkEvent {
+  conversationId: string
+  messageId: string
+  chunk: string
+}
+
+export interface MessageCompleteEvent {
+  conversationId: string
+  messageId: string
+}
+
+export interface MessageErrorEvent {
+  conversationId: string
+  messageId: string
+  error: string
 }
 
 /**
