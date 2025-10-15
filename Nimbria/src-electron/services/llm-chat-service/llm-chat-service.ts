@@ -25,14 +25,17 @@ export class LlmChatService extends EventEmitter {
   private contextManager: ContextManager
   private activeClients: Map<string, LangChainClient> = new Map()
   private llmConfigManager: any // LlmConfigManager 的引用
+  private databaseService: any // DatabaseService 的引用
 
   constructor(
     llmConfigManager: any,
+    databaseService: any, // 新增数据库服务依赖
     conversationManager: ConversationManager,
     contextManager: ContextManager
   ) {
     super()
     this.llmConfigManager = llmConfigManager
+    this.databaseService = databaseService
     this.conversationManager = conversationManager
     this.contextManager = contextManager
   }
@@ -40,11 +43,50 @@ export class LlmChatService extends EventEmitter {
   /**
    * 初始化服务
    */
-  async initialize(): Promise<void> {
-    // 从 LocalStorage 加载对话
+  async initialize(projectPath?: string): Promise<void> {
+    console.log('🚀 [LlmChatService] 初始化服务...')
+    
+    // 如果有项目路径，设置项目数据库
+    if (projectPath && this.databaseService) {
+      const projectDb = this.databaseService.getProjectDatabase(projectPath)
+      if (projectDb) {
+        this.conversationManager.setProjectDatabase(projectDb)
+        console.log('✅ [LlmChatService] 已设置项目数据库')
+      } else {
+        console.warn('⚠️ [LlmChatService] 项目数据库未找到，将创建')
+        // 触发创建项目数据库
+        await this.databaseService.createProjectDatabase(projectPath)
+        // 等待数据库创建完成后再设置
+        const newProjectDb = this.databaseService.getProjectDatabase(projectPath)
+        if (newProjectDb) {
+          this.conversationManager.setProjectDatabase(newProjectDb)
+        }
+      }
+    }
+
+    // 从数据库加载对话
     await this.conversationManager.initialize()
 
-    console.log('LlmChatService initialized')
+    console.log('✅ [LlmChatService] 服务初始化完成')
+  }
+
+  /**
+   * 切换项目（重要：当用户切换项目时调用）
+   */
+  async switchProject(projectPath: string): Promise<void> {
+    console.log('🔄 [LlmChatService] 切换项目到:', projectPath)
+    
+    // 清理当前状态
+    this.activeClients.clear()
+    
+    // 设置新的项目数据库
+    const projectDb = this.databaseService.getProjectDatabase(projectPath)
+    if (projectDb) {
+      this.conversationManager.setProjectDatabase(projectDb)
+      await this.conversationManager.initialize()
+    } else {
+      console.warn('⚠️ [LlmChatService] 项目数据库未找到，等待创建...')
+    }
   }
 
   /**
@@ -191,6 +233,13 @@ export class LlmChatService extends EventEmitter {
    */
   async updateConversationTitle(conversationId: string, title: string): Promise<void> {
     await this.conversationManager.updateTitle(conversationId, title)
+  }
+
+  /**
+   * 搜索对话
+   */
+  async searchConversations(query: string): Promise<Conversation[]> {
+    return await this.conversationManager.searchConversations(query)
   }
 
   /**

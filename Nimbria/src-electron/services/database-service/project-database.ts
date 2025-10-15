@@ -5,7 +5,7 @@
 
 import type Database from 'better-sqlite3'
 import type { DatabaseManager } from './database-manager'
-import { PROJECT_SCHEMA_V1_0_0 } from './schema/versions'
+import { PROJECT_SCHEMA_V1_1_0 } from './schema/versions'
 
 export class ProjectDatabase {
   private db: Database.Database | null = null
@@ -25,7 +25,7 @@ export class ProjectDatabase {
     
     this.db = await this.databaseManager.createProjectDatabase(
       this.projectPath,
-      PROJECT_SCHEMA_V1_0_0
+      PROJECT_SCHEMA_V1_1_0
     )
 
     console.log('✅ [ProjectDatabase] 项目数据库初始化成功')
@@ -141,6 +141,278 @@ export class ProjectDatabase {
       totalChapters: chapterCount.count,
       totalWords: wordCount.total || 0
     }
+  }
+
+  // ========== LLM Chat 数据操作 ==========
+
+  /**
+   * 创建对话
+   */
+  async createConversation(conversation: {
+    id: string
+    title: string
+    modelId: string
+    settings: any
+  }): Promise<void> {
+    this.transaction(() => {
+      // 插入对话
+      this.execute(
+        `INSERT INTO llm_conversations (id, title, model_id, settings_json, created_at, updated_at)
+         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [
+          conversation.id,
+          conversation.title,
+          conversation.modelId,
+          JSON.stringify(conversation.settings)
+        ]
+      )
+
+      // 初始化统计
+      this.execute(
+        `INSERT INTO llm_conversation_stats (conversation_id, message_count, total_tokens, last_activity)
+         VALUES (?, 0, 0, CURRENT_TIMESTAMP)`,
+        [conversation.id]
+      )
+    })
+  }
+
+  /**
+   * 获取所有对话（不包含消息）
+   */
+  async getConversations(): Promise<any[]> {
+    const rows = this.query(`
+      SELECT c.*, s.message_count, s.total_tokens, s.last_activity
+      FROM llm_conversations c
+      LEFT JOIN llm_conversation_stats s ON c.id = s.conversation_id
+      ORDER BY c.updated_at DESC
+    `) as Array<{
+      id: string
+      title: string
+      model_id: string
+      settings_json: string
+      created_at: string
+      updated_at: string
+      message_count: number
+      total_tokens: number
+      last_activity: string
+    }>
+
+    return rows.map(row => ({
+      id: row.id,
+      title: row.title,
+      modelId: row.model_id,
+      settings: JSON.parse(row.settings_json),
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
+      messageCount: row.message_count,
+      totalTokens: row.total_tokens,
+      lastActivity: new Date(row.last_activity),
+      messages: [] // 消息需要单独加载
+    }))
+  }
+
+  /**
+   * 获取单个对话（包含消息）
+   */
+  async getConversation(conversationId: string): Promise<any | null> {
+    const conversation = this.queryOne(
+      'SELECT * FROM llm_conversations WHERE id = ?',
+      [conversationId]
+    ) as {
+      id: string
+      title: string
+      model_id: string
+      settings_json: string
+      created_at: string
+      updated_at: string
+    } | null
+
+    if (!conversation) return null
+
+    const messages = this.query(
+      'SELECT * FROM llm_messages WHERE conversation_id = ? ORDER BY created_at ASC',
+      [conversationId]
+    ) as Array<{
+      id: string
+      conversation_id: string
+      role: 'system' | 'user' | 'assistant'
+      content: string
+      metadata_json?: string
+      created_at: string
+    }>
+
+    return {
+      id: conversation.id,
+      title: conversation.title,
+      modelId: conversation.model_id,
+      settings: JSON.parse(conversation.settings_json),
+      createdAt: new Date(conversation.created_at),
+      updatedAt: new Date(conversation.updated_at),
+      messages: messages.map(msg => ({
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        timestamp: new Date(msg.created_at),
+        metadata: msg.metadata_json ? JSON.parse(msg.metadata_json) : undefined
+      }))
+    }
+  }
+
+  /**
+   * 更新对话标题
+   */
+  async updateConversationTitle(conversationId: string, title: string): Promise<void> {
+    this.execute(
+      'UPDATE llm_conversations SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [title, conversationId]
+    )
+  }
+
+  /**
+   * 更新对话设置
+   */
+  async updateConversationSettings(conversationId: string, settings: any): Promise<void> {
+    this.execute(
+      'UPDATE llm_conversations SET settings_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [JSON.stringify(settings), conversationId]
+    )
+  }
+
+  /**
+   * 删除对话
+   */
+  async deleteConversation(conversationId: string): Promise<void> {
+    this.transaction(() => {
+      // 删除消息（由于外键约束会自动删除）
+      this.execute('DELETE FROM llm_messages WHERE conversation_id = ?', [conversationId])
+      // 删除统计
+      this.execute('DELETE FROM llm_conversation_stats WHERE conversation_id = ?', [conversationId])
+      // 删除对话
+      this.execute('DELETE FROM llm_conversations WHERE id = ?', [conversationId])
+    })
+  }
+
+  /**
+   * 添加消息
+   */
+  async addMessage(message: {
+    id: string
+    conversationId: string
+    role: 'system' | 'user' | 'assistant'
+    content: string
+    metadata?: any
+  }): Promise<void> {
+    this.transaction(() => {
+      // 插入消息
+      this.execute(
+        `INSERT INTO llm_messages (id, conversation_id, role, content, metadata_json, created_at)
+         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+        [
+          message.id,
+          message.conversationId,
+          message.role,
+          message.content,
+          message.metadata ? JSON.stringify(message.metadata) : null
+        ]
+      )
+
+      // 更新对话的更新时间
+      this.execute(
+        'UPDATE llm_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [message.conversationId]
+      )
+
+      // 更新统计
+      this.execute(
+        `UPDATE llm_conversation_stats 
+         SET message_count = message_count + 1, last_activity = CURRENT_TIMESTAMP 
+         WHERE conversation_id = ?`,
+        [message.conversationId]
+      )
+    })
+  }
+
+  /**
+   * 删除消息
+   */
+  async deleteMessage(conversationId: string, messageId: string): Promise<void> {
+    this.transaction(() => {
+      this.execute('DELETE FROM llm_messages WHERE id = ? AND conversation_id = ?', [messageId, conversationId])
+      
+      // 更新统计
+      this.execute(
+        `UPDATE llm_conversation_stats 
+         SET message_count = message_count - 1, last_activity = CURRENT_TIMESTAMP 
+         WHERE conversation_id = ?`,
+        [conversationId]
+      )
+    })
+  }
+
+  /**
+   * 获取对话消息
+   */
+  async getConversationMessages(conversationId: string): Promise<any[]> {
+    const messages = this.query(
+      'SELECT * FROM llm_messages WHERE conversation_id = ? ORDER BY created_at ASC',
+      [conversationId]
+    ) as Array<{
+      id: string
+      conversation_id: string
+      role: 'system' | 'user' | 'assistant'
+      content: string
+      metadata_json?: string
+      created_at: string
+    }>
+
+    return messages.map(msg => ({
+      id: msg.id,
+      role: msg.role,
+      content: msg.content,
+      timestamp: new Date(msg.created_at),
+      metadata: msg.metadata_json ? JSON.parse(msg.metadata_json) : undefined
+    }))
+  }
+
+  /**
+   * 搜索对话（基础搜索）
+   */
+  async searchConversations(query: string): Promise<any[]> {
+    if (!query.trim()) {
+      return this.getConversations()
+    }
+
+    const searchPattern = `%${query}%`
+    const rows = this.query(`
+      SELECT DISTINCT c.*, s.message_count, s.total_tokens, s.last_activity
+      FROM llm_conversations c
+      LEFT JOIN llm_conversation_stats s ON c.id = s.conversation_id
+      WHERE c.title LIKE ? OR c.model_id LIKE ?
+      ORDER BY c.updated_at DESC
+    `, [searchPattern, searchPattern]) as Array<{
+      id: string
+      title: string
+      model_id: string
+      settings_json: string
+      created_at: string
+      updated_at: string
+      message_count: number
+      total_tokens: number
+      last_activity: string
+    }>
+
+    return rows.map(row => ({
+      id: row.id,
+      title: row.title,
+      modelId: row.model_id,
+      settings: JSON.parse(row.settings_json),
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
+      messageCount: row.message_count,
+      totalTokens: row.total_tokens,
+      lastActivity: new Date(row.last_activity),
+      messages: []
+    }))
   }
 }
 

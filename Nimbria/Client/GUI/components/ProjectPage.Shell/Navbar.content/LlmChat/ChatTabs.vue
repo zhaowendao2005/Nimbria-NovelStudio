@@ -5,211 +5,276 @@
       <div class="tabs-wrapper">
         <!-- 对话标签 -->
         <div
-          v-for="conversation in displayConversations"
-          :key="conversation.id"
+          v-for="tab in tabManager.tabs"
+          :key="tab.id"
           class="tab-item"
-          :class="{ active: conversation.id === activeConversationId }"
-          @click="handleTabClick(conversation.id)"
-          @dblclick="handleTabEdit(conversation.id)"
+          :class="{ active: tab.isActive, dirty: tab.isDirty }"
+          @click="handleTabClick(tab.id)"
+          @dblclick="handleTabEdit(tab.id)"
         >
           <!-- 标签标题 -->
-          <span v-if="editingTabId !== conversation.id" class="tab-title">
-            {{ conversation.title }}
+          <span v-if="editingTabId !== tab.id" class="tab-title">
+            {{ tab.title }}
           </span>
-          <el-input
+          <q-input
             v-else
             v-model="editingTitle"
-            size="small"
+            dense
+            borderless
             class="tab-input"
-            @blur="handleTitleSave(conversation.id)"
-            @keyup.enter="handleTitleSave(conversation.id)"
+            @blur="handleTitleSave(tab)"
+            @keyup.enter="handleTitleSave(tab)"
             @click.stop
           />
           
+          <!-- 未保存指示器 -->
+          <q-icon v-if="tab.isDirty" name="fiber_manual_record" size="8px" class="dirty-indicator" />
+          
           <!-- 关闭按钮 -->
-          <el-icon class="close-icon" @click.stop="handleTabClose(conversation.id)">
-            <component :is="'Close'" />
-          </el-icon>
+          <q-btn
+            flat
+            dense
+            round
+            size="xs"
+            icon="close"
+            class="close-icon"
+            @click.stop="handleTabClose(tab.id)"
+          />
         </div>
       </div>
       
       <!-- 工具箱按钮 -->
       <div class="toolbox-button">
-        <el-dropdown trigger="click" @command="handleToolboxCommand">
-          <el-button :icon="Setting" circle size="small" />
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="new">
-                <el-icon><component :is="'Plus'" /></el-icon>
-                创建新对话
-              </el-dropdown-item>
-              <el-dropdown-item command="history">
-                <el-icon><component :is="'Clock'" /></el-icon>
-                历史记录
-              </el-dropdown-item>
-              <el-dropdown-item command="export">
-                <el-icon><component :is="'Download'" /></el-icon>
-                导出对话
-              </el-dropdown-item>
-              <el-dropdown-item command="clear" divided>
-                <el-icon><component :is="'Delete'" /></el-icon>
-                清空当前对话
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+        <q-btn round dense icon="more_vert" size="sm">
+          <q-menu>
+            <q-list style="min-width: 180px">
+              <q-item clickable v-close-popup @click="handleCreateNewConversation">
+                <q-item-section avatar>
+                  <q-icon name="add" />
+                </q-item-section>
+                <q-item-section>创建新对话</q-item-section>
+              </q-item>
+              
+              <q-item clickable v-close-popup @click="handleShowHistory">
+                <q-item-section avatar>
+                  <q-icon name="history" />
+                </q-item-section>
+                <q-item-section>历史记录</q-item-section>
+              </q-item>
+              
+              <q-item clickable v-close-popup @click="handleExportConversation">
+                <q-item-section avatar>
+                  <q-icon name="download" />
+                </q-item-section>
+                <q-item-section>导出对话</q-item-section>
+              </q-item>
+              
+              <q-separator />
+              
+              <q-item clickable v-close-popup @click="handleCloseAllTabs">
+                <q-item-section avatar>
+                  <q-icon name="close" color="negative" />
+                </q-item-section>
+                <q-item-section>关闭所有标签</q-item-section>
+              </q-item>
+            </q-list>
+          </q-menu>
+        </q-btn>
       </div>
     </div>
-    
-    <!-- 更多按钮（当对话数超过限制时显示） -->
-    <div v-if="hasMore" class="more-indicator">
-      <el-button text size="small" @click="showAllTabs">
-        <el-icon><component :is="'MoreFilled'" /></el-icon>
-        更多 ({{ hiddenCount }})
-      </el-button>
-    </div>
   </div>
+
+  <!-- 历史记录对话框 -->
+  <ChatHistoryDialog v-model="showHistoryDialog" />
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { useLlmChatStore } from '@stores/llmChat/llmChatStore'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Setting } from '@element-plus/icons-vue'
+import { ref, computed } from 'vue'
+import { useQuasar } from 'quasar'
+import { useLlmChatStore } from '@/stores/llmChat/llmChatStore'
+import { useChatTabManager } from '@/stores/llmChat/chatTabManager'
+import ChatHistoryDialog from './ChatHistoryDialog.vue'
 
+const $q = useQuasar()
 const llmChatStore = useLlmChatStore()
+const tabManager = useChatTabManager()
 
-// 最大显示的对话数量（横向滚动）
-const maxDisplayCount = ref(10)
+// 历史记录对话框
+const showHistoryDialog = ref(false)
 
 // 编辑状态
 const editingTabId = ref<string | null>(null)
 const editingTitle = ref('')
 
-// 计算属性
-const activeConversationId = computed(() => llmChatStore.activeConversationId)
-
-const allConversations = computed(() => llmChatStore.conversations)
-
-const displayConversations = computed(() => {
-  const conversations = allConversations.value
-  
-  // 按更新时间排序，最新的在前
-  const sorted = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt)
-  return sorted.slice(0, maxDisplayCount.value)
-})
-
-const hasMore = computed(() => allConversations.value.length > maxDisplayCount.value)
-
-const hiddenCount = computed(() => Math.max(0, allConversations.value.length - maxDisplayCount.value))
-
 // 方法
-const handleTabClick = (id: string) => {
-  llmChatStore.setActiveConversation(id)
+const handleTabClick = (tabId: string) => {
+  tabManager.setActiveTab(tabId)
 }
 
-const handleTabEdit = (id: string) => {
-  const conversation = allConversations.value.find(c => c.id === id)
-  if (conversation) {
-    editingTabId.value = id
-    editingTitle.value = conversation.title
+const handleTabEdit = (tabId: string) => {
+  const tab = tabManager.tabs.find(t => t.id === tabId)
+  if (tab) {
+    editingTabId.value = tabId
+    editingTitle.value = tab.title
   }
 }
 
-const handleTitleSave = (id: string) => {
-  if (editingTitle.value.trim()) {
-    llmChatStore.updateConversationTitle(id, editingTitle.value.trim())
+const handleTitleSave = async (tab: any) => {
+  if (editingTitle.value.trim() && editingTitle.value !== tab.title) {
+    try {
+      // 更新对话标题
+      await llmChatStore.updateConversationTitle(tab.conversationId, editingTitle.value.trim())
+      
+      // 更新标签页标题
+      tabManager.updateTabTitle(tab.id, editingTitle.value.trim())
+      
+      $q.notify({
+        type: 'positive',
+        message: '标题已更新',
+        position: 'top'
+      })
+    } catch (error) {
+      console.error('更新标题失败:', error)
+      $q.notify({
+        type: 'negative',
+        message: '更新失败，请重试',
+        position: 'top'
+      })
+    }
   }
+  
   editingTabId.value = null
   editingTitle.value = ''
 }
 
-const handleTabClose = async (id: string) => {
-  const conversation = allConversations.value.find(c => c.id === id)
-  if (!conversation) return
+const handleTabClose = (tabId: string) => {
+  const tab = tabManager.tabs.find(t => t.id === tabId)
+  if (!tab) return
   
-  // 如果对话有消息，弹出确认框
-  if (conversation.messages.length > 0) {
-    try {
-      await ElMessageBox.confirm(
-        '确定要关闭这个对话吗？所有消息将被删除。',
-        '确认关闭',
-        {
-          confirmButtonText: '确定',
-          cancelButtonText: '取消',
-          type: 'warning'
-        }
-      )
+  // 尝试关闭标签页（如果有未保存内容会返回 false）
+  const closed = tabManager.closeTab(tabId)
+  
+  if (!closed && tab.isDirty) {
+    // 显示确认对话框
+    $q.dialog({
+      title: '未保存的内容',
+      message: '此标签页有未保存的内容，确定要关闭吗？',
+      cancel: true,
+      persistent: true,
+      ok: {
+        label: '关闭',
+        color: 'negative'
+      },
+      cancel: {
+        label: '取消',
+        flat: true
+      }
+    }).onOk(() => {
+      tabManager.forceCloseTab(tabId)
+    })
+  }
+}
+
+const handleCreateNewConversation = async () => {
+  try {
+    const conversationId = await llmChatStore.createConversation()
+    
+    if (conversationId) {
+      // 通过标签页管理器打开新对话
+      tabManager.openConversation(conversationId, '新对话')
       
-      llmChatStore.deleteConversation(id)
-      ElMessage.success('对话已关闭')
-    } catch {
-      // 用户取消
+      $q.notify({
+        type: 'positive',
+        message: '已创建新对话',
+        position: 'top'
+      })
     }
-  } else {
-    llmChatStore.deleteConversation(id)
+  } catch (error) {
+    console.error('创建对话失败:', error)
+    $q.notify({
+      type: 'negative',
+      message: '创建失败，请重试',
+      position: 'top'
+    })
   }
 }
 
-const handleToolboxCommand = (command: string) => {
-  switch (command) {
-    case 'new':
-      llmChatStore.createConversation()
-      ElMessage.success('已创建新对话')
-      break
-    case 'history':
-      // TODO: 显示历史记录对话框
-      ElMessage.info('历史记录功能开发中')
-      break
-    case 'export':
-      // TODO: 导出对话
-      ElMessage.info('导出功能开发中')
-      break
-    case 'clear':
-      handleClearConversation()
-      break
-  }
+const handleShowHistory = () => {
+  showHistoryDialog.value = true
 }
 
-const handleClearConversation = async () => {
-  const conversation = llmChatStore.activeConversation
-  if (!conversation) return
+const handleExportConversation = () => {
+  const activeConversation = llmChatStore.activeConversation
+  
+  if (!activeConversation) {
+    $q.notify({
+      type: 'warning',
+      message: '请先选择一个对话',
+      position: 'top'
+    })
+    return
+  }
   
   try {
-    await ElMessageBox.confirm(
-      '确定要清空当前对话的所有消息吗？',
-      '确认清空',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
+    // 导出对话为 JSON
+    const data = JSON.stringify(activeConversation, null, 2)
+    const blob = new Blob([data], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
     
-    conversation.messages = []
-    conversation.updatedAt = new Date()
-    // 通过后端API保存更改
-    await llmChatStore.updateConversationSettings(conversation.id, {})
-    ElMessage.success('对话已清空')
-  } catch {
-    // 用户取消
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `conversation-${activeConversation.id}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    
+    $q.notify({
+      type: 'positive',
+      message: '对话已导出',
+      position: 'top'
+    })
+  } catch (error) {
+    console.error('导出失败:', error)
+    $q.notify({
+      type: 'negative',
+      message: '导出失败，请重试',
+      position: 'top'
+    })
   }
 }
 
-const showAllTabs = () => {
-  // TODO: 显示所有对话的对话框
-  ElMessage.info('历史记录对话框开发中')
+const handleCloseAllTabs = () => {
+  $q.dialog({
+    title: '关闭所有标签',
+    message: '确定要关闭所有标签页吗？对话数据不会丢失。',
+    cancel: true,
+    persistent: true,
+    ok: {
+      label: '关闭',
+      color: 'negative'
+    },
+    cancel: {
+      label: '取消',
+      flat: true
+    }
+  }).onOk(() => {
+    tabManager.closeAllTabs()
+    $q.notify({
+      type: 'positive',
+      message: '所有标签页已关闭',
+      position: 'top'
+    })
+  })
 }
-
-// 注意：不自动创建对话，由用户点击"创建新对话"按钮或发送第一条消息时创建
 </script>
 
 <style scoped lang="scss">
 .chat-tabs {
   display: flex;
   flex-direction: column;
-  background: var(--el-bg-color);
-  border-bottom: 1px solid var(--el-border-color);
+  background: var(--q-background);
+  border-bottom: 1px solid var(--q-border-color);
 }
 
 .tabs-container {
@@ -225,7 +290,7 @@ const showAllTabs = () => {
   }
   
   &::-webkit-scrollbar-thumb {
-    background: var(--el-border-color-darker);
+    background: var(--q-border-color);
     border-radius: 2px;
   }
 }
@@ -244,7 +309,7 @@ const showAllTabs = () => {
   }
   
   &::-webkit-scrollbar-thumb {
-    background: var(--el-border-color-darker);
+    background: var(--q-border-color);
     border-radius: 2px;
   }
 }
@@ -254,18 +319,19 @@ const showAllTabs = () => {
   align-items: center;
   gap: 4px;
   min-width: 80px;
-  max-width: 120px;
+  max-width: 150px;
   height: 32px;
   padding: 0 8px;
-  background: var(--el-fill-color-light);
-  border: 1px solid var(--el-border-color);
+  background: var(--q-secondary);
+  border: 1px solid var(--q-border-color);
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s;
+  position: relative;
   
   &:hover {
-    background: var(--el-fill-color);
-    border-color: var(--el-color-primary);
+    background: var(--q-hover-background);
+    border-color: var(--q-primary);
     
     .close-icon {
       opacity: 1;
@@ -273,16 +339,14 @@ const showAllTabs = () => {
   }
   
   &.active {
-    background: var(--el-color-primary-light-9);
-    border-color: var(--el-color-primary);
-    color: var(--el-color-primary);
+    background: var(--q-primary);
+    border-color: var(--q-primary);
+    color: white;
   }
-}
-
-.pin-icon {
-  flex-shrink: 0;
-  font-size: 12px;
-  color: var(--el-color-warning);
+  
+  &.dirty {
+    border-color: var(--q-warning);
+  }
 }
 
 .tab-title {
@@ -295,21 +359,29 @@ const showAllTabs = () => {
 
 .tab-input {
   flex: 1;
-  
-  :deep(.el-input__wrapper) {
-    padding: 0 4px;
-    box-shadow: none;
-  }
+  font-size: 12px;
+}
+
+.dirty-indicator {
+  flex-shrink: 0;
+  color: var(--q-warning);
 }
 
 .close-icon {
   flex-shrink: 0;
-  font-size: 14px;
   opacity: 0;
   transition: opacity 0.2s;
   
   &:hover {
-    color: var(--el-color-danger);
+    color: var(--q-negative);
+  }
+}
+
+.active .close-icon {
+  opacity: 0.7;
+  
+  &:hover {
+    opacity: 1;
   }
 }
 
@@ -317,16 +389,4 @@ const showAllTabs = () => {
   flex-shrink: 0;
   margin-left: 8px;
 }
-
-.more-indicator {
-  padding: 4px 8px;
-  border-top: 1px solid var(--el-border-color);
-  text-align: center;
-  
-  .el-button {
-    width: 100%;
-    font-size: 12px;
-  }
-}
 </style>
-

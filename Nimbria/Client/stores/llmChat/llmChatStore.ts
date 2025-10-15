@@ -53,12 +53,21 @@ declare global {
         regenerateMessage: (conversationId: string) => Promise<IpcResponse>
         deleteMessage: (conversationId: string, messageId: string) => Promise<IpcResponse>
         switchModel: (conversationId: string, modelId: string) => Promise<IpcResponse>
+        searchConversations: (query: string) => Promise<IpcResponse>
         onStreamChunk: (callback: (data: StreamChunk) => void) => void
         onStreamComplete: (callback: (data: StreamComplete) => void) => void
         onStreamError: (callback: (data: StreamError) => void) => void
       }
       llm: {
         getProviders: () => Promise<any>
+      }
+      database: {
+        llmGetConversations: (args: { projectPath: string }) => Promise<IpcResponse>
+        llmGetConversation: (args: { projectPath: string; conversationId: string }) => Promise<IpcResponse>
+        llmSearchConversations: (args: { projectPath: string; query: string }) => Promise<IpcResponse>
+      }
+      project: {
+        getCurrentProjectPath: () => Promise<string>
       }
     }
   }
@@ -177,6 +186,21 @@ export const useLlmChatStore = defineStore('llmChat', {
     async loadConversations() {
       try {
         this.isLoading = true
+        
+        // 尝试从数据库加载
+        const projectPath = await this.getCurrentProjectPath()
+        
+        if (projectPath && window.nimbria?.database?.llmGetConversations) {
+          // 使用数据库加载
+          const response = await window.nimbria.database.llmGetConversations({ projectPath })
+          
+          if (response.success && response.conversations) {
+            this.conversations = response.conversations
+            return
+          }
+        }
+        
+        // 备选方案：使用旧的 IPC 方法
         const response = await window.nimbria.llmChat.getConversations()
         
         if (response.success && response.conversations) {
@@ -465,6 +489,57 @@ export const useLlmChatStore = defineStore('llmChat', {
         }
       } catch (error) {
         console.error('切换模型失败:', error)
+      }
+    },
+
+    /**
+     * 搜索对话
+     */
+    async searchConversations(query: string) {
+      try {
+        this.isLoading = true
+        
+        // 获取当前项目路径
+        const projectPath = await this.getCurrentProjectPath()
+        
+        if (!projectPath) {
+          console.error('无法获取项目路径')
+          return
+        }
+        
+        // 调用数据库搜索
+        const response = await window.nimbria.database.llmSearchConversations({
+          projectPath,
+          query
+        })
+        
+        if (response.success && response.conversations) {
+          this.conversations = response.conversations
+        }
+      } catch (error) {
+        console.error('搜索对话失败:', error)
+      } finally {
+        this.isLoading = false
+      }
+    },
+
+    /**
+     * 获取当前项目路径
+     */
+    async getCurrentProjectPath(): Promise<string> {
+      try {
+        // 这里需要从项目管理 store 获取当前项目路径
+        // 临时实现：从 window 对象获取
+        if (window.nimbria?.project?.getCurrentProjectPath) {
+          return await window.nimbria.project.getCurrentProjectPath()
+        }
+        
+        // 备选方案：从 localStorage 获取
+        const lastProjectPath = localStorage.getItem('nimbria_last_project_path')
+        return lastProjectPath || ''
+      } catch (error) {
+        console.error('获取项目路径失败:', error)
+        return ''
       }
     },
 

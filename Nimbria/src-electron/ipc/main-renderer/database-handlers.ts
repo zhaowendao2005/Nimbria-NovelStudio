@@ -131,6 +131,127 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
       return { success: false, error: error.message }
     }
   })
+
+  // ========== LLM Chat 数据库操作 ==========
+
+  // 获取对话列表
+  ipcMain.handle('database:llm-get-conversations', async (_event, { projectPath }) => {
+    try {
+      console.log('🔵 [IPC] 调用: database:llm-get-conversations')
+      const projectDb = databaseService.getProjectDatabase(projectPath)
+      if (!projectDb) {
+        return { success: false, error: 'Project database not found' }
+      }
+      
+      const conversations = await projectDb.getConversations()
+      return { success: true, conversations }
+    } catch (error: any) {
+      console.error('❌ [IPC] database:llm-get-conversations 失败:', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 获取单个对话
+  ipcMain.handle('database:llm-get-conversation', async (_event, { projectPath, conversationId }) => {
+    try {
+      console.log('🔵 [IPC] 调用: database:llm-get-conversation, conversationId:', conversationId)
+      const projectDb = databaseService.getProjectDatabase(projectPath)
+      if (!projectDb) {
+        return { success: false, error: 'Project database not found' }
+      }
+      
+      const conversation = await projectDb.getConversation(conversationId)
+      return { success: true, conversation }
+    } catch (error: any) {
+      console.error('❌ [IPC] database:llm-get-conversation 失败:', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 创建对话
+  ipcMain.handle('database:llm-create-conversation', async (_event, { projectPath, conversation }) => {
+    try {
+      console.log('🔵 [IPC] 调用: database:llm-create-conversation')
+      const projectDb = databaseService.getProjectDatabase(projectPath)
+      if (!projectDb) {
+        return { success: false, error: 'Project database not found' }
+      }
+      
+      await projectDb.createConversation(conversation)
+      return { success: true }
+    } catch (error: any) {
+      console.error('❌ [IPC] database:llm-create-conversation 失败:', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 添加消息
+  ipcMain.handle('database:llm-add-message', async (_event, { projectPath, message }) => {
+    try {
+      console.log('🔵 [IPC] 调用: database:llm-add-message')
+      const projectDb = databaseService.getProjectDatabase(projectPath)
+      if (!projectDb) {
+        return { success: false, error: 'Project database not found' }
+      }
+      
+      await projectDb.addMessage(message)
+      return { success: true }
+    } catch (error: any) {
+      console.error('❌ [IPC] database:llm-add-message 失败:', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 删除对话
+  ipcMain.handle('database:llm-delete-conversation', async (_event, { projectPath, conversationId }) => {
+    try {
+      console.log('🔵 [IPC] 调用: database:llm-delete-conversation, conversationId:', conversationId)
+      const projectDb = databaseService.getProjectDatabase(projectPath)
+      if (!projectDb) {
+        return { success: false, error: 'Project database not found' }
+      }
+      
+      await projectDb.deleteConversation(conversationId)
+      return { success: true }
+    } catch (error: any) {
+      console.error('❌ [IPC] database:llm-delete-conversation 失败:', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 更新对话标题
+  ipcMain.handle('database:llm-update-conversation-title', async (_event, { projectPath, conversationId, title }) => {
+    try {
+      console.log('🔵 [IPC] 调用: database:llm-update-conversation-title')
+      const projectDb = databaseService.getProjectDatabase(projectPath)
+      if (!projectDb) {
+        return { success: false, error: 'Project database not found' }
+      }
+      
+      await projectDb.updateConversationTitle(conversationId, title)
+      return { success: true }
+    } catch (error: any) {
+      console.error('❌ [IPC] database:llm-update-conversation-title 失败:', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 搜索对话
+  ipcMain.handle('database:llm-search-conversations', async (_event, { projectPath, query }) => {
+    try {
+      console.log('🔵 [IPC] 调用: database:llm-search-conversations, query:', query)
+      const projectDb = databaseService.getProjectDatabase(projectPath)
+      if (!projectDb) {
+        return { success: false, error: 'Project database not found' }
+      }
+      
+      const conversations = await projectDb.searchConversations(query)
+      return { success: true, conversations }
+    } catch (error: any) {
+      console.error('❌ [IPC] database:llm-search-conversations 失败:', error)
+      return { success: false, error: error.message }
+    }
+  })
   
   console.log('✅ [IPC] Database IPC处理器注册完成')
 }

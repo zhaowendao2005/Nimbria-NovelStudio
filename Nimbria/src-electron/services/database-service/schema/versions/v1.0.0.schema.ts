@@ -7,7 +7,7 @@ import type { SchemaDefinition, TableDefinition } from '../base-schema'
 
 // ========== 全局数据库表 ==========
 
-const GLOBAL_TABLES: TableDefinition[] = [
+export const GLOBAL_TABLES: TableDefinition[] = [
   {
     name: 'app_settings',
     sql: `CREATE TABLE IF NOT EXISTS app_settings (
@@ -57,7 +57,7 @@ const GLOBAL_TABLES: TableDefinition[] = [
 
 // ========== 项目数据库表 ==========
 
-const PROJECT_TABLES: TableDefinition[] = [
+export const PROJECT_TABLES: TableDefinition[] = [
   {
     name: 'project_metadata',
     sql: `CREATE TABLE IF NOT EXISTS project_metadata (
