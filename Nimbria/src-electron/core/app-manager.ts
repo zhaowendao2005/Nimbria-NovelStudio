@@ -27,6 +27,8 @@ import { LlmConfigManager } from '../services/llm-service/llm-config-manager'
 import { LlmChatService } from '../services/llm-chat-service/llm-chat-service'
 import { ConversationManager } from '../services/llm-chat-service/conversation-manager'
 import { ContextManager } from '../services/llm-chat-service/context-manager'
+import { DatabaseService } from '../services/database-service/database-service'
+import { registerDatabaseHandlers } from '../ipc/main-renderer/database-handlers'
 import { createApplicationMenu, setupContextMenu } from './menu'
 
 const logger = getLogger('AppManager')
@@ -39,9 +41,10 @@ export class AppManager {
   private projectManager!: ProjectManager
   private llmConfigManager!: LlmConfigManager
   private llmChatService!: LlmChatService
+  private databaseService!: DatabaseService
   private transferMap?: Map<string, { sourceWebContentsId: number; tabId: string }>
 
-  boot() {
+  async boot() {
     logger.info('='.repeat(80))
     logger.info('Starting Nimbria application...')
     logger.info('Environment:', {
@@ -55,6 +58,7 @@ export class AppManager {
     logger.info('='.repeat(80))
     
     this.initializeFileSystem()
+    await this.initializeDatabase()
     this.initializeWindowManager()
     this.registerIpcHandlers()
     
@@ -68,9 +72,16 @@ export class AppManager {
   async shutdown() {
     logger.info('='.repeat(80))
     logger.info('Shutting down Nimbria application...')
+    
+    // 清理数据库服务
+    if (this.databaseService) {
+      await this.databaseService.cleanup()
+    }
+    
     if (this.projectFileSystem) {
       await this.projectFileSystem.cleanup()
     }
+    
     logger.info('Application shutdown complete')
     logger.info('='.repeat(80))
     
@@ -109,6 +120,20 @@ export class AppManager {
     this.llmChatService.initialize()
     
     logger.info('File system, file watcher, project management, LLM config and LLM chat services initialized')
+  }
+
+  /**
+   * 初始化数据库服务
+   */
+  private async initializeDatabase() {
+    logger.info('Initializing database service...')
+    
+    this.databaseService = new DatabaseService()
+    
+    // 调用初始化方法（会立即返回initId，通过事件反馈状态）
+    const initId = await this.databaseService.initialize()
+    
+    logger.info('Database service initialization started, initId:', initId)
   }
 
   private initializeWindowManager() {
@@ -477,6 +502,10 @@ export class AppManager {
     // 注册 LLM Chat IPC 处理器
     registerLlmChatHandlers(this.llmChatService)
     logger.info('LLM Chat IPC handlers registered')
+    
+    // 注册 Database IPC 处理器
+    registerDatabaseHandlers(this.databaseService)
+    logger.info('Database IPC handlers registered')
 
     ipcMain.handle('window:minimize', (event, request: IPCRequest<'window:minimize'>) => {
       return this.handleWindowOperationFromEvent(event, 'minimize', request)
@@ -550,7 +579,7 @@ export class AppManager {
       }
     })
 
-    ipcMain.handle('project:create-window', (_event, request: IPCRequest<'project:create-window'>) => {
+    ipcMain.handle('project:create-window', async (_event, request: IPCRequest<'project:create-window'>) => {
       if (!this.windowManager) {
         return { success: false, errorCode: 'window-manager-not-ready' }
       }
@@ -561,6 +590,10 @@ export class AppManager {
       if (process.type === 'project') {
         this.projectFileSystem.initProject(process.projectPath, process.id)
         logger.info(`Auto-initialized project filesystem for ${process.projectPath}`)
+        
+        // ✅ 自动创建项目数据库
+        const operationId = await this.databaseService.createProjectDatabase(process.projectPath)
+        logger.info(`Auto-started project database creation, operationId: ${operationId}`)
       }
       
       return {
