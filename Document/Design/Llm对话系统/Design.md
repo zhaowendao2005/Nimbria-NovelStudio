@@ -1,3 +1,35 @@
+# 🤖 项目页面LLM对话功能设计文档
+
+## 📋 项目概述
+
+为Nimbria项目的左侧栏添加AI助手对话功能，实现与项目文件的智能交互和代码辅助。
+
+## 🎨 左侧栏导航交互设计
+
+### 导航状态管理
+- **选项高亮**：点击左栏导航按钮时，对应选项高亮显示
+- **内容区切换**：导航按钮控制右侧内容区域的显示内容
+- **收起功能**：高亮按钮第二次点击时，隐藏整个内容区域
+- **状态持久化**：记住用户最后选择的导航状态
+- **特殊处理**：文档解析器按钮点击后不显示左侧内容，而是在主内容区创建panel
+
+### 导航选项列表
+```
+左侧导航栏
+├── 📁 文件浏览器 (FileTree) → 左侧内容区
+├── 🤖 AI助手 (LlmChat) → 左侧内容区 ← 新增
+├── 🔍 搜索功能 → 左侧内容区
+├── 📅 笔记本 → 左侧内容区
+├── 📄 文档解析器 → 主内容区Panel ← 特殊处理
+└── ⚙️ 设置 → 左侧内容区
+```
+
+### 分隔面板设计
+- **可调节分隔器**：左侧栏与主内容区之间添加可拖拽的分隔线
+- **最小宽度限制**：左侧栏最小宽度280px，最大宽度600px
+- **拖拽手柄**：3px宽度的分隔线，鼠标悬停时显示调整光标
+- **宽度记忆**：用户调整后的宽度保存到localStorage
+
 ## 📁 文件结构规划
 - 文件管理器组件：`Nimbria\Client\GUI\components\ProjectPage.Shell\Navbar.content\FileTree`
 - LLM对话组件：`Nimbria\Client\GUI\components\ProjectPage.Shell\Navbar.content\LlmChat`
@@ -13,19 +45,19 @@
    - 数据存储在localStorage
    - 需要校验机制确保选中的模型仍然活跃
 
-我看到对话在我准备输出设计文档时被截断了。现在需要我继续完成这个LLM对话功能的详细设计文档吗？
-
-[1 tool called]
-
-现在我完全了解了上下文。让我为你输出完整的LLM对话功能设计文档：
-
-# 🤖 项目页面LLM对话功能设计文档
-
-## 📋 项目概述
-
-为Nimbria项目的左侧栏添加AI助手对话功能，实现与项目文件的智能交互和代码辅助。
-
 ## 🏗️ 架构设计
+
+### 布局架构
+```
+项目页面布局
+├── 左侧栏 (280-600px, 可调节)
+│   ├── 导航栏 (48px)
+│   └── 内容区 (动态高度)
+├── 分隔器 (3px, 可拖拽)
+└── 主内容区 (剩余宽度)
+    ├── 编辑器面板
+    └── 特殊面板 (如文档解析器)
+```
 
 ### 文件结构
 ```
@@ -44,30 +76,48 @@ Nimbria/Client/GUI/components/ProjectPage.Shell/Navbar.content/
     └── types.ts                 # 类型定义
 ```
 
+### 分隔器组件设计
+```
+Nimbria/Client/GUI/components/ProjectPage.Shell/
+├── ResizableSplitter.vue     # 可调节分隔器组件
+└── SplitterHandle.vue        # 拖拽手柄组件
+```
+
 ## 🎨 界面设计规范
 
-### 整体布局 (280px宽度)
+### 整体布局 (可调节宽度: 280-600px)
 ```
-┌─────────────────────────────────┐
-│ [对话1] [对话2] [+]      [🔧]   │ ← 选项卡 + 工具箱
-├─────────────────────────────────┤
-│                                 │
-│         消息区域                 │ ← 对话内容
-│    (滚动区域，高度自适应)         │
-│                                 │
-├─────────────────────────────────┤
-│ ┌─────────────────────────────┐ │
-│ │ 输入框...                   │ │ ← 输入区域
-│ └─────────────────────────────┘ │
-│ [🤖 模型] [📎] [🎯] [📤发送]    │ ← 工具栏
-└─────────────────────────────────┘
+┌─────────────────────────────────┐ ┃ ← 分隔器
+│ [对话1] [对话2] [+] [🔧]        │ ┃   (可拖拽)
+│ [对话3] [对话4]                 │ ┃
+├─────────────────────────────────┤ ┃
+│                                 │ ┃
+│         消息区域                 │ ┃ ← 对话内容
+│    (滚动区域，高度自适应)         │ ┃
+│                                 │ ┃
+├─────────────────────────────────┤ ┃
+│ ┌─────────────────────────────┐ │ ┃
+│ │ 输入框...                   │ │ ┃ ← 输入区域
+│ └─────────────────────────────┘ │ ┃
+│ [🤖 模型] [📎] [🎯] [📤发送]    │ ┃ ← 工具栏
+└─────────────────────────────────┘ ┃
+```
+
+### 多行选项卡布局示例
+```
+第一行: [对话1] [对话2] [对话3] [对话4]    [🔧]
+第二行: [对话5] [对话6] [对话7]
+第三行: [对话8] [对话9]              [⬇️更多]
 ```
 
 ### 选项卡设计
 - **Element Plus Tabs组件**
-- **最大显示3个对话标签**，超出显示滚动
-- **右侧工具箱按钮**固定位置
-- **新建对话**自动生成标题"对话 N"
+- **自动换行布局**：当对话标签过多时自动换行显示
+- **推荐组件**：使用 `el-tabs` 配合 `flex-wrap: wrap` 实现多行标签
+- **最大显示行数**：限制最多3行，超出时显示滚动
+- **右侧工具箱按钮**：固定在第一行右侧位置
+- **新建对话**：自动生成标题"对话 N"
+- **标签宽度**：每个标签最小宽度80px，最大宽度120px
 
 ### 工具箱功能菜单
 ```
@@ -215,8 +265,9 @@ interface ChatSettings {
 
 ### 存储键名
 - `nimbria_chat_settings` - 聊天配置
-- `nimbria_chat_conversations` - 对话记录
+- `nimbria_chat_conversations` - 对话记录  
 - `nimbria_chat_temp` - 临时数据
+- `nimbria_sidebar_width` - 侧栏宽度设置
 
 ## 🔄 状态管理 (Pinia Store)
 
@@ -230,7 +281,14 @@ export const useChatStore = defineStore('chat', {
     isLoading: false,
     selectedModels: [],
     defaultModel: null,
-    projectContext: null
+    projectContext: null,
+    // 新增：导航状态管理
+    isContentVisible: true,
+    activeNavItem: 'chat',
+    // 新增：布局状态管理
+    leftSidebarWidth: 328,
+    minSidebarWidth: 280,
+    maxSidebarWidth: 600
   }),
   
   actions: {
@@ -250,7 +308,15 @@ export const useChatStore = defineStore('chat', {
     
     // 项目集成
     setProjectContext(context: ProjectContext),
-    addFileReference(filePath: string)
+    addFileReference(filePath: string),
+    
+    // 导航状态管理
+    toggleContentVisibility(),
+    setActiveNavItem(item: string),
+    
+    // 布局管理
+    setSidebarWidth(width: number),
+    resetSidebarWidth()
   }
 })
 ```
@@ -259,10 +325,11 @@ export const useChatStore = defineStore('chat', {
 
 ### Phase 1 - 基础功能 (MVP)
 - ✅ 基础UI组件搭建
-- ✅ 选项卡系统
+- ✅ 选项卡系统（支持多行换行）
 - ✅ 消息发送/接收
 - ✅ LocalStorage存储
 - ✅ 模型选择器
+- ✅ 可调节分隔器组件
 
 ### Phase 2 - 增强功能
 - 🔄 流式响应显示
@@ -270,12 +337,14 @@ export const useChatStore = defineStore('chat', {
 - 🔄 代码高亮
 - 🔄 工具箱功能
 - 🔄 对话导出
+- 🔄 文档解析器特殊处理
 
 ### Phase 3 - 高级功能
 - 📋 项目上下文集成
 - 📊 使用统计
 - 🎨 主题定制
 - 🔧 高级配置
+- 🖱️ 拖拽交互优化
 
 ## 🔌 技术栈
 
@@ -294,3 +363,7 @@ export const useChatStore = defineStore('chat', {
 4. **用户体验**：加载状态、进度指示、操作反馈
 5. **数据安全**：敏感信息不存储在localStorage
 6. **响应式设计**：适配不同屏幕尺寸
+7. **特殊处理**：文档解析器按钮不影响左侧栏状态管理
+8. **布局约束**：左侧栏宽度限制在280-600px范围内
+9. **多行标签**：Element Plus Tabs需要自定义CSS实现换行
+10. **分隔器交互**：确保拖拽时的流畅性和边界检查
