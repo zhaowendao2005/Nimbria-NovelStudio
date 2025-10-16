@@ -15,6 +15,9 @@
         <!-- LLM对话 -->
         <LlmChatPanel v-else-if="leftSidebarStore.currentView === 'chat'" />
         
+        <!-- 写作工具 -->
+        <WritingPanel v-else-if="leftSidebarStore.currentView === 'writing'" />
+        
         <!-- 搜索 -->
         <div v-else-if="leftSidebarStore.currentView === 'search'" class="search-panel">
           <div class="placeholder-panel">
@@ -42,6 +45,7 @@ import ProjectNavbar from 'components/ProjectPage.Shell/Navbar/ProjectNavbar.vue
 import FileTreeToolbar from 'components/ProjectPage.Shell/FileTree/FileTreeToolbar.vue'
 import FileTreeContent from 'components/ProjectPage.Shell/FileTree/FileTreeContent.vue'
 import LlmChatPanel from 'components/ProjectPage.Shell/Navbar.content/LlmChat/LlmChatPanel.vue'
+import WritingPanel from 'components/ProjectPage.Shell/Navbar.content/Writing/WritingPanel.vue'
 import SettingsPanel from 'components/ProjectPage.Shell/Navbar.content/Settings/SettingsPanel.vue'
 import { useLeftSidebarStore } from '@stores/projectPage/leftSidebar'
 import type { LeftSidebarView } from '@stores/projectPage/leftSidebar'

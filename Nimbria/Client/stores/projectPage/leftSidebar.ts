@@ -6,7 +6,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
-export type LeftSidebarView = 'files' | 'chat' | 'search' | 'notebook' | 'docparser' | 'settings'
+export type LeftSidebarView = 'files' | 'chat' | 'writing' | 'search' | 'notebook' | 'docparser' | 'settings'
 
 export const useLeftSidebarStore = defineStore('leftSidebar', () => {
   // ==================== 状态 ====================

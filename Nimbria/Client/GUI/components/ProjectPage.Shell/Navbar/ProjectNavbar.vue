@@ -32,6 +32,17 @@
       </button>
     </el-tooltip>
     
+    <!-- NovelAgent图标 -->
+    <el-tooltip content="NovelAgent" placement="right" :show-after="500">
+      <button 
+        class="nav-icon-btn"
+        :class="{ active: currentView === 'writing' }"
+        @click="handleClick('writing')"
+      >
+        <el-icon class="nav-icon"><Edit /></el-icon>
+      </button>
+    </el-tooltip>
+    
     <!-- 搜索图标 -->
     <el-tooltip content="搜索" placement="right" :show-after="500">
       <button 
@@ -82,7 +93,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Folder, Search, Calendar, Setting, HomeFilled, DocumentCopy, ChatDotRound } from '@element-plus/icons-vue'
+import { Folder, Search, Calendar, Setting, HomeFilled, DocumentCopy, ChatDotRound, Edit } from '@element-plus/icons-vue'
 import { useMarkdownStore } from '@stores/projectPage/Markdown'
 import { usePaneLayoutStore } from '@stores/projectPage/paneLayout'
 import { useLeftSidebarStore } from '@stores/projectPage/leftSidebar'
