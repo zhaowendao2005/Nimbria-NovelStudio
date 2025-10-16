@@ -30,11 +30,7 @@
         </div>
         
         <!-- 设置 -->
-        <div v-else-if="leftSidebarStore.currentView === 'settings'" class="settings-panel">
-          <div class="placeholder-panel">
-            <el-empty description="设置功能开发中" />
-          </div>
-        </div>
+        <SettingsPanel v-else-if="leftSidebarStore.currentView === 'settings'" />
       </div>
     </transition>
   </div>
@@ -46,6 +42,7 @@ import ProjectNavbar from 'components/ProjectPage.Shell/Navbar/ProjectNavbar.vue
 import FileTreeToolbar from 'components/ProjectPage.Shell/FileTree/FileTreeToolbar.vue'
 import FileTreeContent from 'components/ProjectPage.Shell/FileTree/FileTreeContent.vue'
 import LlmChatPanel from 'components/ProjectPage.Shell/Navbar.content/LlmChat/LlmChatPanel.vue'
+import SettingsPanel from 'components/ProjectPage.Shell/Navbar.content/Settings/SettingsPanel.vue'
 import { useLeftSidebarStore } from '@stores/projectPage/leftSidebar'
 import type { LeftSidebarView } from '@stores/projectPage/leftSidebar'
 

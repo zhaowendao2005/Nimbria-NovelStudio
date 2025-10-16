@@ -180,7 +180,23 @@ export const useLlmChatStore = defineStore('llmChat', {
         console.log('✅ [Store] 设置 onConversationError 监听器')
         window.nimbria.llmChat.onConversationError((data: any) => {
           console.error('❌ [Store] 对话创建失败:', data.conversationId, data.error)
-          // TODO: 显示错误提示
+          
+          // 处理模型相关错误，显示用户友好的提示
+          if (this.isModelNotFoundError(data.error)) {
+            // 动态导入 ElMessage 避免循环依赖
+            import('element-plus').then(({ ElMessage }) => {
+              ElMessage.error('请先配置并选择一个模型')
+            }).catch(() => {
+              console.error('无法显示错误提示')
+            })
+          } else {
+            // 其他错误的通用处理
+            import('element-plus').then(({ ElMessage }) => {
+              ElMessage.error('创建对话失败：' + (data.error || '未知错误'))
+            }).catch(() => {
+              console.error('无法显示错误提示')
+            })
+          }
         })
       } else {
         console.warn('❌ [Store] onConversationError 方法不存在')
@@ -307,13 +323,10 @@ export const useLlmChatStore = defineStore('llmChat', {
     async createConversation(modelId?: string): Promise<string | null> {
       try {
         const selectedModelId = modelId || this.selectedModels[0]
-        if (!selectedModelId) {
-          console.error('没有选择模型')
-          return null
-        }
-
+        
+        // 取消前端检查，让后端处理验证
         const response = await window.nimbria.llmChat.createConversation({
-          modelId: selectedModelId
+          modelId: selectedModelId || '' // 确保不传undefined
         })
 
         if (response.success && response.conversationId) {
@@ -322,10 +335,15 @@ export const useLlmChatStore = defineStore('llmChat', {
           return response.conversationId
         }
 
+        // 如果后端返回失败，在这里处理特定错误
+        if (response.error && this.isModelNotFoundError(response.error)) {
+          throw new Error('请先配置并选择一个模型')
+        }
+
         return null
       } catch (error) {
         console.error('创建对话失败:', error)
-        return null
+        throw error // 重新抛出错误，让UI层处理
       }
     },
 
@@ -558,6 +576,16 @@ export const useLlmChatStore = defineStore('llmChat', {
       } catch (error) {
         console.error('切换模型失败:', error)
       }
+    },
+
+    /**
+     * 检查错误是否为模型未找到相关错误
+     */
+    isModelNotFoundError(errorMessage: string): boolean {
+      return errorMessage.includes('Provider') && 
+             errorMessage.includes('not found') ||
+             errorMessage.includes('模型') ||
+             errorMessage.includes('model')
     },
 
     /**

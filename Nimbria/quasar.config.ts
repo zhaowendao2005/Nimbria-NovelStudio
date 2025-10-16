@@ -122,7 +122,10 @@ export default configure((/* ctx */) => {
           // 共享资源别名
           { find: '@shared', replacement: path.resolve(__dirname, 'Client/Service/shared') },
           { find: '@shared-utils', replacement: path.resolve(__dirname, 'Client/Utils/shared') },
-          { find: '@shared-stores', replacement: path.resolve(__dirname, 'Client/stores') }
+          { find: '@shared-stores', replacement: path.resolve(__dirname, 'Client/stores') },
+          
+          // DemoPage 别名 - 用于独立UI/UX演示页面
+          { find: '@demo', replacement: path.resolve(__dirname, 'Client/GUI/DemoPage') }
         );
         viteConf.resolve.alias = alias;
       },
@@ -278,7 +281,7 @@ export default configure((/* ctx */) => {
         linux: { icon: 'src-electron/icons/icon.png' },
         // 追加资源：优先保持 .dist/backend 既有逻辑；并通过"目录映射配置区"批量加入
         extraResources: (() => {
-          const resources = [] as any[];
+          const resources: Array<{ from: string; to: string; filter: string[] }> = [];
           const backendDistPath = path.resolve(__dirname, '.dist', 'backend');
           if (fs.existsSync(backendDistPath)) {
             resources.push({

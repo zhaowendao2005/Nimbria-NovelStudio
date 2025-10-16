@@ -141,21 +141,18 @@ const handleToggleContext = () => {
 }
 
 const handleCreateConversation = async () => {
-  if (!hasSelectedModel.value) {
-    ElMessage.warning('请先选择一个模型')
-    return
-  }
-  
   try {
     const conversationId = await llmChatStore.createConversation()
     if (conversationId) {
       ElMessage.success('对话已创建')
     } else {
-      ElMessage.error('创建对话失败')
+      ElMessage.warning('创建对话失败，请检查模型配置')
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('创建对话失败:', error)
-    ElMessage.error('创建对话失败，请重试')
+    // 显示具体的错误信息
+    const errorMessage = error?.message || '创建对话失败'
+    ElMessage.error(errorMessage)
   }
 }
 </script>

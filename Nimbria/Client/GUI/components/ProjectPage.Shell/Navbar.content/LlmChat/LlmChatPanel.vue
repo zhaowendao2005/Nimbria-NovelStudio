@@ -230,10 +230,14 @@ const handleCreateConversation = async () => {
     const conversationId = await llmChatStore.createConversation()
     if (conversationId) {
       ElMessage.success('新对话已创建')
+    } else {
+      ElMessage.warning('创建对话失败，请检查模型配置')
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('创建对话失败:', error)
-    ElMessage.error('创建对话失败')
+    // 显示具体的错误信息
+    const errorMessage = error?.message || '创建对话失败'
+    ElMessage.error(errorMessage)
   }
 }
 
