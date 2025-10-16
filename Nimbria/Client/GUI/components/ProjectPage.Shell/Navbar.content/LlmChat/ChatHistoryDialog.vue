@@ -147,7 +147,6 @@
 import { ref, computed, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { useLlmChatStore } from '@stores/llmChat/llmChatStore'
-import { useChatTabManager } from '@stores/llmChat/chatTabManager'
 import { formatDistanceToNow } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import type { Conversation } from '../../../../../types/llmChat'
@@ -169,7 +168,6 @@ const $q = useQuasar()
 
 // Stores
 const llmChatStore = useLlmChatStore()
-const tabManager = useChatTabManager()
 
 // 状态
 const isVisible = computed({
@@ -182,6 +180,9 @@ const selectedFilter = ref('all')
 const isLoading = ref(false)
 const isSearching = ref(false)
 
+// ✅ 独立的历史对话数据源（不污染 llmChatStore.conversations）
+const historyConversations = ref<Conversation[]>([])
+
 // 过滤选项
 const filters = [
   { label: '全部', value: 'all' },
@@ -193,7 +194,7 @@ const filters = [
 
 // 计算属性
 const filteredConversations = computed(() => {
-  let result = llmChatStore.conversations
+  let result = historyConversations.value
 
   // 搜索过滤
   if (searchQuery.value.trim()) {
@@ -226,12 +227,55 @@ const filteredConversations = computed(() => {
   })
 })
 
-const totalConversations = computed(() => llmChatStore.conversations.length)
+const totalConversations = computed(() => historyConversations.value.length)
 
 // 方法
-const formatDate = (date: Date | string) => {
-  const dateObj = typeof date === 'string' ? new Date(date) : date
+const formatDate = (date: Date | string | number) => {
+  // 统一处理各种时间格式
+  let dateObj: Date
+  if (date instanceof Date) {
+    dateObj = date
+  } else if (typeof date === 'number') {
+    // 时间戳（毫秒）- 后端现在返回时间戳，避免时区问题
+    dateObj = new Date(date)
+  } else {
+    // ISO 字符串（兼容旧数据）
+    dateObj = new Date(date)
+  }
+  
   return formatDistanceToNow(dateObj, { addSuffix: true, locale: zhCN })
+}
+
+/**
+ * 加载历史对话列表（独立数据源）
+ */
+const loadHistoryConversations = async () => {
+  try {
+    isLoading.value = true
+    console.log('📚 [History] 加载历史对话...')
+    
+    const projectPath = await llmChatStore.getCurrentProjectPath()
+    if (!projectPath) {
+      console.error('❌ [History] 项目路径不可用')
+      return
+    }
+    
+    if (window.nimbria?.database?.llmGetConversations) {
+      const response = await window.nimbria.database.llmGetConversations({ projectPath })
+      if (response.success && response.conversations) {
+        historyConversations.value = response.conversations
+        console.log('✅ [History] 加载了', response.conversations.length, '个历史对话')
+      }
+    }
+  } catch (error) {
+    console.error('❌ [History] 加载历史对话失败:', error)
+    $q.notify({
+      type: 'negative',
+      message: '加载历史记录失败'
+    })
+  } finally {
+    isLoading.value = false
+  }
 }
 
 const onSearchQueryChange = async (value: string | number | null) => {
@@ -240,8 +284,9 @@ const onSearchQueryChange = async (value: string | number | null) => {
   isSearching.value = true
   
   try {
-    // 调用搜索 API
-    await llmChatStore.searchConversations(value)
+    // 在历史对话中搜索（客户端过滤）
+    // filteredConversations 计算属性会自动过滤
+    console.log('🔍 [History] 搜索:', value)
   } catch (error) {
     console.error('搜索对话失败:', error)
   } finally {
@@ -249,22 +294,30 @@ const onSearchQueryChange = async (value: string | number | null) => {
   }
 }
 
-const openConversation = async (conversation: any) => {
+const openConversation = async (conversation: Conversation) => {
   console.log('打开对话:', conversation.id)
   
-  // 通过标签页管理器打开对话
-  tabManager.openConversation(conversation.id, conversation.title)
-  
-  // 如果对话没有消息，从数据库加载完整对话
-  if (!conversation.messages || conversation.messages.length === 0) {
-    await llmChatStore.loadConversation(conversation.id)
+  try {
+    // 检查对话是否已经在对话列表中
+    const existingConversation = llmChatStore.conversations.find(c => c.id === conversation.id)
+    
+    if (!existingConversation) {
+      // 如果不在列表中，添加到列表（从数据库加载完整数据）
+      await llmChatStore.loadConversation(conversation.id)
+    }
+    
+    // 设置为活动对话（Element Plus Tabs 会自动切换）
+    llmChatStore.activeConversationId = conversation.id
+    
+    // 关闭对话框
+    closeDialog()
+  } catch (error) {
+    console.error('打开对话失败:', error)
+    $q.notify({
+      type: 'negative',
+      message: '打开对话失败'
+    })
   }
-  
-  // 设置为活动对话
-  llmChatStore.activeConversationId = conversation.id
-  
-  // 关闭对话框
-  closeDialog()
 }
 
 const editConversationTitle = (conversation: Conversation) => {
@@ -282,8 +335,7 @@ const editConversationTitle = (conversation: Conversation) => {
       try {
         await llmChatStore.updateConversationTitle(conversation.id, newTitle.trim())
         
-        // 更新标签页标题
-        tabManager.updateTabTitleByConversationId(conversation.id, newTitle.trim())
+        // Element Plus Tabs 会自动更新标题（因为绑定到 conversation.title）
         
         $q.notify({
           type: 'positive',
@@ -319,8 +371,13 @@ const confirmDeleteConversation = (conversation: Conversation) => {
     try {
       await llmChatStore.deleteConversation(conversation.id)
       
-      // 关闭相关标签页
-      tabManager.closeTabsByConversationId(conversation.id)
+      // 从历史记录中移除
+      const index = historyConversations.value.findIndex(c => c.id === conversation.id)
+      if (index !== -1) {
+        historyConversations.value.splice(index, 1)
+      }
+      
+      // Element Plus Tabs 会自动移除标签页（如果该对话有打开的标签）
       
       $q.notify({
         type: 'positive',
@@ -353,13 +410,16 @@ const confirmClearAllHistory = () => {
     }
   }).onOk(async () => {
     try {
-      // 删除所有对话
-      for (const conversation of llmChatStore.conversations) {
-        await llmChatStore.deleteConversation(conversation.id)
+      // 删除所有历史对话
+      const conversationIds = [...historyConversations.value.map(c => c.id)]
+      for (const conversationId of conversationIds) {
+        await llmChatStore.deleteConversation(conversationId)
       }
       
-      // 关闭所有标签页
-      tabManager.closeAllTabs()
+      // 清空历史记录
+      historyConversations.value = []
+      
+      // Element Plus Tabs 会自动清空所有标签页（因为对话被删除了）
       
       $q.notify({
         type: 'positive',
@@ -381,22 +441,11 @@ const closeDialog = () => {
   isVisible.value = false
 }
 
-// 监听对话框打开，加载对话列表
-watch(isVisible, async (newVal) => {
-  if (newVal) {
-    isLoading.value = true
-    try {
-      await llmChatStore.loadConversations()
-    } catch (error) {
-      console.error('加载对话列表失败:', error)
-      $q.notify({
-        type: 'negative',
-        message: '加载对话列表失败',
-        position: 'top'
-      })
-    } finally {
-      isLoading.value = false
-    }
+// 监听对话框打开状态，自动加载历史记录
+watch(isVisible, async (newValue) => {
+  if (newValue) {
+    // 对话框打开时加载历史记录（独立数据源）
+    await loadHistoryConversations()
   }
 })
 </script>

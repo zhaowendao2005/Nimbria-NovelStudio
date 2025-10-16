@@ -202,11 +202,12 @@ export class ProjectDatabase {
       title: row.title,
       modelId: row.model_id,
       settings: JSON.parse(row.settings_json),
-      createdAt: new Date(row.created_at),
-      updatedAt: new Date(row.updated_at),
+      // 返回毫秒时间戳，避免时区问题
+      createdAt: new Date(row.created_at).getTime(),
+      updatedAt: new Date(row.updated_at).getTime(),
       messageCount: row.message_count,
       totalTokens: row.total_tokens,
-      lastActivity: new Date(row.last_activity),
+      lastActivity: row.last_activity ? new Date(row.last_activity).getTime() : null,
       messages: [] // 消息需要单独加载
     }))
   }
@@ -246,13 +247,15 @@ export class ProjectDatabase {
       title: conversation.title,
       modelId: conversation.model_id,
       settings: JSON.parse(conversation.settings_json),
-      createdAt: new Date(conversation.created_at),
-      updatedAt: new Date(conversation.updated_at),
+      // 返回毫秒时间戳，避免时区问题
+      createdAt: new Date(conversation.created_at).getTime(),
+      updatedAt: new Date(conversation.updated_at).getTime(),
       messages: messages.map(msg => ({
         id: msg.id,
         role: msg.role,
         content: msg.content,
-        timestamp: new Date(msg.created_at),
+        // 消息时间戳也返回毫秒
+        timestamp: new Date(msg.created_at).getTime(),
         metadata: msg.metadata_json ? JSON.parse(msg.metadata_json) : undefined
       }))
     }

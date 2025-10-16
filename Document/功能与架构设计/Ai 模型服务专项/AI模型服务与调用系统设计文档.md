@@ -16,7 +16,9 @@ Nimbria 的 AI 模型服务与调用系统提供了一个统一、类型安全�
 - **活跃模型配置**: 用户可选择和配置不同类型的活跃模型（LLM、文本嵌入、图像生成等）
 - **配置持久化**: 所有配置自动保存到 YAML 文件，支持导入导出
 - **类型安全调用**: 完整的 TypeScript 支持，编译时类型检查
-- **全局服务接口**: 为其他业务模块提供统一的模型调用 API
+- **实时对话系统**: 完整的 LLM Chat 功能，支持流式响应和对话管理
+- **数据库持久化**: 对话历史存储在项目级 SQLite 数据库中
+- **事件驱动架构**: 使用 EventEmitter 实现松耦合的消息传递
 - **连接测试与模型发现**: 自动测试连接并发现可用模型
 - **错误处理与重试**: 完善的错误处理机制和自动重试逻辑
 
@@ -32,15 +34,19 @@ graph TD
     B -->|IPC 调用| C[主进程 LLM Handlers]
     C --> D{操作类型}
     D -->|配置管理| E[LlmConfigManager<br/>YAML 配置文件]
-    D -->|模型调用| F[LlmChatService<br/>实际 API 调用]
-    F -->|根据模型ID路由| G[LlmApiClient<br/>OpenAI SDK 封装]
-    G -->|HTTP 请求| H[外部 LLM 提供商<br/>OpenAI/Anthropic/Custom]
-    E -->|读写配置| I[providers.yaml<br/>用户数据目录]
+    D -->|对话管理| F[LlmChatService<br/>对话协调器]
+    F --> G[ConversationManager<br/>对话数据管理]
+    F --> H[LangChainClient<br/>API 调用封装]
+    F --> I[ContextManager<br/>上下文管理]
+    G -->|读写对话| J[ProjectDatabase<br/>SQLite 数据库]
+    H -->|HTTP 请求| K[外部 LLM 提供商<br/>OpenAI/Anthropic/Custom]
+    E -->|读写配置| L[providers.yaml<br/>用户数据目录]
     
     subgraph Frontend[前端渲染进程]
         A
         B
-        J[Settings UI<br/>模型服务配置页面]
+        M[LLM Chat UI<br/>对话界面]
+        N[Settings UI<br/>模型服务配置页面]
     end
     
     subgraph MainProcess[主进程 Electron]
@@ -48,10 +54,15 @@ graph TD
         E
         F
         G
+        H
+        I
     end
     
-    J -->|配置管理| B
-    H -->|响应| G
+    M -->|对话操作| B
+    N -->|配置管理| B
+    K -->|流式响应| H
+    F -.->|事件广播| C
+    C -.->|事件转发| M
 ```
 
 ### 文件架构
@@ -75,15 +86,25 @@ Nimbria/
 │   │   └── Settings.LlmConfig.*.vue           # 其他配置组件
 │   └── types/core/window.d.ts                 # 全局 API 类型定义
 ├── src-electron/                              # 主进程代码
-│   ├── services/llm-service/                  # LLM 服务层
-│   │   ├── llm-config-manager.ts              # 配置管理器
-│   │   ├── llm-api-client.ts                  # API 客户端封装
-│   │   ├── llm-chat-service.ts                # 聊天服务（待实现）
-│   │   └── types.ts                           # 后端类型定义
+│   ├── services/
+│   │   ├── llm-service/                       # LLM 配置服务层
+│   │   │   ├── llm-config-manager.ts          # 配置管理器
+│   │   │   ├── llm-api-client.ts              # API 客户端封装
+│   │   │   └── types.ts                       # 配置类型定义
+│   │   ├── llm-chat-service/                  # LLM 对话服务层
+│   │   │   ├── llm-chat-service.ts            # 主服务协调器
+│   │   │   ├── conversation-manager.ts        # 对话数据管理
+│   │   │   ├── langchain-client.ts            # LangChain API 封装
+│   │   │   ├── context-manager.ts             # 上下文管理
+│   │   │   └── types.ts                       # 对话类型定义
+│   │   └── database-service/                  # 数据库服务
+│   │       └── project-database.ts            # 项目数据库操作
 │   ├── ipc/main-renderer/
-│   │   └── llm-handlers.ts                    # IPC 处理器
+│   │   ├── llm-handlers.ts                    # LLM 配置 IPC 处理器
+│   │   └── llm-chat-handlers.ts               # LLM 对话 IPC 处理器
 │   └── core/
 │       ├── main-preload.ts                    # API 暴露
+│       ├── project-preload.ts                 # 项目窗口 API 暴露
 │       └── app-manager.ts                     # 服务注册
 └── AppData/llm-config/                        # 配置文件存储
     └── providers.yaml                         # 提供商配置文件
@@ -130,26 +151,102 @@ providers:
         preferredModel: text-embedding-3-large
 ```
 
-### 2. LlmApiClient (API 客户端)
+### 2. LlmChatService (对话服务协调器)
 
-**职责**: 封装 OpenAI SDK，提供连接测试和模型发现功能
+**职责**: 协调各个组件，提供统一的对话服务接口，使用 EventEmitter 实现事件驱动架构
 
 **核心方法**:
 ```typescript
-class LlmApiClient {
-  // 连接测试
-  async testConnection(): Promise<ConnectionTestResult>
+class LlmChatService extends EventEmitter {
+  // 服务管理
+  async initialize(projectPath?: string): Promise<void>
+  async switchProject(projectPath: string): Promise<void>
   
-  // 模型发现
-  async discoverModels(): Promise<DiscoveredModel[]>
+  // 对话管理
+  async createConversation(modelId: string, settings?: Partial<ConversationSettings>): Promise<string>
+  async sendMessage(conversationId: string, content: string): Promise<string>
+  async regenerateMessage(conversationId: string): Promise<void>
+  async deleteMessage(conversationId: string, messageId: string): Promise<void>
   
-  // 实际调用（待扩展）
-  async chat(messages: ChatMessage[]): Promise<ChatResponse>
-  async embed(text: string): Promise<EmbeddingResponse>
+  // 数据访问
+  getConversations(): Conversation[]
+  getConversation(conversationId: string): Conversation | null
+  async updateConversationTitle(conversationId: string, title: string): Promise<void>
+  async deleteConversation(conversationId: string): Promise<void>
 }
 ```
 
-### 3. Settings LLM Store (前端状态管理)
+### 3. ConversationManager (对话数据管理)
+
+**职责**: 管理对话的创建、删除、历史记录，数据存储在项目数据库中
+
+**核心方法**:
+```typescript
+class ConversationManager {
+  // 数据库管理
+  setProjectDatabase(projectDatabase: ProjectDatabase): void
+  async initialize(): Promise<void>
+  
+  // 对话操作
+  async createConversation(conversationId: string, modelId: string, settings: ConversationSettings): Promise<Conversation>
+  async addMessage(conversationId: string, message: ChatMessage): Promise<ChatMessage>
+  async updateConversationTitle(conversationId: string, title: string): Promise<void>
+  async deleteConversation(conversationId: string): Promise<void>
+  async deleteMessage(conversationId: string, messageId: string): Promise<void>
+}
+```
+
+### 4. LangChainClient (API 调用封装)
+
+**职责**: 封装 LangChain 的 ChatOpenAI，提供流式和非流式聊天功能
+
+**核心方法**:
+```typescript
+class LangChainClient {
+  // 聊天调用
+  async chatStream(messages: ChatMessage[], callbacks: StreamCallbacks): Promise<void>
+  async chat(messages: ChatMessage[]): Promise<string>
+  
+  // 工具方法
+  countTokens(messages: ChatMessage[]): number
+  private convertMessages(messages: ChatMessage[]): BaseMessage[]
+}
+```
+
+### 5. LLM Chat Store (前端对话状态管理)
+
+**职责**: 管理前端的对话状态，与后端 LlmChatService 通信，处理流式响应
+
+**核心状态**:
+```typescript
+export const useLlmChatStore = defineStore('llmChat', {
+  state: () => ({
+    // 对话数据
+    conversations: Conversation[],
+    activeConversationId: string | null,
+    
+    // 加载状态
+    isLoading: boolean,
+    isSending: boolean,
+    
+    // 流式响应状态
+    streamingMessageId: string | null,
+    streamingContent: string,
+    
+    // 模型管理
+    selectedModels: string[]
+  }),
+  
+  // 核心操作
+  async initialize(): Promise<void>
+  async createConversation(modelId?: string): Promise<string | null>
+  async sendMessage(content: string): Promise<void>
+  async updateConversationTitle(conversationId: string, title: string): Promise<void>
+  async deleteConversation(conversationId: string): Promise<void>
+})
+```
+
+### 6. Settings LLM Store (前端配置状态管理)
 
 **职责**: 管理前端的 LLM 配置状态，提供响应式数据和操作方法
 
@@ -173,7 +270,7 @@ export const useSettingsLlmStore = defineStore('settings-llm', () => {
 })
 ```
 
-### 4. 全局 LLM 服务 Store (待实现)
+### 7. 全局 LLM 服务 Store (待实现)
 
 **职责**: 为其他业务模块提供统一的 LLM 调用接口
 
@@ -215,7 +312,32 @@ export const useLlmServiceStore = defineStore('llm-service', () => {
 | `llm:toggle-model-selection` | `{ providerId: string; modelType: string; modelName: string }` | `{ success: boolean }` | 切换模型选择状态 |
 | `llm:set-preferred-model` | `{ providerId: string; modelType: string; modelName: string }` | `{ success: boolean }` | 设置首选模型 |
 
-### 模型调用 IPC (待实现)
+### LLM Chat 对话管理 IPC
+
+| 通道名 | 请求类型 | 响应类型 | 用途 |
+|-------|---------|----------|------|
+| `llm-chat:create-conversation` | `{ modelId: string; settings?: Partial<ConversationSettings> }` | `{ success: boolean; conversationId?: string }` | 创建新对话 |
+| `llm-chat:get-conversations` | `undefined` | `{ success: boolean; conversations?: Conversation[] }` | 获取所有对话 |
+| `llm-chat:get-conversation` | `{ conversationId: string }` | `{ success: boolean; conversation?: Conversation }` | 获取单个对话 |
+| `llm-chat:send-message` | `{ conversationId: string; content: string }` | `{ success: boolean; messageId?: string }` | 发送消息 |
+| `llm-chat:update-title` | `{ conversationId: string; title: string }` | `{ success: boolean }` | 更新对话标题 |
+| `llm-chat:delete-conversation` | `{ conversationId: string }` | `{ success: boolean }` | 删除对话 |
+| `llm-chat:delete-message` | `{ conversationId: string; messageId: string }` | `{ success: boolean }` | 删除消息 |
+| `llm-chat:regenerate-message` | `{ conversationId: string }` | `{ success: boolean }` | 重新生成消息 |
+
+### LLM Chat 事件广播
+
+| 事件名 | 数据类型 | 用途 |
+|-------|---------|------|
+| `llm-chat:conversation-start` | `{ conversationId: string; modelId: string }` | 对话创建开始 |
+| `llm-chat:conversation-created` | `{ conversationId: string; conversation: Conversation }` | 对话创建完成 |
+| `llm-chat:conversation-error` | `{ conversationId: string; error: string }` | 对话创建失败 |
+| `llm-chat:message-start` | `{ conversationId: string; messageId: string }` | 消息生成开始 |
+| `llm-chat:stream-chunk` | `{ conversationId: string; messageId: string; chunk: string }` | 流式响应片段 |
+| `llm-chat:stream-complete` | `{ conversationId: string; messageId: string }` | 流式响应完成 |
+| `llm-chat:stream-error` | `{ conversationId: string; messageId: string; error: string }` | 流式响应错误 |
+
+### 全局模型调用 IPC (待实现)
 
 | 通道名 | 请求类型 | 响应类型 | 用途 |
 |-------|---------|----------|------|
@@ -363,6 +485,101 @@ async function getEmbedding() {
     console.error('嵌入失败:', error)
   }
 }
+```
+
+---
+
+## 💬 LLM Chat 功能使用指南
+
+### 快速开始 - 创建对话
+
+```typescript
+// 在 Vue 组件中使用 LLM Chat
+import { useLlmChatStore } from '@stores/llmChat/llmChatStore'
+
+export default {
+  setup() {
+    const llmChatStore = useLlmChatStore()
+    
+    // 初始化 Chat Store
+    onMounted(async () => {
+      await llmChatStore.initialize()
+    })
+    
+    // 创建新对话
+    const createNewChat = async () => {
+      const conversationId = await llmChatStore.createConversation('openai.gpt-4o')
+      if (conversationId) {
+        console.log('对话创建成功:', conversationId)
+      }
+    }
+    
+    return { createNewChat }
+  }
+}
+```
+
+### 发送消息和处理流式响应
+
+```typescript
+// 发送消息
+const sendMessage = async (content: string) => {
+  if (!llmChatStore.activeConversationId) {
+    // 如果没有活跃对话，自动创建
+    await llmChatStore.createConversation()
+  }
+  
+  // 发送消息，自动处理流式响应
+  await llmChatStore.sendMessage(content)
+}
+
+// 监听流式响应状态
+const isStreaming = computed(() => llmChatStore.streamingMessageId !== null)
+const streamingContent = computed(() => llmChatStore.streamingContent)
+```
+
+### 对话管理
+
+```typescript
+// 获取所有对话
+const conversations = computed(() => llmChatStore.conversations)
+
+// 切换活跃对话
+const switchConversation = (conversationId: string) => {
+  llmChatStore.activeConversationId = conversationId
+}
+
+// 重命名对话
+const renameConversation = async (conversationId: string, newTitle: string) => {
+  await llmChatStore.updateConversationTitle(conversationId, newTitle)
+}
+
+// 删除对话
+const deleteConversation = async (conversationId: string) => {
+  await llmChatStore.deleteConversation(conversationId)
+}
+```
+
+### 事件监听
+
+```typescript
+// 在组件中监听对话事件
+onMounted(() => {
+  // 监听对话创建事件
+  window.nimbria.llmChat.onConversationCreated((data) => {
+    console.log('新对话创建:', data.conversation)
+  })
+  
+  // 监听流式响应
+  window.nimbria.llmChat.onStreamChunk((data) => {
+    console.log('收到响应片段:', data.chunk)
+  })
+  
+  // 监听响应完成
+  window.nimbria.llmChat.onStreamComplete((data) => {
+    console.log('响应完成:', data.conversationId)
+  })
+})
 ```
 
 ---
@@ -581,16 +798,23 @@ console.log('连接测试结果:', testResult)
 - ✅ 连接测试与模型发现
 - ✅ 完整的前端配置 UI
 - ✅ 类型安全的 IPC 通信
+- ✅ 完整的 LLM Chat 对话系统
+- ✅ 流式响应处理
+- ✅ 对话历史管理（SQLite 数据库）
+- ✅ 事件驱动架构
+- ✅ Element Plus 标签页管理
+- ✅ 对话数据持久化
 
 ### 计划中的功能 (v1.1+)
 
-- [ ] 实际的聊天和嵌入 API 调用
-- [ ] 流式响应处理
-- [ ] 聊天历史管理
+- [ ] 全局 LLM 服务接口（供其他业务模块使用）
+- [ ] 文本嵌入 API 调用
 - [ ] 模型使用统计和成本跟踪
 - [ ] 自定义提示词模板
 - [ ] 多模态支持（图像、音频）
 - [ ] 插件化的模型后处理
+- [ ] 对话导出功能
+- [ ] 对话搜索和标签分类
 
 ---
 
@@ -603,5 +827,16 @@ console.log('连接测试结果:', testResult)
 
 ---
 
-**最后更新**: 2025年10月14日  
+**最后更新**: 2025年10月16日  
 **负责人**: Nimbria 开发团队
+
+### 更新日志
+
+**v1.0 (2025-10-16)**:
+- ✅ 新增完整的 LLM Chat 对话系统实现
+- ✅ 新增事件驱动架构说明
+- ✅ 新增数据库持久化方案
+- ✅ 新增流式响应处理机制
+- ✅ 新增 Element Plus 标签页管理
+- ✅ 更新 IPC 通信协议（对话管理和事件广播）
+- ✅ 新增 LLM Chat 使用指南和示例代码

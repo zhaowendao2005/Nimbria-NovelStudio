@@ -39,39 +39,7 @@ interface LlmChatState {
   maxSidebarWidth: number
 }
 
-declare global {
-  interface Window {
-    nimbria: {
-      llmChat: {
-        createConversation: (args: { modelId: string; settings?: Partial<ConversationSettings> }) => Promise<IpcResponse>
-        getConversations: () => Promise<IpcResponse>
-        getConversation: (conversationId: string) => Promise<IpcResponse>
-        deleteConversation: (conversationId: string) => Promise<IpcResponse>
-        updateTitle: (conversationId: string, title: string) => Promise<IpcResponse>
-        updateSettings: (conversationId: string, settings: Partial<ConversationSettings>) => Promise<IpcResponse>
-        sendMessage: (args: { conversationId: string; content: string }) => Promise<IpcResponse>
-        regenerateMessage: (conversationId: string) => Promise<IpcResponse>
-        deleteMessage: (conversationId: string, messageId: string) => Promise<IpcResponse>
-        switchModel: (conversationId: string, modelId: string) => Promise<IpcResponse>
-        searchConversations: (query: string) => Promise<IpcResponse>
-        onStreamChunk: (callback: (data: StreamChunk) => void) => void
-        onStreamComplete: (callback: (data: StreamComplete) => void) => void
-        onStreamError: (callback: (data: StreamError) => void) => void
-      }
-      llm: {
-        getProviders: () => Promise<any>
-      }
-      database: {
-        llmGetConversations: (args: { projectPath: string }) => Promise<IpcResponse>
-        llmGetConversation: (args: { projectPath: string; conversationId: string }) => Promise<IpcResponse>
-        llmSearchConversations: (args: { projectPath: string; query: string }) => Promise<IpcResponse>
-      }
-      project: {
-        getCurrentProjectPath: () => Promise<string>
-      }
-    }
-  }
-}
+// 类型声明已经在 Client/types/core/window.d.ts 中定义，不需要重复声明
 
 export const useLlmChatStore = defineStore('llmChat', {
   state: (): LlmChatState => ({
@@ -129,13 +97,17 @@ export const useLlmChatStore = defineStore('llmChat', {
       // 加载UI设置
       this.loadUISettings()
       
-      // 加载对话列表
-      await this.loadConversations()
+      // ✅ 不再自动加载所有对话
+      // 对话只在以下情况加载：
+      // 1. 用户创建新对话
+      // 2. 用户从历史记录打开对话
+      // conversations 数组保持为空，直到用户主动操作
       
       // 设置流式响应监听器（带重试机制）
       await this.setupStreamListenersWithRetry()
       
       console.log('✅ [Store] LLM Chat Store 初始化完成')
+      console.log('📊 [Store] 当前打开的对话数:', this.conversations.length)
     },
 
     /**
@@ -345,7 +317,8 @@ export const useLlmChatStore = defineStore('llmChat', {
         })
 
         if (response.success && response.conversationId) {
-          // 立即返回对话 ID，实际对话数据通过事件监听器处理
+          // 立即激活新创建的对话（Element Plus Tabs 会自动切换）
+          this.activeConversationId = response.conversationId
           return response.conversationId
         }
 
@@ -643,27 +616,14 @@ export const useLlmChatStore = defineStore('llmChat', {
     /**
      * 同步对话到标签页管理器
      */
+    /**
+     * 同步对话到标签页（不再需要，Element Plus Tabs 会自动同步）
+     * 保留方法体以防其他地方调用，但内部为空
+     */
     async syncConversationsToTabs() {
-      try {
-        // 动态导入标签页管理器
-        const { useChatTabManager } = await import('@stores/llmChat/chatTabManager')
-        const tabManager = useChatTabManager()
-        
-        console.log('🔄 [Store] 同步对话到标签页管理器...')
-        
-        // 清空现有标签页
-        tabManager.$reset()
-        
-        // 为每个对话创建标签页（但不激活）
-        this.conversations.forEach(conversation => {
-          console.log('🏷️ [Store] 同步对话标签:', conversation.id, '标题:', conversation.title)
-          tabManager.openConversation(conversation.id, conversation.title, false) // false = 不激活
-        })
-        
-        console.log('✅ [Store] 已同步', this.conversations.length, '个对话到标签页管理器')
-      } catch (error) {
-        console.error('❌ [Store] 同步对话到标签页管理器失败:', error)
-      }
+      // Element Plus Tabs 组件会自动根据 conversations 数组渲染标签页
+      // 不再需要单独的标签页管理器
+      console.log('✅ [Store] 对话数据已就绪，共', this.conversations.length, '个对话')
     },
 
     // ========== UI状态管理 ==========
