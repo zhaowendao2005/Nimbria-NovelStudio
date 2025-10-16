@@ -664,6 +664,99 @@ export interface NimbriaWindowAPI {
     llmSearchConversations: (args: { projectPath: string; query: string }) => Promise<{ success: boolean; conversations?: any[]; error?: string }>
   }
 
+  /**
+   * StarChart API
+   * 
+   * 提供小说设定图数据库功能，基于 Gun.js 实现时间维度快照架构。
+   * 支持人物、组织、事件等节点的创建和关系管理，以及时间轴版本控制。
+   * 
+   * 调用示例:
+   * ```typescript
+   * // 初始化当前项目的 StarChart
+   * const result = await window.nimbria.starChart.createProject()
+   * if (result.success) {
+   *   console.log('StarChart 初始化成功')
+   * }
+   * 
+   * // 读取元数据
+   * const metadata = await window.nimbria.starChart.getMetadata()
+   * if (metadata.success) {
+   *   console.log('创建时间:', metadata.metadata.created_at)
+   * }
+   * 
+   * // 监听创建事件
+   * window.nimbria.starChart.onProjectCreated((data) => {
+   *   console.log('StarChart 已创建:', data.starChartPath)
+   * })
+   * ```
+   */
+  starChart: {
+    /**
+     * 全局初始化 StarChart 服务（只需调用一次）
+     * @returns 操作结果，包含 initId
+     */
+    initialize: () => Promise<{ success: boolean; initId?: string; error?: string }>
+    
+    /**
+     * 为当前项目创建 StarChart 数据库
+     * 自动使用当前项目路径，无需手动传递
+     * @returns 操作结果，包含 operationId
+     */
+    createProject: () => Promise<{ success: boolean; operationId?: string; error?: string }>
+    
+    /**
+     * 读取当前项目的 StarChart 元数据
+     * @returns 元数据，包含创建时间和版本信息
+     */
+    getMetadata: () => Promise<{ 
+      success: boolean
+      metadata?: {
+        created_at: number
+        version: string
+        [key: string]: any
+      }
+      error?: string 
+    }>
+    
+    // 事件监听
+    /**
+     * 监听 StarChart 初始化开始事件
+     */
+    onInitStart: (callback: (data: { initId: string }) => void) => void
+    
+    /**
+     * 监听 StarChart 初始化完成事件
+     */
+    onInitComplete: (callback: (data: { initId: string; success: boolean }) => void) => void
+    
+    /**
+     * 监听 StarChart 初始化错误事件
+     */
+    onInitError: (callback: (data: { initId: string; error: string }) => void) => void
+    
+    /**
+     * 监听项目 StarChart 创建开始事件
+     */
+    onProjectCreateStart: (callback: (data: { operationId: string; projectPath: string }) => void) => void
+    
+    /**
+     * 监听项目 StarChart 创建完成事件
+     */
+    onProjectCreated: (callback: (data: { 
+      operationId: string
+      projectPath: string
+      starChartPath: string 
+    }) => void) => void
+    
+    /**
+     * 监听项目 StarChart 错误事件
+     */
+    onProjectError: (callback: (data: { 
+      operationId?: string
+      projectPath?: string
+      error: string 
+    }) => void) => void
+  }
 
   /**
    * 🔥 事件通信 API

@@ -399,6 +399,48 @@ contextBridge.exposeInMainWorld('nimbria', {
     }
   },
 
+  // ✨ StarChart API
+  starChart: {
+    // ✅ 初始化 - 自动使用当前项目路径
+    initialize: () => ipcRenderer.invoke('starchart:initialize'),
+    
+    // ✅ 创建项目的 StarChart - 自动使用 currentProjectPath
+    createProject: async () => {
+      if (!currentProjectPath) {
+        return { success: false, error: 'No project path available' }
+      }
+      return ipcRenderer.invoke('starchart:create-project', { projectPath: currentProjectPath })
+    },
+    
+    // ✅ 读取元数据 - 自动使用 currentProjectPath
+    getMetadata: async () => {
+      if (!currentProjectPath) {
+        return { success: false, error: 'No project path available' }
+      }
+      return ipcRenderer.invoke('starchart:get-metadata', { projectPath: currentProjectPath })
+    },
+    
+    // 事件监听
+    onInitStart: (callback: (data: any) => void) => {
+      ipcRenderer.on('starchart:init-start', (_event, data) => callback(data))
+    },
+    onInitComplete: (callback: (data: any) => void) => {
+      ipcRenderer.on('starchart:init-complete', (_event, data) => callback(data))
+    },
+    onInitError: (callback: (data: any) => void) => {
+      ipcRenderer.on('starchart:init-error', (_event, data) => callback(data))
+    },
+    onProjectCreateStart: (callback: (data: any) => void) => {
+      ipcRenderer.on('starchart:project-create-start', (_event, data) => callback(data))
+    },
+    onProjectCreated: (callback: (data: any) => void) => {
+      ipcRenderer.on('starchart:project-created', (_event, data) => callback(data))
+    },
+    onProjectError: (callback: (data: any) => void) => {
+      ipcRenderer.on('starchart:project-error', (_event, data) => callback(data))
+    }
+  },
+
   // 🔥 事件通信 API
   on: (channel: string, callback: (...args: unknown[]) => void) => {
     ipcRenderer.on(channel, (_event, ...args) => callback(...args))

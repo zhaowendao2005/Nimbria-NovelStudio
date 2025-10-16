@@ -235,6 +235,7 @@ export default configure((/* ctx */) => {
         // 配置外部依赖，避免打包原生模块
         esbuildConf.external = esbuildConf.external || [];
         esbuildConf.external.push('better-sqlite3');
+        esbuildConf.external.push('gun');
       },
       
       // extendElectronPreloadConf (esbuildConf) {},

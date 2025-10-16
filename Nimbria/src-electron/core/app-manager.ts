@@ -29,6 +29,8 @@ import { ConversationManager } from '../services/llm-chat-service/conversation-m
 import { ContextManager } from '../services/llm-chat-service/context-manager'
 import { DatabaseService } from '../services/database-service/database-service'
 import { registerDatabaseHandlers } from '../ipc/main-renderer/database-handlers'
+import { StarChartService } from '../services/star-chart-service/star-chart-service'
+import { registerStarChartHandlers } from '../ipc/main-renderer/star-chart-handlers'
 import { createApplicationMenu, setupContextMenu } from './menu'
 
 const logger = getLogger('AppManager')
@@ -42,6 +44,7 @@ export class AppManager {
   private llmConfigManager!: LlmConfigManager
   private llmChatService!: LlmChatService
   private databaseService!: DatabaseService
+  private starChartService!: StarChartService
   private transferMap?: Map<string, { sourceWebContentsId: number; tabId: string }>
 
   async boot() {
@@ -58,6 +61,7 @@ export class AppManager {
     logger.info('='.repeat(80))
     
     await this.initializeDatabase()
+    await this.initializeStarChart()
     this.initializeFileSystem()
     this.setupDatabaseEventListeners() // 添加数据库事件监听器
     this.initializeWindowManager()
@@ -77,6 +81,11 @@ export class AppManager {
     // 清理数据库服务
     if (this.databaseService) {
       await this.databaseService.cleanup()
+    }
+    
+    // 清理 StarChart 服务
+    if (this.starChartService) {
+      await this.starChartService.cleanup()
     }
     
     if (this.projectFileSystem) {
@@ -127,6 +136,20 @@ export class AppManager {
     const initId = await this.databaseService.initialize()
     
     logger.info('Database service initialization started, initId:', initId)
+  }
+
+  /**
+   * 初始化 StarChart 服务
+   */
+  private async initializeStarChart() {
+    logger.info('Initializing StarChart service...')
+    
+    this.starChartService = new StarChartService()
+    
+    // 调用初始化方法（会立即返回initId，通过事件反馈状态）
+    const initId = await this.starChartService.initialize()
+    
+    logger.info('StarChart service initialization started, initId:', initId)
   }
 
   /**
@@ -526,6 +549,10 @@ export class AppManager {
     // 注册 Database IPC 处理器
     registerDatabaseHandlers(this.databaseService)
     logger.info('Database IPC handlers registered')
+    
+    // 注册 StarChart IPC 处理器
+    registerStarChartHandlers(this.starChartService)
+    logger.info('StarChart IPC handlers registered')
 
     ipcMain.handle('window:minimize', (event, request: IPCRequest<'window:minimize'>) => {
       return this.handleWindowOperationFromEvent(event, 'minimize', request)
