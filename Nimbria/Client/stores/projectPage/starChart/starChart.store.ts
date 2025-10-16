@@ -16,10 +16,8 @@ export const useStarChartStore = defineStore('projectPage-starChart', () => {
   const graphData = ref<StarChartGraphData | null>(null)
   const cytoscapeElements = ref<CytoscapeElement[]>([])
   const layoutConfig = ref<LayoutConfig>({
-    name: 'fcose',
-    nodeRepulsion: 4500,
-    idealEdgeLength: 1,
-    animate: true,
+    name: 'preset',  // 🔥 使用手动预设布局
+    animate: false,
     randomize: false
   })
   const viewportState = ref<ViewportState>({

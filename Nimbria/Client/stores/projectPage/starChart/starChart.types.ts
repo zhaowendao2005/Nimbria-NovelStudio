@@ -9,6 +9,7 @@ export interface StarChartNode {
   type?: string          // 节点类型 (角色/地点/事件等)
   score?: number         // 重要性评分 (影响节点大小)
   color?: string         // 节点颜色
+  position?: { x: number; y: number }  // 节点位置（用于 preset 布局）
   metadata?: Record<string, unknown>
 }
 
@@ -40,12 +41,13 @@ export interface CytoscapeElement {
     score?: number
     [key: string]: unknown
   }
+  position?: { x: number; y: number }  // 节点位置（用于 preset 布局）
   group?: 'nodes' | 'edges'
 }
 
 // 布局配置
 export interface LayoutConfig {
-  name: 'fcose' | 'grid' | 'circle' | 'cose'
+  name: 'fcose' | 'grid' | 'circle' | 'cose' | 'preset'
   nodeRepulsion?: number
   idealEdgeLength?: number
   animate?: boolean

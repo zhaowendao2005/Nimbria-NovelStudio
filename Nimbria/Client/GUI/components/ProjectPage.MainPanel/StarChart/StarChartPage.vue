@@ -4,6 +4,7 @@
       @create-view="handleCreateView"
       @relayout="handleRelayout"
       @export="handleExport"
+      @sensitivity-change="handleSensitivityChange"
     />
     
     <div class="starchart-page__viewport">
@@ -11,6 +12,7 @@
         v-if="starChartStore.initialized"
         :elements="starChartStore.cytoscapeElements"
         :layout="starChartStore.layoutConfig"
+        :wheel-sensitivity="wheelSensitivity"
         @viewport-change="handleViewportChange"
       />
       
@@ -29,7 +31,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
 import { useStarChartStore } from '@stores/projectPage/starChart'
@@ -38,6 +40,9 @@ import StarChartViewport from './StarChartViewport.vue'
 import type { ViewportState } from '@stores/projectPage/starChart'
 
 const starChartStore = useStarChartStore()
+
+// 滚轮灵敏度
+const wheelSensitivity = ref(0.2)
 
 // 处理创建视图
 const handleCreateView = async () => {
@@ -64,6 +69,12 @@ const handleExport = () => {
 // 处理视口变化
 const handleViewportChange = (state: Partial<ViewportState>) => {
   starChartStore.updateViewport(state)
+}
+
+// 处理滚轮灵敏度变化
+const handleSensitivityChange = (sensitivity: number) => {
+  wheelSensitivity.value = sensitivity
+  console.log('[StarChartPage] 滚轮灵敏度已更新:', sensitivity)
 }
 
 // 组件挂载时自动初始化

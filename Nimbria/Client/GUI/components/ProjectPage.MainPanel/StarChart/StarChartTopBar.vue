@@ -6,6 +6,22 @@
     </div>
     
     <div class="topbar-right">
+      <!-- 滚轮灵敏度控制 -->
+      <div class="sensitivity-control">
+        <span class="control-label">滚轮灵敏度</span>
+        <el-slider
+          v-model="sensitivityValue"
+          :min="0.05"
+          :max="20.0"
+          :step="0.05"
+          @change="handleSensitivityChange"
+          class="sensitivity-slider"
+        />
+        <span class="sensitivity-label">{{ sensitivityValue.toFixed(2) }}</span>
+      </div>
+      
+      <el-divider direction="vertical" />
+      
       <el-button size="small" @click="$emit('create-view')">
         <el-icon><Plus /></el-icon>
         创建视图
@@ -25,13 +41,23 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import { Plus, Refresh, Download } from '@element-plus/icons-vue'
 
-defineEmits<{
+const emit = defineEmits<{
   'create-view': []
   'relayout': []
   'export': []
+  'sensitivity-change': [sensitivity: number]
 }>()
+
+// 滚轮灵敏度（0.05-1.0，默认0.2）
+const sensitivityValue = ref(0.2)
+
+// 处理灵敏度变化
+const handleSensitivityChange = (value: number) => {
+  emit('sensitivity-change', value)
+}
 </script>
 
 <style scoped lang="scss">
@@ -65,7 +91,35 @@ defineEmits<{
 
 .topbar-right {
   display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 滚轮灵敏度控制 */
+.sensitivity-control {
+  display: flex;
+  align-items: center;
   gap: 8px;
+  padding: 0 12px;
+}
+
+.control-label {
+  font-size: 12px;
+  color: var(--obsidian-text-secondary);
+  white-space: nowrap;
+}
+
+.sensitivity-slider {
+  width: 150px;
+  margin: 0 8px;
+}
+
+.sensitivity-label {
+  font-size: 12px;
+  color: var(--obsidian-text-secondary);
+  min-width: 35px;
+  text-align: right;
+  font-weight: 500;
 }
 </style>
 
