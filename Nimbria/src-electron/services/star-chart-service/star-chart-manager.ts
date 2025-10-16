@@ -50,6 +50,33 @@ export class StarChartManager {
   }
 
   /**
+   * 加载已存在的项目 StarChart 数据库
+   */
+  async loadProjectStarChart(projectPath: string): Promise<string | null> {
+    const starChartDir = path.join(projectPath, '.Database', 'StarChart')
+    
+    // 检查 StarChart 目录是否存在
+    const exists = await fs.pathExists(starChartDir)
+    if (!exists) {
+      console.log(`StarChart not found for project: ${projectPath}`)
+      return null
+    }
+    
+    // 加载 Gun.js 实例
+    const gun = Gun({
+      file: path.join(starChartDir, 'starchart.json'),
+      localStorage: false,
+      radisk: true,
+      multicast: false
+    })
+    
+    this.projectGuns.set(projectPath, gun)
+    console.log(`StarChart loaded for project: ${projectPath}`)
+    
+    return starChartDir
+  }
+
+  /**
    * 获取项目的 Gun 实例
    */
   getProjectGun(projectPath: string) {

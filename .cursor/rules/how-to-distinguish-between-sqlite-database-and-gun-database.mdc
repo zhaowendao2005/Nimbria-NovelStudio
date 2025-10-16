@@ -1,0 +1,196 @@
+---
+description: 当你（AI 助手）需要处理数据库相关代码时：
+alwaysApply: false
+---
+本项目使用 **两种独立的数据库系统**，各自负责不同的数据管理职责：
+
+1. **SQLite (better-sqlite3)** - 结构化关系数据库
+2. **Gun.js (StarChart)** - 图数据库系统
+
+**⚠️ 重要：这两个系统完全独立，不要混淆它们的用途、API 和数据结构！**
+
+---
+
+## 🗄️ SQLite 数据库系统
+
+### **用途**
+- 项目元数据管理
+- 文档和章节信息
+- 标签系统
+- 写作统计
+- LLM 对话历史
+
+### **核心文件**
+```
+Nimbria/src-electron/services/database-service/
+├── database-manager.ts          # SQLite 连接管理
+├── database-service.ts          # SQLite 服务主类
+├── project-database.ts          # 项目级数据库
+└── schema/                      # SQLite Schema 定义
+    ├── base-schema.ts
+    └── versions/
+        ├── v1.0.0.schema.ts     # 全局数据库 Schema
+        └── v1.1.0.schema.ts     # 项目数据库 Schema
+```
+
+### **IPC 处理器**
+```
+Nimbria/src-electron/ipc/main-renderer/database-handlers.ts
+```
+
+### **数据存储位置**
+- **全局数据库**: `C:\Users\{user}\AppData\Roaming\Electron\.Database\nimbria.db`
+- **项目数据库**: `{projectPath}/.Database/project.db`
+
+### **关键 API**
+```typescript
+// ❌ 错误 - 不要用 Gun 语法访问 SQLite
+gun.get('metadata').put({ ... })
+
+// ✅ 正确 - SQLite 查询语法
+db.prepare('SELECT * FROM project_metadata WHERE key = ?').get(key)
+```
+
+### **识别特征**
+- 使用 `better-sqlite3` 包
+- `.db` 文件扩展名
+- SQL 查询语言
+- 表结构（tables, columns, indexes）
+- `PRAGMA` 配置
+- 事务（BEGIN, COMMIT）
+
+---
+
+## 🌐 Gun.js 数据库系统 (StarChart)
+
+### **用途**
+- 小说设定知识图谱
+- 角色关系网络
+- 世界观设定
+- 时间线快照
+- 设定间的关联关系
+
+### **核心文件**
+```
+Nimbria/src-electron/services/star-chart-service/
+├── star-chart-manager.ts        # Gun 实例管理
+├── star-chart-service.ts        # StarChart 服务主类
+└── types/
+    └── index.ts                 # StarChart 类型定义
+```
+
+### **IPC 处理器**
+```
+Nimbria/src-electron/ipc/main-renderer/star-chart-handlers.ts
+```
+
+### **数据存储位置**
+- **项目 StarChart**: `{projectPath}/.Database/StarChart/`
+- **数据文件**: 多个无后缀的二进制块文件（Gun 的 Radisk 格式）
+
+### **关键 API**
+```typescript
+// ❌ 错误 - 不要用 SQL 语法访问 Gun
+db.prepare('SELECT * FROM metadata').all()
+
+// ✅ 正确 - Gun.js 链式语法
+gun.get('metadata').once((data) => { ... })
+gun.get('metadata').put({ created_at: Date.now() })
+```
+
+### **识别特征**
+- 使用 `gun` 包
+- 无文件扩展名（或 `.json` 引用文件）
+- 链式 API（`.get()`, `.put()`, `.once()`, `.on()`）
+- 事件驱动
+- 去中心化图结构
+- Radisk 持久化
+
+---
+
+## 🔍 快速识别指南
+
+### **如何判断是哪个数据库？**
+
+| 特征 | SQLite | Gun.js |
+|------|--------|--------|
+| **导入语句** | `import Database from 'better-sqlite3'` | `import Gun from 'gun'` |
+| **文件位置** | `database-service/` | `star-chart-service/` |
+| **数据文件** | `.Database/project.db` | `.Database/StarChart/` |
+| **查询语法** | SQL (SELECT, INSERT) | 链式 API (.get, .put) |
+| **数据结构** | 表、行、列 | 图、节点、边 |
+| **用途关键词** | metadata, documents, chapters, tags, stats, conversations | settings, characters, relationships, timeline, snapshot |
+
+---
+
+## 📋 开发检查清单
+
+在编写涉及数据库的代码时，**必须先确认**：
+
+### ✅ 使用 SQLite 的场景
+- [ ] 需要存储项目元数据
+- [ ] 需要记录文档/章节信息
+- [ ] 需要标签和分类系统
+- [ ] 需要统计数据
+- [ ] 需要 LLM 对话历史
+- [ ] 需要事务支持
+- [ ] 需要复杂的多表关联查询
+
+### ✅ 使用 Gun.js 的场景
+- [ ] 需要存储小说设定（角色、组织、地点）
+- [ ] 需要管理实体间的关系
+- [ ] 需要时间维度的快照
+- [ ] 需要图结构查询（如"找出张三的所有关系"）
+- [ ] 需要灵活的 Schema-less 数据
+- [ ] 未来可能需要实时同步（Gun 原生支持）
+
+---
+
+## 🚨 常见错误
+
+### ❌ 错误 1: 混淆 API
+```typescript
+// 错误：在 StarChart 中使用 SQL
+const metadata = starChartService.query('SELECT * FROM metadata')
+```
+
+### ✅ 正确做法
+```typescript
+// 正确：使用 Gun API
+const gun = starChartService.getProjectStarChart(projectPath)
+gun.get('metadata').once((data) => {
+  console.log(data)
+})
+```
+
+---
+
+### ❌ 错误 2: 混淆文件路径
+```typescript
+// 错误：在 StarChart 中访问 .db 文件
+const dbPath = path.join(projectPath, '.Database', 'StarChart', 'starchart.db')
+```
+
+### ✅ 正确做法
+```typescript
+// 正确：Gun 使用目录而非单个 .db 文件
+const starChartDir = path.join(projectPath, '.Database', 'StarChart')
+```
+
+---
+
+### ❌ 错误 3: 在错误的服务中存储数据
+```typescript
+// 错误：将角色设定存储在 SQLite
+db.prepare(`INSERT INTO characters (name, description) VALUES (?, ?)`).run(name, desc)
+```
+
+### ✅ 正确做法
+```typescript
+// 正确：角色设定应该存储在 StarChart
+gun.get('characters').get(characterId).put({
+  name: '张三',
+  description: '主角',
+  relationships: { ... }
+})
+```

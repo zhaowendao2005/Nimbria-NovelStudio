@@ -642,6 +642,12 @@ export class AppManager {
         const operationId = await this.databaseService.createProjectDatabase(process.projectPath)
         logger.info(`Auto-started project database creation, operationId: ${operationId}`)
         
+        // ✅ 自动加载项目 StarChart（如果存在）
+        const starChartPath = await this.starChartService.loadProjectStarChart(process.projectPath)
+        if (starChartPath) {
+          logger.info(`Auto-loaded StarChart for project: ${process.projectPath}`)
+        }
+        
         // 注意：LLM Chat 服务的项目切换将在数据库创建完成事件中处理
       }
       

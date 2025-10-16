@@ -90,6 +90,13 @@ export class StarChartService extends EventEmitter {
   }
 
   /**
+   * ✅ 加载项目的 StarChart 数据库（重启后自动调用）
+   */
+  async loadProjectStarChart(projectPath: string): Promise<string | null> {
+    return await this.starChartManager.loadProjectStarChart(projectPath)
+  }
+
+  /**
    * 获取项目的 StarChart 实例
    */
   getProjectStarChart(projectPath: string) {

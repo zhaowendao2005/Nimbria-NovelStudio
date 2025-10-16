@@ -31,11 +31,12 @@
       <!-- 🗂️ 数据库管理 -->
       <el-collapse-item title="🗂️ 数据库管理" name="database">
         <!-- StarChart 卡片 -->
-        <el-card class="settings-card">
+        <el-card class="settings-card" v-loading="starChartChecking" element-loading-text="检查数据库状态...">
           <template #header>
             <div class="card-header">
               <span>StarChart 图数据库</span>
               <el-tag 
+                v-if="!starChartChecking"
                 :type="starChartInitialized ? 'success' : 'info'"
               >
                 {{ starChartInitialized ? '已初始化' : '待初始化' }}
@@ -47,7 +48,7 @@
             
             <!-- 初始化按钮 -->
             <el-button 
-              v-if="!starChartInitialized"
+              v-if="!starChartInitialized && !starChartChecking"
               type="success" 
               @click="initializeStarChart"
               :loading="starChartLoading"
@@ -58,7 +59,7 @@
             </el-button>
 
             <!-- 测试和操作按钮 -->
-            <div v-else class="button-group">
+            <div v-else-if="starChartInitialized && !starChartChecking" class="button-group">
               <el-button 
                 type="info" 
                 @click="testStarChart"
@@ -78,7 +79,7 @@
             </div>
 
             <!-- 测试结果显示 -->
-            <div v-if="testResult" class="test-result">
+            <div v-if="testResult && !starChartChecking" class="test-result">
               <div class="result-item">
                 <span class="result-label">创建时间:</span>
                 <span class="result-value">{{ new Date(testResult.created_at).toLocaleString() }}</span>
@@ -124,6 +125,10 @@ import { Document, Star, View } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import DemoPageDrawer from './DemoPageDrawer.vue'
 
+// ✅ ElMessage 类型辅助
+const showSuccess = (msg: string) => (ElMessage as unknown as { success: (msg: string) => void }).success(msg)
+const showError = (msg: string) => (ElMessage as unknown as { error: (msg: string) => void }).error(msg)
+
 // 折叠面板状态
 const activeNames = ref(['database'])
 
@@ -131,7 +136,8 @@ const activeNames = ref(['database'])
 const drawerVisible = ref(false)
 const starChartLoading = ref(false)
 const starChartInitialized = ref(false)
-const testResult = ref<any>(null)
+const starChartChecking = ref(true) // ✅ 初始检查状态
+const testResult = ref<{ created_at: number; version: string; [key: string]: unknown } | null>(null)
 
 // ✅ 打开 DemoPage 抽屉
 const openDemoPageDrawer = () => {
@@ -146,14 +152,17 @@ const initializeStarChart = async () => {
     const result = await window.nimbria.starChart.createProject()
     
     if (result.success) {
-      ElMessage.success('StarChart 初始化成功！')
+      showSuccess('StarChart 初始化成功！')
       starChartInitialized.value = true
       testResult.value = null
+      // 初始化成功后自动加载元数据
+      setTimeout(() => void testStarChart(), 500)
     } else {
-      ElMessage.error(`初始化失败: ${result.error}`)
+      showError(`初始化失败: ${result.error || '未知错误'}`)
     }
-  } catch (error: any) {
-    ElMessage.error(`初始化异常: ${error.message}`)
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : '未知异常'
+    showError(`初始化异常: ${errorMsg}`)
   } finally {
     starChartLoading.value = false
   }
@@ -164,24 +173,67 @@ const testStarChart = async () => {
   try {
     const result = await window.nimbria.starChart.getMetadata()
     
-    if (result.success) {
+    if (result.success && result.metadata) {
       testResult.value = result.metadata
-      ElMessage.success('读取成功！')
+      showSuccess('读取成功！')
     } else {
-      ElMessage.error(`读取失败: ${result.error}`)
+      showError(`读取失败: ${result.error || '未知错误'}`)
     }
-  } catch (error: any) {
-    ElMessage.error(`读取异常: ${error.message}`)
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : '未知异常'
+    showError(`读取异常: ${errorMsg}`)
   }
 }
 
-// 设置事件监听
+// ✅ 检查 StarChart 是否已初始化
+const checkStarChartStatus = async () => {
+  starChartChecking.value = true
+  
+  try {
+    // 设置 5 秒超时保护
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('检查超时')), 5000)
+    )
+    
+    const result = await Promise.race([
+      window.nimbria.starChart.getMetadata(),
+      timeoutPromise
+    ]) as { success: boolean; metadata?: { created_at: number; version: string; [key: string]: unknown } }
+    
+    if (result.success && result.metadata) {
+      starChartInitialized.value = true
+      testResult.value = result.metadata // ✅ 直接显示元数据
+      console.log('StarChart 已初始化，创建时间:', new Date(result.metadata.created_at).toLocaleString())
+    } else {
+      starChartInitialized.value = false
+      testResult.value = null
+      console.log('StarChart 未初始化')
+    }
+  } catch (error) {
+    starChartInitialized.value = false
+    testResult.value = null
+    const errorMsg = error instanceof Error ? error.message : '未知错误'
+    console.log('StarChart 状态检查失败，可能未初始化:', errorMsg)
+  } finally {
+    starChartChecking.value = false
+  }
+}
+
+// 设置事件监听 + 初始化状态检查
 onMounted(() => {
-  window.nimbria.starChart?.onProjectCreated((data: any) => {
+  // 异步检查初始状态，不阻塞 UI
+  setTimeout(() => {
+    void checkStarChartStatus()
+  }, 100)
+  
+  // 设置事件监听
+  window.nimbria.starChart?.onProjectCreated((data: { operationId: string; projectPath: string; starChartPath: string }) => {
     console.log('StarChart 项目创建成功:', data)
+    // 创建成功后重新检查状态
+    void checkStarChartStatus()
   })
   
-  window.nimbria.starChart?.onProjectError((data: any) => {
+  window.nimbria.starChart?.onProjectError((data: { operationId?: string; projectPath?: string; error: string }) => {
     console.error('StarChart 错误:', data.error)
   })
 })
