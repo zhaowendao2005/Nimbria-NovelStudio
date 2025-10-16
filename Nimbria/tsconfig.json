@@ -22,7 +22,9 @@
       "@pages": ["Client/GUI/PagesLayout"],
       "@shared": ["Client/Service/shared"],
       "@shared-utils": ["Client/Utils/shared"],
-      "@shared-stores": ["Client/stores"]
+      "@shared-stores": ["Client/stores"],
+      "@demo": ["Client/GUI/DemoPage"],
+      "@demo/*": ["Client/GUI/DemoPage/*"]
     }
   }
 }

@@ -80,6 +80,17 @@
               <el-button @click="increaseProgress" size="small">增加</el-button>
             </div>
           </div>
+          
+          <!-- CustomPageAPI 测试 -->
+          <div class="interaction-item">
+            <h3>页面管理API</h3>
+            <el-button @click="addNewDemoPage" type="success" size="small">
+              添加新Demo页面
+            </el-button>
+            <el-button @click="showActiveInstances" type="info" size="small">
+              查看活跃实例
+            </el-button>
+          </div>
         </div>
       </div>
       
@@ -116,11 +127,17 @@ const triggerAnimation = () => {
   setTimeout(() => {
     isAnimating.value = false
   }, 1000)
-  ElMessage.success('动画触发成功！')
+  ElMessage({
+    type: 'success',
+    message: '动画触发成功！'
+  })
 }
 
 const handleSwitchChange = (value: boolean) => {
-  ElMessage.info(`状态已切换为：${value ? '开启' : '关闭'}`)
+  ElMessage({
+    type: 'info',
+    message: `状态已切换为：${value ? '开启' : '关闭'}`
+  })
 }
 
 const increaseProgress = () => {
@@ -132,6 +149,77 @@ const increaseProgress = () => {
 const decreaseProgress = () => {
   if (progressValue.value > 0) {
     progressValue.value -= 10
+  }
+}
+
+// CustomPageAPI 功能测试
+const addNewDemoPage = async () => {
+  try {
+    // 动态导入CustomPageAPI
+    const { CustomPageAPI } = await import('../../../Service/CustomPageManager')
+    
+    // 生成随机页面ID
+    const randomId = `demo-page-${Date.now()}`
+    
+    // 注册新页面
+    CustomPageAPI.register({
+      id: randomId,
+      name: `动态页面-${randomId.slice(-4)}`,
+      title: `Dynamic Demo Page`,
+      description: '这是通过TestPage动态添加的演示页面',
+      category: 'demo',
+      icon: 'Plus',
+      tabType: `dynamicpage-${randomId.slice(-4)}`,
+      component: () => Promise.resolve({
+        template: `
+          <div style="padding: 24px; text-align: center;">
+            <h1>动态添加的页面</h1>
+            <p>页面ID: ${randomId}</p>
+            <p>这个页面是通过CustomPageAPI动态注册的</p>
+          </div>
+        `
+      }),
+      showInDrawer: true,
+      tags: ['dynamic', 'test', 'api']
+    })
+    
+    ElMessage({
+      type: 'success',
+      message: `新页面 ${randomId} 已注册成功！可在抽屉中查看`
+    })
+    
+    console.log('[TestPage] New page registered:', randomId)
+    console.log('[TestPage] All drawer pages:', CustomPageAPI.getDrawerPages())
+    
+  } catch (error) {
+    console.error('[TestPage] Failed to add new demo page:', error)
+    ElMessage({
+      type: 'error',
+      message: `添加页面失败：${error}`
+    })
+  }
+}
+
+const showActiveInstances = async () => {
+  try {
+    const { CustomPageAPI } = await import('../../../Service/CustomPageManager')
+    
+    const instances = CustomPageAPI.getActiveInstances()
+    const stats = CustomPageAPI.getRegistryStats()
+    
+    console.log('[TestPage] Active instances:', instances)
+    console.log('[TestPage] Registry stats:', stats)
+    
+    ElMessage({
+      type: 'info',
+      message: `活跃实例: ${instances.length}个，已注册页面: ${stats.total}个`
+    })
+    
+    // 调用debug方法显示详细信息
+    CustomPageAPI.debug()
+    
+  } catch (error) {
+    console.error('[TestPage] Failed to get instances:', error)
   }
 }
 </script>

@@ -11,10 +11,21 @@
       <div class="demo-header">
         <h2>Demo页面管理</h2>
         <p class="demo-description">UI/UX 原型设计与测试页面</p>
+        
+        <!-- 启动TestPage的按钮 -->
+        <div class="demo-actions-header">
+          <el-button 
+            type="primary" 
+            @click="openTestPage"
+            :icon="Document"
+          >
+            启动 TestPage
+          </el-button>
+        </div>
       </div>
       
       <div class="demo-list">
-        <div class="demo-item" v-for="page in demoPages" :key="page.name">
+        <div class="demo-item" v-for="page in demoPages" :key="page.id">
           <div class="demo-card" @click="openDemoPage(page)">
             <div class="demo-icon">
               <el-icon><Document /></el-icon>
@@ -22,7 +33,7 @@
             
             <div class="demo-info">
               <h3 class="demo-title">{{ page.title }}</h3>
-              <p class="demo-desc">{{ page.description }}</p>
+              <p class="demo-desc">{{ page.description || '暂无描述' }}</p>
               <span class="demo-category">{{ page.category }}</span>
             </div>
             
@@ -42,11 +53,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Document, ArrowRight } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getAllDemoPages } from '@demo'
-import type { DemoPageConfig } from '@demo'
+import { CustomPageAPI } from '../../../../../Service/CustomPageManager'
+import type { CustomPageConfig } from '../../../../../Service/CustomPageManager'
 
 const props = defineProps<{
   visible: boolean
@@ -61,19 +72,101 @@ const visible = computed({
   set: (value) => emit('update:visible', value)
 })
 
-// 获取所有Demo页面配置
-const demoPages = getAllDemoPages()
+// 🔥 使用ref强制触发响应式更新
+const pageListVersion = ref(0)
+
+// 🔥 监听抽屉打开，刷新页面列表
+watch(() => props.visible, (newVisible) => {
+  if (newVisible) {
+    console.log('[DemoPageDrawer] Drawer opened, refreshing page list')
+    // 强制刷新页面列表（触发computed重新计算）
+    pageListVersion.value++
+  }
+})
+
+// 获取所有抽屉显示的页面配置
+// 🔥 依赖pageListVersion，确保每次打开抽屉都会重新获取
+const demoPages = computed(() => {
+  // 这个访问会建立响应式依赖
+  const _ = pageListVersion.value
+  
+  const pages = CustomPageAPI.getDrawerPages()
+  console.log('[DemoPageDrawer] Available pages:', pages, 'version:', _)
+  return pages
+})
+
+// 直接启动TestPage
+const openTestPage = async () => {
+  console.log('[DemoPageDrawer] Opening TestPage directly')
+  
+  try {
+    // 先确保页面已注册
+    console.log('[DemoPageDrawer] Ensuring pages are registered...')
+    const { ensureRegistration } = await import('@demo')
+    await ensureRegistration()
+    console.log('[DemoPageDrawer] Pages registered, now opening...')
+    
+    // 使用CustomPageAPI打开TestPage
+    const instance = await CustomPageAPI.open('ui-test-page')
+    
+    if (instance) {
+      ElMessage({
+        type: 'success',
+        message: '已在分屏中打开TestPage'
+      })
+      // 关闭抽屉
+      visible.value = false
+    } else {
+      ElMessage({
+        type: 'error',
+        message: '无法打开TestPage'
+      })
+    }
+  } catch (error) {
+    console.error('[DemoPageDrawer] Failed to open TestPage:', error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    ElMessage({
+      type: 'error',
+      message: `打开TestPage失败：${errorMessage}`
+    })
+  }
+}
 
 // 打开Demo页面的处理函数
-const openDemoPage = (page: DemoPageConfig) => {
-  ElMessage.success(`即将打开：${page.title}`)
+const openDemoPage = async (page: CustomPageConfig) => {
+  console.log('[DemoPageDrawer] Opening page:', page.id)
   
-  // TODO: 这里后续可以实现具体的页面跳转逻辑
-  // 比如在新窗口或者主内容区打开Demo页面
-  console.log('Opening demo page:', page)
-  
-  // 暂时关闭抽屉
-  visible.value = false
+  try {
+    // 先确保页面已注册
+    console.log('[DemoPageDrawer] Ensuring pages are registered...')
+    const { ensureRegistration } = await import('@demo')
+    await ensureRegistration()
+    console.log('[DemoPageDrawer] Pages registered, now opening...')
+    
+    // 使用CustomPageAPI打开页面
+    const instance = await CustomPageAPI.open(page.id)
+    
+    if (instance) {
+      ElMessage({
+        type: 'success',
+        message: `已打开：${page.name}`
+      })
+      // 关闭抽屉
+      visible.value = false
+    } else {
+      ElMessage({
+        type: 'error',
+        message: `无法打开页面：${page.name}`
+      })
+    }
+  } catch (error) {
+    console.error('[DemoPageDrawer] Failed to open page:', error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    ElMessage({
+      type: 'error',
+      message: `打开页面失败：${errorMessage}`
+    })
+  }
 }
 </script>
 
@@ -97,9 +190,18 @@ const openDemoPage = (page: DemoPageConfig) => {
   }
   
   .demo-description {
-    margin: 0;
+    margin: 0 0 16px 0;
     color: var(--obsidian-text-secondary);
     font-size: 0.9rem;
+  }
+  
+  .demo-actions-header {
+    display: flex;
+    justify-content: center;
+    
+    .el-button {
+      font-weight: 500;
+    }
   }
 }
 

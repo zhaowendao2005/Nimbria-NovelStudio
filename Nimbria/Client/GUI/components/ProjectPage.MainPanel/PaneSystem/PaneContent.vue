@@ -35,6 +35,14 @@
         <DocParserPanel
           v-else-if="localActiveTabId && activeTabType === 'docparser'"
         />
+        
+        <!-- 动态渲染自定义页面 -->
+        <component 
+          v-else-if="localActiveTabId && customPageComponent"
+          :is="customPageComponent"
+          :instance-id="customPageInstanceId"
+          :tab-id="localActiveTabId"
+        />
       </div>
     </div>
     
@@ -89,11 +97,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { Document } from '@element-plus/icons-vue'
 import { useMarkdownStore } from '@stores/projectPage/Markdown'
 import { usePaneLayoutStore } from '@stores/projectPage/paneLayout'
 import type { PaneContextMenuItem, SplitAction } from '@stores/projectPage/paneLayout/types'
+import { CustomPageAPI } from '../../../../Service/CustomPageManager'
 import MarkdownTab from '@components/ProjectPage.MainPanel/Markdown/MarkdownTab.vue'
 import { DocParserPanel } from '@components/ProjectPage.MainPanel/DocParser'
 import DraggableTabBar from './DraggableTabBar.vue'
@@ -146,7 +155,67 @@ const localActiveTabId = ref<string | null>(
 const activeTabType = computed(() => {
   if (!localActiveTabId.value) return 'markdown'
   const tab = markdownStore.openTabs.find(t => t.id === localActiveTabId.value)
-  return tab?.type || 'markdown'
+  const type = tab?.type || 'markdown'
+  console.log(`[PaneContent] Active tab type:`, type, 'tabId:', localActiveTabId.value)
+  return type
+})
+
+/**
+ * 🔥 自定义页面组件缓存（避免重复创建defineAsyncComponent）
+ */
+const componentCache = new Map<string, any>()
+
+/**
+ * 自定义页面组件（如果当前标签是自定义页面）
+ * 🔥 使用defineAsyncComponent处理懒加载组件
+ */
+const customPageComponent = computed(() => {
+  if (!localActiveTabId.value || !activeTabType.value) {
+    console.log(`[PaneContent] No custom page (no activeTabId or activeTabType)`)
+    return null
+  }
+  
+  // 查找是否有匹配的自定义页面
+  const availablePages = CustomPageAPI.getAvailablePages()
+  console.log(`[PaneContent] Looking for custom page with tabType: '${activeTabType.value}'`)
+  console.log(`[PaneContent] Available pages:`, availablePages.map(p => ({ id: p.id, tabType: p.tabType })))
+  
+  const page = availablePages.find(
+    page => page.tabType === activeTabType.value
+  )
+  
+  if (!page?.component) {
+    console.log(`[PaneContent] No matching custom page found for tabType: '${activeTabType.value}'`)
+    return null
+  }
+  
+  console.log(`[PaneContent] Found matching page:`, page.id)
+  
+  // 🔥 使用缓存避免重复创建异步组件
+  const cacheKey = page.id
+  if (!componentCache.has(cacheKey)) {
+    const asyncComp = defineAsyncComponent({
+      loader: page.component,
+      loadingComponent: () => null,
+      errorComponent: () => null,
+      delay: 0,
+      timeout: 30000
+    })
+    componentCache.set(cacheKey, asyncComp)
+    console.log(`[PaneContent] ✅ Created async component for page: ${page.id}`)
+  }
+  
+  return componentCache.get(cacheKey)
+})
+
+/**
+ * 自定义页面实例ID（如果存在）
+ */
+const customPageInstanceId = computed(() => {
+  if (!localActiveTabId.value) return null
+  
+  const instance = CustomPageAPI.findInstanceByTabId(localActiveTabId.value)
+  return instance?.id || null
 })
 
 /**
@@ -189,13 +258,27 @@ watch(paneTabIds, (validTabIds) => {
 
 /**
  * 处理标签页移除
+ * 🔥 优先检查是否为自定义页面，使用CustomPageManager统一管理
  */
 const handleTabRemove = (tabId: string) => {
-  // 1. 从面板中移除
-  paneLayoutStore.closeTabInPane(props.paneId, tabId)
+  console.log('[PaneContent] Removing tab:', tabId)
   
-  // 2. 从 markdown store 中关闭
-  markdownStore.closeTab(tabId)
+  // 🔥 检查是否是自定义页面实例
+  const customPageInstance = CustomPageAPI.findInstanceByTabId(tabId)
+  
+  if (customPageInstance) {
+    // 通过CustomPageManager关闭（会正确清理实例）
+    console.log('[PaneContent] Closing custom page via CustomPageAPI:', customPageInstance.config.name)
+    CustomPageAPI.close(customPageInstance.id)
+  } else {
+    // 普通markdown标签页，使用原有逻辑
+    console.log('[PaneContent] Closing regular tab')
+    // 1. 从面板中移除
+    paneLayoutStore.closeTabInPane(props.paneId, tabId)
+    
+    // 2. 从 markdown store 中关闭
+    markdownStore.closeTab(tabId)
+  }
 }
 
 /**
