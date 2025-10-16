@@ -12,10 +12,20 @@
         </div>
       </el-collapse-item>
 
-      <!-- 分类二 -->
-      <el-collapse-item title="分类二" name="category2">
+      <!-- 分类二: StarChart 可视化视图 -->
+      <el-collapse-item title="StarChart 可视化视图" name="category2">
         <div class="collapse-content">
-          <el-empty description="功能开发中..." />
+          <div class="starchart-intro">
+            <p class="intro-text">
+              📊 基于 Cytoscape.js 的小说设定关系图可视化系统
+            </p>
+            <p class="intro-desc">
+              可视化展示角色、地点、事件、物品等元素之间的关系网络
+            </p>
+            <el-button type="primary" @click="handleOpenStarChart">
+              创建视图
+            </el-button>
+          </div>
         </div>
       </el-collapse-item>
     </el-collapse>
@@ -31,8 +41,18 @@ import { ref } from 'vue'
  * 提供小说创作相关功能
  */
 
-// 默认展开第一个分组
-const activeNames = ref(['category1'])
+// 默认展开第二个分组（StarChart）
+const activeNames = ref(['category2'])
+
+// 打开 StarChart 视图
+const handleOpenStarChart = async () => {
+  try {
+    const { CustomPageAPI } = await import('../../../../../Service/CustomPageManager')
+    await CustomPageAPI.open('starchart-view')
+  } catch (error) {
+    console.error('[WritingPanel] 打开 StarChart 失败:', error)
+  }
+}
 </script>
 
 <style scoped>
@@ -77,6 +97,27 @@ const activeNames = ref(['category1'])
   align-items: center;
   justify-content: center;
   overflow-y: auto; /* 内容超出时滚动 */
+}
+
+/* StarChart 介绍卡片 */
+.starchart-intro {
+  text-align: center;
+  padding: 24px;
+  max-width: 400px;
+}
+
+.intro-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--obsidian-text-primary);
+  margin-bottom: 12px;
+}
+
+.intro-desc {
+  font-size: 12px;
+  color: var(--obsidian-text-secondary);
+  margin-bottom: 20px;
+  line-height: 1.6;
 }
 </style>
 

@@ -6,9 +6,15 @@ export default boot(async () => {
   
   // 🔥 预注册所有自定义页面（确保在任何组件使用前完成）
   try {
+    // 注册 DemoPage
     const { ensureRegistration } = await import('../GUI/DemoPage')
     await ensureRegistration()
-    console.log('[Framework] ✅ Custom pages registered successfully')
+    console.log('[Framework] ✅ DemoPage registered successfully')
+    
+    // 注册 StarChart 页面
+    const { ensureStarChartRegistration } = await import('../GUI/components/ProjectPage.MainPanel/StarChart')
+    await ensureStarChartRegistration()
+    console.log('[Framework] ✅ StarChart pages registered successfully')
   } catch (error) {
     console.error('[Framework] ❌ Failed to register custom pages:', error)
   }
