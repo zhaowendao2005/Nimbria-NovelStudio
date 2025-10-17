@@ -53,8 +53,10 @@ export interface EdgeStyleConfig {
   curveStyle: 'straight' | 'bezier' | 'unbundled-bezier' | 'haystack' | 'segments' | 'taxi'  // 边的形状
   controlPointDistance: number       // 贝塞尔曲线控制点距离
   controlPointWeight: number         // 贝塞尔曲线控制点权重
-  edgeOpacity: number               // 边的透明度
-  defaultEdgeWidth: number          // 默认边宽
+  edgeOpacity: number               // 平时边的透明度
+  highlightEdgeOpacity: number      // 高亮时边的透明度
+  defaultEdgeWidth: number          // 默认边宽度 (可在配置面板调节)
+  highlightEdgeWidth: number        // 高亮时边宽度
   arrowShape: 'triangle' | 'none' | 'tee' | 'square' | 'circle' | 'diamond' | 'vee'  // 箭头形状
   arrowSize: number                 // 箭头大小
   edgeColor: string                 // 默认边颜色
@@ -81,6 +83,11 @@ export interface LayoutControlConfig {
   animate: boolean                  // 布局动画
   randomize: boolean                // 随机化布局
   avoidWheelSensitivityReinit: boolean // 避免滚轮灵敏度变化时重新初始化
+  
+  // 节点间距修正配置
+  enableNodeSpacingCorrection: boolean  // 是否启用节点间距修正
+  minNodeDistanceMultiplier: number     // 最小节点间距倍数 (1.5-4.0, 默认2.5)
+  spacingCorrectionStrength: number     // 修正强度 (0.1-1.0, 默认0.7)
 }
 
 // 节流配置
@@ -93,6 +100,41 @@ export interface ThrottleConfig {
   resetHighlight: number             // 重置高亮节流 (ms, 默认100)
 }
 
+// 节点样式配置
+export interface NodeStyleConfig {
+  // 基础设置
+  defaultSize: number              // 默认节点大小 (20-40px)
+  sizeMultiplier: number           // 节点大小倍数 (0.5-2.0, 默认1.0)
+  randomSVGSelection: boolean      // 是否随机选择SVG
+  selectedSVGIndex: number         // 手动选择的SVG索引 (0-13)
+  
+  // 不同级别节点大小 (相对于defaultSize * sizeMultiplier)
+  selectedNodeSize: number         // 选中节点大小倍数 (默认1.2)
+  firstDegreeNodeSize: number      // 一级邻居节点大小倍数 (默认1.1)
+  secondDegreeNodeSize: number     // 二级邻居节点大小倍数 (默认1.0)
+  fadedNodeSize: number            // 淡化节点大小倍数 (默认0.8)
+  
+  // 填充样式 (关键：空心或极淡填充)
+  fillMode: 'none' | 'transparent'  // 填充模式：无填充或半透明
+  fillOpacity: number             // 填充透明度 (0.02-0.15)
+  fillColor: string               // 填充颜色
+  
+  // 边框样式
+  strokeWidth: number             // 描边宽度 (1-3)
+  strokeOpacity: number           // 描边透明度 (0.6-1.0)
+  strokeColor: string             // 描边颜色
+  
+  // 文字设置
+  textPosition: 'bottom' | 'center' | 'top'  // 文字位置
+  textMargin: number              // 文字边距
+  fontSize: number                // 字体大小
+  textColor: string               // 文字颜色
+  
+  // 高级设置
+  enableSVGCache: boolean         // 启用SVG缓存优化
+  nodeTypeMapping: boolean        // 根据节点类型自动选择SVG
+}
+
 // 完整配置
 export interface StarChartConfig {
   webgl: WebGLConfig
@@ -103,6 +145,7 @@ export interface StarChartConfig {
   layout: LayoutControlConfig
   throttle: ThrottleConfig
   edgeStyle: EdgeStyleConfig
+  nodeStyle: NodeStyleConfig
 }
 
 // 配置预设

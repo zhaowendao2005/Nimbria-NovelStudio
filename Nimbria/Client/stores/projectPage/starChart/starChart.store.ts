@@ -28,6 +28,7 @@ export const useStarChartStore = defineStore('projectPage-starChart', () => {
   const loading = ref<boolean>(false)
   const error = ref<string | null>(null)
   const initialized = ref<boolean>(false)
+  const fastRebuild = ref<boolean>(false)  // 🚀 快速重建模式标志
   
   // ==================== 计算属性 ====================
   
@@ -122,6 +123,7 @@ export const useStarChartStore = defineStore('projectPage-starChart', () => {
     loading,
     error,
     initialized,
+    fastRebuild,  // 🚀 快速重建标志
     
     // 计算属性
     hasData,

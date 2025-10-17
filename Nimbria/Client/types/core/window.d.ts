@@ -166,9 +166,11 @@ export interface NimbriaWindowAPI {
       tabData: {
         id: string
         title: string
-        filePath: string
-        content: string
-        isDirty: boolean
+        tabType?: string  // 标签页类型 (如 'markdown', 'starchart' 等)
+        filePath?: string  // 文件类型标签的路径（可选）
+        content?: string   // 文件内容（可选）
+        isDirty?: boolean  // 是否有未保存更改（可选）
+        storeState?: any   // 非文件类型标签的状态数据（如 StarChart 的 Store 状态）
       }
       projectPath: string 
     }): Promise<{ success: boolean; windowId?: number; error?: string }>

@@ -410,16 +410,66 @@ const handleDetachToWindow = async (tabId: string) => {
     
     console.log('🚀 [PaneContent] Detaching tab to new window:', tab)
     
-    // 3. 准备标签页数据（深拷贝，避免响应式对象）
-    const tabData = {
+    // 3. 准备标签页数据（根据标签页类型）
+    let tabData: any = {
       id: tab.id,
-      title: tab.fileName,
-      filePath: tab.filePath,
-      content: tab.content || '',
-      isDirty: tab.isDirty
+      title: tab.fileName || 'Untitled',
+      tabType: tab.type || 'markdown'  // 🔥 使用 tab.type 而不是 tab.tabType
+    }
+    
+    // 根据标签页类型准备不同的数据
+    if (tab.type === 'starchart') {  // 🔥 使用 tab.type
+      // 🔥 StarChart 类型：传递 Store 状态
+      const { useStarChartStore, useStarChartConfigStore } = await import('@stores/projectPage/starChart')
+      const starChartStore = useStarChartStore()
+      const configStore = useStarChartConfigStore()
+      
+      // 🔥 安全地序列化Store状态，处理undefined情况
+      const safeSerialize = (data: any) => {
+        if (!data) return null
+        try {
+          const json = JSON.stringify(data)
+          return json ? JSON.parse(json) : null
+        } catch (e) {
+          console.warn('[PaneContent] Failed to serialize data:', e)
+          return null
+        }
+      }
+      
+      console.log('⚡ [极速重建] 开始序列化Cytoscape完整状态...')
+      const startTime = performance.now()
+      
+      tabData.storeState = {
+        // 🚀 图表数据（已包含精确的节点位置）
+        cytoscapeElements: safeSerialize(starChartStore.cytoscapeElements) || [],
+        layoutConfig: { name: 'preset' },  // 🔥 强制使用preset布局（0计算）
+        viewport: safeSerialize(starChartStore.viewport) || { zoom: 1, pan: { x: 0, y: 0 } },
+        initialized: starChartStore.initialized,
+        
+        // 🔥 配置状态（从配置面板）
+        chartConfig: safeSerialize(configStore.config) || null,
+        currentPreset: configStore.currentPreset || 'production',
+        
+        // 🚀 快速重建标志
+        fastRebuild: true,
+        skipAnimation: true,
+        skipLayout: true  // 直接使用节点的position，不运行布局算法
+      }
+      
+      const elapsed = performance.now() - startTime
+      console.log(`⚡ [极速重建] 状态序列化完成，耗时: ${elapsed.toFixed(2)}ms`)
+      console.log(`⚡ [极速重建] 传递${starChartStore.cytoscapeElements.length}个元素`)
+      console.log('[PaneContent] StarChart state prepared:', tabData.storeState)
+    } else {
+      // 🔥 文件类型（Markdown等）：传递文件路径和内容
+      tabData.filePath = tab.filePath
+      tabData.content = tab.content || ''
+      tabData.isDirty = tab.isDirty
     }
     
     // 4. 调用 Electron API 创建新窗口
+    console.log('[PaneContent] Sending tabData:', tabData)  // 🔥 调试日志
+    
     const result = await window.nimbria.project.detachTabToWindow({
       tabId: tab.id,
       tabData: tabData,

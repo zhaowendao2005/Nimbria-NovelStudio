@@ -29,7 +29,7 @@ export function registerStarChartPages(): Promise<void> {
           showInDrawer: false,
           showInNavbar: false,
           showInMenu: false,
-          singleton: true,
+          singleton: false,  // ✅ 允许多实例，支持拆分和独立窗口
           tags: ['starchart', 'graph', 'visualization', 'novel']
         }
       ])

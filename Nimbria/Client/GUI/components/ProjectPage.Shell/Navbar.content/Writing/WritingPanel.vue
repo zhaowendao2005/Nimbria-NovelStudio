@@ -172,6 +172,202 @@
               
               <div class="config-divider-line"></div>
 
+              <!-- 布局优化设置 -->
+              <div class="config-section">
+                <h5>📐 布局优化</h5>
+                <div class="config-item">
+                  <el-tooltip 
+                    content="自动修正节点间距，防止节点贴在一起。仅修正距离过近的节点，保留原有布局结构。" 
+                    placement="top"
+                  >
+                    <label>节点间距修正</label>
+                  </el-tooltip>
+                  <el-switch
+                    v-model="configStore.config.layout.enableNodeSpacingCorrection"
+                    @change="updateConfig('layout.enableNodeSpacingCorrection', $event)"
+                    active-text="启用"
+                    inactive-text="禁用"
+                  />
+                </div>
+                <div class="config-item" v-show="configStore.config.layout.enableNodeSpacingCorrection">
+                  <el-tooltip 
+                    content="节点间最小距离 = 大节点直径 × 倍数。1.5=紧凑，2.5=舒适（推荐），4.0=宽松" 
+                    placement="top"
+                  >
+                    <label>最小间距倍数</label>
+                  </el-tooltip>
+                  <el-slider
+                    v-model="configStore.config.layout.minNodeDistanceMultiplier"
+                    @change="updateConfig('layout.minNodeDistanceMultiplier', $event)"
+                    :min="1.5"
+                    :max="4.0"
+                    :step="0.1"
+                  />
+                </div>
+                <div class="config-item" v-show="configStore.config.layout.enableNodeSpacingCorrection">
+                  <el-tooltip 
+                    content="控制修正的强度。0.3=温和保留布局，0.7=平衡（推荐），1.0=强力修正确保间距" 
+                    placement="top"
+                  >
+                    <label>修正强度</label>
+                  </el-tooltip>
+                  <el-slider
+                    v-model="configStore.config.layout.spacingCorrectionStrength"
+                    @change="updateConfig('layout.spacingCorrectionStrength', $event)"
+                    :min="0.1"
+                    :max="1.0"
+                    :step="0.1"
+                  />
+                </div>
+              </div>
+              
+              <div class="config-divider-line"></div>
+
+              <!-- 节点样式设计 -->
+              <div class="config-section">
+                <h5>🎨 节点样式设计</h5>
+                <div class="config-item">
+                  <label>SVG选择模式</label>
+                  <el-switch
+                    v-model="configStore.config.nodeStyle.randomSVGSelection"
+                    @change="updateConfig('nodeStyle.randomSVGSelection', $event)"
+                    active-text="随机选择"
+                    inactive-text="手动选择"
+                  />
+                </div>
+                <div class="config-item" v-show="!configStore.config.nodeStyle.randomSVGSelection">
+                  <label>SVG图标</label>
+                  <el-select 
+                    v-model="configStore.config.nodeStyle.selectedSVGIndex"
+                    @change="updateConfig('nodeStyle.selectedSVGIndex', $event)"
+                    placeholder="选择图标"
+                    size="small"
+                  >
+                    <el-option 
+                      v-for="(icon, index) in SVG_NODE_ICONS" 
+                      :key="icon.id"
+                      :label="icon.name" 
+                      :value="index" 
+                    />
+                  </el-select>
+                </div>
+                <div class="config-item">
+                  <label>默认节点大小</label>
+                  <el-slider
+                    v-model="configStore.config.nodeStyle.defaultSize"
+                    @change="updateConfig('nodeStyle.defaultSize', $event)"
+                    :min="16"
+                    :max="48"
+                    :step="2"
+                  />
+                </div>
+                <div class="config-item">
+                  <label>节点大小倍数</label>
+                  <el-slider
+                    v-model="configStore.config.nodeStyle.sizeMultiplier"
+                    @change="updateConfig('nodeStyle.sizeMultiplier', $event)"
+                    :min="0.5"
+                    :max="2.0"
+                    :step="0.1"
+                  />
+                </div>
+                <div class="config-item">
+                  <label>选中节点大小</label>
+                  <el-slider
+                    v-model="configStore.config.nodeStyle.selectedNodeSize"
+                    @change="updateConfig('nodeStyle.selectedNodeSize', $event)"
+                    :min="0.8"
+                    :max="1.5"
+                    :step="0.1"
+                  />
+                </div>
+                <div class="config-item">
+                  <label>一级邻居大小</label>
+                  <el-slider
+                    v-model="configStore.config.nodeStyle.firstDegreeNodeSize"
+                    @change="updateConfig('nodeStyle.firstDegreeNodeSize', $event)"
+                    :min="0.8"
+                    :max="1.3"
+                    :step="0.1"
+                  />
+                </div>
+                <div class="config-item">
+                  <label>二级邻居大小</label>
+                  <el-slider
+                    v-model="configStore.config.nodeStyle.secondDegreeNodeSize"
+                    @change="updateConfig('nodeStyle.secondDegreeNodeSize', $event)"
+                    :min="0.8"
+                    :max="1.2"
+                    :step="0.1"
+                  />
+                </div>
+                <div class="config-item">
+                  <label>淡化节点大小</label>
+                  <el-slider
+                    v-model="configStore.config.nodeStyle.fadedNodeSize"
+                    @change="updateConfig('nodeStyle.fadedNodeSize', $event)"
+                    :min="0.5"
+                    :max="1.0"
+                    :step="0.1"
+                  />
+                </div>
+                <div class="config-item">
+                  <label>填充模式</label>
+                  <el-select 
+                    v-model="configStore.config.nodeStyle.fillMode"
+                    @change="updateConfig('nodeStyle.fillMode', $event)"
+                    size="small"
+                  >
+                    <el-option label="⭕ 无填充" value="none" />
+                    <el-option label="🫧 半透明" value="transparent" />
+                  </el-select>
+                </div>
+                <div class="config-item" v-show="configStore.config.nodeStyle.fillMode === 'transparent'">
+                  <label>填充透明度</label>
+                  <el-slider
+                    v-model="configStore.config.nodeStyle.fillOpacity"
+                    @change="updateConfig('nodeStyle.fillOpacity', $event)"
+                    :min="0.01"
+                    :max="0.2"
+                    :step="0.01"
+                  />
+                </div>
+                <div class="config-item">
+                  <label>描边宽度</label>
+                  <el-slider
+                    v-model="configStore.config.nodeStyle.strokeWidth"
+                    @change="updateConfig('nodeStyle.strokeWidth', $event)"
+                    :min="0.5"
+                    :max="3"
+                    :step="0.5"
+                  />
+                </div>
+                <div class="config-item">
+                  <label>文字位置</label>
+                  <el-select 
+                    v-model="configStore.config.nodeStyle.textPosition"
+                    @change="updateConfig('nodeStyle.textPosition', $event)"
+                    size="small"
+                  >
+                    <el-option label="⬇️ 节点下方" value="bottom" />
+                    <el-option label="🎯 节点中心" value="center" />
+                    <el-option label="⬆️ 节点上方" value="top" />
+                  </el-select>
+                </div>
+                <div class="config-item">
+                  <label>字体大小</label>
+                  <el-slider
+                    v-model="configStore.config.nodeStyle.fontSize"
+                    @change="updateConfig('nodeStyle.fontSize', $event)"
+                    :min="8"
+                    :max="16"
+                    :step="1"
+                  />
+                </div>
+              </div>
+              
+              <div class="config-divider-line"></div>
+
               <!-- 贝塞尔曲线边样式 -->
               <div class="config-section">
                 <h5>🌊 贝塞尔曲线边样式</h5>
@@ -209,13 +405,43 @@
                   />
                 </div>
                 <div class="config-item">
-                  <label>边透明度</label>
+                  <label>边宽度</label>
+                  <el-slider
+                    v-model="configStore.config.edgeStyle.defaultEdgeWidth"
+                    @change="updateConfig('edgeStyle.defaultEdgeWidth', $event)"
+                    :min="0.5"
+                    :max="3"
+                    :step="0.5"
+                  />
+                </div>
+                <div class="config-item">
+                  <label>平时透明度</label>
                   <el-slider
                     v-model="configStore.config.edgeStyle.edgeOpacity"
                     @change="updateConfig('edgeStyle.edgeOpacity', $event)"
                     :min="0.1"
                     :max="1.0"
                     :step="0.1"
+                  />
+                </div>
+                <div class="config-item">
+                  <label>高亮透明度</label>
+                  <el-slider
+                    v-model="configStore.config.edgeStyle.highlightEdgeOpacity"
+                    @change="updateConfig('edgeStyle.highlightEdgeOpacity', $event)"
+                    :min="0.1"
+                    :max="1.0"
+                    :step="0.1"
+                  />
+                </div>
+                <div class="config-item">
+                  <label>高亮边宽度</label>
+                  <el-slider
+                    v-model="configStore.config.edgeStyle.highlightEdgeWidth"
+                    @change="updateConfig('edgeStyle.highlightEdgeWidth', $event)"
+                    :min="1"
+                    :max="5"
+                    :step="0.5"
                   />
                 </div>
                 <div class="config-item">
@@ -256,6 +482,7 @@ import { ref } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { useStarChartConfigStore } from '@stores/projectPage/starChart'
 import type { ConfigPreset } from '@stores/projectPage/starChart/starChart.config.types'
+import { SVG_NODE_ICONS } from '@stores/projectPage/starChart'
 
 /**
  * WritingPanel
@@ -437,7 +664,7 @@ const handleResetConfig = async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: -10px; /* 减小间距 */
+  margin-bottom: 0px; /* 减小间距 */
   min-height: 24px; /* 设置最小高度 */
 }
 

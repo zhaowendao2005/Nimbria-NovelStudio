@@ -9,6 +9,7 @@ import cytoscape from 'cytoscape'
 import fcose from 'cytoscape-fcose'
 import type { CytoscapeElement, LayoutConfig, ViewportState } from '@stores/projectPage/starChart/starChart.types'
 import { useStarChartConfigStore } from '@stores/projectPage/starChart'
+import { getSVGIcon, getRandomSVGIcon, generateNodeSVGDataURL } from '@stores/projectPage/starChart/node.svg.library'
 
 // 注册 fcose 布局 (WebGL是内置的，不需要额外注册)
 cytoscape.use(fcose)
@@ -17,6 +18,7 @@ const props = defineProps<{
   elements: CytoscapeElement[]
   layout: LayoutConfig
   wheelSensitivity?: number  // 滚轮灵敏度
+  fastRebuild?: boolean  // 🚀 快速重建模式（跳过布局计算和动画）
 }>()
 
 const emit = defineEmits<{
@@ -32,6 +34,60 @@ let highlightActive = false
 
 // 🔥 修复longFrameCount作用域问题 - 提升到模块级别
 let longFrameCount = 0
+
+// 🚀 优化点1：SVG DataURL 缓存机制
+// 使用 Map 缓存已生成的 SVG DataURL，避免重复计算
+const svgDataURLCache = new Map<string, string>()
+
+// 生成缓存 key
+const generateSVGCacheKey = (
+  iconIndex: number,
+  strokeColor: string,
+  strokeOpacity: number,
+  fillColor: string,
+  fillOpacity: number
+): string => {
+  return `${iconIndex}|${strokeColor}|${strokeOpacity}|${fillColor}|${fillOpacity}`
+}
+
+// 获取或生成 SVG DataURL（带缓存）
+const getOrCreateSVGDataURL = (
+  iconIndex: number,
+  strokeColor: string,
+  strokeOpacity: number,
+  fillColor: string,
+  fillOpacity: number
+): string => {
+  const cacheKey = generateSVGCacheKey(iconIndex, strokeColor, strokeOpacity, fillColor, fillOpacity)
+  
+  // 检查缓存
+  if (svgDataURLCache.has(cacheKey)) {
+    return svgDataURLCache.get(cacheKey)!
+  }
+  
+  // 生成新的 SVG DataURL
+  const svgIcon = getSVGIcon(iconIndex)
+  const dataURL = generateNodeSVGDataURL(
+    svgIcon,
+    strokeColor,
+    strokeOpacity,
+    fillColor,
+    fillOpacity
+  )
+  
+  // 存入缓存
+  svgDataURLCache.set(cacheKey, dataURL)
+  return dataURL
+}
+
+// 清空 SVG 缓存
+const clearSVGCache = () => {
+  svgDataURLCache.clear()
+  const config = configStore.config
+  if (config.logging.enableLayoutLogs) {
+    configStore.log('🗑️ [性能优化] SVG 缓存已清空', 'verbose')
+  }
+}
 
 // 初始化配置
 configStore.loadConfig()
@@ -162,10 +218,20 @@ const initCytoscape = () => {
   // 添加邻域高亮功能
   setupNeighborhoodHighlight()
 
-  // 🔥 根据配置决定是否启用性能监控
-  if (config.performance.enabled || import.meta.env.DEV) {
-    setupPerformanceMonitoring()
+  // 🚀 快速重建模式：跳过性能监控以加速初始化
+  if (!props.fastRebuild) {
+    // 🔥 根据配置决定是否启用性能监控
+    if (config.performance.enabled || import.meta.env.DEV) {
+      setupPerformanceMonitoring()
+    }
+  } else {
+    if (config.logging.enableInitializationLogs) {
+      configStore.log('⚡ [极速重建] 跳过性能监控设置')
+    }
   }
+
+  // 🚀 优化点1：在布局前预计算所有节点图像并缓存到 data(image)
+  precomputeNodeImages()
 
   // 运行布局
   runLayout(config.layout.firstTimeAutoFit)
@@ -621,67 +687,289 @@ const setupPerformanceMonitoring = () => {
   }
 }
 
+/**
+ * 节点间距修正算法
+ * 确保节点间距离不小于节点直径的指定倍数
+ * 用于修正布局中节点贴在一起的问题
+ */
+const correctNodeSpacing = (cy: cytoscape.Core) => {
+  const config = configStore.config
+  
+  if (!config.layout.enableNodeSpacingCorrection) {
+    return
+  }
+  
+  const multiplier = config.layout.minNodeDistanceMultiplier
+  const strength = config.layout.spacingCorrectionStrength
+  
+  // 1️⃣ 计算每个节点的实际直径
+  const getNodeDiameter = (node: any): number => {
+    const nodeConfig = config.nodeStyle
+    const baseSize = nodeConfig.defaultSize * nodeConfig.sizeMultiplier
+    
+    // 根据节点的类别判断应用哪个大小倍数
+    if (node.hasClass('highlighted') || node.selected()) {
+      return baseSize * nodeConfig.selectedNodeSize
+    } else if (node.hasClass('first-degree')) {
+      return baseSize * nodeConfig.firstDegreeNodeSize
+    } else if (node.hasClass('second-degree')) {
+      return baseSize * nodeConfig.secondDegreeNodeSize
+    } else if (node.hasClass('dimmed')) {
+      return baseSize * nodeConfig.fadedNodeSize
+    }
+    return baseSize
+  }
+  
+  // 2️⃣ 获取所有节点
+  const nodes = cy.nodes()
+  const positions: Map<string, { x: number, y: number, diameter: number }> = new Map()
+  
+  // 预计算所有节点的位置和直径
+  nodes.forEach((node: any) => {
+    const pos = node.position()
+    const diameter = getNodeDiameter(node)
+    positions.set(node.id(), { x: pos.x, y: pos.y, diameter })
+  })
+  
+  // 3️⃣ 检测并修正距离过近的节点对
+  let correctionCount = 0
+  const maxIterations = 50  // 防止无限循环
+  
+  for (let iteration = 0; iteration < maxIterations; iteration++) {
+    let anyCorrection = false
+    
+    // 遍历所有节点对
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const node1 = nodes[i]
+        const node2 = nodes[j]
+        
+        const pos1 = positions.get(node1.id())!
+        const pos2 = positions.get(node2.id())!
+        
+        // 计算当前距离
+        const dx = pos2.x - pos1.x
+        const dy = pos2.y - pos1.y
+        const currentDistance = Math.sqrt(dx * dx + dy * dy)
+        
+        // 计算最小允许距离（以大的节点为准）
+        const maxDiameter = Math.max(pos1.diameter, pos2.diameter)
+        const minDistance = maxDiameter * multiplier
+        
+        // 如果距离过近，需要修正
+        if (currentDistance < minDistance && currentDistance > 0) {
+          anyCorrection = true
+          correctionCount++
+          
+          // 计算需要的位移
+          const deficit = minDistance - currentDistance
+          const moveDistance = deficit * strength / 2  // 两个节点各移动一半
+          
+          // 计算移动方向（单位向量）
+          const dirX = dx / currentDistance
+          const dirY = dy / currentDistance
+          
+          // 应用位移
+          pos1.x -= dirX * moveDistance
+          pos1.y -= dirY * moveDistance
+          pos2.x += dirX * moveDistance
+          pos2.y += dirY * moveDistance
+          
+          // 更新位置缓存
+          positions.set(node1.id(), pos1)
+          positions.set(node2.id(), pos2)
+        }
+      }
+    }
+    
+    // 如果没有任何修正，说明已经收敛
+    if (!anyCorrection) {
+      if (config.logging.enableLayoutLogs) {
+        configStore.log(`[节点间距修正] 收敛完成，迭代次数: ${iteration + 1}`)
+      }
+      break
+    }
+  }
+  
+  // 4️⃣ 应用修正后的位置
+  positions.forEach((pos, nodeId) => {
+    const node = cy.getElementById(nodeId)
+    node.position({ x: pos.x, y: pos.y })
+  })
+  
+  if (config.logging.enableLayoutLogs) {
+    configStore.log(`[节点间距修正] 完成，修正了 ${correctionCount} 次节点对`)
+  }
+}
+
 // 运行布局
 const runLayout = (shouldFit = false) => {
   if (!cyInstance) return
 
-  // 🔥 使用 preset 布局（手动预设位置）
+  const config = configStore.config
+  
+  // 🚀 快速重建模式：跳过布局运行，直接使用预设位置
+  if (props.fastRebuild) {
+    if (config.logging.enableLayoutLogs) {
+      configStore.log('⚡ [极速重建] 跳过布局计算，直接使用预设位置')
+    }
+    
+    // 只在需要时适配视口
+    if (shouldFit) {
+      cyInstance.fit(undefined, 80)
+    }
+    
+    return  // 🔥 直接返回，不运行任何布局算法
+  }
+  
+  // 🔥 正常模式：使用 preset 布局（手动预设位置）
   const layout = cyInstance.layout({
     name: 'preset',  // 使用节点的预设 position
     fit: shouldFit,  // 只在初始化时自动缩放
     padding: 80,     // 视口边缘留白
     animate: false,  // 禁用动画（直接显示最终位置）
     ready: () => {
-      console.log('[StarChartViewport] Preset 布局完成')
+      if (config.logging.enableLayoutLogs) {
+        configStore.log('[StarChartViewport] Preset 布局完成')
+      }
+      
+      // 🆕 布局完成后进行节点间距修正
+      if (cyInstance && config.layout.enableNodeSpacingCorrection) {
+        correctNodeSpacing(cyInstance)
+        
+        // 修正后重新适配视口（如果需要）
+        if (shouldFit) {
+          cyInstance.fit(undefined, 80)
+        }
+      }
     }
   })
 
   layout.run()
 }
 
-// 🔥 优化后的 Cytoscape 样式（使用预计算属性，无动态函数调用）
-const getCytoscapeStyle = () => [
-  {
-    selector: 'node',
-    style: {
-      // 🔥 使用预计算的节点大小（避免mapData动态计算）
-      'width': 'data(nodeWidth)',
-      'height': 'data(nodeHeight)',
-      'content': 'data(name)',
-      'font-size': '12px',
-      'text-valign': 'center',
-      'text-halign': 'center',
-      'background-color': 'data(color)',
-      'text-outline-color': '#555',
-      'text-outline-width': '2px',
-      'color': '#fff',
-      // 🔥 性能优化：禁用所有过渡动画
-      'transition-property': 'none',
-      'transition-duration': '0ms'
-    }
-  },
-  {
-    selector: 'edge',
-    style: {
-      // 🔥 使用配置的边样式
-      'curve-style': configStore.config.edgeStyle.curveStyle,
-      'control-point-distances': configStore.config.edgeStyle.controlPointDistance,
-      'control-point-weights': [configStore.config.edgeStyle.controlPointWeight],
-      'opacity': configStore.config.edgeStyle.edgeOpacity,
-      // 🔥 使用配置的颜色和宽度
-      'line-color': 'data(edgeColor)',         // 可以被数据覆盖
-      'width': 'data(edgeWidth)',              // 可以被数据覆盖
-      'target-arrow-shape': configStore.config.edgeStyle.arrowShape,
-      'target-arrow-color': 'data(targetArrowColor)',
-      'arrow-scale': configStore.config.edgeStyle.arrowSize,
-      // 🔥 性能优化：禁用所有过渡动画
-      'transition-property': 'none',
-      'transition-duration': '0ms'
-    }
+// 🔥 获取节点SVG背景样式 - 动态使用分组颜色（带缓存）
+const getNodeSVGStyle = (nodeData: any) => {
+  const config = configStore.config.nodeStyle
+  
+  // 确定图标索引
+  let iconIndex: number
+  if (config.randomSVGSelection) {
+    // 随机选择SVG (基于节点ID生成稳定随机数)
+    const hash = nodeData.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+    iconIndex = hash % 14
+  } else {
+    // 使用指定的SVG
+    iconIndex = config.selectedSVGIndex
+  }
+  
+  // 🔥 动态获取节点的分组颜色作为SVG颜色
+  const nodeColor = nodeData.color || nodeData.groupColor || config.strokeColor
+  
+  // 🔥 生成带分组颜色的SVG（使用缓存）
+  const fillColor = config.fillMode === 'none' ? 'transparent' : config.fillColor
+  const svgDataURL = getOrCreateSVGDataURL(
+    iconIndex,
+    nodeColor,              // 🔥 使用节点分组颜色
+    config.strokeOpacity,
+    fillColor,
+    config.fillOpacity
+  )
+  
+  return svgDataURL
+}
+
+// 🚀 优化点1：批量预计算节点图像并存储到 data(image)
+const precomputeNodeImages = () => {
+  if (!cyInstance) return
+  
+  const startTime = performance.now()
+  const config = configStore.config
+  
+  cyInstance.nodes().forEach((node: any) => {
+    const nodeData = node.data()
+    const imageDataURL = getNodeSVGStyle(nodeData)
+    
+    // 🔥 将预计算的 DataURL 存储到节点 data 中
+    node.data('image', imageDataURL)
+  })
+  
+  const elapsed = performance.now() - startTime
+  if (config.logging.enableInitializationLogs) {
+    configStore.log(`🚀 [性能优化] 预计算 ${cyInstance.nodes().length} 个节点图像完成，耗时: ${elapsed.toFixed(2)}ms`, 'verbose')
+    configStore.log(`🚀 [性能优化] SVG 缓存命中率将大幅提升`, 'verbose')
+  }
+}
+
+// 🔥 优化后的 Cytoscape 样式（使用配置系统）
+const getCytoscapeStyle = () => {
+  const config = configStore.config.nodeStyle
+  
+  return [
+    {
+      selector: 'node',
+      style: {
+        // 🔥 节点大小配置（基础大小 × 倍数）
+        'width': config.defaultSize * config.sizeMultiplier,
+        'height': config.defaultSize * config.sizeMultiplier,
+        
+        // 🔥 圆形背景 - 完全透明
+        'background-color': 'transparent',
+        'background-opacity': 0,
+        
+        // 🚀 优化：SVG背景图像直接从预计算的 data(image) 读取，避免每次样式评估时重复计算
+        'background-image': 'data(image)',
+        'background-fit': 'contain',
+        'background-repeat': 'no-repeat',
+        'background-position-x': '50%',
+        'background-position-y': '50%',
+        
+        // 🔥 无边框（SVG本身已有描边）
+        'border-width': 0,
+        'border-opacity': 0,
+        
+        // 🔥 文字样式配置
+        'content': 'data(name)',
+        'font-size': `${config.fontSize}px`,
+        'text-valign': config.textPosition === 'center' ? 'center' : config.textPosition,
+        'text-halign': 'center',
+        'text-margin-y': config.textPosition === 'bottom' ? config.textMargin : 
+                         config.textPosition === 'top' ? -config.textMargin : 0,
+        'color': config.textColor,
+        'text-outline-color': '#fff',
+        'text-outline-width': '1px',
+        'text-wrap': 'wrap',
+        'text-max-width': `${config.defaultSize * 3}px`,
+        
+        // 🔥 性能优化：禁用所有过渡动画
+        'transition-property': 'none',
+        'transition-duration': '0ms'
+      }
+    },
+    {
+      selector: 'edge',
+      style: {
+        // 🔥 使用配置的边样式
+        'curve-style': configStore.config.edgeStyle.curveStyle,
+        'control-point-distances': configStore.config.edgeStyle.controlPointDistance,
+        'control-point-weights': [configStore.config.edgeStyle.controlPointWeight],
+        'opacity': configStore.config.edgeStyle.edgeOpacity,
+        // 🔥 使用配置的颜色和宽度
+        'line-color': 'data(edgeColor)',         // 可以被数据覆盖
+        'width': 'data(edgeWidth)',              // 可以被数据覆盖
+        'target-arrow-shape': configStore.config.edgeStyle.arrowShape,
+        'target-arrow-color': 'data(targetArrowColor)',
+        'arrow-scale': configStore.config.edgeStyle.arrowSize,
+        // 🔥 性能优化：禁用所有过渡动画
+        'transition-property': 'none',
+        'transition-duration': '0ms'
+      }
   },
   {
     selector: 'node:selected',
     style: {
+      'width': config.defaultSize * config.sizeMultiplier * config.selectedNodeSize,
+      'height': config.defaultSize * config.sizeMultiplier * config.selectedNodeSize,
       'border-width': '4px',
       'border-color': '#4dabf7',
       'transition-property': 'none'  // 🔥 禁用选中动画
@@ -691,6 +979,8 @@ const getCytoscapeStyle = () => [
   {
     selector: 'node.dimmed',
     style: {
+      'width': config.defaultSize * config.sizeMultiplier * config.fadedNodeSize,
+      'height': config.defaultSize * config.sizeMultiplier * config.fadedNodeSize,
       'opacity': 0.15,
       'transition-property': 'none'  // 🔥 禁用变灰动画
     }
@@ -705,6 +995,8 @@ const getCytoscapeStyle = () => [
   {
     selector: 'node.highlighted',
     style: {
+      'width': config.defaultSize * config.sizeMultiplier * config.selectedNodeSize,
+      'height': config.defaultSize * config.sizeMultiplier * config.selectedNodeSize,
       'border-width': '6px',
       'border-color': 'data(highlightBorderColor)', // 🔥 使用预计算的高亮边框色
       'z-index': 9999,
@@ -714,6 +1006,8 @@ const getCytoscapeStyle = () => [
   {
     selector: 'node.first-degree',
     style: {
+      'width': config.defaultSize * config.sizeMultiplier * config.firstDegreeNodeSize,
+      'height': config.defaultSize * config.sizeMultiplier * config.firstDegreeNodeSize,
       'opacity': 1,
       'border-width': '3px',
       'border-color': 'data(borderColor)', // 🔥 使用预计算的边框色
@@ -723,6 +1017,8 @@ const getCytoscapeStyle = () => [
   {
     selector: 'node.second-degree',
     style: {
+      'width': config.defaultSize * config.sizeMultiplier * config.secondDegreeNodeSize,
+      'height': config.defaultSize * config.sizeMultiplier * config.secondDegreeNodeSize,
       'opacity': 0.8,
       'transition-property': 'none'  // 🔥 禁用动画
     }
@@ -730,12 +1026,13 @@ const getCytoscapeStyle = () => [
   {
     selector: 'edge.highlighted',
     style: {
-      'opacity': 0.9,
-      'width': 'data(edgeWidth)',  // 🔥 保持原始宽度，避免重新计算
+      'opacity': configStore.config.edgeStyle.highlightEdgeOpacity,
+      'width': configStore.config.edgeStyle.highlightEdgeWidth,
       'transition-property': 'none'  // 🔥 禁用动画
     }
   }
-]
+  ]
+}
 
 // 监听 elements 变化（浅层监听，只在数组引用改变时触发）
 watch(() => props.elements, (newElements, oldElements) => {
@@ -815,6 +1112,97 @@ watch(() => configStore.config.edgeStyle, (newEdgeStyle) => {
       configStore.log(`[StarChartViewport] 已应用边样式: ${newEdgeStyle.curveStyle}`, 'verbose')
     }
   }
+}, { deep: true })
+
+// 🚀 优化点2：智能节点样式更新 - 区分轻量更新和重量更新
+let previousNodeStyle: any = null
+
+watch(() => configStore.config.nodeStyle, (newNodeStyle, oldNodeStyle) => {
+  if (!cyInstance) return
+  
+  const config = configStore.config
+  
+  // 初始化时记录旧值
+  if (!previousNodeStyle) {
+    previousNodeStyle = JSON.parse(JSON.stringify(oldNodeStyle || newNodeStyle))
+    return
+  }
+  
+  // 🔥 识别变化的字段类型
+  const svgRelatedFields = [
+    'randomSVGSelection', 'selectedSVGIndex',
+    'fillMode', 'fillOpacity', 'fillColor',
+    'strokeOpacity', 'strokeColor'
+  ]
+  
+  const lightweightFields = [
+    'defaultSize', 'sizeMultiplier',
+    'selectedNodeSize', 'firstDegreeNodeSize', 'secondDegreeNodeSize', 'fadedNodeSize',
+    'fontSize', 'textColor', 'textPosition', 'textMargin'
+  ]
+  
+  // 检查是否有 SVG 相关字段变化
+  const hasSVGChange = svgRelatedFields.some(field => 
+    (newNodeStyle as any)[field] !== (previousNodeStyle as any)[field]
+  )
+  
+  // 检查是否有轻量字段变化
+  const hasLightweightChange = lightweightFields.some(field =>
+    (newNodeStyle as any)[field] !== (previousNodeStyle as any)[field]
+  )
+  
+  if (hasSVGChange) {
+    // 🔥 SVG 相关字段变化：清空缓存 + 重新计算图像 + 增量更新
+    if (config.logging.enableLayoutLogs) {
+      configStore.log('🔄 [性能优化] SVG配置变化，清空缓存并更新图像', 'verbose')
+    }
+    
+    clearSVGCache()
+    precomputeNodeImages()
+    
+    // 🔥 增量更新样式（避免完全重建）
+    cyInstance.style()
+      .selector('node')
+      .style({
+        'width': newNodeStyle.defaultSize * newNodeStyle.sizeMultiplier,
+        'height': newNodeStyle.defaultSize * newNodeStyle.sizeMultiplier,
+        'font-size': `${newNodeStyle.fontSize}px`,
+        'text-valign': newNodeStyle.textPosition === 'center' ? 'center' : newNodeStyle.textPosition,
+        'text-margin-y': newNodeStyle.textPosition === 'bottom' ? newNodeStyle.textMargin : 
+                         newNodeStyle.textPosition === 'top' ? -newNodeStyle.textMargin : 0,
+        'color': newNodeStyle.textColor
+      })
+      .update()
+      
+    if (config.logging.enableLayoutLogs) {
+      configStore.log(`✅ [性能优化] SVG配置已更新: ${newNodeStyle.randomSVGSelection ? '随机SVG' : '固定SVG'}`, 'verbose')
+    }
+  } else if (hasLightweightChange) {
+    // 🔥 仅轻量字段变化：增量更新样式
+    if (config.logging.enableLayoutLogs) {
+      configStore.log('⚡ [性能优化] 轻量配置变化，增量更新样式', 'verbose')
+    }
+    
+    cyInstance.style()
+      .selector('node')
+      .style({
+        'width': newNodeStyle.defaultSize * newNodeStyle.sizeMultiplier,
+        'height': newNodeStyle.defaultSize * newNodeStyle.sizeMultiplier,
+        'font-size': `${newNodeStyle.fontSize}px`,
+        'text-valign': newNodeStyle.textPosition === 'center' ? 'center' : newNodeStyle.textPosition,
+        'text-margin-y': newNodeStyle.textPosition === 'bottom' ? newNodeStyle.textMargin : 
+                         newNodeStyle.textPosition === 'top' ? -newNodeStyle.textMargin : 0,
+        'color': newNodeStyle.textColor
+      })
+      .update()
+      
+    if (config.logging.enableLayoutLogs) {
+      configStore.log('✅ [性能优化] 轻量样式已更新（无需重建实例）', 'verbose')
+    }
+  }
+  
+  // 更新记录
+  previousNodeStyle = JSON.parse(JSON.stringify(newNodeStyle))
 }, { deep: true })
 
 onMounted(() => {

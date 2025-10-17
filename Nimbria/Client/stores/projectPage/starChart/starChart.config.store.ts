@@ -62,7 +62,12 @@ const DEFAULT_CONFIG: StarChartConfig = {
     firstTimeAutoFit: true,
     animate: false,
     randomize: false,
-    avoidWheelSensitivityReinit: true
+    avoidWheelSensitivityReinit: true,
+    
+    // 节点间距修正配置
+    enableNodeSpacingCorrection: true,   // 默认启用
+    minNodeDistanceMultiplier: 2.5,      // 节点间距至少为直径的2.5倍
+    spacingCorrectionStrength: 0.7       // 修正强度70%
   },
   throttle: {
     viewportChange: 16,
@@ -76,12 +81,47 @@ const DEFAULT_CONFIG: StarChartConfig = {
     curveStyle: 'unbundled-bezier',
     controlPointDistance: 60,
     controlPointWeight: 0.5,
-    edgeOpacity: 0.6,
-    defaultEdgeWidth: 2,
+    edgeOpacity: 0.6,              // 平时边透明度
+    highlightEdgeOpacity: 0.9,     // 高亮时边透明度
+    defaultEdgeWidth: 1,           // 可在配置面板调节
+    highlightEdgeWidth: 2,         // 高亮时边宽度
     arrowShape: 'triangle',
     arrowSize: 1.0,
     edgeColor: '#666666',
     selectedEdgeColor: '#4dabf7'
+  },
+  nodeStyle: {
+    // 基础设置
+    defaultSize: 28,
+    sizeMultiplier: 1.0,         // 节点大小倍数
+    randomSVGSelection: true,
+    selectedSVGIndex: 0,
+    
+    // 不同级别节点大小倍数
+    selectedNodeSize: 1.2,       // 选中节点
+    firstDegreeNodeSize: 1.1,    // 一级邻居
+    secondDegreeNodeSize: 1.0,   // 二级邻居
+    fadedNodeSize: 0.8,          // 淡化节点
+    
+    // 填充样式 - 默认极淡透明填充
+    fillMode: 'transparent',
+    fillOpacity: 0.08,
+    fillColor: '#3498db',
+    
+    // 边框样式
+    strokeWidth: 1.5,
+    strokeOpacity: 0.8,
+    strokeColor: '#666666',
+    
+    // 文字设置
+    textPosition: 'bottom',
+    textMargin: 8,
+    fontSize: 11,
+    textColor: '#2c3e50',
+    
+    // 高级设置
+    enableSVGCache: true,
+    nodeTypeMapping: false
   }
 }
 
@@ -100,8 +140,18 @@ const CONFIG_PRESETS: Record<ConfigPreset, Partial<StarChartConfig>> = {
     edgeStyle: {
       curveStyle: 'haystack',  // 性能最佳的边样式
       edgeOpacity: 0.4,
+      highlightEdgeOpacity: 0.8,
       defaultEdgeWidth: 1,
+      highlightEdgeWidth: 1.5,
       arrowShape: 'none'       // 去掉箭头提升性能
+    },
+    nodeStyle: {
+      randomSVGSelection: false,  // 固定样式提升性能
+      selectedSVGIndex: 0,       // 使用最简单的圆形
+      fillMode: 'none',          // 无填充，性能最佳
+      strokeWidth: 1,            // 细线条
+      enableSVGCache: true,      // 启用缓存
+      nodeTypeMapping: false     // 关闭类型映射
     }
   },
   
@@ -119,9 +169,21 @@ const CONFIG_PRESETS: Record<ConfigPreset, Partial<StarChartConfig>> = {
       controlPointDistance: 80,       // 更大的弯曲度
       controlPointWeight: 0.6,
       edgeOpacity: 0.7,
-      defaultEdgeWidth: 2,
+      highlightEdgeOpacity: 0.95,
+      defaultEdgeWidth: 1,
+      highlightEdgeWidth: 2.5,
       arrowShape: 'triangle',
-      arrowSize: 1.2
+      arrowSize: 1.0
+    },
+    nodeStyle: {
+      randomSVGSelection: true,       // 启用随机选择
+      fillMode: 'transparent',        // 半透明填充
+      fillOpacity: 0.1,              // 稍高的填充透明度
+      strokeWidth: 2,                // 较粗的描边
+      strokeOpacity: 0.9,            // 高描边透明度
+      defaultSize: 32,               // 稍大的节点
+      enableSVGCache: true,
+      nodeTypeMapping: true          // 启用类型映射
     }
   },
   
@@ -135,8 +197,20 @@ const CONFIG_PRESETS: Record<ConfigPreset, Partial<StarChartConfig>> = {
       curveStyle: 'bezier',           // 标准贝塞尔曲线
       controlPointDistance: 50,
       edgeOpacity: 0.5,
-      defaultEdgeWidth: 2,
+      highlightEdgeOpacity: 0.85,
+      defaultEdgeWidth: 1,
+      highlightEdgeWidth: 2,
       arrowShape: 'triangle'
+    },
+    nodeStyle: {
+      randomSVGSelection: false,      // 生产环境固定样式
+      selectedSVGIndex: 8,           // 使用简单圆形
+      fillMode: 'transparent',       // 半透明填充
+      fillOpacity: 0.06,            // 极淡填充
+      strokeWidth: 1.5,
+      strokeOpacity: 0.7,
+      enableSVGCache: true,
+      nodeTypeMapping: false
     }
   },
   
@@ -153,8 +227,20 @@ const CONFIG_PRESETS: Record<ConfigPreset, Partial<StarChartConfig>> = {
     edgeStyle: {
       curveStyle: 'straight',        // 最简单的直线
       edgeOpacity: 0.3,
+      highlightEdgeOpacity: 0.7,
       defaultEdgeWidth: 1,
+      highlightEdgeWidth: 1.5,
       arrowShape: 'none'
+    },
+    nodeStyle: {
+      randomSVGSelection: false,     // 极简模式固定样式
+      selectedSVGIndex: 8,          // 简单圆形
+      fillMode: 'none',             // 无填充
+      strokeWidth: 1,               // 最细描边
+      strokeOpacity: 0.5,           // 低透明度
+      defaultSize: 20,              // 小节点
+      enableSVGCache: true,
+      nodeTypeMapping: false
     }
   }
 }

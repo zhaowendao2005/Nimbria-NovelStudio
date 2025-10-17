@@ -84,10 +84,67 @@ onMounted(async () => {
     windowTitle.value = tabData.title || 'Nimbria - Detached Window'
     document.title = windowTitle.value
     
-    // 3. 初始化编辑器状态：在 PaneSystem 中创建面板并打开该标签页
-    if (tabData.filePath) {
-      // 延迟加载文件，确保 Store 已初始化
-      await new Promise(resolve => setTimeout(resolve, 300))
+    // 3. 根据标签页类型初始化
+    // 延迟加载，确保 Store 已初始化
+    await new Promise(resolve => setTimeout(resolve, 300))
+    
+    if (tabData.tabType === 'starchart') {
+      // 🔥 StarChart 类型：恢复 Store 状态并打开视图
+      console.log('🌟 [DetachedPage] Restoring StarChart tab...')
+      
+      // 导入 StarChart 相关模块
+      const { CustomPageAPI } = await import('../../Service/CustomPageManager')
+      const { useStarChartStore, useStarChartConfigStore } = await import('@stores/projectPage/starChart')
+      const starChartStore = useStarChartStore()
+      const configStore = useStarChartConfigStore()
+      
+      // 恢复 Store 状态
+      if (tabData.storeState) {
+        const startTime = performance.now()
+        console.log('⚡ [极速重建] 开始恢复StarChart状态...')
+        console.log('📊 [DetachedPage] Restoring StarChart state:', tabData.storeState)
+        
+        // 🚀 启用快速重建模式
+        starChartStore.fastRebuild = tabData.storeState.fastRebuild || true
+        
+        // 恢复图表数据
+        starChartStore.cytoscapeElements = tabData.storeState.cytoscapeElements || []
+        starChartStore.layoutConfig = tabData.storeState.layoutConfig || { name: 'preset' }
+        starChartStore.viewportState = tabData.storeState.viewport || { zoom: 1, pan: { x: 0, y: 0 } }
+        starChartStore.initialized = tabData.storeState.initialized || false
+        
+        // 🔥 恢复配置状态（配置面板的所有设置）
+        if (tabData.storeState.chartConfig) {
+          console.log('⚙️ [DetachedPage] Restoring StarChart config:', tabData.storeState.chartConfig)
+          configStore.config = tabData.storeState.chartConfig
+          // currentPreset 从配置中读取（不是单独的属性）
+          console.log('✅ [DetachedPage] StarChart config restored')
+        }
+        
+        const elapsed = performance.now() - startTime
+        console.log(`⚡ [极速重建] 状态恢复完成，耗时: ${elapsed.toFixed(2)}ms`)
+        console.log('✅ [DetachedPage] StarChart state restored')
+      }
+      
+      // 打开 StarChart 页面
+      const focusedPaneId = paneLayoutStore.focusedPane?.id
+      if (focusedPaneId) {
+        const instance = await CustomPageAPI.open('starchart-view', {
+          focus: true,
+          paneId: focusedPaneId
+        })
+        
+        if (instance) {
+          console.log('✅ [DetachedPage] StarChart tab opened:', instance.tabId)
+        } else {
+          console.error('❌ [DetachedPage] Failed to open StarChart tab')
+        }
+      } else {
+        console.error('❌ [DetachedPage] No focused pane available')
+      }
+    } else if (tabData.filePath) {
+      // 🔥 文件类型（Markdown等）：打开文件
+      console.log('📝 [DetachedPage] Restoring file tab:', tabData.filePath)
       
       // 🔥 步骤1：通过 markdownStore 打开文件（创建或获取 tab）
       const tab = await markdownStore.openFile(tabData.filePath)
@@ -104,6 +161,8 @@ onMounted(async () => {
           hasFocusedPane: !!paneLayoutStore.focusedPane 
         })
       }
+    } else {
+      console.warn('⚠️ [DetachedPage] Unknown tab type or missing data')
     }
     
     // 4. 发送就绪事件（触发握手）

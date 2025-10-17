@@ -12,6 +12,7 @@
       v-if="starChartStore.initialized"
       :elements="starChartStore.cytoscapeElements"
       :layout="starChartStore.layoutConfig"
+      :fast-rebuild="starChartStore.fastRebuild"
       @viewport-change="handleViewportChange"
     />
     

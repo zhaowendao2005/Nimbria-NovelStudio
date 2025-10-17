@@ -8,4 +8,5 @@ export * from './starChart.types'
 export * from './starChart.config.types'
 export { mockGraphData, convertToCytoscapeFormat } from './data.mock'
 export { starChartDataSource } from './DataSource'
+export * from './node.svg.library'
 
