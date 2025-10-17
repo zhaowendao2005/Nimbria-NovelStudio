@@ -37,62 +37,199 @@
               <h4>⚙️ 图表配置</h4>
             </div>
             <div class="config-content">
-              <!-- 节点配置 -->
+              <!-- 配置预设 -->
               <div class="config-section">
-                <h5>节点配置</h5>
+                <h5>📊 配置预设</h5>
                 <div class="config-item">
-                  <label>默认节点大小</label>
-                  <el-slider v-model="nodeSize" :min="20" :max="100" />
-                </div>
-                <div class="config-item">
-                  <label>节点标签显示</label>
-                  <el-switch v-model="showLabels" />
-                </div>
-              </div>
-              
-              <div class="config-divider-line"></div>
-
-              <!-- 关系配置 -->
-              <div class="config-section">
-                <h5>关系配置</h5>
-                <div class="config-item">
-                  <label>边线粗细</label>
-                  <el-slider v-model="edgeWidth" :min="1" :max="10" />
-                </div>
-                <div class="config-item">
-                  <label>显示关系标签</label>
-                  <el-switch v-model="showEdgeLabels" />
-                </div>
-              </div>
-              
-              <div class="config-divider-line"></div>
-
-              <!-- 布局配置 -->
-              <div class="config-section">
-                <h5>布局算法</h5>
-                <div class="config-item">
-                  <label>布局类型</label>
-                  <el-select v-model="layoutType" placeholder="选择布局">
-                    <el-option label="力导向布局" value="fcose" />
-                    <el-option label="圆形布局" value="circle" />
-                    <el-option label="网格布局" value="grid" />
-                    <el-option label="层次布局" value="dagre" />
+                  <label>预设选择</label>
+                  <el-select 
+                    v-model="configStore.activePreset" 
+                    @change="onPresetChange"
+                    placeholder="选择预设"
+                  >
+                    <el-option label="🚀 性能优先" value="performance" />
+                    <el-option label="🔧 开发调试" value="development" />
+                    <el-option label="🏭 生产环境" value="production" />
+                    <el-option label="📱 极简模式" value="minimal" />
+                    <el-option label="🎛️ 自定义" value="custom" />
                   </el-select>
                 </div>
               </div>
               
               <div class="config-divider-line"></div>
 
-              <!-- 颜色主题 -->
+              <!-- WebGL与渲染 -->
               <div class="config-section">
-                <h5>颜色主题</h5>
+                <h5>⚡ WebGL与渲染</h5>
                 <div class="config-item">
-                  <label>主题选择</label>
-                  <el-select v-model="colorTheme" placeholder="选择主题">
-                    <el-option label="默认主题" value="default" />
-                    <el-option label="深色主题" value="dark" />
-                    <el-option label="彩虹主题" value="rainbow" />
-                    <el-option label="简约主题" value="minimal" />
+                  <label>WebGL加速</label>
+                  <el-switch
+                    v-model="configStore.config.webgl.enabled"
+                    @change="updateConfig('webgl.enabled', $event)"
+                  />
+                </div>
+                <div class="config-item">
+                  <label>显示FPS</label>
+                  <el-switch
+                    v-model="configStore.config.webgl.showFps"
+                    @change="updateConfig('webgl.showFps', $event)"
+                  />
+                </div>
+                <div class="config-item">
+                  <label>视口隐藏边</label>
+                  <el-switch
+                    v-model="configStore.config.rendering.hideEdgesOnViewport"
+                    @change="updateConfig('rendering.hideEdgesOnViewport', $event)"
+                  />
+                </div>
+              </div>
+              
+              <div class="config-divider-line"></div>
+
+              <!-- 性能监控 -->
+              <div class="config-section">
+                <h5>🔍 性能监控</h5>
+                <div class="config-item">
+                  <label>性能监控</label>
+                  <el-switch
+                    v-model="configStore.config.performance.enabled"
+                    @change="updateConfig('performance.enabled', $event)"
+                  />
+                </div>
+                <div class="config-item">
+                  <label>事件跟踪</label>
+                  <el-switch
+                    v-model="configStore.config.performance.detailedEventTracking"
+                    @change="updateConfig('performance.detailedEventTracking', $event)"
+                  />
+                </div>
+                <div class="config-item">
+                  <label>长帧检测</label>
+                  <el-switch
+                    v-model="configStore.config.performance.longFrameMonitoring"
+                    @change="updateConfig('performance.longFrameMonitoring', $event)"
+                  />
+                </div>
+              </div>
+              
+              <div class="config-divider-line"></div>
+
+              <!-- 日志控制 -->
+              <div class="config-section">
+                <h5>📋 日志控制</h5>
+                <div class="config-item">
+                  <label>日志级别</label>
+                  <el-select 
+                    v-model="configStore.config.logging.level"
+                    @change="updateConfig('logging.level', $event)"
+                    placeholder="选择级别"
+                  >
+                    <el-option label="静默" value="silent" />
+                    <el-option label="极简" value="minimal" />
+                    <el-option label="正常" value="normal" />
+                    <el-option label="详细" value="verbose" />
+                  </el-select>
+                </div>
+                <div class="config-item">
+                  <label>控制台日志</label>
+                  <el-switch
+                    v-model="configStore.config.logging.enableConsoleLog"
+                    @change="updateConfig('logging.enableConsoleLog', $event)"
+                  />
+                </div>
+                <div class="config-item">
+                  <label>性能警告</label>
+                  <el-switch
+                    v-model="configStore.config.logging.enablePerformanceWarnings"
+                    @change="updateConfig('logging.enablePerformanceWarnings', $event)"
+                  />
+                </div>
+              </div>
+              
+              <div class="config-divider-line"></div>
+
+              <!-- 交互设置 -->
+              <div class="config-section">
+                <h5>🖱️ 交互设置</h5>
+                <div class="config-item">
+                  <label>滚轮灵敏度</label>
+                  <el-slider
+                    v-model="configStore.config.interaction.wheelSensitivity"
+                    @change="updateConfig('interaction.wheelSensitivity', $event)"
+                    :min="0.1"
+                    :max="1.0"
+                    :step="0.1"
+                  />
+                </div>
+                <div class="config-item">
+                  <label>框选功能</label>
+                  <el-switch
+                    v-model="configStore.config.interaction.boxSelectionEnabled"
+                    @change="updateConfig('interaction.boxSelectionEnabled', $event)"
+                  />
+                </div>
+              </div>
+              
+              <div class="config-divider-line"></div>
+
+              <!-- 贝塞尔曲线边样式 -->
+              <div class="config-section">
+                <h5>🌊 贝塞尔曲线边样式</h5>
+                <div class="config-item">
+                  <label>边形状</label>
+                  <el-select 
+                    v-model="configStore.config.edgeStyle.curveStyle"
+                    @change="updateConfig('edgeStyle.curveStyle', $event)"
+                    placeholder="选择形状"
+                  >
+                    <el-option label="🌊 贝塞尔曲线" value="unbundled-bezier" />
+                    <el-option label="📐 直线" value="straight" />
+                    <el-option label="🔄 标准贝塞尔" value="bezier" />
+                    <el-option label="🎋 干草堆 (性能)" value="haystack" />
+                    <el-option label="🚖 出租车路径" value="taxi" />
+                  </el-select>
+                </div>
+                <div class="config-item" v-show="configStore.config.edgeStyle.curveStyle.includes('bezier')">
+                  <label>弯曲度</label>
+                  <el-slider
+                    v-model="configStore.config.edgeStyle.controlPointDistance"
+                    @change="updateConfig('edgeStyle.controlPointDistance', $event)"
+                    :min="10"
+                    :max="120"
+                  />
+                </div>
+                <div class="config-item" v-show="configStore.config.edgeStyle.curveStyle.includes('bezier')">
+                  <label>控制点权重</label>
+                  <el-slider
+                    v-model="configStore.config.edgeStyle.controlPointWeight"
+                    @change="updateConfig('edgeStyle.controlPointWeight', $event)"
+                    :min="0.1"
+                    :max="1.0"
+                    :step="0.1"
+                  />
+                </div>
+                <div class="config-item">
+                  <label>边透明度</label>
+                  <el-slider
+                    v-model="configStore.config.edgeStyle.edgeOpacity"
+                    @change="updateConfig('edgeStyle.edgeOpacity', $event)"
+                    :min="0.1"
+                    :max="1.0"
+                    :step="0.1"
+                  />
+                </div>
+                <div class="config-item">
+                  <label>箭头形状</label>
+                  <el-select 
+                    v-model="configStore.config.edgeStyle.arrowShape"
+                    @change="updateConfig('edgeStyle.arrowShape', $event)"
+                    placeholder="选择箭头"
+                  >
+                    <el-option label="🔺 三角形" value="triangle" />
+                    <el-option label="⭕ 无箭头" value="none" />
+                    <el-option label="⬛ 方形" value="square" />
+                    <el-option label="💎 菱形" value="diamond" />
+                    <el-option label="🔴 圆形" value="circle" />
                   </el-select>
                 </div>
               </div>
@@ -100,7 +237,7 @@
               <!-- 操作按钮 -->
               <div class="config-actions">
                 <el-button type="primary" size="small" @click="handleApplyConfig">
-                  应用配置
+                  保存配置
                 </el-button>
                 <el-button size="small" @click="handleResetConfig">
                   重置默认
@@ -116,6 +253,9 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { ElMessageBox } from 'element-plus'
+import { useStarChartConfigStore } from '@stores/projectPage/starChart'
+import type { ConfigPreset } from '@stores/projectPage/starChart/starChart.config.types'
 
 /**
  * WritingPanel
@@ -126,13 +266,11 @@ import { ref } from 'vue'
 // 默认展开第二个分组（StarChart）
 const activeNames = ref(['category2'])
 
-// StarChart 配置数据
-const nodeSize = ref(40)
-const showLabels = ref(true)
-const edgeWidth = ref(2)
-const showEdgeLabels = ref(false)
-const layoutType = ref('fcose')
-const colorTheme = ref('default')
+// 使用配置store
+const configStore = useStarChartConfigStore()
+
+// 初始化配置
+configStore.loadConfig()
 
 // 打开 StarChart 视图
 const handleOpenStarChart = async () => {
@@ -144,31 +282,36 @@ const handleOpenStarChart = async () => {
   }
 }
 
+// 配置预设变更
+const onPresetChange = (preset: ConfigPreset | 'custom') => {
+  if (preset !== 'custom') {
+    configStore.applyPreset(preset)
+    console.log(`[WritingPanel] 已应用 ${preset} 配置预设`)
+  }
+}
+
+// 更新配置的通用方法
+const updateConfig = (path: string, value: unknown) => {
+  configStore.updateConfig(path, value)
+}
+
 // 应用配置
 const handleApplyConfig = () => {
-  const config = {
-    nodeSize: nodeSize.value,
-    showLabels: showLabels.value,
-    edgeWidth: edgeWidth.value,
-    showEdgeLabels: showEdgeLabels.value,
-    layoutType: layoutType.value,
-    colorTheme: colorTheme.value
-  }
-  
-  console.log('[WritingPanel] 应用 StarChart 配置:', config)
-  // TODO: 实现配置应用逻辑
+  configStore.saveConfig()
+  console.log('[WritingPanel] 配置已保存并应用')
 }
 
 // 重置配置
-const handleResetConfig = () => {
-  nodeSize.value = 40
-  showLabels.value = true
-  edgeWidth.value = 2
-  showEdgeLabels.value = false
-  layoutType.value = 'fcose'
-  colorTheme.value = 'default'
-  
-  console.log('[WritingPanel] 重置 StarChart 配置')
+const handleResetConfig = async () => {
+  try {
+    await ElMessageBox.confirm('确定要重置为默认配置吗？', '重置配置', {
+      type: 'warning'
+    })
+    configStore.resetToDefault()
+    console.log('[WritingPanel] 配置已重置')
+  } catch {
+    // 用户取消
+  }
 }
 </script>
 

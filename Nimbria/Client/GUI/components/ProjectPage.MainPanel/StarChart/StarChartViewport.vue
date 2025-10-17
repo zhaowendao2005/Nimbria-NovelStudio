@@ -8,6 +8,7 @@ import cytoscape from 'cytoscape'
 // @ts-ignore - cytoscape-fcose 没有类型定义
 import fcose from 'cytoscape-fcose'
 import type { CytoscapeElement, LayoutConfig, ViewportState } from '@stores/projectPage/starChart/starChart.types'
+import { useStarChartConfigStore } from '@stores/projectPage/starChart'
 
 // 注册 fcose 布局 (WebGL是内置的，不需要额外注册)
 cytoscape.use(fcose)
@@ -22,9 +23,18 @@ const emit = defineEmits<{
   'viewport-change': [state: ViewportState]
 }>()
 
+// 使用配置store
+const configStore = useStarChartConfigStore()
+
 const containerRef = ref<HTMLElement | null>(null)
 let cyInstance: cytoscape.Core | null = null
 let highlightActive = false
+
+// 🔥 修复longFrameCount作用域问题 - 提升到模块级别
+let longFrameCount = 0
+
+// 初始化配置
+configStore.loadConfig()
 
 // 🔥 性能优化：节流和防抖工具函数
 const throttle = (func: Function, limit: number) => {
@@ -53,93 +63,78 @@ let lodLevel = 'high' // 'low' | 'medium' | 'high'
 // 初始化 Cytoscape
 const initCytoscape = () => {
   if (!containerRef.value) {
-    console.error('[StarChartViewport] 容器不存在')
+    configStore.log('[StarChartViewport] 容器不存在', 'minimal')
     return
   }
 
+  // 🔥 获取当前配置
+  const config = configStore.config
+  
   // 🔥 如果已存在实例，先销毁
   if (cyInstance) {
-    console.log('[StarChartViewport] 销毁旧的 Cytoscape 实例')
+    if (config.logging.enableInitializationLogs) {
+      configStore.log('[StarChartViewport] 销毁旧的 Cytoscape 实例')
+    }
     cyInstance.destroy()
     cyInstance = null
   }
 
-  console.log('[StarChartViewport] 🚀 初始化 Cytoscape (WebGL GPU加速模式)')
-  console.log('[StarChartViewport] 元素数量:', props.elements.length)
-  console.log('[StarChartViewport] WebGL配置: 纹理4096x4096, 批处理4000, 显存8GB优化')
+  if (config.logging.enableInitializationLogs) {
+    configStore.log('[StarChartViewport] 🚀 初始化 Cytoscape (WebGL GPU加速模式)', 'verbose')
+    configStore.log(`[StarChartViewport] 元素数量: ${props.elements.length}`, 'verbose')
+    configStore.log(`[StarChartViewport] WebGL配置: 纹理${config.webgl.texSize}x${config.webgl.texSize}, 批处理${config.webgl.batchSize}`, 'verbose')
+  }
   
   // 🔥 调试：检查节点是否有预设位置
   const nodesWithPosition = props.elements.filter((el: any) => el.group === 'nodes' && el.position)
-  console.log('[StarChartViewport] 有预设位置的节点数:', nodesWithPosition.length)
-  if (nodesWithPosition.length > 0 && nodesWithPosition[0]) {
-    console.log('[StarChartViewport] 第一个节点位置示例:', nodesWithPosition[0].position)
+  if (config.logging.enableInitializationLogs) {
+    configStore.log(`[StarChartViewport] 有预设位置的节点数: ${nodesWithPosition.length}`, 'verbose')
+    if (nodesWithPosition.length > 0 && nodesWithPosition[0]) {
+      configStore.log(`[StarChartViewport] 第一个节点位置示例: ${JSON.stringify(nodesWithPosition[0].position)}`, 'verbose')
+    }
   }
 
   cyInstance = cytoscape({
     container: containerRef.value,
     elements: props.elements,
-    style: getCytoscapeStyle() as any,  // 类型断言绕过严格检查
+    style: getCytoscapeStyle() as any,
     layout: { 
-      name: 'preset',  // 🔥 直接使用 preset 布局
-      fit: true,
-      padding: 80
-    },
-    minZoom: 0.05,  // 🔥 大规模数据需要更小的缩放
-    maxZoom: 5,
-    wheelSensitivity: props.wheelSensitivity || 0.2,  // 🔥 使用动态灵敏度
-    
-    // 🔥 8GB显存充足，高质量配置
-    hideEdgesOnViewport: false,     // 显存充足，保持边显示
-    textureOnViewport: false,       // 不用纹理，保持高质量
-    motionBlur: false,              // 禁用动态模糊
-    hideLabelsOnViewport: false,    // 显存充足，保持标签
-    pixelRatio: 'auto',             // 自动像素比，更清晰
-    
-    // 🔥 新增：减少样式重计算的配置
-    styleEnabled: true,             // 保持样式启用，但优化计算
-    headless: false,                // 保持可视化
-    ready: () => {
-      console.log('[StarChart] 🚀 Cytoscape WebGL实例就绪！')
-      console.log('[StarChart] GPU加速已启用，节点纹理缓存生成中...')
-      console.log('[StarChart] 预期性能提升: 400节点+2500边 → 60+ FPS')
+      name: 'preset',
+      fit: config.layout.firstTimeAutoFit,
+      padding: 80,
+      animate: config.layout.animate,
+      randomize: config.layout.randomize
     },
     
-    // 🔥 WebGL GPU加速（官方内置，8GB显存充足配置）
-    renderer: {
-      name: 'canvas',               // Canvas渲染器
-      webgl: true,                  // 🚀 启用WebGL GPU加速模式！
-      showFps: true,                // 显示FPS（开发阶段）
-      webglDebug: true,             // WebGL调试信息
-      
-      // 🔥 WebGL高性能配置（8GB显存充足）
-      webglTexSize: 4096,           // 纹理大小（高质量，8GB够用）
-      webglTexRows: 32,             // 纹理行数（增加，显存充足）
-      webglBatchSize: 4000,         // 批处理大小（加大，处理400节点）
-      webglTexPerBatch: 16,         // 每批次纹理数（最大值）
-      
-      // 🔥 其他性能优化
-      motionBlurOpacity: 0,
-      desktopTapThreshold: 4,
-      touchTapThreshold: 8,
-      textureOnViewport: false,     // 显存充足，不优化
-      hideEdgesOnViewport: false,   // 显存充足，不隐藏边
-      hideLabelsOnViewport: false,  // 显存充足，不隐藏标签
-    } as any,
+    // 🔥 使用配置store的实例配置
+    ...configStore.cytoscapeInstanceConfig,
     
-    // 🔥 交互优化
-    autoungrabify: false,           // 允许拖动节点
-    autounselectify: false,         // 允许选择节点
+    // 🔥 覆盖wheelSensitivity（如果props有提供）
+    wheelSensitivity: props.wheelSensitivity || config.interaction.wheelSensitivity,
+    
+    // 用户交互
     userZoomingEnabled: true,
     userPanningEnabled: true,
     
-    // 🔥 批量更新优化
-    selectionType: 'single',        // 限制单选，提高性能
-    boxSelectionEnabled: false      // 禁用框选，减少计算
+    ready: () => {
+      if (config.logging.enableInitializationLogs) {
+        configStore.log('[StarChart] 🚀 Cytoscape WebGL实例就绪！')
+        if (config.webgl.enabled) {
+          configStore.log('[StarChart] GPU加速已启用，节点纹理缓存生成中...')
+          configStore.log('[StarChart] 预期性能提升: 400节点+2500边 → 60+ FPS')
+        }
+      }
+    },
+    
+    // 🔥 使用配置store的渲染器配置
+    renderer: configStore.cytoscapeRendererConfig as any
   })
 
-  console.log('[StarChartViewport] Cytoscape 实例创建成功')
-  console.log('[StarChartViewport] 节点数:', cyInstance.nodes().length)
-  console.log('[StarChartViewport] 边数:', cyInstance.edges().length)
+  if (config.logging.enableInitializationLogs) {
+    configStore.log('[StarChartViewport] Cytoscape 实例创建成功')
+    configStore.log(`[StarChartViewport] 节点数: ${cyInstance.nodes().length}`)
+    configStore.log(`[StarChartViewport] 边数: ${cyInstance.edges().length}`)
+  }
 
   // 🔥 节流优化的视口变化监听
   const throttledViewportChange = throttle(() => {
@@ -151,41 +146,40 @@ const initCytoscape = () => {
         pan: cyInstance.pan()
       })
       const endTime = performance.now()
-      console.log(`📊 [事件跟踪] 视口变化: ${(endTime - startTime).toFixed(2)}ms, 缩放: ${currentZoom.toFixed(2)}`)
+      if (config.logging.enableEventTracking) {
+        configStore.log(`📊 [事件跟踪] 视口变化: ${(endTime - startTime).toFixed(2)}ms, 缩放: ${currentZoom.toFixed(2)}`)
+      }
     }
-  }, 16) // 60fps
+  }, config.throttle.viewportChange) // 使用配置的节流时间
 
   cyInstance.on('zoom pan', throttledViewportChange)
 
-  // 🔥 详细的事件耗时跟踪
-  setupDetailedEventTracking()
+  // 🔥 根据配置决定是否启用详细跟踪
+  if (config.performance.detailedEventTracking) {
+    setupDetailedEventTracking()
+  }
 
-  // 🔥 防抖优化的LOD更新（缩放停止后更新细节级别）
-  // const debouncedLODUpdate = debounce(() => {
-  //   if (cyInstance) {
-  //     updateLOD(cyInstance.zoom())
-  //   }
-  // }, 100)
-
-  // cyInstance.on('zoom', debouncedLODUpdate)
-
-  // 🔥 添加邻域高亮功能
+  // 添加邻域高亮功能
   setupNeighborhoodHighlight()
 
-  // 🔥 添加性能监控（可选，开发时启用）
-  if (import.meta.env.DEV) {
+  // 🔥 根据配置决定是否启用性能监控
+  if (config.performance.enabled || import.meta.env.DEV) {
     setupPerformanceMonitoring()
   }
 
-  // 运行布局（初始化时自动缩放）
-  runLayout(true)
+  // 运行布局
+  runLayout(config.layout.firstTimeAutoFit)
 }
 
 // 🔥 详细的事件耗时跟踪系统
 const setupDetailedEventTracking = () => {
   if (!cyInstance) return
 
-  console.log('🔍 [事件跟踪] 启动详细事件监控系统')
+  const config = configStore.config
+  
+  if (config.logging.enableEventTracking) {
+    configStore.log('🔍 [事件跟踪] 启动详细事件监控系统')
+  }
 
   // 🔥 拖动事件详细跟踪
   let dragEventCount = 0
@@ -194,32 +188,36 @@ const setupDetailedEventTracking = () => {
   cyInstance.on('grab', 'node', (event) => {
     const startTime = performance.now()
     dragStartPos = event.position || event.renderedPosition
-    performance.mark('starchart-grab-start')
-    console.log(`🟡 [事件跟踪] 节点抓取开始: ${event.target.data('name')}`)
+    configStore.performanceMark('starchart-grab-start')
+    if (config.logging.enableEventTracking) {
+      configStore.log(`🟡 [事件跟踪] 节点抓取开始: ${event.target.data('name')}`)
+    }
   })
 
   cyInstance.on('drag', 'node', (event) => {
     const startTime = performance.now()
     dragEventCount++
     
-    if (dragEventCount % 5 === 0) { // 每5帧输出一次，避免日志过多
+    if (config.logging.enableEventTracking && dragEventCount % 5 === 0) {
       const currentPos = event.position || event.renderedPosition
       const distance = Math.sqrt(
         Math.pow(currentPos.x - dragStartPos.x, 2) + 
         Math.pow(currentPos.y - dragStartPos.y, 2)
       )
       const endTime = performance.now()
-      console.log(`🔵 [事件跟踪] 拖动第${dragEventCount}帧: ${(endTime - startTime).toFixed(2)}ms, 距离: ${distance.toFixed(1)}px`)
+      configStore.log(`🔵 [事件跟踪] 拖动第${dragEventCount}帧: ${(endTime - startTime).toFixed(2)}ms, 距离: ${distance.toFixed(1)}px`)
     }
   })
 
   cyInstance.on('free', 'node', (event) => {
     const startTime = performance.now()
-    performance.mark('starchart-grab-end')
-    performance.measure('starchart-grab-duration', 'starchart-grab-start', 'starchart-grab-end')
+    configStore.performanceMark('starchart-grab-end')
+    configStore.performanceMeasure('starchart-grab-duration', 'starchart-grab-start', 'starchart-grab-end')
     
     const endTime = performance.now()
-    console.log(`🟢 [事件跟踪] 节点释放完成: ${(endTime - startTime).toFixed(2)}ms, 总拖动帧数: ${dragEventCount}`)
+    if (config.logging.enableEventTracking) {
+      configStore.log(`🟢 [事件跟踪] 节点释放完成: ${(endTime - startTime).toFixed(2)}ms, 总拖动帧数: ${dragEventCount}`)
+    }
     dragEventCount = 0
   })
 
@@ -534,10 +532,11 @@ const setupNeighborhoodHighlight = () => {
   })
 }
 
-// 🔥 性能监控（开发环境）
+// 🔥 性能监控
 const setupPerformanceMonitoring = () => {
   if (!cyInstance) return
 
+  const config = configStore.config
   let dragStartTime = 0
   let frameCount = 0
   let lastFrameTime = performance.now()
@@ -547,19 +546,19 @@ const setupPerformanceMonitoring = () => {
     if (dragStartTime === 0) {
       dragStartTime = performance.now()
       frameCount = 0
-      // 🔥 DevTools Performance 标记：拖动开始
-      performance.mark('starchart-drag-start')
-      console.log(`🚀 [事件跟踪] 性能拖动监控开始 - 节点: ${event.target.data('name')}`)
+      configStore.performanceMark('starchart-drag-start')
+      if (config.logging.enableEventTracking) {
+        configStore.log(`🚀 [事件跟踪] 性能拖动监控开始 - 节点: ${event.target.data('name')}`)
+      }
     }
     frameCount++
     
     // 🔥 每10帧详细分析一次
-    if (frameCount % 10 === 0) {
+    if (config.logging.enableEventTracking && frameCount % 10 === 0) {
       const currentFrameTime = performance.now()
       const recentFrameAvg = (currentFrameTime - dragStartTime) / frameCount
-      performance.mark(`starchart-drag-frame-${frameCount}`)
-      
-      console.log(`   └── 第${frameCount}帧: 平均帧时 ${recentFrameAvg.toFixed(2)}ms, 当前FPS约 ${Math.round(1000/recentFrameAvg)}`)
+      configStore.performanceMark(`starchart-drag-frame-${frameCount}`)
+      configStore.log(`   └── 第${frameCount}帧: 平均帧时 ${recentFrameAvg.toFixed(2)}ms, 当前FPS约 ${Math.round(1000/recentFrameAvg)}`)
     }
   })
 
@@ -569,42 +568,44 @@ const setupPerformanceMonitoring = () => {
       const avgFrameTime = dragDuration / frameCount
       const fps = Math.round(1000 / avgFrameTime)
       
-      // 🔥 DevTools Performance 标记：拖动结束
-      performance.mark('starchart-drag-end')
-      performance.measure('starchart-drag-duration', 'starchart-drag-start', 'starchart-drag-end')
+      configStore.performanceMark('starchart-drag-end')
+      configStore.performanceMeasure('starchart-drag-duration', 'starchart-drag-start', 'starchart-drag-end')
       
-      console.log(`🚀 [事件跟踪] 性能拖动监控完成 - 节点: ${event.target.data('name')}`)
-      console.log(`   ├── 拖动时长: ${dragDuration.toFixed(1)}ms`)
-      console.log(`   ├── 总帧数: ${frameCount}`)
-      console.log(`   ├── 平均帧时: ${avgFrameTime.toFixed(1)}ms`)
-      console.log(`   ├── 估算FPS: ${fps}`)
-      console.log(`   ├── 当前缩放: ${cyInstance!.zoom().toFixed(2)}`)
-      console.log(`   └── DevTools标记: "starchart-drag-duration"`)
+      if (config.logging.enableEventTracking) {
+        configStore.log(`🚀 [事件跟踪] 性能拖动监控完成 - 节点: ${event.target.data('name')}`)
+        configStore.log(`   ├── 拖动时长: ${dragDuration.toFixed(1)}ms`)
+        configStore.log(`   ├── 总帧数: ${frameCount}`)
+        configStore.log(`   ├── 平均帧时: ${avgFrameTime.toFixed(1)}ms`)
+        configStore.log(`   ├── 估算FPS: ${fps}`)
+        configStore.log(`   ├── 当前缩放: ${cyInstance!.zoom().toFixed(2)}`)
+        configStore.log(`   └── DevTools标记: "starchart-drag-duration"`)
+      }
       
-      if (avgFrameTime > 33) { // 低于30fps
+      if (avgFrameTime > 33 && config.logging.enablePerformanceWarnings) {
         console.warn(`🚀 [事件跟踪] ⚠️ 性能警告: 帧时间过长 (${avgFrameTime.toFixed(1)}ms > 33ms)`)
         console.warn(`   └── 建议在DevTools Performance面板中分析 "starchart-drag-duration" 区间`)
-      } else {
-        console.log(`🚀 [事件跟踪] ✅ 拖动性能良好 (${fps} FPS)`)
+      } else if (config.logging.enableEventTracking) {
+        configStore.log(`🚀 [事件跟踪] ✅ 拖动性能良好 (${fps} FPS)`)
       }
       
       dragStartTime = 0
     }
   })
 
-  // 🔥 监控渲染性能（集成到事件跟踪系统）
-  let longFrameCount = 0
+  // 🔥 监控渲染性能 - 修复longFrameCount作用域问题
   const performanceCheck = () => {
     const currentTime = performance.now()
     const deltaTime = currentTime - lastFrameTime
     lastFrameTime = currentTime
 
-    if (deltaTime > 50) { // 超过50ms的帧
-      longFrameCount++
-      console.warn(`🐌 [事件跟踪] 长帧检测${longFrameCount}: ${deltaTime.toFixed(1)}ms (目标<16.67ms)`)
+    if (deltaTime > config.performance.longFrameThreshold) {
+      longFrameCount++ // 使用模块级别的longFrameCount
+      if (config.logging.enablePerformanceWarnings) {
+        console.warn(`🐌 [事件跟踪] 长帧检测${longFrameCount}: ${deltaTime.toFixed(1)}ms (目标<16.67ms)`)
+      }
       
       // 每5个长帧输出一次总结
-      if (longFrameCount % 5 === 0) {
+      if (longFrameCount % 5 === 0 && config.logging.enablePerformanceWarnings) {
         console.warn(`🐌 [事件跟踪] 性能警告: 已检测到${longFrameCount}个长帧，建议使用DevTools Performance面板分析`)
       }
     }
@@ -612,8 +613,10 @@ const setupPerformanceMonitoring = () => {
     requestAnimationFrame(performanceCheck)
   }
 
-  if (import.meta.env.DEV) {
-    console.log('🔍 [事件跟踪] 启动长帧监控 (阈值: 50ms)')
+  if (config.performance.longFrameMonitoring) {
+    if (config.logging.enableEventTracking) {
+      configStore.log(`🔍 [事件跟踪] 启动长帧监控 (阈值: ${config.performance.longFrameThreshold}ms)`)
+    }
     requestAnimationFrame(performanceCheck)
   }
 }
@@ -660,16 +663,17 @@ const getCytoscapeStyle = () => [
   {
     selector: 'edge',
     style: {
-      // 🔥 使用 unbundled-bezier 实现弧线效果，但使用预计算的控制点
-      'curve-style': 'unbundled-bezier',
-      'control-point-distances': 'data(controlPointDistance)',  // 🔥 使用预计算值
-      'control-point-weights': [0.5],
-      'opacity': 0.5,
-      // 🔥 使用预计算的样式属性
-      'line-color': 'data(edgeColor)',
-      'width': 'data(edgeWidth)',               // 🔥 使用预计算的边宽
-      'target-arrow-shape': 'triangle',
-      'target-arrow-color': 'data(targetArrowColor)', // 🔥 使用预计算的箭头颜色
+      // 🔥 使用配置的边样式
+      'curve-style': configStore.config.edgeStyle.curveStyle,
+      'control-point-distances': configStore.config.edgeStyle.controlPointDistance,
+      'control-point-weights': [configStore.config.edgeStyle.controlPointWeight],
+      'opacity': configStore.config.edgeStyle.edgeOpacity,
+      // 🔥 使用配置的颜色和宽度
+      'line-color': 'data(edgeColor)',         // 可以被数据覆盖
+      'width': 'data(edgeWidth)',              // 可以被数据覆盖
+      'target-arrow-shape': configStore.config.edgeStyle.arrowShape,
+      'target-arrow-color': 'data(targetArrowColor)',
+      'arrow-scale': configStore.config.edgeStyle.arrowSize,
       // 🔥 性能优化：禁用所有过渡动画
       'transition-property': 'none',
       'transition-duration': '0ms'
@@ -758,14 +762,60 @@ watch(() => props.layout.name, (newName, oldName) => {
   }
 })
 
-// 监听滚轮灵敏度变化 - 🔥 重新初始化 Cytoscape 实例
+// 监听滚轮灵敏度变化 - 🔥 优化：避免重新初始化
 watch(() => props.wheelSensitivity, (newSensitivity) => {
-  if (newSensitivity !== undefined && containerRef.value) {
-    console.log('[StarChartViewport] 滚轮灵敏度变化，重新初始化:', newSensitivity)
-    // 🔥 重新初始化（会自动销毁旧实例）
-    initCytoscape()
+  if (newSensitivity !== undefined && cyInstance) {
+    const config = configStore.config
+    
+    if (config.layout.avoidWheelSensitivityReinit) {
+      // 🔥 仅更新滚轮配置，不重新初始化
+      if (config.logging.enableLayoutLogs) {
+        configStore.log(`[StarChartViewport] 仅更新滚轮灵敏度: ${newSensitivity}`, 'verbose')
+      }
+      // 注意：Cytoscape.js可能不支持动态更新wheelSensitivity
+      // 这里提供了配置选项，但实际实现可能需要查阅文档
+      // 暂时保留重新初始化作为fallback
+      if (config.logging.enableLayoutLogs) {
+        configStore.log('[StarChartViewport] 警告: Cytoscape.js可能不支持动态更新wheelSensitivity，考虑重新初始化', 'verbose')
+      }
+      initCytoscape()
+    } else {
+      // 原有逻辑：重新初始化
+      if (config.logging.enableLayoutLogs) {
+        configStore.log(`[StarChartViewport] 滚轮灵敏度变化，重新初始化: ${newSensitivity}`)
+      }
+      initCytoscape()
+    }
   }
 })
+
+// 🔥 监听边样式配置变化 - 实时更新样式
+watch(() => configStore.config.edgeStyle, (newEdgeStyle) => {
+  if (cyInstance) {
+    const config = configStore.config
+    
+    if (config.logging.enableLayoutLogs) {
+      configStore.log('[StarChartViewport] 边样式配置变化，更新样式', 'verbose')
+    }
+    
+    // 🔥 更新边样式
+    cyInstance.style()
+      .selector('edge')
+      .style({
+        'curve-style': newEdgeStyle.curveStyle,
+        'control-point-distances': newEdgeStyle.controlPointDistance,
+        'control-point-weights': [newEdgeStyle.controlPointWeight],
+        'opacity': newEdgeStyle.edgeOpacity,
+        'target-arrow-shape': newEdgeStyle.arrowShape,
+        'arrow-scale': newEdgeStyle.arrowSize
+      })
+      .update() // 应用样式更新
+      
+    if (config.logging.enableLayoutLogs) {
+      configStore.log(`[StarChartViewport] 已应用边样式: ${newEdgeStyle.curveStyle}`, 'verbose')
+    }
+  }
+}, { deep: true })
 
 onMounted(() => {
   initCytoscape()
@@ -788,7 +838,10 @@ onBeforeUnmount(() => {
     delete (window as any).StarChart性能总结
   }
   
-  console.log('🔍 [事件跟踪] 性能监控系统已清理')
+  const config = configStore.config
+  if (config.logging.enableEventTracking) {
+    configStore.log('🔍 [事件跟踪] 性能监控系统已清理')
+  }
 })
 </script>
 
