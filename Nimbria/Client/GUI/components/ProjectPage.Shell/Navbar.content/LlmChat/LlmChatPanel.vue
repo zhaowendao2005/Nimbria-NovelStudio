@@ -22,7 +22,7 @@
             <span 
               class="tab-label"
               @dblclick.stop="handleRenameConversation(conversation)"
-              @contextmenu.prevent="handleTabContextMenu($event, conversation)"
+              @contextmenu.stop.prevent="handleTabContextMenu($event, conversation)"
             >
               {{ conversation.title }}
             </span>
@@ -96,41 +96,13 @@
     <ChatHistoryDialog v-model="showHistoryDialog" />
 
     <!-- 右键菜单 -->
-    <el-dropdown
+    <ContextMenu
       v-model:visible="showContextMenu"
-      trigger="contextmenu"
-      :teleported="false"
-      @command="handleContextCommand"
-    >
-      <span></span>
-      <template #dropdown>
-        <el-dropdown-menu v-if="contextMenuConversation">
-          <el-dropdown-item command="rename">
-            <el-icon><Edit /></el-icon>
-            重命名
-          </el-dropdown-item>
-          <el-dropdown-item command="export">
-            <el-icon><Download /></el-icon>
-            导出对话
-          </el-dropdown-item>
-          
-          <!-- 🔥 新增：拆分选项 -->
-          <el-dropdown-item command="split-to-panel" divided>
-            <el-icon><Grid /></el-icon>
-            拆分到主面板
-          </el-dropdown-item>
-          <el-dropdown-item command="split-to-window">
-            <el-icon><FullScreen /></el-icon>
-            拆分到新窗口
-          </el-dropdown-item>
-          
-          <el-dropdown-item command="close" divided>
-            <el-icon><Close /></el-icon>
-            关闭标签
-          </el-dropdown-item>
-        </el-dropdown-menu>
-      </template>
-    </el-dropdown>
+      :x="contextMenuX"
+      :y="contextMenuY"
+      :items="contextMenuItems"
+      @select="handleMenuSelect"
+    />
   </div>
 </template>
 
@@ -143,10 +115,7 @@ import {
   More, 
   Download, 
   Setting, 
-  Close,
-  Edit,
-  Grid,
-  FullScreen
+  Close
 } from '@element-plus/icons-vue'
 import { useLlmChatStore } from '@stores/llmChat/llmChatStore'
 import type { Conversation } from '../../../../../types/llmChat'
@@ -154,13 +123,60 @@ import ChatMessages from './ChatMessages.vue'
 import ChatInput from './ChatInput.vue'
 import ChatHistoryDialog from './ChatHistoryDialog.vue'
 import { CustomPageAPI } from '../../../../../Service/CustomPageManager'
+import ContextMenu from '../../../ProjectPage.MainPanel/PaneSystem/ContextMenu.vue'
+import type { PaneContextMenuItem } from '../../../../../stores/projectPage/paneLayout/types'
 
 const llmChatStore = useLlmChatStore()
 
 // 状态
 const showHistoryDialog = ref(false)
 const showContextMenu = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
 const contextMenuConversation = ref<Conversation | null>(null)
+
+// 菜单项配置
+const contextMenuItems: PaneContextMenuItem[] = [
+  {
+    action: 'rename',
+    label: '重命名',
+    icon: 'edit'
+  },
+  {
+    action: 'export',
+    label: '导出对话',
+    icon: 'download'
+  },
+  // 🔥 分隔线
+  {
+    action: '',
+    label: '',
+    icon: '',
+    divider: true
+  },
+  {
+    action: 'split-to-panel',
+    label: '拆分到主面板',
+    icon: 'grid'
+  },
+  {
+    action: 'split-to-window',
+    label: '拆分到新窗口',
+    icon: 'full-screen'
+  },
+  // 🔥 分隔线  
+  {
+    action: '',
+    label: '',
+    icon: '',
+    divider: true
+  },
+  {
+    action: 'close',
+    label: '关闭标签',
+    icon: 'close'
+  }
+]
 
 // 初始化
 onMounted(async () => {
@@ -277,17 +293,21 @@ const handleRenameConversation = async (conversation: Conversation) => {
 
 // 右键菜单
 const handleTabContextMenu = (event: MouseEvent, conversation: Conversation) => {
+  console.log('🖱️ [LlmChatPanel] Right click on tab:', conversation.title)
   event.preventDefault()
   contextMenuConversation.value = conversation
+  contextMenuX.value = event.clientX
+  contextMenuY.value = event.clientY
   showContextMenu.value = true
+  console.log('🖱️ [LlmChatPanel] Context menu should show at:', event.clientX, event.clientY)
 }
 
-const handleContextCommand = async (command: string) => {
-  if (!contextMenuConversation.value) return
+const handleMenuSelect = async (action: string) => {
+  if (!contextMenuConversation.value || !action) return
   
   const conversation = contextMenuConversation.value
   
-  switch (command) {
+  switch (action) {
     case 'rename':
       await handleRenameConversation(conversation)
       break
@@ -299,7 +319,7 @@ const handleContextCommand = async (command: string) => {
     // 🔥 拆分到主面板
     case 'split-to-panel':
       try {
-        CustomPageAPI.open('llmchat-conversation', {
+        await CustomPageAPI.open('llmchat-conversation', {
           params: { conversationId: conversation.id }
         })
         ElMessage.success('已在主面板打开对话')
@@ -321,9 +341,10 @@ const handleContextCommand = async (command: string) => {
         const result = await window.nimbria.project.detachTabToWindow({
           tabId: `llmchat-${conversation.id}`,
           tabData: {
+            id: `llmchat-${conversation.id}`,
+            title: conversation.title,
             tabType: 'llmchat',
-            conversationId: conversation.id,
-            title: conversation.title
+            conversationId: conversation.id
           },
           projectPath
         })
@@ -345,6 +366,7 @@ const handleContextCommand = async (command: string) => {
   }
   
   contextMenuConversation.value = null
+  showContextMenu.value = false
 }
 
 // 下拉菜单命令
