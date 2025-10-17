@@ -108,9 +108,27 @@ export function registerLlmChatHandlers(llmChatService: LlmChatService) {
       if (!conversation) {
         return { success: false, error: 'Conversation not found' }
       }
-      return { success: true, conversation }
+      return { success: true, data: conversation }
     } catch (error: any) {
       console.error('Failed to get conversation:', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  /**
+   * 🔥 获取对话的所有消息
+   */
+  ipcMain.handle('llm-chat:get-messages', async (event, args: {
+    conversationId: string
+  }) => {
+    try {
+      const conversation = llmChatService.getConversation(args.conversationId)
+      if (!conversation) {
+        return { success: false, error: 'Conversation not found' }
+      }
+      return { success: true, data: conversation.messages || [] }
+    } catch (error: any) {
+      console.error('Failed to get messages:', error)
       return { success: false, error: error.message }
     }
   })

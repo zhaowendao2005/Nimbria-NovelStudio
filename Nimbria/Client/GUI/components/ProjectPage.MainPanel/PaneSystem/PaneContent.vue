@@ -35,6 +35,12 @@
         <DocParserPanel
           v-else-if="localActiveTabId && activeTabType === 'docparser'"
         />
+        <!-- 🔥 LLM Chat 类型 -->
+        <LlmChatTab
+          v-else-if="localActiveTabId && activeTabType === 'llmchat'"
+          :tab-id="localActiveTabId"
+          :conversation-id="llmchatConversationId"
+        />
         
         <!-- 动态渲染自定义页面 -->
         <component 
@@ -105,6 +111,7 @@ import type { PaneContextMenuItem, SplitAction } from '@stores/projectPage/paneL
 import { CustomPageAPI } from '../../../../Service/CustomPageManager'
 import MarkdownTab from '@components/ProjectPage.MainPanel/Markdown/MarkdownTab.vue'
 import { DocParserPanel } from '@components/ProjectPage.MainPanel/DocParser'
+import { LlmChatTab } from '@components/ProjectPage.MainPanel/LlmChat'
 import DraggableTabBar from './DraggableTabBar.vue'
 import ContextMenu from './ContextMenu.vue'
 
@@ -216,6 +223,16 @@ const customPageInstanceId = computed(() => {
   
   const instance = CustomPageAPI.findInstanceByTabId(localActiveTabId.value)
   return instance?.id || null
+})
+
+/**
+ * 🔥 LLM Chat 对话ID（如果当前标签是llmchat类型）
+ */
+const llmchatConversationId = computed(() => {
+  if (activeTabType.value !== 'llmchat') return undefined
+  
+  const instance = CustomPageAPI.findInstanceByTabId(localActiveTabId.value)
+  return instance?.params?.conversationId
 })
 
 /**
@@ -418,7 +435,12 @@ const handleDetachToWindow = async (tabId: string) => {
     }
     
     // 根据标签页类型准备不同的数据
-    if (tab.type === 'starchart') {  // 🔥 使用 tab.type
+    if (tab.type === 'llmchat') {
+      // 🔥 LLM Chat 类型：只传递 conversationId
+      const instance = CustomPageAPI.findInstanceByTabId(tabId)
+      tabData.conversationId = instance?.params?.conversationId
+      console.log('[PaneContent] Detaching LLM chat conversation:', tabData.conversationId)
+    } else if (tab.type === 'starchart') {  // 🔥 使用 tab.type
       // 🔥 StarChart 类型：传递 Store 状态
       const { useStarChartStore, useStarChartConfigStore } = await import('@stores/projectPage/starChart')
       const starChartStore = useStarChartStore()

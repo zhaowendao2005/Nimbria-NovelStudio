@@ -113,6 +113,17 @@
             <el-icon><Download /></el-icon>
             导出对话
           </el-dropdown-item>
+          
+          <!-- 🔥 新增：拆分选项 -->
+          <el-dropdown-item command="split-to-panel" divided>
+            <el-icon><Grid /></el-icon>
+            拆分到主面板
+          </el-dropdown-item>
+          <el-dropdown-item command="split-to-window">
+            <el-icon><FullScreen /></el-icon>
+            拆分到新窗口
+          </el-dropdown-item>
+          
           <el-dropdown-item command="close" divided>
             <el-icon><Close /></el-icon>
             关闭标签
@@ -133,13 +144,16 @@ import {
   Download, 
   Setting, 
   Close,
-  Edit
+  Edit,
+  Grid,
+  FullScreen
 } from '@element-plus/icons-vue'
 import { useLlmChatStore } from '@stores/llmChat/llmChatStore'
 import type { Conversation } from '../../../../../types/llmChat'
 import ChatMessages from './ChatMessages.vue'
 import ChatInput from './ChatInput.vue'
 import ChatHistoryDialog from './ChatHistoryDialog.vue'
+import { CustomPageAPI } from '../../../../../Service/CustomPageManager'
 
 const llmChatStore = useLlmChatStore()
 
@@ -281,6 +295,50 @@ const handleContextCommand = async (command: string) => {
       // TODO: 实现导出功能
       ElMessage.info('导出功能开发中...')
       break
+    
+    // 🔥 拆分到主面板
+    case 'split-to-panel':
+      try {
+        CustomPageAPI.open('llmchat-conversation', {
+          params: { conversationId: conversation.id }
+        })
+        ElMessage.success('已在主面板打开对话')
+      } catch (error) {
+        console.error('[LlmChatPanel] Failed to open in main panel:', error)
+        ElMessage.error('打开失败')
+      }
+      break
+    
+    // 🔥 拆分到新窗口
+    case 'split-to-window':
+      try {
+        const projectPath = window.nimbria?.getCurrentProjectPath?.()
+        if (!projectPath) {
+          ElMessage.error('无法获取项目路径')
+          return
+        }
+        
+        const result = await window.nimbria.project.detachTabToWindow({
+          tabId: `llmchat-${conversation.id}`,
+          tabData: {
+            tabType: 'llmchat',
+            conversationId: conversation.id,
+            title: conversation.title
+          },
+          projectPath
+        })
+        
+        if (result.success) {
+          ElMessage.success('已在新窗口打开对话')
+        } else {
+          ElMessage.error('打开新窗口失败')
+        }
+      } catch (error) {
+        console.error('[LlmChatPanel] Failed to open in new window:', error)
+        ElMessage.error('打开失败')
+      }
+      break
+    
     case 'close':
       handleTabRemove(conversation.id)
       break

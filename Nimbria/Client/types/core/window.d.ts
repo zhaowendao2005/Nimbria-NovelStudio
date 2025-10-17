@@ -166,10 +166,11 @@ export interface NimbriaWindowAPI {
       tabData: {
         id: string
         title: string
-        tabType?: string  // 标签页类型 (如 'markdown', 'starchart' 等)
+        tabType?: string  // 标签页类型 (如 'markdown', 'starchart', 'llmchat' 等)
         filePath?: string  // 文件类型标签的路径（可选）
         content?: string   // 文件内容（可选）
         isDirty?: boolean  // 是否有未保存更改（可选）
+        conversationId?: string  // 🔥 LLM Chat 对话ID（llmchat 类型使用）
         storeState?: any   // 非文件类型标签的状态数据（如 StarChart 的 Store 状态）
       }
       projectPath: string 
@@ -621,7 +622,8 @@ export interface NimbriaWindowAPI {
     // 对话管理
     createConversation: (args: { modelId: string; settings?: any }) => Promise<{ success: boolean; conversationId?: string; error?: string }>
     getConversations: () => Promise<{ success: boolean; conversations?: any[]; error?: string }>
-    getConversation: (conversationId: string) => Promise<{ success: boolean; conversation?: any; error?: string }>
+    getConversation: (conversationId: string) => Promise<{ success: boolean; data?: any; error?: string }>
+    getMessages: (conversationId: string) => Promise<{ success: boolean; data?: any[]; error?: string }>
     deleteConversation: (conversationId: string) => Promise<{ success: boolean; error?: string }>
     updateTitle: (conversationId: string, title: string) => Promise<{ success: boolean; error?: string }>
     updateSettings: (conversationId: string, settings: any) => Promise<{ success: boolean; error?: string }>

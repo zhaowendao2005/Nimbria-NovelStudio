@@ -66,9 +66,15 @@ contextBridge.exposeInMainWorld('nimbria', {
       tabData: {
         id: string
         title: string
-        filePath: string
-        content: string
-        isDirty: boolean
+        tabType?: string
+        // Markdown/File 类型
+        filePath?: string
+        content?: string
+        isDirty?: boolean
+        // LLM Chat 类型
+        conversationId?: string
+        // StarChart 类型
+        storeState?: any
       }
       projectPath: string 
     }) => 
@@ -234,6 +240,8 @@ contextBridge.exposeInMainWorld('nimbria', {
       ipcRenderer.invoke('llm-chat:get-conversations'),
     getConversation: (conversationId: string) =>
       ipcRenderer.invoke('llm-chat:get-conversation', { conversationId }),
+    getMessages: (conversationId: string) =>
+      ipcRenderer.invoke('llm-chat:get-messages', { conversationId }),
     deleteConversation: (conversationId: string) =>
       ipcRenderer.invoke('llm-chat:delete-conversation', { conversationId }),
     updateTitle: (conversationId: string, title: string) =>

@@ -226,8 +226,8 @@ export const useLlmChatStore = defineStore('llmChat', {
           this.streamingContent = ''
           this.isSending = false
           
-          // 重新加载对话以获取完整数据
-          void this.loadConversation(data.conversationId)
+          // ❌ 移除重复加载：对话已经在 onConversationCreated 中添加
+          // 消息会通过流式事件实时更新，不需要重新加载整个对话
         }
       })
 
@@ -304,16 +304,69 @@ export const useLlmChatStore = defineStore('llmChat', {
       try {
         const response = await window.nimbria.llmChat.getConversation(conversationId)
         
-        if (response.success && response.conversation) {
+        // ✅ 修复：使用 response.data 而不是 response.conversation
+        if (response.success && response.data) {
           const index = this.conversations.findIndex(c => c.id === conversationId)
           if (index !== -1) {
-            this.conversations[index] = response.conversation
+            this.conversations[index] = response.data
           } else {
-            this.conversations.push(response.conversation)
+            this.conversations.push(response.data)
           }
         }
       } catch (error) {
         console.error('加载对话失败:', error)
+      }
+    },
+
+    /**
+     * 🔥 按ID加载单个对话（用于窗口拆分、标签页恢复等场景）
+     * 这个方法会加载完整的对话数据包括消息历史
+     */
+    async loadConversationById(conversationId: string): Promise<Conversation> {
+      console.log('[Store] Loading conversation by ID:', conversationId)
+      
+      // 1. 检查是否已加载
+      const existing = this.conversations.find(c => c.id === conversationId)
+      if (existing) {
+        console.log('[Store] Conversation already loaded, setting as active')
+        this.activeConversationId = conversationId
+        return existing
+      }
+      
+      try {
+        // 2. 从后端加载对话基本信息
+        const convResponse = await window.nimbria.llmChat.getConversation(conversationId)
+        if (!convResponse.success || !convResponse.data) {
+          throw new Error('对话不存在')
+        }
+        
+        console.log('[Store] Conversation loaded:', convResponse.data)
+        
+        // 3. 加载消息历史
+        console.log('[Store] Loading messages for conversation:', conversationId)
+        const messagesResponse = await window.nimbria.llmChat.getMessages(conversationId)
+        const messages = messagesResponse.success ? (messagesResponse.data || []) : []
+        
+        console.log('[Store] Messages loaded:', messages.length)
+        
+        // 4. 构建完整的对话对象
+        const conversation: Conversation = {
+          ...convResponse.data,
+          messages
+        }
+        
+        // 5. 添加到 conversations 列表
+        this.conversations.push(conversation)
+        
+        // 6. 设置为活跃对话
+        this.activeConversationId = conversationId
+        
+        console.log('[Store] Conversation loaded and set as active:', conversationId)
+        
+        return conversation
+      } catch (error) {
+        console.error('[Store] Failed to load conversation:', error)
+        throw error
       }
     },
 
