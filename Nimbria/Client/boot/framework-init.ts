@@ -15,6 +15,11 @@ export default boot(async () => {
     const { ensureStarChartRegistration } = await import('../GUI/components/ProjectPage.MainPanel/StarChart')
     await ensureStarChartRegistration()
     console.log('[Framework] ✅ StarChart pages registered successfully')
+    
+    // 注册 ControlPanel 页面
+    const { ensureControlPanelRegistration } = await import('../GUI/components/ProjectPage.MainPanel/Writing.ControlPanel')
+    await ensureControlPanelRegistration()
+    console.log('[Framework] ✅ ControlPanel pages registered successfully')
   } catch (error) {
     console.error('[Framework] ❌ Failed to register custom pages:', error)
   }

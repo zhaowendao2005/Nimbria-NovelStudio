@@ -5,10 +5,20 @@
     </div>
     
     <el-collapse v-model="activeNames" class="writing-collapse">
-      <!-- 分类一 -->
-      <el-collapse-item title="分类一" name="category1">
+      <!-- 中央控制台 -->
+      <el-collapse-item title="中央控制台" name="category1">
         <div class="collapse-content">
-          <el-empty description="功能开发中..." />
+          <div class="control-panel-intro">
+            <p class="intro-text">
+              🎛️ 项目中央控制台
+            </p>
+            <p class="intro-desc">
+              统一管理和控制项目的核心功能与系统设置
+            </p>
+            <el-button type="primary" @click="handleOpenControlPanel">
+              打开控制台
+            </el-button>
+          </div>
         </div>
       </el-collapse-item>
 
@@ -499,6 +509,17 @@ const configStore = useStarChartConfigStore()
 // 初始化配置
 configStore.loadConfig()
 
+// 打开中央控制台
+const handleOpenControlPanel = async () => {
+  try {
+    const { CustomPageAPI } = await import('../../../../../Service/CustomPageManager')
+    await CustomPageAPI.open('control-panel')
+    console.log('[WritingPanel] 打开中央控制台')
+  } catch (error) {
+    console.error('[WritingPanel] 打开中央控制台失败:', error)
+  }
+}
+
 // 打开 StarChart 视图
 const handleOpenStarChart = async () => {
   try {
@@ -581,6 +602,13 @@ const handleResetConfig = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* 中央控制台介绍卡片 */
+.control-panel-intro {
+  text-align: center;
+  padding: 24px;
+  max-width: 400px;
 }
 
 /* StarChart 介绍卡片 */
