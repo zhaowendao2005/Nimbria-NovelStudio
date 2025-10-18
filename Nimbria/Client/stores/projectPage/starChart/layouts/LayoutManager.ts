@@ -5,6 +5,7 @@
 import type { ILayoutEngine, LayoutType } from './types'
 import { ConcentricLayout } from './ConcentricLayout'
 import { ForceDirectedLayout } from './ForceDirectedLayout'
+import { HierarchicalLODLayout } from './HierarchicalLODLayout'
 
 export class LayoutManager {
   private layouts = new Map<LayoutType, ILayoutEngine>()
@@ -13,8 +14,9 @@ export class LayoutManager {
     // 注册内置布局
     this.register(new ConcentricLayout())
     this.register(new ForceDirectedLayout())
+    this.register(new HierarchicalLODLayout())
     
-    console.log('[LayoutManager] 布局引擎已注册：concentric, force-directed')
+    console.log('[LayoutManager] 布局引擎已注册：concentric, force-directed, hierarchical-lod')
   }
   
   /**

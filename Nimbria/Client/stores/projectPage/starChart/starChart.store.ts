@@ -123,6 +123,12 @@ export const useStarChartStore = defineStore('projectPage-starChart', () => {
       
       console.log(`[StarChart Store] 切换数据源：${source}`)
       
+      // 🆕 MC配方数据源自动使用分层LOD布局
+      if (source === 'mcrecipe-static') {
+        console.log('[StarChart Store] MC配方数据源，自动切换到分层LOD布局')
+        configStore.setLayoutType('hierarchical-lod')
+      }
+      
       // 重新加载数据
       rawGraphData.value = await dataSourceManager.loadData(source)
       console.log(`[StarChart Store] 数据加载完成：${rawGraphData.value.nodes.length} 节点，${rawGraphData.value.edges.length} 边`)

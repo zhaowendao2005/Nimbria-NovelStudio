@@ -75,6 +75,14 @@
                     </el-option>
                     
                     <el-option 
+                      label="MC配方图谱" 
+                      value="mcrecipe-static"
+                    >
+                      <span style="float: left">MC配方图谱</span>
+                      <span style="float: right; color: #67c23a; font-size: 12px; margin-left: 12px">3.4万配方</span>
+                    </el-option>
+                    
+                    <el-option 
                       label="真实后端（Gun数据库）" 
                       value="gun"
                       disabled
@@ -113,6 +121,14 @@
                     >
                       <span style="float: left">力导向布局</span>
                       <span style="float: right; color: #8492a6; font-size: 12px; margin-left: 12px">自动布局</span>
+                    </el-option>
+                    
+                    <el-option 
+                      label="分层LOD布局" 
+                      value="hierarchical-lod"
+                    >
+                      <span style="float: left">分层LOD布局</span>
+                      <span style="float: right; color: #409eff; font-size: 12px; margin-left: 12px">大规模数据</span>
                     </el-option>
                   </el-select>
                 </div>

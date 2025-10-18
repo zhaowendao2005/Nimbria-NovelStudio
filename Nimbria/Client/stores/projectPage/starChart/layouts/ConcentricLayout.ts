@@ -35,8 +35,14 @@ export class ConcentricLayout implements ILayoutEngine {
     
     // 5. 节点距离修正（如果启用）
     if (concentricConfig.enableNodeSpacingCorrection) {
-      console.log('[ConcentricLayout] 执行节点间距修正')
-      this.correctNodeSpacing(layoutedNodes, concentricConfig)
+      // ⚠️ 节点间距修正是 O(n²) 算法，对于大规模数据会阻塞UI
+      const MAX_NODES_FOR_CORRECTION = 1000
+      if (layoutedNodes.length > MAX_NODES_FOR_CORRECTION) {
+        console.warn(`[ConcentricLayout] 节点数量过多（${layoutedNodes.length} > ${MAX_NODES_FOR_CORRECTION}），跳过节点间距修正以避免UI阻塞`)
+      } else {
+        console.log('[ConcentricLayout] 执行节点间距修正')
+        this.correctNodeSpacing(layoutedNodes, concentricConfig)
+      }
     }
     
     console.log('[ConcentricLayout] 布局计算完成')

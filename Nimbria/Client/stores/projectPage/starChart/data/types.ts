@@ -43,6 +43,8 @@ export interface RawEdge {
 export interface GraphMetadata {
   groupCount?: number    // 分组数量（用于同心圆布局）
   groups?: GroupInfo[]   // 分组信息
+  zones?: ZoneInfo[]     // 分区信息（用于分层LOD布局）
+  [key: string]: any     // 扩展字段
 }
 
 export interface GroupInfo {
@@ -50,6 +52,20 @@ export interface GroupInfo {
   name: string
   nodeIds: string[]
   color?: string
+}
+
+/**
+ * 分区信息
+ */
+export interface ZoneInfo {
+  id: string
+  name: string
+  color: string
+  nodeIds: string[]
+  parentZone?: string
+  level: number
+  recipeCount?: number
+  itemCount?: number
 }
 
 /**
@@ -61,6 +77,7 @@ export interface LayoutedNode extends RawNode {
 
 /**
  * 数据源类型
+ * （已迁移到 base/DataSourceTypes.ts，这里保留兼容性）
  */
-export type DataSourceType = 'mock-large' | 'mock-normal' | 'gun'
+export type DataSourceType = 'mock-large' | 'mock-normal' | 'mcrecipe-static' | 'gun' | 'api'
 

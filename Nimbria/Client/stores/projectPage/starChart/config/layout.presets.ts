@@ -1,7 +1,7 @@
 /**
  * 布局配置预设
  */
-import type { ConcentricLayoutConfig, ForceDirectedLayoutConfig } from '../layouts/types'
+import type { ConcentricLayoutConfig, ForceDirectedLayoutConfig, HierarchicalLODLayoutConfig } from '../layouts/types'
 
 /**
  * 同心圆布局 - 默认配置
@@ -84,5 +84,45 @@ export const LOOSE_FORCE_LAYOUT: ForceDirectedLayoutConfig = {
   nodeRepulsion: 6000,
   gravity: 0.15,
   gravityRange: 4.5
+}
+
+/**
+ * 分层LOD布局 - 默认配置
+ */
+export const DEFAULT_HIERARCHICAL_LOD_LAYOUT: HierarchicalLODLayoutConfig = {
+  name: 'hierarchical-lod',
+  animate: false,
+  randomize: false,
+  
+  // 分区配置
+  zones: {
+    enabled: true,
+    shape: 'hexagon',
+    boundaryPadding: 50,
+    autoDetect: true
+  },
+  
+  // LOD层级配置
+  lodLevels: {
+    zoneOnly: { minZoom: 0, maxZoom: 0.5 },
+    zoneBoundary: { minZoom: 0.5, maxZoom: 1.5 },
+    zoneExpanded: { minZoom: 1.5, maxZoom: 5 },
+    fullDetail: { minZoom: 5, maxZoom: 10 }
+  },
+  
+  // 节点约束
+  constraints: {
+    enableBoundaryNodes: true,
+    enableInternalNodes: true,
+    allowDragOutside: false
+  },
+  
+  // 递归展开
+  expansion: {
+    enabled: true,
+    maxDepth: 3,
+    animationDuration: 800,
+    layoutStrategy: 'radial'
+  }
 }
 

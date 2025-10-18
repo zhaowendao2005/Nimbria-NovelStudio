@@ -1,65 +1,93 @@
 /**
- * 数据源管理器
- * 统一管理不同数据源的加载和保存
+ * 数据源管理器（重构版）
+ * 统一管理不同数据源的加载，支持静态和动态数据源
  */
 import type { RawGraphData, DataSourceType } from './types'
-import { mockNormalData } from './mock.normal'
-import { getLargeMockData } from './mock.large'
-import { GunDataAdapter } from './gun.adapter'
+import type { IDataSource, LoadOptions } from './base/DataSourceBase'
+import type { DataSourceMetadata } from './base/DataSourceTypes'
 
+// 导入所有数据源
+import { mockNormalDataSource } from './static/mock.normal'
+import { mockLargeDataSource } from './static/mock.large'
+import { mcrecipeDataSource } from './static/mcrecipe.static'
+import { gunDataSource } from './dynamic/gun.adapter'
+
+/**
+ * 数据源管理器
+ */
 export class DataSourceManager {
-  private gunAdapter = new GunDataAdapter()
+  private dataSources = new Map<DataSourceType, IDataSource>()
+  
+  constructor() {
+    // 注册所有数据源
+    this.register(mockNormalDataSource)
+    this.register(mockLargeDataSource)
+    this.register(mcrecipeDataSource)
+    this.register(gunDataSource)
+    
+    console.log('[DataSourceManager] 已注册数据源:', Array.from(this.dataSources.keys()))
+  }
+  
+  /**
+   * 注册数据源
+   */
+  register(dataSource: IDataSource): void {
+    const type = dataSource.metadata.id
+    if (this.dataSources.has(type)) {
+      console.warn(`[DataSourceManager] 数据源 ${type} 已存在，将被覆盖`)
+    }
+    this.dataSources.set(type, dataSource)
+  }
+  
+  /**
+   * 获取数据源
+   */
+  getDataSource(sourceType: DataSourceType): IDataSource | undefined {
+    return this.dataSources.get(sourceType)
+  }
+  
+  /**
+   * 获取所有数据源元信息
+   */
+  getAllMetadata(): DataSourceMetadata[] {
+    return Array.from(this.dataSources.values()).map(ds => ds.metadata)
+  }
   
   /**
    * 加载图数据
    */
-  async loadData(sourceType: DataSourceType): Promise<RawGraphData> {
-    switch (sourceType) {
-      case 'mock-normal':
-        console.log('[DataSource] 📊 加载测试数据A（30节点）')
-        return Promise.resolve(mockNormalData)
-      
-      case 'mock-large':
-        console.log('[DataSource] 📊 加载性能测试数据（400节点）')
-        return Promise.resolve(getLargeMockData())
-      
-      case 'gun':
-        console.log('[DataSource] 📊 加载Gun数据库数据')
-        return this.gunAdapter.loadGraphData()
-      
-      default:
-        throw new Error(`未知数据源类型: ${sourceType}`)
+  async loadData(sourceType: DataSourceType, options?: LoadOptions): Promise<RawGraphData> {
+    const dataSource = this.dataSources.get(sourceType)
+    
+    if (!dataSource) {
+      throw new Error(`未知数据源类型: ${sourceType}`)
+    }
+    
+    console.log(`[DataSourceManager] 📊 加载数据源: ${dataSource.metadata.name}`)
+    
+    try {
+      const data = await dataSource.loadGraphData(options)
+      console.log(`[DataSourceManager] ✅ 加载完成: ${data.nodes.length} 节点, ${data.edges.length} 边`)
+      return data
+    } catch (error) {
+      console.error(`[DataSourceManager] ❌ 加载失败:`, error)
+      throw error
     }
   }
   
   /**
-   * 保存图数据
+   * 检查数据源是否可用
    */
-  async saveData(sourceType: DataSourceType, data: RawGraphData): Promise<void> {
-    if (sourceType === 'gun') {
-      return this.gunAdapter.saveGraphData(data)
-    }
-    console.log('[DataSource] Mock数据不支持保存')
+  isAvailable(sourceType: DataSourceType): boolean {
+    return this.dataSources.has(sourceType)
   }
   
   /**
-   * 添加节点
+   * 获取推荐的布局类型
    */
-  async addNode(sourceType: DataSourceType, node: RawGraphData['nodes'][0]): Promise<void> {
-    if (sourceType === 'gun') {
-      return this.gunAdapter.addNode(node)
-    }
-    console.log('[DataSource] Mock数据不支持添加节点')
-  }
-  
-  /**
-   * 添加边
-   */
-  async addEdge(sourceType: DataSourceType, edge: RawGraphData['edges'][0]): Promise<void> {
-    if (sourceType === 'gun') {
-      return this.gunAdapter.addEdge(edge)
-    }
-    console.log('[DataSource] Mock数据不支持添加边')
+  getRecommendedLayouts(sourceType: DataSourceType): string[] {
+    const dataSource = this.dataSources.get(sourceType)
+    return dataSource?.metadata.recommendedLayouts || []
   }
 }
 

@@ -6,7 +6,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { StarChartConfig, ConfigPreset, DataSourceType, LayoutType } from './starChart.config.types'
 import type { LayoutConfig } from './layouts/types'
-import { DEFAULT_CONCENTRIC_LAYOUT, DEFAULT_FORCE_LAYOUT } from './config/layout.presets'
+import { DEFAULT_CONCENTRIC_LAYOUT, DEFAULT_FORCE_LAYOUT, DEFAULT_HIERARCHICAL_LOD_LAYOUT } from './config/layout.presets'
 import { layoutManager } from './layouts/LayoutManager'
 
 const STORAGE_KEY = 'nimbria:starChart:config'
@@ -431,6 +431,8 @@ export const useStarChartConfigStore = defineStore('starChart-config', () => {
       layoutConfig.value = structuredClone(DEFAULT_CONCENTRIC_LAYOUT)
     } else if (type === 'force-directed') {
       layoutConfig.value = structuredClone(DEFAULT_FORCE_LAYOUT)
+    } else if (type === 'hierarchical-lod') {
+      layoutConfig.value = structuredClone(DEFAULT_HIERARCHICAL_LOD_LAYOUT)
     }
     log(`[StarChart配置] 切换布局: ${type}`)
   }
