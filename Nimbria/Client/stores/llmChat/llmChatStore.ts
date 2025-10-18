@@ -37,6 +37,9 @@ interface LlmChatState {
   leftSidebarWidth: number
   minSidebarWidth: number
   maxSidebarWidth: number
+  
+  // 🔥 外部设置的项目路径（用于新窗口等场景）
+  externalProjectPath: string | null
 }
 
 // 类型声明已经在 Client/types/core/window.d.ts 中定义，不需要重复声明
@@ -54,7 +57,10 @@ export const useLlmChatStore = defineStore('llmChat', {
     activeNavItem: 'chat',
     leftSidebarWidth: 328,
     minSidebarWidth: 280,
-    maxSidebarWidth: 600
+    maxSidebarWidth: 600,
+    
+    // 外部项目路径初始化
+    externalProjectPath: null
   }),
 
   getters: {
@@ -254,7 +260,7 @@ export const useLlmChatStore = defineStore('llmChat', {
         this.isLoading = true
         
         // 尝试从数据库加载
-        const projectPath = await this.getCurrentProjectPath()
+        const projectPath = this.getCurrentProjectPath()
         console.log('🔍 [Store] 当前项目路径:', projectPath)
         console.log('🔍 [Store] database API 可用性:', !!window.nimbria?.database?.llmGetConversations)
         
@@ -269,7 +275,7 @@ export const useLlmChatStore = defineStore('llmChat', {
             console.log('✅ [Store] 从数据库加载了', response.conversations.length, '个对话')
             
             // 同步到标签页管理器
-            await this.syncConversationsToTabs()
+            this.syncConversationsToTabs()
             return
           } else {
             console.warn('⚠️ [Store] 数据库加载失败，回退到 IPC 方法')
@@ -288,7 +294,7 @@ export const useLlmChatStore = defineStore('llmChat', {
           console.log('✅ [Store] 从 IPC 加载了', response.conversations.length, '个对话')
           
           // 同步到标签页管理器
-          await this.syncConversationsToTabs()
+          this.syncConversationsToTabs()
         }
       } catch (error) {
         console.error('❌ [Store] 加载对话列表失败:', error)
@@ -649,7 +655,7 @@ export const useLlmChatStore = defineStore('llmChat', {
         this.isLoading = true
         
         // 获取当前项目路径
-        const projectPath = await this.getCurrentProjectPath()
+        const projectPath = this.getCurrentProjectPath()
         
         if (!projectPath) {
           console.error('无法获取项目路径')
@@ -673,10 +679,24 @@ export const useLlmChatStore = defineStore('llmChat', {
     },
 
     /**
+     * 设置外部项目路径（用于新窗口等场景）
+     */
+    setProjectPath(projectPath: string) {
+      this.externalProjectPath = projectPath
+      console.log('✅ [Store] 设置外部项目路径:', projectPath)
+    },
+
+    /**
      * 获取当前项目路径
      */
-    async getCurrentProjectPath(): Promise<string> {
+    getCurrentProjectPath(): string {
       try {
+        // 🔥 优先使用外部设置的项目路径
+        if (this.externalProjectPath) {
+          console.log('🔍 [Store] 使用外部项目路径:', this.externalProjectPath)
+          return this.externalProjectPath
+        }
+        
         // 从 window 对象获取（project-preload.ts 中的实现）
         if (window.nimbria?.getCurrentProjectPath) {
           const projectPath = window.nimbria.getCurrentProjectPath()
@@ -701,7 +721,7 @@ export const useLlmChatStore = defineStore('llmChat', {
      * 同步对话到标签页（不再需要，Element Plus Tabs 会自动同步）
      * 保留方法体以防其他地方调用，但内部为空
      */
-    async syncConversationsToTabs() {
+    syncConversationsToTabs() {
       // Element Plus Tabs 组件会自动根据 conversations 数组渲染标签页
       // 不再需要单独的标签页管理器
       console.log('✅ [Store] 对话数据已就绪，共', this.conversations.length, '个对话')

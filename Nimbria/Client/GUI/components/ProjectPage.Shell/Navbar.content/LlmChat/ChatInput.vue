@@ -4,6 +4,9 @@
     <div class="input-toolbar">
       <!-- 左侧工具 -->
       <div class="toolbar-left">
+        <!-- 模式选择器 -->
+        <ModeSelector />
+        
         <!-- 模型选择器 -->
         <ModelSelector />
       </div>
@@ -97,11 +100,12 @@ import { useLlmChatStore } from '@stores/llmChat/llmChatStore'
 import { ElMessage } from 'element-plus'
 import { Paperclip, FolderOpened } from '@element-plus/icons-vue'
 import ModelSelector from './ModelSelector.vue'
+import ModeSelector from './ModeSelector.vue'
 
 const llmChatStore = useLlmChatStore()
 
 const inputText = ref('')
-const attachments = ref<any[]>([])
+const attachments = ref<File[]>([])
 
 // 计算属性
 const isLoading = computed(() => llmChatStore.isLoading)
@@ -119,7 +123,7 @@ const handleSend = async () => {
   if (!content) return
   
   try {
-    await llmChatStore.sendMessage(content, attachments.value.length > 0 ? attachments.value : undefined)
+    await llmChatStore.sendMessage(content)
     
     // 清空输入
     inputText.value = ''
@@ -148,10 +152,10 @@ const handleCreateConversation = async () => {
     } else {
       ElMessage.warning('创建对话失败，请检查模型配置')
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('创建对话失败:', error)
     // 显示具体的错误信息
-    const errorMessage = error?.message || '创建对话失败'
+    const errorMessage = (error as Error)?.message || '创建对话失败'
     ElMessage.error(errorMessage)
   }
 }
@@ -177,7 +181,9 @@ const handleCreateConversation = async () => {
 .toolbar-left {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
+  flex: 1;
+  min-width: 0; // 允许内容缩小
 }
 
 .toolbar-right {
@@ -208,6 +214,94 @@ const handleCreateConversation = async () => {
 
 .status-hint {
   margin-top: 4px;
+}
+
+// 🔥 ModeSelector 样式优化
+:deep(.mode-selector) {
+  flex-shrink: 0;
+  
+  .el-dropdown {
+    .el-button {
+      background: var(--el-fill-color-lighter);
+      border: 1px solid var(--el-border-color);
+      border-radius: 18px; // 🔥 胶囊形状
+      padding: 8px 12px;
+      font-size: 12px;
+      color: var(--el-text-color-regular);
+      transition: all 0.2s ease;
+      min-width: 100px;
+      
+      &:hover {
+        background: var(--el-fill-color-light);
+        border-color: var(--el-color-primary-light-7);
+        color: var(--el-text-color-primary);
+      }
+      
+      &:focus {
+        background: var(--el-color-primary-light-9);
+        border-color: var(--el-color-primary);
+        color: var(--el-color-primary);
+        box-shadow: 0 0 0 2px var(--el-color-primary-light-8);
+      }
+      
+      .arrow-icon {
+        margin-left: auto;
+        font-size: 12px;
+        color: var(--el-text-color-secondary);
+      }
+    }
+  }
+}
+
+// 🔥 ModelSelector 样式优化
+:deep(.model-selector) {
+  flex: 1;
+  min-width: 0; // 允许缩小
+  
+  .el-dropdown {
+    width: 100%;
+    
+    .el-button {
+      width: 100%;
+      justify-content: flex-start;
+      background: var(--el-fill-color-lighter);
+      border: 1px solid var(--el-border-color);
+      border-radius: 18px; // 🔥 胶囊形状
+      padding: 8px 12px;
+      font-size: 12px;
+      color: var(--el-text-color-regular);
+      transition: all 0.2s ease;
+      
+      &:hover {
+        background: var(--el-fill-color-light);
+        border-color: var(--el-color-primary-light-7);
+        color: var(--el-text-color-primary);
+      }
+      
+      &:focus {
+        background: var(--el-color-primary-light-9);
+        border-color: var(--el-color-primary);
+        color: var(--el-color-primary);
+        box-shadow: 0 0 0 2px var(--el-color-primary-light-8);
+      }
+      
+      // 文本溢出处理
+      span:not(.el-icon) {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        text-align: left;
+        margin: 0 4px;
+      }
+      
+      .arrow-icon {
+        margin-left: auto;
+        font-size: 12px;
+        color: var(--el-text-color-secondary);
+      }
+    }
+  }
 }
 </style>
 

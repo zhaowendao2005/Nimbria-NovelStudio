@@ -142,6 +142,51 @@ onMounted(async () => {
       } else {
         console.error('❌ [DetachedPage] No focused pane available')
       }
+    } else if (tabData.tabType === 'llmchat') {
+      // 🔥 LlmChat 类型：恢复对话标签页
+      console.log('💬 [DetachedPage] Restoring LlmChat tab...', tabData.conversationId)
+      
+      // 导入 LlmChat 相关模块
+      const { CustomPageAPI } = await import('../../Service/CustomPageManager')
+      const { useLlmChatStore } = await import('@stores/llmChat/llmChatStore')
+      const llmChatStore = useLlmChatStore()
+      
+      // 确保 LlmChat Store 已初始化
+      await llmChatStore.initialize()
+      
+      // 🔥 设置项目路径，确保新窗口能正确访问项目数据
+      if (projectPath.value) {
+        llmChatStore.setProjectPath(projectPath.value)
+      }
+      
+      // 如果有指定的 conversationId，加载该对话
+      if (tabData.conversationId) {
+        try {
+          await llmChatStore.loadConversationById(tabData.conversationId)
+          llmChatStore.activeConversationId = tabData.conversationId
+          console.log('✅ [DetachedPage] LlmChat conversation loaded:', tabData.conversationId)
+        } catch (error) {
+          console.error('❌ [DetachedPage] Failed to load conversation:', error)
+        }
+      }
+      
+      // 打开 LlmChat 页面
+      const focusedPaneId = paneLayoutStore.focusedPane?.id
+      if (focusedPaneId) {
+        const instance = await CustomPageAPI.open('llmchat-conversation', {
+          focus: true,
+          paneId: focusedPaneId,
+          params: { conversationId: tabData.conversationId }
+        })
+        
+        if (instance) {
+          console.log('✅ [DetachedPage] LlmChat tab opened:', instance.tabId)
+        } else {
+          console.error('❌ [DetachedPage] Failed to open LlmChat tab')
+        }
+      } else {
+        console.error('❌ [DetachedPage] No focused pane available')
+      }
     } else if (tabData.filePath) {
       // 🔥 文件类型（Markdown等）：打开文件
       console.log('📝 [DetachedPage] Restoring file tab:', tabData.filePath)
