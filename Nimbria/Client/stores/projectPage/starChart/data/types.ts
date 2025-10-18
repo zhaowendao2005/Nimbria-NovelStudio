@@ -1,83 +1,62 @@
 /**
- * StarChart 数据层类型定义
- * 原始图数据（不包含位置信息）
+ * StarChart 数据类型定义
+ * 基于G6原生格式设计
  */
 
 /**
- * 原始图数据
+ * G6标准节点格式（原生）
  */
-export interface RawGraphData {
-  nodes: RawNode[]
-  edges: RawEdge[]
-  metadata?: GraphMetadata
-}
-
-/**
- * 原始节点（无位置）
- */
-export interface RawNode {
+export interface G6Node {
   id: string
-  name: string
-  type: string
-  score?: number         // 节点重要性（0-1）
-  color?: string         // 节点颜色
-  hierarchy?: number     // 节点层级（1-5）- 随机分配或从数据中获取
-  metadata?: Record<string, any>  // 扩展元数据
-}
-
-/**
- * 原始边
- */
-export interface RawEdge {
-  id: string
-  source: string
-  target: string
+  label?: string        // 节点标签
+  x?: number           // 位置（可选，布局算法会计算）
+  y?: number
+  size?: number        // 节点大小
+  color?: string       // 节点颜色
+  img?: string         // 图标URL（支持SVG DataURL）
+  // 业务扩展字段
   type?: string
-  weight?: number        // 边权重（0-1）
-  label?: string
+  score?: number
+  hierarchy?: number
+  [key: string]: any   // 允许任意扩展字段
 }
 
 /**
- * 图元数据
+ * G6标准边格式（原生）
  */
-export interface GraphMetadata {
-  groupCount?: number    // 分组数量（用于同心圆布局）
-  groups?: GroupInfo[]   // 分组信息
-  zones?: ZoneInfo[]     // 分区信息（用于分层LOD布局）
-  [key: string]: any     // 扩展字段
-}
-
-export interface GroupInfo {
-  id: number
-  name: string
-  nodeIds: string[]
-  color?: string
+export interface G6Edge {
+  id?: string
+  source: string       // 源节点ID
+  target: string       // 目标节点ID
+  label?: string       // 边标签
+  weight?: number      // 权重
+  type?: string        // 类型
+  [key: string]: any   // 允许任意扩展字段
 }
 
 /**
- * 分区信息
+ * G6标准图数据格式（原生）
  */
-export interface ZoneInfo {
-  id: string
-  name: string
-  color: string
-  nodeIds: string[]
-  parentZone?: string
-  level: number
-  recipeCount?: number
-  itemCount?: number
-}
-
-/**
- * 布局后的节点（带位置）
- */
-export interface LayoutedNode extends RawNode {
-  position: { x: number; y: number }
+export interface G6GraphData {
+  nodes: G6Node[]
+  edges: G6Edge[]
 }
 
 /**
  * 数据源类型
- * （已迁移到 base/DataSourceTypes.ts，这里保留兼容性）
  */
-export type DataSourceType = 'mock-large' | 'mock-normal' | 'mcrecipe-static' | 'gun' | 'api'
+export type DataSourceType = 
+  | 'mock-normal'       // 测试数据A（30节点）
+  | 'mock-large'        // 测试数据B（100节点）
+  | 'mcrecipe-static'   // MC配方静态数据
+  | 'gun'               // GUN动态数据源
+  | 'api'               // API数据源
 
+/**
+ * 数据加载选项
+ */
+export interface LoadOptions {
+  cache?: boolean
+  timeout?: number
+  [key: string]: any
+}

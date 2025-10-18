@@ -1,35 +1,21 @@
 /**
- * StarChart Store
- * 负责为 Vue 组件提供响应式数据
- * 重构版本：数据与布局分离
+ * StarChart Store - G6原生版
+ * 直接管理G6格式数据，同心圆布局需要预计算坐标
  */
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { ViewportState } from './starChart.types'
-import type { CytoscapeElement } from './starChart.types'
-import type { RawGraphData, LayoutedNode, DataSourceType } from './data/types'
-import type { LayoutType } from './layouts/types'
+import type { ViewportState } from './starChart.config.types'
+import type { G6GraphData, DataSourceType } from './data/types'
 import { dataSourceManager } from './data/DataSourceManager'
 import { layoutManager } from './layouts/LayoutManager'
-import { CytoscapeTransformer } from './transforms/CytoscapeTransformer'
-import { G6Transformer, type G6Data } from './transforms/G6Transformer'
 import { useStarChartConfigStore } from './starChart.config.store'
 
 export const useStarChartStore = defineStore('projectPage-starChart', () => {
   // ==================== 状态 ====================
   
-  // 🆕 原始数据（无位置）
-  const rawGraphData = ref<RawGraphData | null>(null)
-  
-  // 🆕 布局后的节点（带位置）
-  const layoutedNodes = ref<LayoutedNode[]>([])
-  
-  // Cytoscape元素（用于渲染）
-  const cytoscapeElements = ref<CytoscapeElement[]>([])
-  
-  // 🆕 G6 数据（用于渲染）
-  const g6Data = ref<G6Data | null>(null)
+  // G6原生数据（直接用于渲染，无需转换）
+  const graphData = ref<G6GraphData | null>(null)
   
   // 视口状态
   const viewportState = ref<ViewportState>({
@@ -41,18 +27,17 @@ export const useStarChartStore = defineStore('projectPage-starChart', () => {
   const loading = ref<boolean>(false)
   const error = ref<string | null>(null)
   const initialized = ref<boolean>(false)
-  const fastRebuild = ref<boolean>(false)  // 🚀 快速重建模式标志
   
   // ==================== 计算属性 ====================
   
-  const hasData = computed(() => rawGraphData.value !== null)
-  const nodeCount = computed(() => rawGraphData.value?.nodes.length || 0)
-  const edgeCount = computed(() => rawGraphData.value?.edges.length || 0)
+  const nodeCount = computed(() => graphData.value?.nodes?.length || 0)
+  const edgeCount = computed(() => graphData.value?.edges?.length || 0)
+  const hasData = computed(() => nodeCount.value > 0)
   
   // ==================== 方法 ====================
   
   /**
-   * 初始化：加载数据 + 应用布局
+   * 初始化
    */
   const initialize = async () => {
     if (initialized.value) {
@@ -68,65 +53,25 @@ export const useStarChartStore = defineStore('projectPage-starChart', () => {
       
       console.log('[StarChart Store] 开始初始化')
       
-      // 1. 加载原始数据
-      rawGraphData.value = await dataSourceManager.loadData(configStore.dataSource)
-      console.log(`[StarChart Store] 数据加载完成：${rawGraphData.value.nodes.length} 节点，${rawGraphData.value.edges.length} 边`)
+      // 1. 加载G6格式数据
+      graphData.value = await dataSourceManager.loadData(configStore.dataSource)
+      console.log(`[StarChart Store] 数据加载完成：${graphData.value.nodes.length} 节点，${graphData.value.edges.length} 边`)
       
-      // 2. 应用布局
-      await applyLayout()
+      // 2. 如果是同心圆布局，预计算坐标
+      if (configStore.currentLayoutType === 'concentric') {
+        const layoutEngine = layoutManager.getLayout('concentric')
+        layoutEngine.compute(graphData.value, configStore.layoutConfig)
+        console.log('[StarChart Store] 同心圆布局坐标已计算')
+      }
       
       initialized.value = true
       console.log('[StarChart Store] 初始化成功')
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '初始化失败'
+      const message = err instanceof Error ? err.message : String(err)
+      error.value = message
       console.error('[StarChart Store] 初始化失败:', err)
-      throw err
     } finally {
       loading.value = false
-    }
-  }
-  
-  /**
-   * 应用布局（计算位置 + 转换格式）
-   * 🆕 支持双引擎：根据 renderEngine 选择转换器
-   */
-  const applyLayout = async () => {
-    if (!rawGraphData.value) {
-      console.warn('[StarChart Store] 无数据，跳过布局')
-      return
-    }
-    
-    const configStore = useStarChartConfigStore()
-    const layoutEngine = layoutManager.getLayout(configStore.currentLayoutType)
-    
-    console.log(`[StarChart Store] 应用布局：${configStore.currentLayoutType}`)
-    console.log(`[StarChart Store] 渲染引擎：${configStore.renderEngine}`)
-    
-    // 计算布局（引擎无关）
-    layoutedNodes.value = layoutEngine.compute(rawGraphData.value, configStore.layoutConfig)
-    console.log(`[StarChart Store] 布局计算完成：${layoutedNodes.value.length} 个节点`)
-    
-    // 根据渲染引擎选择转换器
-    if (configStore.renderEngine === 'g6') {
-      // 🆕 转换为 G6 格式
-      const g6Transformer = new G6Transformer()
-      g6Data.value = g6Transformer.transform(
-        layoutedNodes.value,
-        rawGraphData.value.edges,
-        configStore.config,
-        layoutEngine.needsCytoscapeCompute()
-      )
-      console.log(`[StarChart Store] G6格式转换完成：${g6Data.value.nodes.length} 节点，${g6Data.value.edges.length} 边`)
-    } else {
-      // 转换为Cytoscape格式
-      const cytoscapeTransformer = new CytoscapeTransformer()
-      cytoscapeElements.value = cytoscapeTransformer.transform(
-        layoutedNodes.value,
-        rawGraphData.value.edges,
-        configStore.config,
-        layoutEngine.needsCytoscapeCompute()
-      )
-      console.log(`[StarChart Store] Cytoscape格式转换完成：${cytoscapeElements.value.length} 个元素`)
     }
   }
   
@@ -142,20 +87,20 @@ export const useStarChartStore = defineStore('projectPage-starChart', () => {
       
       console.log(`[StarChart Store] 切换数据源：${source}`)
       
-      // 🆕 MC配方数据源自动使用分层LOD布局
-      if (source === 'mcrecipe-static') {
-        console.log('[StarChart Store] MC配方数据源，自动切换到分层LOD布局')
-        configStore.setLayoutType('hierarchical-lod')
+      // 重新加载数据
+      graphData.value = await dataSourceManager.loadData(source)
+      console.log(`[StarChart Store] 数据加载完成：${graphData.value.nodes.length} 节点，${graphData.value.edges.length} 边`)
+      
+      // 如果是同心圆布局，重新计算坐标
+      if (configStore.currentLayoutType === 'concentric') {
+        const layoutEngine = layoutManager.getLayout('concentric')
+        layoutEngine.compute(graphData.value, configStore.layoutConfig)
+        console.log('[StarChart Store] 同心圆布局坐标已重新计算')
       }
       
-      // 重新加载数据
-      rawGraphData.value = await dataSourceManager.loadData(source)
-      console.log(`[StarChart Store] 数据加载完成：${rawGraphData.value.nodes.length} 节点，${rawGraphData.value.edges.length} 边`)
-      
-      // 重新应用布局
-      await applyLayout()
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '切换数据源失败'
+      const message = err instanceof Error ? err.message : String(err)
+      error.value = message
       console.error('[StarChart Store] 切换数据源失败:', err)
     } finally {
       loading.value = false
@@ -165,95 +110,78 @@ export const useStarChartStore = defineStore('projectPage-starChart', () => {
   /**
    * 切换布局
    */
-  const switchLayout = async (layoutType: LayoutType) => {
-    if (!rawGraphData.value) {
-      console.warn('[StarChart Store] 无数据，无法切换布局')
-      return
-    }
-    
+  const switchLayout = async (layoutType: 'concentric' | 'compact-box') => {
     const configStore = useStarChartConfigStore()
     configStore.setLayoutType(layoutType)
     
-    console.log(`[StarChart Store] 切换布局：${layoutType}`)
-    
-    // 重新应用布局
-    await applyLayout()
+    // 如果切换到同心圆，预计算坐标
+    if (layoutType === 'concentric' && graphData.value) {
+      const layoutEngine = layoutManager.getLayout('concentric')
+      layoutEngine.compute(graphData.value, configStore.layoutConfig)
+      console.log(`[StarChart Store] 切换到同心圆布局，坐标已计算`)
+    } else {
+      console.log(`[StarChart Store] 切换到紧凑树布局，由G6处理`)
+    }
   }
   
   /**
-   * 重新计算布局（配置变更时）
+   * 重新计算布局
    */
   const recomputeLayout = async () => {
-    console.log('[StarChart Store] 重新计算布局')
-    await applyLayout()
-  }
-  
-  /**
-   * 添加节点
-   */
-  const addNode = async (node: RawGraphData['nodes'][0]) => {
-    try {
-      const configStore = useStarChartConfigStore()
-      await dataSourceManager.addNode(configStore.dataSource, node)
-      
-      if (rawGraphData.value) {
-        rawGraphData.value.nodes.push(node)
-        await applyLayout()
-      }
-      return true
-    } catch (err) {
-      console.error('[StarChart Store] 添加节点失败:', err)
-      return false
+    const configStore = useStarChartConfigStore()
+    
+    // 只有同心圆需要重新计算
+    if (configStore.currentLayoutType === 'concentric' && graphData.value) {
+      const layoutEngine = layoutManager.getLayout('concentric')
+      layoutEngine.compute(graphData.value, configStore.layoutConfig)
+      console.log('[StarChart Store] 同心圆布局已重新计算')
     }
   }
   
   /**
    * 更新视口状态
    */
-  const updateViewport = (state: Partial<ViewportState>) => {
-    viewportState.value = { ...viewportState.value, ...state }
+  const updateViewport = (state: ViewportState) => {
+    viewportState.value = state
+  }
+  
+  /**
+   * 选中节点
+   */
+  const selectNode = (nodeId: string) => {
+    console.log(`[StarChart Store] 选中节点: ${nodeId}`)
   }
   
   /**
    * 重置
    */
   const reset = () => {
-    rawGraphData.value = null
-    layoutedNodes.value = []
-    cytoscapeElements.value = []
-    g6Data.value = null
+    graphData.value = null
     initialized.value = false
     loading.value = false
     error.value = null
   }
   
-  // ==================== 返回 ====================
-  
   return {
     // 状态
-    rawGraphData,
-    layoutedNodes,
-    cytoscapeElements,
-    g6Data,              // 🆕 G6 数据
+    graphData,
     viewportState,
     loading,
     error,
     initialized,
-    fastRebuild,
     
     // 计算属性
-    hasData,
     nodeCount,
     edgeCount,
+    hasData,
     
     // 方法
     initialize,
-    applyLayout,
     switchDataSource,
     switchLayout,
     recomputeLayout,
-    addNode,
     updateViewport,
+    selectNode,
     reset
   }
 })

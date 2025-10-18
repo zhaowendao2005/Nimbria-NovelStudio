@@ -96,71 +96,42 @@
               
               <div class="config-divider-line"></div>
 
-              <!-- 🆕 渲染引擎选择 -->
+              <!-- G6 渲染器选择 -->
               <div class="config-section config-section-highlight">
-                <h5>🎨 渲染引擎</h5>
+                <h5>⚡ G6 渲染器</h5>
                 <div class="config-item">
-                  <label>引擎类型</label>
+                  <el-tooltip 
+                    content="Canvas: 通用渲染 | WebGL: 高性能大规模数据 | SVG: 矢量导出 | Auto: 自动选择" 
+                    placement="top"
+                  >
+                    <label>渲染器类型</label>
+                  </el-tooltip>
                   <el-select 
-                    :model-value="configStore.renderEngine"
-                    @change="onRenderEngineChange"
-                    placeholder="选择渲染引擎"
+                    :model-value="configStore.config.g6.renderer"
+                    @change="onG6RendererChange"
                     size="default"
                   >
-                    <el-option value="cytoscape">
-                      <span style="float: left">Cytoscape.js</span>
-                      <span style="float: right; color: #67c23a; font-size: 12px; margin-left: 12px">稳定版</span>
+                    <el-option value="canvas">
+                      <span style="float: left">Canvas</span>
+                      <span style="float: right; color: #8492a6; font-size: 12px">通用</span>
                     </el-option>
-                    
-                    <el-option value="g6">
-                      <span style="float: left">AntV G6</span>
-                      <span style="float: right; color: #409eff; font-size: 12px; margin-left: 12px">高性能</span>
+                    <el-option value="webgl">
+                      <span style="float: left">WebGL</span>
+                      <span style="float: right; color: #409eff; font-size: 12px">高性能</span>
+                    </el-option>
+                    <el-option value="svg">
+                      <span style="float: left">SVG</span>
+                      <span style="float: right; color: #67c23a; font-size: 12px">矢量</span>
+                    </el-option>
+                    <el-option value="auto">
+                      <span style="float: left">自动选择</span>
+                      <span style="float: right; color: #e6a23c; font-size: 12px">智能</span>
                     </el-option>
                   </el-select>
                 </div>
                 
-                <!-- G6 渲染器类型选择（仅在 G6 引擎时显示）-->
-                <div v-show="configStore.renderEngine === 'g6'">
-                  <div class="config-divider-line-thin"></div>
-                  
-                  <div class="config-item">
-                    <el-tooltip 
-                      content="Canvas: 通用渲染 | WebGL: 高性能大规模数据 | SVG: 矢量导出 | Auto: 自动选择" 
-                      placement="top"
-                    >
-                      <label>
-                        G6 渲染器
-                        <el-tag size="small" type="warning" style="margin-left: 4px">G6专用</el-tag>
-                      </label>
-                    </el-tooltip>
-                    <el-select 
-                      :model-value="configStore.config.g6.renderer"
-                      @change="onG6RendererChange"
-                      size="default"
-                    >
-                      <el-option value="canvas">
-                        <span style="float: left">Canvas</span>
-                        <span style="float: right; color: #8492a6; font-size: 12px">通用</span>
-                      </el-option>
-                      <el-option value="webgl">
-                        <span style="float: left">WebGL</span>
-                        <span style="float: right; color: #409eff; font-size: 12px">高性能</span>
-                      </el-option>
-                      <el-option value="svg">
-                        <span style="float: left">SVG</span>
-                        <span style="float: right; color: #67c23a; font-size: 12px">矢量</span>
-                      </el-option>
-                      <el-option value="auto">
-                        <span style="float: left">自动选择</span>
-                        <span style="float: right; color: #e6a23c; font-size: 12px">智能</span>
-                      </el-option>
-                    </el-select>
-                  </div>
-                </div>
-                
-                <!-- 引擎特性说明 -->
+                <!-- G6 引擎特性说明 -->
                 <el-alert 
-                  v-if="configStore.renderEngine === 'g6'"
                   type="success"
                   :closable="false"
                   style="margin-top: 8px"
@@ -171,22 +142,7 @@
                   ✅ WebGL 加速，支持 10万+ 节点<br>
                   ✅ 更流畅的动画和交互<br>
                   ✅ 官方 AntV 团队维护<br>
-                  ✅ 支持分层渲染优化<br>
                   📊 当前节点数: {{ starChartStore.nodeCount }}
-                </el-alert>
-                
-                <el-alert 
-                  v-else
-                  type="info"
-                  :closable="false"
-                  style="margin-top: 8px"
-                >
-                  <template #title>
-                    <strong>Cytoscape 引擎：</strong>
-                  </template>
-                  ✅ 成熟稳定，生产环境验证<br>
-                  ✅ 完善的插件生态<br>
-                  ✅ 当前项目默认引擎
                 </el-alert>
               </div>
               
@@ -204,27 +160,19 @@
                     size="default"
                   >
                     <el-option 
-                      label="同心圆布局" 
+                      label="分组同心圆" 
                       value="concentric"
                     >
-                      <span style="float: left">同心圆布局</span>
-                      <span style="float: right; color: #8492a6; font-size: 12px; margin-left: 12px">手动布局</span>
+                      <span style="float: left">分组同心圆</span>
+                      <span style="float: right; color: #8492a6; font-size: 12px; margin-left: 12px">环形+同心圆</span>
                     </el-option>
                     
                     <el-option 
-                      label="力导向布局" 
-                      value="force-directed"
+                      label="径向紧凑树" 
+                      value="compact-box"
                     >
-                      <span style="float: left">力导向布局</span>
-                      <span style="float: right; color: #8492a6; font-size: 12px; margin-left: 12px">自动布局</span>
-                    </el-option>
-                    
-                    <el-option 
-                      label="分层LOD布局" 
-                      value="hierarchical-lod"
-                    >
-                      <span style="float: left">分层LOD布局</span>
-                      <span style="float: right; color: #409eff; font-size: 12px; margin-left: 12px">大规模数据</span>
+                      <span style="float: left">径向紧凑树</span>
+                      <span style="float: right; color: #409eff; font-size: 12px; margin-left: 12px">放射状树形</span>
                     </el-option>
                   </el-select>
                 </div>
@@ -314,95 +262,6 @@
               
               <div class="config-divider-line"></div>
 
-              <!-- WebGL与渲染 -->
-              <div class="config-section">
-                <h5>⚡ WebGL与渲染</h5>
-                <div class="config-item">
-                  <label>WebGL加速</label>
-                  <el-switch
-                    v-model="configStore.config.webgl.enabled"
-                    @change="updateConfig('webgl.enabled', $event)"
-                  />
-                </div>
-                <div class="config-item">
-                  <label>显示FPS</label>
-                  <el-switch
-                    v-model="configStore.config.webgl.showFps"
-                    @change="updateConfig('webgl.showFps', $event)"
-                  />
-                </div>
-                <div class="config-item">
-                  <label>视口隐藏边</label>
-                  <el-switch
-                    v-model="configStore.config.rendering.hideEdgesOnViewport"
-                    @change="updateConfig('rendering.hideEdgesOnViewport', $event)"
-                  />
-                </div>
-              </div>
-              
-              <div class="config-divider-line"></div>
-
-              <!-- 性能监控 -->
-              <div class="config-section">
-                <h5>🔍 性能监控</h5>
-                <div class="config-item">
-                  <label>性能监控</label>
-                  <el-switch
-                    v-model="configStore.config.performance.enabled"
-                    @change="updateConfig('performance.enabled', $event)"
-                  />
-                </div>
-                <div class="config-item">
-                  <label>事件跟踪</label>
-                  <el-switch
-                    v-model="configStore.config.performance.detailedEventTracking"
-                    @change="updateConfig('performance.detailedEventTracking', $event)"
-                  />
-                </div>
-                <div class="config-item">
-                  <label>长帧检测</label>
-                  <el-switch
-                    v-model="configStore.config.performance.longFrameMonitoring"
-                    @change="updateConfig('performance.longFrameMonitoring', $event)"
-                  />
-                </div>
-              </div>
-              
-              <div class="config-divider-line"></div>
-
-              <!-- 日志控制 -->
-              <div class="config-section">
-                <h5>📋 日志控制</h5>
-                <div class="config-item">
-                  <label>日志级别</label>
-                  <el-select 
-                    v-model="configStore.config.logging.level"
-                    @change="updateConfig('logging.level', $event)"
-                    placeholder="选择级别"
-                  >
-                    <el-option label="静默" value="silent" />
-                    <el-option label="极简" value="minimal" />
-                    <el-option label="正常" value="normal" />
-                    <el-option label="详细" value="verbose" />
-                  </el-select>
-                </div>
-                <div class="config-item">
-                  <label>控制台日志</label>
-                  <el-switch
-                    v-model="configStore.config.logging.enableConsoleLog"
-                    @change="updateConfig('logging.enableConsoleLog', $event)"
-                  />
-                </div>
-                <div class="config-item">
-                  <label>性能警告</label>
-                  <el-switch
-                    v-model="configStore.config.logging.enablePerformanceWarnings"
-                    @change="updateConfig('logging.enablePerformanceWarnings', $event)"
-                  />
-                </div>
-              </div>
-              
-              <div class="config-divider-line"></div>
 
               <!-- 交互设置 -->
               <div class="config-section">
@@ -418,10 +277,20 @@
                   />
                 </div>
                 <div class="config-item">
-                  <label>框选功能</label>
+                  <label>点击激活邻域</label>
                   <el-switch
-                    v-model="configStore.config.interaction.boxSelectionEnabled"
-                    @change="updateConfig('interaction.boxSelectionEnabled', $event)"
+                    v-model="configStore.config.interaction.enableClickActivate"
+                    @change="updateConfig('interaction.enableClickActivate', $event)"
+                  />
+                </div>
+                <div class="config-item">
+                  <label>激活层级</label>
+                  <el-slider
+                    v-model="configStore.config.interaction.activateDegree"
+                    @change="updateConfig('interaction.activateDegree', $event)"
+                    :min="1"
+                    :max="3"
+                    :step="1"
                   />
                 </div>
               </div>
@@ -573,42 +442,9 @@
               
               <div class="config-divider-line"></div>
 
-              <!-- 贝塞尔曲线边样式 -->
+              <!-- 边样式 -->
               <div class="config-section">
-                <h5>🌊 贝塞尔曲线边样式</h5>
-                <div class="config-item">
-                  <label>边形状</label>
-                  <el-select 
-                    v-model="configStore.config.edgeStyle.curveStyle"
-                    @change="updateConfig('edgeStyle.curveStyle', $event)"
-                    placeholder="选择形状"
-                  >
-                    <el-option label="🌊 贝塞尔曲线" value="unbundled-bezier" />
-                    <el-option label="📐 直线" value="straight" />
-                    <el-option label="🔄 标准贝塞尔" value="bezier" />
-                    <el-option label="🎋 干草堆 (性能)" value="haystack" />
-                    <el-option label="🚖 出租车路径" value="taxi" />
-                  </el-select>
-                </div>
-                <div class="config-item" v-show="configStore.config.edgeStyle.curveStyle.includes('bezier')">
-                  <label>弯曲度</label>
-                  <el-slider
-                    v-model="configStore.config.edgeStyle.controlPointDistance"
-                    @change="updateConfig('edgeStyle.controlPointDistance', $event)"
-                    :min="10"
-                    :max="120"
-                  />
-                </div>
-                <div class="config-item" v-show="configStore.config.edgeStyle.curveStyle.includes('bezier')">
-                  <label>控制点权重</label>
-                  <el-slider
-                    v-model="configStore.config.edgeStyle.controlPointWeight"
-                    @change="updateConfig('edgeStyle.controlPointWeight', $event)"
-                    :min="0.1"
-                    :max="1.0"
-                    :step="0.1"
-                  />
-                </div>
+                <h5>🌊 边样式</h5>
                 <div class="config-item">
                   <label>边宽度</label>
                   <el-slider
@@ -620,33 +456,13 @@
                   />
                 </div>
                 <div class="config-item">
-                  <label>平时透明度</label>
+                  <label>边透明度</label>
                   <el-slider
                     v-model="configStore.config.edgeStyle.edgeOpacity"
                     @change="updateConfig('edgeStyle.edgeOpacity', $event)"
                     :min="0.1"
                     :max="1.0"
                     :step="0.1"
-                  />
-                </div>
-                <div class="config-item">
-                  <label>高亮透明度</label>
-                  <el-slider
-                    v-model="configStore.config.edgeStyle.highlightEdgeOpacity"
-                    @change="updateConfig('edgeStyle.highlightEdgeOpacity', $event)"
-                    :min="0.1"
-                    :max="1.0"
-                    :step="0.1"
-                  />
-                </div>
-                <div class="config-item">
-                  <label>高亮边宽度</label>
-                  <el-slider
-                    v-model="configStore.config.edgeStyle.highlightEdgeWidth"
-                    @change="updateConfig('edgeStyle.highlightEdgeWidth', $event)"
-                    :min="1"
-                    :max="5"
-                    :step="0.5"
                   />
                 </div>
                 <div class="config-item">
@@ -658,7 +474,6 @@
                   >
                     <el-option label="🔺 三角形" value="triangle" />
                     <el-option label="⭕ 无箭头" value="none" />
-                    <el-option label="⬛ 方形" value="square" />
                     <el-option label="💎 菱形" value="diamond" />
                     <el-option label="🔴 圆形" value="circle" />
                   </el-select>
@@ -763,38 +578,6 @@ const onLayoutChange = async (layoutType: LayoutType) => {
   }
 }
 
-// 🆕 切换渲染引擎（Cytoscape ↔ G6）
-const onRenderEngineChange = async (engine: 'cytoscape' | 'g6') => {
-  try {
-    // 1. 保存当前视口状态
-    const starChartStore = useStarChartStore()
-    const currentViewport = starChartStore.viewportState
-    
-    // 2. 更新配置
-    configStore.setRenderEngine(engine)
-    
-    // 3. 重新应用布局（触发数据转换）
-    await starChartStore.recomputeLayout()
-    
-    // 4. 恢复视口状态
-    await nextTick()
-    starChartStore.updateViewport(currentViewport)
-    
-    // 5. 用户反馈
-    ElMessage.success({
-      message: `已切换到 ${engine === 'g6' ? 'G6' : 'Cytoscape'} 渲染引擎`,
-      duration: 2000
-    })
-    
-    console.log(`[WritingPanel] 渲染引擎切换完成: ${engine}`)
-  } catch (error) {
-    console.error('[WritingPanel] 切换渲染引擎失败:', error)
-    ElMessage.error('切换失败，请重试')
-    
-    // 回滚到之前的引擎
-    configStore.setRenderEngine(engine === 'g6' ? 'cytoscape' : 'g6')
-  }
-}
 
 // 🆕 切换 G6 渲染器类型（Canvas/WebGL/SVG）
 const onG6RendererChange = async (rendererType: 'canvas' | 'webgl' | 'svg' | 'auto') => {

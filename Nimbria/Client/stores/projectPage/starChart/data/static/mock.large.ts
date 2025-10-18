@@ -2,7 +2,7 @@
  * 性能测试数据源 - 400节点 + 2500边
  * 静态Mock数据，用于性能测试
  */
-import type { RawGraphData, RawNode, RawEdge, GroupInfo } from '../types'
+import type { G6GraphData, G6Node, G6Edge } from '../types'
 import type { DataSourceMetadata } from '../base/DataSourceTypes'
 import { StaticDataSource, type LoadOptions } from '../base/DataSourceBase'
 
@@ -22,12 +22,12 @@ export class MockLargeDataSource extends StaticDataSource {
   }
   
   // 缓存生成的数据
-  private cachedData: RawGraphData | null = null
+  private cachedData: G6GraphData | null = null
   
   /**
    * 加载图数据
    */
-  async loadGraphData(options?: LoadOptions): Promise<RawGraphData> {
+  async loadGraphData(options?: LoadOptions): Promise<G6GraphData> {
     if (!this.cachedData) {
       this.cachedData = this.generateData()
     }
@@ -35,15 +35,14 @@ export class MockLargeDataSource extends StaticDataSource {
   }
   
   /**
-   * 生成分组层级化的大规模测试数据
+   * 生成分组层级化的大规模测试数据（树形结构）
    */
-  private generateData(): RawGraphData {
-    const nodes: RawNode[] = []
-    const edges: RawEdge[] = []
+  private generateData(): G6GraphData {
+    const nodes: G6Node[] = []
+    const edges: G6Edge[] = []
     
-    const GROUP_COUNT = 20  // 组数
-    const NODES_PER_GROUP = 20  // 每组节点数
-    const TOTAL_EDGES = 2500  // 总边数
+    const GROUP_COUNT = 20  // 组数（每组是独立的树）
+    const NODES_PER_GROUP = 20  // 每组节点数（包含根）
     
     // 20种不同颜色（每组一个颜色）
     const groupColors = [
@@ -53,148 +52,131 @@ export class MockLargeDataSource extends StaticDataSource {
       '#e64980', '#be4bdb', '#7950f2', '#4c6ef5', '#228be6'
     ]
     
-    // 层级配置
-    const hierarchyLevels = [
-      { level: 5, count: 1, scoreRange: [0.9, 1.0], edgeRange: [15, 20], name: '中心' },
-      { level: 4, count: 2, scoreRange: [0.8, 0.9], edgeRange: [10, 15], name: '次中心' },
-      { level: 3, count: 3, scoreRange: [0.7, 0.8], edgeRange: [6, 10], name: '次次中心' },
-      { level: 2, count: 5, scoreRange: [0.6, 0.7], edgeRange: [3, 6], name: '次次次中心' },
-      { level: 1, count: 9, scoreRange: [0.5, 0.6], edgeRange: [1, 3], name: '普通' }
-    ]
+    const rootIds: string[] = []
     
-    // 边类型
-    const edgeTypes = [
-      'love', 'conflict', 'mentor', 'friendship', 'alliance',
-      'possession', 'participate', 'enemy', 'family', 'master'
-    ]
-    
-    const groups: GroupInfo[] = []
-    
-    // 为每个组生成节点
+    // 为每个组生成独立的树形结构
     for (let groupIdx = 0; groupIdx < GROUP_COUNT; groupIdx++) {
       const color = groupColors[groupIdx] || '#868e96'
-      const groupNodeIds: string[] = []
+      const groupRoot = `g${groupIdx}-root`
       
-      let nodeIndexInGroup = 0
+      // 每个组的根节点（第0层）
+      nodes.push({
+        id: groupRoot,
+        label: `组${groupIdx}`,
+        size: 35,
+        color,
+        hierarchy: 0,
+        groupId: groupIdx,
+        type: 'group-root'
+      })
       
-      // 为每个层级生成节点
-      for (const hierarchy of hierarchyLevels) {
-        for (let i = 0; i < hierarchy.count; i++) {
-          const scoreMin = hierarchy.scoreRange[0] ?? 0.5
-          const scoreMax = hierarchy.scoreRange[1] ?? 1.0
-          const score = scoreMin + Math.random() * (scoreMax - scoreMin)
-          
-          const node: RawNode = {
-            id: `g${groupIdx}-n${nodeIndexInGroup}`,
-            name: `G${groupIdx}-${hierarchy.name}${i + 1}`,
-            type: 'group-node',
-            score,
+      // 记录根节点ID
+      rootIds.push(groupRoot)
+      
+      // 生成组内的树形层级（1-3层）
+      let nodeIndex = 0
+      
+      // 第1层：每组2个分支
+      for (let b = 0; b < 2; b++) {
+        const branchId = `g${groupIdx}-b${b}`
+        nodes.push({
+          id: branchId,
+          label: `${groupIdx}-分支${b}`,
+          size: 28,
+          color,
+          hierarchy: 1,
+          groupId: groupIdx,
+          type: 'branch'
+        })
+        edges.push({ source: groupRoot, target: branchId })
+        
+        // 第2层：每个分支3-5个子节点
+        const childCount = 3 + Math.floor(Math.random() * 3)
+        for (let c = 0; c < childCount; c++) {
+          const childId = `g${groupIdx}-n${nodeIndex++}`
+          nodes.push({
+            id: childId,
+            label: `${groupIdx}-节点${nodeIndex}`,
+            size: 20 + Math.random() * 8,
             color,
-            hierarchy: hierarchy.level,
-            metadata: {
-              groupId: groupIdx,
-              groupName: `Group ${groupIdx}`,
-              edgeTarget: [hierarchy.edgeRange[0] ?? 1, hierarchy.edgeRange[1] ?? 3]
+            hierarchy: 2,
+            groupId: groupIdx,
+            type: 'node',
+            score: 0.5 + Math.random() * 0.3
+          })
+          edges.push({ source: branchId, target: childId })
+          
+          // 第3层：部分节点有1-2个子节点
+          if (Math.random() < 0.4 && nodeIndex < NODES_PER_GROUP - 3) {
+            const leafCount = 1 + Math.floor(Math.random() * 2)
+            for (let l = 0; l < leafCount; l++) {
+              const leafId = `g${groupIdx}-n${nodeIndex++}`
+              nodes.push({
+                id: leafId,
+                label: `${groupIdx}-叶${nodeIndex}`,
+                size: 18,
+                color,
+                hierarchy: 3,
+                groupId: groupIdx,
+                type: 'leaf',
+                score: 0.3 + Math.random() * 0.2
+              })
+              edges.push({ source: childId, target: leafId })
             }
           }
-          
-          nodes.push(node)
-          groupNodeIds.push(node.id)
-          nodeIndexInGroup++
         }
       }
-      
-      groups.push({
-        id: groupIdx,
-        name: `Group ${groupIdx}`,
-        nodeIds: groupNodeIds,
-        color
-      })
     }
     
-    // 生成边
-    const usedEdges = new Set<string>()
-    
-    // 1. 为每个节点生成符合其层级的边数
-    for (const node of nodes) {
-      const edgeTarget = node.metadata?.edgeTarget as [number, number] | undefined
-      if (!edgeTarget) continue
-      
-      const targetEdgeCount = edgeTarget[0] + Math.floor(Math.random() * (edgeTarget[1] - edgeTarget[0]))
-      
-      for (let i = 0; i < targetEdgeCount; i++) {
-        // 80%概率连接同组，20%概率连接其他组
-        const sameGroup = Math.random() < 0.8
-        let candidateNodes: RawNode[]
-        
-        if (sameGroup && node.metadata?.groupId !== undefined) {
-          const groupId = node.metadata.groupId
-          candidateNodes = nodes.filter(n => n.metadata?.groupId === groupId && n.id !== node.id)
-        } else {
-          candidateNodes = nodes.filter(n => n.metadata?.groupId !== node.metadata?.groupId && n.id !== node.id)
-        }
-        
-        if (candidateNodes.length === 0) continue
-        
-        const target = candidateNodes[Math.floor(Math.random() * candidateNodes.length)]
-        if (!target) continue
-        
-        const edgeKey = `${node.id}-${target.id}`
-        const reverseKey = `${target.id}-${node.id}`
-        
-        if (!usedEdges.has(edgeKey) && !usedEdges.has(reverseKey)) {
-          edges.push({
-            id: `edge-${edges.length}`,
-            source: node.id,
-            target: target.id,
-            type: edgeTypes[Math.floor(Math.random() * edgeTypes.length)] || 'default',
-            weight: Math.random() * 0.5 + 0.5,
-            label: ''
-          })
-          usedEdges.add(edgeKey)
-        }
-        
-        if (edges.length >= TOTAL_EDGES) break
-      }
-      
-      if (edges.length >= TOTAL_EDGES) break
-    }
-    
-    // 2. 补充到目标边数
-    let attempts = 0
-    while (edges.length < TOTAL_EDGES && attempts < TOTAL_EDGES * 2) {
-      const source = nodes[Math.floor(Math.random() * nodes.length)]
-      const target = nodes[Math.floor(Math.random() * nodes.length)]
-      
-      if (source && target && source.id !== target.id) {
-        const edgeKey = `${source.id}-${target.id}`
-        const reverseKey = `${target.id}-${source.id}`
-        
-        if (!usedEdges.has(edgeKey) && !usedEdges.has(reverseKey)) {
-          edges.push({
-            id: `edge-${edges.length}`,
-            source: source.id,
-            target: target.id,
-            type: edgeTypes[Math.floor(Math.random() * edgeTypes.length)] || 'default',
-            weight: Math.random() * 0.5 + 0.5,
-            label: ''
-          })
-          usedEdges.add(edgeKey)
-        }
-      }
-      attempts++
-    }
-    
-    console.log(`[Mock Large Data] 生成了 ${nodes.length} 个节点 (${GROUP_COUNT}组), ${edges.length} 条边`)
+    // 转换为多棵树的数据（用于G6的树布局和cubic-radial边）
+    const treesData = this.graphToMultiTreeData(nodes, edges, rootIds)
     
     return {
       nodes,
       edges,
-      metadata: {
-        groupCount: GROUP_COUNT,
-        groups
-      }
+      // @ts-ignore 添加多树数据字段
+      treesData,
+      rootIds
     }
+  }
+  
+  /**
+   * 将图数据转换为多棵树的数据格式
+   */
+  private graphToMultiTreeData(nodes: G6Node[], edges: G6Edge[], rootIds: string[]): any[] {
+    const nodeMap = new Map<string, G6Node>()
+    nodes.forEach(n => nodeMap.set(n.id, n))
+    
+    // 构建子节点映射
+    const childrenMap = new Map<string, string[]>()
+    edges.forEach(edge => {
+      const source = edge.source
+      if (!childrenMap.has(source)) {
+        childrenMap.set(source, [])
+      }
+      childrenMap.get(source)!.push(edge.target)
+    })
+    
+    // 递归构建单棵树
+    const buildTree = (nodeId: string): any => {
+      const node = nodeMap.get(nodeId)
+      if (!node) return null
+      
+      const treeNode: any = {
+        id: node.id,
+        data: { ...node }
+      }
+      
+      const children = childrenMap.get(nodeId)
+      if (children && children.length > 0) {
+        treeNode.children = children.map(childId => buildTree(childId)).filter(Boolean)
+      }
+      
+      return treeNode
+    }
+    
+    // 为每个根节点构建一棵树
+    return rootIds.map(rootId => buildTree(rootId)).filter(Boolean)
   }
 }
 

@@ -1,13 +1,18 @@
 /**
  * 测试数据A - 30个节点的小说设定关系网
- * 静态Mock数据，用于功能测试
+ * 直接生成G6原生格式，无需转换
  */
-import type { RawGraphData, RawNode, RawEdge } from '../types'
+import type { G6GraphData, G6Node, G6Edge } from '../types'
 import type { DataSourceMetadata } from '../base/DataSourceTypes'
 import { StaticDataSource, type LoadOptions } from '../base/DataSourceBase'
+import { 
+  getSVGIcon, 
+  getRandomSVGIcon, 
+  generateNodeSVGDataURL 
+} from '../../node.svg.library'
 
 /**
- * 正常规模测试数据源
+ * 正常规模测试数据源（G6原生格式）
  */
 export class MockNormalDataSource extends StaticDataSource {
   readonly metadata: DataSourceMetadata = {
@@ -17,134 +22,203 @@ export class MockNormalDataSource extends StaticDataSource {
     description: '小说设定关系网，包含角色、地点、事件和物品',
     estimatedNodeCount: 30,
     estimatedEdgeCount: 40,
-    recommendedLayouts: ['concentric', 'force-directed'],
+    recommendedLayouts: ['concentric', 'compact-box'],
     requiresPreprocessing: false
   }
   
   /**
-   * 加载图数据
+   * 加载G6原生格式图数据（多根树形结构）
    */
-  async loadGraphData(options?: LoadOptions): Promise<RawGraphData> {
-    // 随机分配层级（1-5）
-    const randomHierarchy = () => Math.floor(Math.random() * 5) + 1
+  async loadGraphData(options?: LoadOptions): Promise<G6GraphData> {
+    const nodes: G6Node[] = []
+    const edges: G6Edge[] = []
     
-    // Mock 节点数据
-    const mockNodes: RawNode[] = [
-      // 主要角色 (6个)
-      { id: 'char-1', name: '凌云', type: 'protagonist', score: 0.95, color: '#ff6b6b', hierarchy: randomHierarchy() },
-      { id: 'char-2', name: '烟雨', type: 'heroine', score: 0.9, color: '#f06595', hierarchy: randomHierarchy() },
-      { id: 'char-3', name: '魔尊', type: 'antagonist', score: 0.88, color: '#5c7cfa', hierarchy: randomHierarchy() },
-      { id: 'char-4', name: '清风上人', type: 'mentor', score: 0.78, color: '#51cf66', hierarchy: randomHierarchy() },
-      { id: 'char-5', name: '剑痴', type: 'supporting', score: 0.65, color: '#868e96', hierarchy: randomHierarchy() },
-      { id: 'char-6', name: '月琴仙子', type: 'supporting', score: 0.62, color: '#a78bfa', hierarchy: randomHierarchy() },
-      
-      // 次要角色 (8个)
-      { id: 'char-7', name: '张三', type: 'supporting', score: 0.45, color: '#868e96', hierarchy: randomHierarchy() },
-      { id: 'char-8', name: '李四', type: 'supporting', score: 0.42, color: '#868e96', hierarchy: randomHierarchy() },
-      { id: 'char-9', name: '王五', type: 'supporting', score: 0.48, color: '#868e96', hierarchy: randomHierarchy() },
-      { id: 'char-10', name: '赵六', type: 'antagonist_minor', score: 0.55, color: '#94d82d', hierarchy: randomHierarchy() },
-      { id: 'char-11', name: '孙七', type: 'supporting', score: 0.38, color: '#868e96', hierarchy: randomHierarchy() },
-      { id: 'char-12', name: '周八', type: 'supporting', score: 0.40, color: '#868e96', hierarchy: randomHierarchy() },
-      { id: 'char-13', name: '吴九', type: 'supporting', score: 0.52, color: '#868e96', hierarchy: randomHierarchy() },
-      { id: 'char-14', name: '郑十', type: 'mentor', score: 0.58, color: '#51cf66', hierarchy: randomHierarchy() },
-      
-      // 地点 (7个)
-      { id: 'place-1', name: '凌霄宗', type: 'location', score: 0.75, color: '#ffd43b', hierarchy: randomHierarchy() },
-      { id: 'place-2', name: '魔渊地狱', type: 'location', score: 0.72, color: '#fa5252', hierarchy: randomHierarchy() },
-      { id: 'place-3', name: '清风山庄', type: 'location', score: 0.65, color: '#ffd43b', hierarchy: randomHierarchy() },
-      { id: 'place-4', name: '仙界秘境', type: 'location', score: 0.68, color: '#ffd43b', hierarchy: randomHierarchy() },
-      { id: 'place-5', name: '禁地遗迹', type: 'location', score: 0.70, color: '#ff922b', hierarchy: randomHierarchy() },
-      { id: 'place-6', name: '落日城', type: 'location', score: 0.55, color: '#ffd43b', hierarchy: randomHierarchy() },
-      { id: 'place-7', name: '妖兽森林', type: 'location', score: 0.58, color: '#ffd43b', hierarchy: randomHierarchy() },
-      
-      // 事件 (5个)
-      { id: 'event-1', name: '秘境开启', type: 'event', score: 0.85, color: '#ff8787', hierarchy: randomHierarchy() },
-      { id: 'event-2', name: '大战决战', type: 'event', score: 0.82, color: '#ff8787', hierarchy: randomHierarchy() },
-      { id: 'event-3', name: '宗门历练', type: 'event', score: 0.60, color: '#ff8787', hierarchy: randomHierarchy() },
-      { id: 'event-4', name: '魔族入侵', type: 'event', score: 0.80, color: '#ff8787', hierarchy: randomHierarchy() },
-      { id: 'event-5', name: '渡劫成仙', type: 'event', score: 0.75, color: '#ff8787', hierarchy: randomHierarchy() },
-      
-      // 物品/功法 (4个)
-      { id: 'item-1', name: '诛仙剑', type: 'item', score: 0.70, color: '#74c0fc', hierarchy: randomHierarchy() },
-      { id: 'item-2', name: '混元功', type: 'technique', score: 0.68, color: '#74c0fc', hierarchy: randomHierarchy() },
-      { id: 'item-3', name: '仙经秘籍', type: 'item', score: 0.55, color: '#74c0fc', hierarchy: randomHierarchy() },
-      { id: 'item-4', name: '破魔珠', type: 'item', score: 0.62, color: '#74c0fc', hierarchy: randomHierarchy() }
+    // 不再有总根节点，每个组都是独立的根节点
+    const groups = [
+      { id: 'group-0', name: '正道势力', color: '#51cf66', groupId: 0 },
+      { id: 'group-1', name: '魔道势力', color: '#5c7cfa', groupId: 1 },
+      { id: 'group-2', name: '重要地点', color: '#ffd43b', groupId: 2 },
+      { id: 'group-3', name: '关键事件', color: '#ff8787', groupId: 3 }
     ]
     
-    // Mock 边数据
-    const mockEdges: RawEdge[] = [
-      // 凌云关系
-      { id: 'e1', source: 'char-1', target: 'char-2', weight: 0.95, type: 'love', label: '爱情' },
-      { id: 'e2', source: 'char-1', target: 'char-3', weight: 0.90, type: 'conflict', label: '宿敌' },
-      { id: 'e3', source: 'char-1', target: 'char-4', weight: 0.80, type: 'mentor', label: '师徒' },
-      { id: 'e4', source: 'char-1', target: 'place-1', weight: 0.75, type: 'location', label: '宗主' },
-      { id: 'e5', source: 'char-1', target: 'item-1', weight: 0.70, type: 'possession', label: '持有' },
-      
-      // 烟雨关系
-      { id: 'e6', source: 'char-2', target: 'char-5', weight: 0.68, type: 'friendship', label: '朋友' },
-      { id: 'e7', source: 'char-2', target: 'char-14', weight: 0.65, type: 'mentor', label: '师长' },
-      { id: 'e8', source: 'char-2', target: 'place-3', weight: 0.60, type: 'location', label: '出身' },
-      { id: 'e9', source: 'char-2', target: 'item-2', weight: 0.62, type: 'learn', label: '修炼' },
-      
-      // 魔尊关系
-      { id: 'e10', source: 'char-3', target: 'char-10', weight: 0.75, type: 'alliance', label: '手下' },
-      { id: 'e11', source: 'char-3', target: 'place-2', weight: 0.85, type: 'location', label: '统治' },
-      { id: 'e12', source: 'char-3', target: 'event-4', weight: 0.80, type: 'participate', label: '发起' },
-      { id: 'e13', source: 'char-3', target: 'event-1', weight: 0.70, type: 'conflict', label: '对抗' },
-      { id: 'e14', source: 'char-3', target: 'item-4', weight: 0.65, type: 'possession', label: '持有' },
-      
-      // 清风上人关系
-      { id: 'e15', source: 'char-4', target: 'place-1', weight: 0.80, type: 'location', label: '宗内' },
-      { id: 'e16', source: 'char-4', target: 'char-5', weight: 0.72, type: 'mentor', label: '教导' },
-      { id: 'e17', source: 'char-4', target: 'item-2', weight: 0.70, type: 'teach', label: '传授' },
-      { id: 'e18', source: 'char-4', target: 'event-1', weight: 0.68, type: 'participate', label: '参与' },
-      
-      // 剑痴关系
-      { id: 'e19', source: 'char-5', target: 'item-1', weight: 0.75, type: 'obsession', label: '痴迷' },
-      { id: 'e20', source: 'char-5', target: 'event-2', weight: 0.72, type: 'participate', label: '参战' },
-      { id: 'e21', source: 'char-5', target: 'char-13', weight: 0.55, type: 'friendship', label: '旧识' },
-      
-      // 月琴仙子关系
-      { id: 'e22', source: 'char-6', target: 'place-4', weight: 0.70, type: 'location', label: '驻地' },
-      { id: 'e23', source: 'char-6', target: 'event-2', weight: 0.68, type: 'participate', label: '助战' },
-      { id: 'e24', source: 'char-6', target: 'char-2', weight: 0.62, type: 'friendship', label: '知己' },
-      { id: 'e25', source: 'char-6', target: 'item-3', weight: 0.58, type: 'possession', label: '收藏' },
-      
-      // 赵六关系
-      { id: 'e26', source: 'char-10', target: 'place-2', weight: 0.72, type: 'location', label: '驻扎' },
-      { id: 'e27', source: 'char-10', target: 'event-4', weight: 0.70, type: 'participate', label: '参与' },
-      { id: 'e28', source: 'char-10', target: 'char-11', weight: 0.60, type: 'alliance', label: '同党' },
-      
-      // 郑十关系
-      { id: 'e29', source: 'char-14', target: 'place-3', weight: 0.75, type: 'location', label: '创建' },
-      { id: 'e30', source: 'char-14', target: 'event-3', weight: 0.65, type: 'participate', label: '主持' },
-      { id: 'e31', source: 'char-14', target: 'char-6', weight: 0.68, type: 'friendship', label: '至友' },
-      
-      // 地点间关系
-      { id: 'e32', source: 'place-1', target: 'place-3', weight: 0.55, type: 'neighbor', label: '邻近' },
-      { id: 'e33', source: 'place-2', target: 'place-5', weight: 0.65, type: 'connection', label: '相连' },
-      { id: 'e34', source: 'place-5', target: 'place-7', weight: 0.50, type: 'neighbor', label: '接壤' },
-      
-      // 事件间关系
-      { id: 'e35', source: 'event-1', target: 'event-4', weight: 0.70, type: 'causality', label: '引发' },
-      { id: 'e36', source: 'event-4', target: 'event-2', weight: 0.75, type: 'sequence', label: '导致' },
-      { id: 'e37', source: 'event-2', target: 'event-5', weight: 0.68, type: 'consequence', label: '成就' },
-      
-      // 物品使用关系
-      { id: 'e38', source: 'item-1', target: 'item-4', weight: 0.60, type: 'combination', label: '可结合' },
-      { id: 'e39', source: 'item-2', target: 'event-1', weight: 0.65, type: 'requirement', label: '需要' },
-      { id: 'e40', source: 'item-3', target: 'item-2', weight: 0.55, type: 'contain', label: '记载' }
-    ]
+    // 每个组作为根节点（level 0）
+    groups.forEach((group) => {
+      nodes.push(this.createNode(group.id, group.name, 'group-root', 0.9, group.color, 0, group.groupId))
+    })
     
-    console.log('[Mock Normal Data] 已加载 30 节点测试数据')
+    // 组0：正道势力树
+    this.addTreeBranch(nodes, edges, 'group-0', [
+      { id: 'char-1', name: '凌云', type: 'protagonist', score: 0.95, color: '#ff6b6b', groupId: 0, children: [
+        { id: 'char-2', name: '烟雨', type: 'heroine', score: 0.9, color: '#f06595', groupId: 0 },
+        { id: 'char-5', name: '剑痴', type: 'supporting', score: 0.65, color: '#868e96', groupId: 0 }
+      ]},
+      { id: 'char-4', name: '清风上人', type: 'mentor', score: 0.78, color: '#51cf66', groupId: 0, children: [
+        { id: 'char-7', name: '张三', type: 'supporting', score: 0.45, color: '#868e96', groupId: 0 },
+        { id: 'char-8', name: '李四', type: 'supporting', score: 0.42, color: '#868e96', groupId: 0 }
+      ]}
+    ], 2)
+    
+    // 组1：魔道势力树
+    this.addTreeBranch(nodes, edges, 'group-1', [
+      { id: 'char-3', name: '魔尊', type: 'antagonist', score: 0.88, color: '#5c7cfa', groupId: 1, children: [
+        { id: 'char-10', name: '赵六', type: 'antagonist_minor', score: 0.55, color: '#94d82d', groupId: 1 },
+        { id: 'char-11', name: '孙七', type: 'supporting', score: 0.38, color: '#868e96', groupId: 1 }
+      ]},
+      { id: 'char-14', name: '郑十', type: 'mentor', score: 0.58, color: '#51cf66', groupId: 1, children: [
+        { id: 'char-12', name: '周八', type: 'supporting', score: 0.40, color: '#868e96', groupId: 1 },
+        { id: 'char-13', name: '吴九', type: 'supporting', score: 0.52, color: '#868e96', groupId: 1 }
+      ]}
+    ], 2)
+    
+    // 组2：地点树
+    this.addTreeBranch(nodes, edges, 'group-2', [
+      { id: 'place-1', name: '凌霄宗', type: 'location', score: 0.75, color: '#ffd43b', groupId: 2, children: [
+        { id: 'place-3', name: '清风山庄', type: 'location', score: 0.65, color: '#ffd43b', groupId: 2 },
+        { id: 'place-6', name: '落日城', type: 'location', score: 0.55, color: '#ffd43b', groupId: 2 }
+      ]},
+      { id: 'place-2', name: '魔渊地狱', type: 'location', score: 0.72, color: '#fa5252', groupId: 2, children: [
+        { id: 'place-5', name: '禁地遗迹', type: 'location', score: 0.70, color: '#ff922b', groupId: 2 }
+      ]},
+      { id: 'place-4', name: '仙界秘境', type: 'location', score: 0.68, color: '#ffd43b', groupId: 2, children: [
+        { id: 'place-7', name: '妖兽森林', type: 'location', score: 0.58, color: '#ffd43b', groupId: 2 }
+      ]}
+    ], 2)
+    
+    // 组3：事件树
+    this.addTreeBranch(nodes, edges, 'group-3', [
+      { id: 'event-1', name: '秘境开启', type: 'event', score: 0.85, color: '#ff8787', groupId: 3, children: [
+        { id: 'event-3', name: '宗门历练', type: 'event', score: 0.60, color: '#ff8787', groupId: 3 }
+      ]},
+      { id: 'event-2', name: '大战决战', type: 'event', score: 0.82, color: '#ff8787', groupId: 3, children: [
+        { id: 'event-5', name: '渡劫成仙', type: 'event', score: 0.75, color: '#ff8787', groupId: 3 }
+      ]},
+      { id: 'event-4', name: '魔族入侵', type: 'event', score: 0.80, color: '#ff8787', groupId: 3 }
+    ], 2)
+    
+    // 转换为多棵树的数据（用于G6的树布局和cubic-radial边）
+    const rootIds = groups.map(g => g.id)
+    const treesData = this.graphToMultiTreeData(nodes, edges, rootIds)
+    
+    return { 
+      nodes, 
+      edges,
+      // @ts-ignore 添加多树数据字段
+      treesData,
+      rootIds
+    }
+  }
+  
+  /**
+   * 将图数据转换为多棵树的数据格式
+   */
+  private graphToMultiTreeData(nodes: G6Node[], edges: G6Edge[], rootIds: string[]): any[] {
+    const nodeMap = new Map<string, G6Node>()
+    nodes.forEach(n => nodeMap.set(n.id, n))
+    
+    // 构建子节点映射
+    const childrenMap = new Map<string, string[]>()
+    edges.forEach(edge => {
+      const source = edge.source
+      if (!childrenMap.has(source)) {
+        childrenMap.set(source, [])
+      }
+      childrenMap.get(source)!.push(edge.target)
+    })
+    
+    // 递归构建单棵树
+    const buildTree = (nodeId: string): any => {
+      const node = nodeMap.get(nodeId)
+      if (!node) return null
+      
+      const treeNode: any = {
+        id: node.id,
+        data: { ...node }
+      }
+      
+      const children = childrenMap.get(nodeId)
+      if (children && children.length > 0) {
+        treeNode.children = children.map(childId => buildTree(childId)).filter(Boolean)
+      }
+      
+      return treeNode
+    }
+    
+    // 为每个根节点构建一棵树
+    return rootIds.map(rootId => buildTree(rootId)).filter(Boolean)
+  }
+  
+  /**
+   * 添加树形分支
+   */
+  private addTreeBranch(
+    nodes: G6Node[], 
+    edges: G6Edge[], 
+    parentId: string,
+    branches: any[],
+    startLevel: number
+  ): void {
+    branches.forEach(branch => {
+      nodes.push(this.createNode(
+        branch.id, 
+        branch.name, 
+        branch.type, 
+        branch.score, 
+        branch.color, 
+        startLevel,
+        branch.groupId
+      ))
+      edges.push({ source: parentId, target: branch.id })
+      
+      // 递归添加子节点
+      if (branch.children) {
+        branch.children.forEach((child: any) => {
+          nodes.push(this.createNode(
+            child.id, 
+            child.name, 
+            child.type, 
+            child.score, 
+            child.color, 
+            startLevel + 1,
+            child.groupId
+          ))
+          edges.push({ source: branch.id, target: child.id })
+        })
+      }
+    })
+  }
+  
+  /**
+   * 创建G6节点
+   */
+  private createNode(
+    id: string, 
+    label: string, 
+    type: string, 
+    score: number, 
+    color: string,
+    hierarchy: number,
+    groupId: number
+  ): G6Node {
+    // 获取随机SVG图标
+    const icon = getRandomSVGIcon()
+    const img = generateNodeSVGDataURL(icon, color, 0.8, 'transparent', 0.1)
+    
+    // 计算节点大小
+    const size = Math.max(20, Math.min(40, 24 + score * 16))
     
     return {
-      nodes: mockNodes,
-      edges: mockEdges
+      id,
+      label,
+      size,
+      color,
+      img,
+      type,
+      score,
+      hierarchy,
+      groupId
     }
   }
 }
 
-// 导出单例
+// 单例导出
 export const mockNormalDataSource = new MockNormalDataSource()
-

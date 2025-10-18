@@ -1,16 +1,16 @@
 /**
- * 数据源管理器（重构版）
- * 统一管理不同数据源的加载，支持静态和动态数据源
+ * 数据源管理器（G6原生版）
+ * 统一管理不同数据源的加载，直接返回G6格式数据
  */
-import type { RawGraphData, DataSourceType } from './types'
+import type { G6GraphData, DataSourceType } from './types'
 import type { IDataSource, LoadOptions } from './base/DataSourceBase'
 import type { DataSourceMetadata } from './base/DataSourceTypes'
 
 // 导入所有数据源
 import { mockNormalDataSource } from './static/mock.normal'
 import { mockLargeDataSource } from './static/mock.large'
-import { mcrecipeDataSource } from './static/mcrecipe.static'
-import { gunDataSource } from './dynamic/gun.adapter'
+// import { mcrecipeDataSource } from './static/mcrecipe.static'
+// import { gunDataSource } from './dynamic/gun.adapter'
 
 /**
  * 数据源管理器
@@ -22,8 +22,8 @@ export class DataSourceManager {
     // 注册所有数据源
     this.register(mockNormalDataSource)
     this.register(mockLargeDataSource)
-    this.register(mcrecipeDataSource)
-    this.register(gunDataSource)
+    // this.register(mcrecipeDataSource)
+    // this.register(gunDataSource)
     
     console.log('[DataSourceManager] 已注册数据源:', Array.from(this.dataSources.keys()))
   }
@@ -54,9 +54,9 @@ export class DataSourceManager {
   }
   
   /**
-   * 加载图数据
+   * 加载G6原生格式图数据
    */
-  async loadData(sourceType: DataSourceType, options?: LoadOptions): Promise<RawGraphData> {
+  async loadData(sourceType: DataSourceType, options?: LoadOptions): Promise<G6GraphData> {
     const dataSource = this.dataSources.get(sourceType)
     
     if (!dataSource) {
