@@ -1,15 +1,14 @@
 /**
  * 多根径向树布局插件
- * 将现有的 MultiRootRadialLayout 改造为完整的插件
+ * 自包含的插件实现，所有依赖都在插件内部
  */
 
 import { BaseLayoutPlugin } from '../base/BaseLayoutPlugin'
-import { TreeDataAdapter } from '../adapters/TreeDataAdapter'
-import { StyleManager, HierarchyStyleHelper } from '../styles/StyleManager'
+import { TreeDataAdapter } from './adapter'
+import { HierarchyStyleHelper } from './styles'
 import { MultiRootRadialLayoutAlgorithm } from './layout'
 import type {
   DataFormat,
-  IDataAdapter,
   StyleRules,
   LayoutOptions,
   LayoutResult,
@@ -17,27 +16,22 @@ import type {
 } from '../types'
 
 export class MultiRootRadialPlugin extends BaseLayoutPlugin {
-  name = 'multi-root-radial'
-  displayName = '多根径向树'
-  version = '1.0.0'
-  description = '根节点环形分布，子节点径向扩散的树形布局'
+  override name = 'multi-root-radial'
+  override displayName = '多根径向树'
+  override version = '1.0.0'
+  override description = '根节点环形分布，子节点径向扩散的树形布局'
   
-  supportedDataFormats: DataFormat[] = ['graph' as DataFormat, 'multi-tree' as DataFormat]
+  override supportedDataFormats: DataFormat[] = ['graph' as DataFormat, 'multi-tree' as DataFormat]
   
+  // 内部依赖（自包含）
   private algorithm = new MultiRootRadialLayoutAlgorithm()
+  private adapter = new TreeDataAdapter()
   private hierarchyStyleHelper = new HierarchyStyleHelper()
-  
-  /**
-   * 创建数据适配器
-   */
-  createDataAdapter(): IDataAdapter {
-    return new TreeDataAdapter()
-  }
   
   /**
    * 获取默认样式
    */
-  getDefaultStyles(): StyleRules {
+  override getDefaultStyles(): StyleRules {
     return {
       node: (node: any) => {
         const baseStyle = {
@@ -71,13 +65,17 @@ export class MultiRootRadialPlugin extends BaseLayoutPlugin {
   }
   
   /**
-   * 执行布局
+   * 执行布局（包含数据适配）
    */
-  async execute(data: any, options?: LayoutOptions): Promise<LayoutResult> {
-    return this.algorithm.calculate(data, {
+  override async execute(data: any, options?: LayoutOptions): Promise<LayoutResult> {
+    // 1. 数据适配（内部处理）
+    const adaptedData = await this.adapter.adapt(data)
+    
+    // 2. 布局计算
+    return this.algorithm.calculate(adaptedData, {
       width: options?.width || 1000,
       height: options?.height || 1000,
-      rootIds: data.rootIds || options?.rootIds || [],
+      rootIds: adaptedData.rootIds || [],
       ...this.config
     })
   }
@@ -85,7 +83,7 @@ export class MultiRootRadialPlugin extends BaseLayoutPlugin {
   /**
    * 获取配置Schema
    */
-  getConfigSchema(): ConfigSchema {
+  override getConfigSchema(): ConfigSchema {
     return {
       layout: {
         type: 'group',

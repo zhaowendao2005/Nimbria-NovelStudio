@@ -8,17 +8,7 @@ export { PluginRegistry } from './registry'
 export { BaseLayoutPlugin } from './base/BaseLayoutPlugin'
 export * from './types'
 
-// 样式系统
-export { StyleManager, HierarchyStyleHelper } from './styles/StyleManager'
-
-// 适配器
-export { TreeDataAdapter } from './adapters/TreeDataAdapter'
-export { CompositeAdapter } from './adapters/CompositeAdapter'
-
-// 混入
-export { CustomDataSourceStyleMixin, HierarchyColorSchemeMixin } from './mixins/StyleMixin'
-
-// 插件
+// 插件导出
 export { MultiRootRadialPlugin } from './MultiRootRadialPlugin'
 
 // 自动注册插件

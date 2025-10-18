@@ -1,103 +1,103 @@
 /**
- * StarChart 布局插件系统 - 类型定义
+ * StarChart 插件系统核心契约
  * 
- * 核心设计理念：
- * 1. 插件自包含：每个插件包含算法、样式、配置
- * 2. 样式分层：数据源样式 → 层级样式 → 插件样式 → 用户样式
- * 3. 适配器解耦：数据适配器桥接数据源和插件
- * 4. 混入扩展：通过混入系统实现无限扩展
+ * 设计原则：
+ * 1. 只定义插件与系统的接口，不包含具体实现细节
+ * 2. 保持稳定，避免频繁修改
+ * 3. 插件内部实现细节由各插件自行定义
  */
 
 // ==================== 数据格式 ====================
 
 /**
- * 支持的数据格式
+ * 支持的数据格式（供插件声明）
  */
-export enum DataFormat {
-  GRAPH = 'graph',           // 通用图数据 {nodes, edges}
-  TREE = 'tree',             // 树形数据 {id, children}
-  MULTI_TREE = 'multi-tree', // 多棵树
-  HIERARCHY = 'hierarchy'    // 层级数据
+export type DataFormat = 'graph' | 'tree' | 'multi-tree' | 'hierarchy'
+
+// ==================== 核心数据结构 ====================
+
+/**
+ * G6 节点
+ */
+export interface G6Node {
+  id: string
+  data?: any
+  style?: any
+  [key: string]: any
+}
+
+/**
+ * G6 边
+ */
+export interface G6Edge {
+  source: string
+  target: string
+  type?: string
+  style?: any
+  [key: string]: any
+}
+
+/**
+ * 树节点
+ */
+export interface TreeNode {
+  id: string
+  data?: any
+  children?: TreeNode[]
+  [key: string]: any
+}
+
+/**
+ * G6 图数据（扩展支持树结构）
+ */
+export interface G6GraphData {
+  nodes: G6Node[]
+  edges: G6Edge[]
+  
+  // 树布局相关元数据（cubic-radial等树布局必需）
+  tree?: TreeNode
+  treesData?: TreeNode[]
+  rootIds?: string[]
+  
+  [key: string]: any
 }
 
 // ==================== 样式系统 ====================
 
 /**
- * 节点样式
- */
-export interface NodeStyle {
-  x?: number
-  y?: number
-  size?: number
-  fill?: string
-  stroke?: string
-  lineWidth?: number
-  opacity?: number
-  [key: string]: any
-}
-
-/**
- * 边样式
- */
-export interface EdgeStyle {
-  lineWidth?: number
-  stroke?: string
-  opacity?: number
-  [key: string]: any
-}
-
-/**
  * 样式规则（可以是静态对象或动态函数）
  */
 export interface StyleRules {
-  node?: Partial<NodeStyle> | ((node: any) => Partial<NodeStyle>)
-  edge?: Partial<EdgeStyle> | ((edge: any) => Partial<EdgeStyle>)
-  priority?: StylePriority
-}
-
-/**
- * 样式优先级策略
- */
-export enum StylePriority {
-  DATA_FIRST = 'data',      // 数据源样式优先
-  PLUGIN_FIRST = 'plugin',  // 插件样式优先
-  USER_FIRST = 'user',      // 用户配置优先
-  MERGE = 'merge'           // 智能合并（默认）
+  node?: any | ((node: any) => any)
+  edge?: any | ((edge: any) => any)
 }
 
 /**
  * 用户样式配置
  */
 export interface UserStyleConfig {
-  node?: (node: any) => Partial<NodeStyle>
-  edge?: (edge: any) => Partial<EdgeStyle>
+  node?: (node: any) => any
+  edge?: (edge: any) => any
 }
 
 /**
- * 最终样式规则（经过合并后的）
+ * 最终样式规则（经过合并后的函数）
  */
 export interface FinalStyleRules {
-  node: (node: any) => Partial<NodeStyle>
-  edge: (edge: any) => Partial<EdgeStyle>
+  node: (node: any) => any
+  edge: (edge: any) => any
 }
 
 // ==================== 数据适配器 ====================
 
 /**
- * 数据适配器接口
+ * 数据适配器接口（插件内部使用）
  */
 export interface IDataAdapter {
-  name: string
-  
   /**
    * 适配数据
    */
   adapt(data: any): Promise<any> | any
-  
-  /**
-   * 是否支持该数据格式
-   */
-  supports?(data: any): boolean
 }
 
 // ==================== 布局系统 ====================
@@ -112,55 +112,94 @@ export interface LayoutOptions {
 }
 
 /**
- * 布局结果
+ * 布局结果（必须包含完整的图数据和树结构信息）
  */
-export interface LayoutResult {
-  nodes: any[]
-  edges?: any[]
-  [key: string]: any
+export interface LayoutResult extends G6GraphData {
+  // 继承 G6GraphData 的所有字段
+  // 布局计算后应保留所有原始字段
 }
 
-// ==================== 配置系统 ====================
-
 /**
- * 配置字段类型
+ * 配置项定义
  */
-export type ConfigFieldType = 
-  | 'slider' 
-  | 'select' 
-  | 'radio' 
-  | 'switch' 
-  | 'input' 
-  | 'color-palette'
-  | 'group'
-
-/**
- * 配置字段定义
- */
-export interface ConfigField {
-  type: ConfigFieldType
+export interface ConfigItem {
+  type: 'slider' | 'select' | 'switch' | 'input'
   label: string
-  description?: string
   default?: any
-  visible?: (config: any) => boolean
-  [key: string]: any
+  description?: string
+  min?: number
+  max?: number
+  options?: Array<{ label: string; value: any }>
 }
 
 /**
- * 配置Schema（用于生成配置UI）
+ * 配置组
+ */
+export interface ConfigGroup {
+  type: 'group'
+  label: string
+  children: Record<string, ConfigItem>
+}
+
+/**
+ * 配置Schema
  */
 export interface ConfigSchema {
-  [key: string]: ConfigField | {
-    type: 'group'
-    label: string
-    children: { [key: string]: ConfigField }
-  }
+  [key: string]: ConfigItem | ConfigGroup
 }
 
-// ==================== 插件混入 ====================
+// ==================== 插件核心接口 ====================
 
 /**
- * 插件混入接口（扩展能力）
+ * 布局插件接口（所有插件必须实现）
+ */
+export interface ILayoutPlugin {
+  // ===== 元信息 =====
+  name: string                       // 唯一标识符
+  displayName: string                // 显示名称
+  version: string                    // 版本号
+  description?: string               // 描述
+  
+  // ===== 能力声明 =====
+  supportedDataFormats: DataFormat[] // 支持的数据格式
+  
+  // ===== 核心方法 =====
+  
+  /**
+   * 执行布局计算
+   * @param data 输入数据（可能是任何格式，插件内部负责适配）
+   * @param options 布局选项
+   * @returns 布局结果（必须包含完整的树结构信息）
+   */
+  execute(data: any, options?: LayoutOptions): Promise<LayoutResult>
+  
+  /**
+   * 获取默认样式规则
+   */
+  getDefaultStyles(): StyleRules
+  
+  /**
+   * 合并样式
+   * @param dataStyles 数据源样式
+   * @param pluginStyles 插件样式
+   * @param userConfig 用户配置
+   */
+  mergeStyles(
+    dataStyles: any,
+    pluginStyles: StyleRules,
+    userConfig?: UserStyleConfig
+  ): FinalStyleRules
+  
+  /**
+   * 获取配置Schema
+   */
+  getConfigSchema(): ConfigSchema
+}
+
+// ==================== 混入系统 ====================
+
+/**
+ * 插件混入（可选扩展机制）
  */
 export interface PluginMixin {
   name: string
@@ -169,98 +208,28 @@ export interface PluginMixin {
   beforeLayout?(data: any, plugin: ILayoutPlugin): Promise<any> | any
   afterLayout?(result: LayoutResult, plugin: ILayoutPlugin): Promise<LayoutResult> | LayoutResult
   
-  // 样式钩子
+  // 样式修改
   modifyStyles?(styles: StyleRules, plugin: ILayoutPlugin): StyleRules
   
-  // 配置钩子
+  // 配置修改
   modifyConfig?(config: any, plugin: ILayoutPlugin): any
 }
 
-// ==================== 核心插件接口 ====================
+// ==================== 辅助类型 ====================
 
 /**
- * 布局插件接口
- * 每个插件是完全自包含的单元
+ * 节点样式映射（用于样式管理）
  */
-export interface ILayoutPlugin {
-  // ===== 基础信息 =====
-  name: string
-  displayName: string
-  version: string
-  description?: string
-  
-  // ===== 数据处理能力 =====
-  /**
-   * 插件支持的数据格式
-   */
-  supportedDataFormats: DataFormat[]
-  
-  /**
-   * 创建数据适配器
-   */
-  createDataAdapter(): IDataAdapter | IDataAdapter[]
-  
-  // ===== 样式系统 =====
-  /**
-   * 获取默认样式规则
-   */
-  getDefaultStyles(): StyleRules
-  
-  /**
-   * 合并样式（数据源 + 插件 + 用户）
-   */
-  mergeStyles(
-    dataStyles: any,
-    pluginStyles: StyleRules,
-    userConfig?: UserStyleConfig
-  ): FinalStyleRules
-  
-  // ===== 布局算法 =====
-  /**
-   * 执行布局计算
-   */
-  execute(data: any, options?: LayoutOptions): Promise<LayoutResult>
-  
-  // ===== 配置能力 =====
-  /**
-   * 获取配置Schema
-   */
-  getConfigSchema(): ConfigSchema
-  
-  /**
-   * 获取当前配置
-   */
-  getConfig(): any
-  
-  /**
-   * 更新配置
-   */
-  configure(config: any): void
-  
-  // ===== 混入系统 =====
-  mixins: PluginMixin[]
-  
-  /**
-   * 注册混入
-   */
-  use(mixin: PluginMixin): this
-  
-  // ===== 生命周期钩子 =====
-  beforeLayout?(data: any): Promise<any> | any
-  afterLayout?(result: LayoutResult): Promise<LayoutResult> | LayoutResult
-}
-
-// ==================== 插件元数据 ====================
+export type NodeStyleMap = Record<string, Partial<any>>
 
 /**
- * 插件元数据（用于注册表）
+ * 边样式映射（用于样式管理）
  */
-export interface PluginMetadata {
-  name: string
-  displayName: string
-  version: string
-  description?: string
-  author?: string
-  supportedDataFormats: DataFormat[]
-}
+export type EdgeStyleMap = Record<string, Partial<any>>
 
+/**
+ * 适配后的数据（泛型）
+ */
+export interface AdaptedData extends G6GraphData {
+  // 继承 G6GraphData，确保包含树结构信息
+}

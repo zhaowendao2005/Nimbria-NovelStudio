@@ -55,7 +55,7 @@ const initGraph = async () => {
     console.error(`[StarChartViewport] 未找到插件: ${layout.name}`)
     return
   }
-  
+
   console.log(`[StarChartViewport] 使用插件: ${plugin.displayName}`)
 
   // 销毁旧实例
@@ -64,34 +64,17 @@ const initGraph = async () => {
     graphInstance = null
   }
   
-  // ===== 1. 数据适配 =====
-  let adaptedData = data
-  const adapter = plugin.createDataAdapter()
-  
-  if (adapter) {
-    if (Array.isArray(adapter)) {
-      // 多个适配器
-      for (const a of adapter) {
-        adaptedData = await a.adapt(adaptedData)
-    }
-  } else {
-      // 单个适配器
-      adaptedData = await adapter.adapt(adaptedData)
-    }
-  }
-  
-  // ===== 2. 执行布局计算 =====
-  const layoutResult = await plugin.execute(adaptedData, {
+  // ===== 1. 执行布局计算（插件内部处理数据适配） =====
+  const layoutResult = await plugin.execute(data, {
     width: containerRef.value.clientWidth,
-    height: containerRef.value.clientHeight,
-    rootIds: adaptedData.rootIds
+    height: containerRef.value.clientHeight
   })
   
-  // ===== 3. 获取样式规则 =====
+  // ===== 2. 获取样式规则 =====
   const pluginStyles = plugin.getDefaultStyles()
-  const finalStyles = plugin.mergeStyles(adaptedData, pluginStyles)
+  const finalStyles = plugin.mergeStyles(data, pluginStyles)
   
-  // ===== 4. 创建G6实例 =====
+  // ===== 3. 创建G6实例 =====
   const graphConfig: any = {
     container: containerRef.value,
     width: containerRef.value.clientWidth,
@@ -176,7 +159,7 @@ onBeforeUnmount(() => {
 
 // 监听数据变化
 watch(() => starChartStore.graphData, () => {
-  if (starChartStore.graphData?.nodes?.length > 0) {
+  if (starChartStore.graphData?.nodes && starChartStore.graphData.nodes.length > 0) {
     nextTick(initGraph)
   }
 }, { deep: true })
