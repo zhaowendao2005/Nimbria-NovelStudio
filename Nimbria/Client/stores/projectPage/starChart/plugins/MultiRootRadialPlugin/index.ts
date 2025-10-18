@@ -60,10 +60,8 @@ export class MultiRootRadialPlugin extends BaseLayoutPlugin {
       },
       
       edge: (edge: any) => {
-        // 根到第一层用直线，其他用曲线
-        const type = edge.isDirectLine ? 'line' : 'cubic-radial'
+        // 样式只返回公共部分，type由插件的execute后置处理决定
         return {
-          type,
           lineWidth: 2,
           opacity: 0.6,
           stroke: '#99a9bf'
@@ -76,7 +74,6 @@ export class MultiRootRadialPlugin extends BaseLayoutPlugin {
    * 执行布局
    */
   async execute(data: any, options?: LayoutOptions): Promise<LayoutResult> {
-    // 使用算法类计算布局
     return this.algorithm.calculate(data, {
       width: options?.width || 1000,
       height: options?.height || 1000,

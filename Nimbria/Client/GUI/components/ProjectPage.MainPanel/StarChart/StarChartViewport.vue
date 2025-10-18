@@ -3,20 +3,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, onBeforeUnmount, nextTick } from 'vue'
-import { Graph, treeToGraphData, register, ExtensionCategory } from '@antv/g6'
+import { ref, onMounted, watch, onBeforeUnmount, nextTick, computed } from 'vue'
+import { Graph } from '@antv/g6'
 import { Renderer as CanvasRenderer } from '@antv/g-canvas'
 import { useStarChartStore, useStarChartConfigStore } from '@stores/projectPage/starChart'
-
-// 直接导入布局类并手动注册
-import { MultiRootRadialLayout } from '@stores/projectPage/starChart/layouts/MultiRootRadialLayout'
-
-// 注册自定义布局
-register(ExtensionCategory.LAYOUT, 'multi-root-radial', MultiRootRadialLayout)
+import { PluginRegistry } from '@stores/projectPage/starChart/plugins'
 
 /**
- * StarChartViewport.vue - G6原生版本
- * 使用标准G6 v5 API，直接渲染图表
+ * StarChartViewport - 插件化版本
+ * 使用插件系统，极大简化组件逻辑
  */
 
 // Stores
@@ -28,119 +23,99 @@ const containerRef = ref<HTMLDivElement>()
 let graphInstance: Graph | null = null
 
 /**
+ * 获取当前插件
+ */
+const currentPlugin = computed(() => {
+  const layoutName = configStore.layoutConfig.name
+  // 映射布局名称到插件名称
+  const pluginNameMap: Record<string, string> = {
+    'compact-box': 'multi-root-radial',
+    'concentric': 'concentric',
+    'force-directed': 'force-directed'
+  }
+  
+  const pluginName = pluginNameMap[layoutName] || 'multi-root-radial'
+  return PluginRegistry.get(pluginName)
+})
+
+/**
  * 初始化G6图实例
  */
-const initGraph = () => {
+const initGraph = async () => {
   const data = starChartStore.graphData
   const layout = configStore.layoutConfig
+  const plugin = currentPlugin.value
   
   if (!containerRef.value || !data?.nodes?.length) {
     console.log('[StarChartViewport] 初始化跳过：容器或数据未就绪')
     return
   }
 
-  console.log(`[StarChartViewport] 初始化 G6: ${data.nodes.length} 节点，${data.edges.length} 边`)
+  if (!plugin) {
+    console.error(`[StarChartViewport] 未找到插件: ${layout.name}`)
+    return
+  }
+  
+  console.log(`[StarChartViewport] 使用插件: ${plugin.displayName}`)
 
   // 销毁旧实例
   if (graphInstance) {
     graphInstance.destroy()
     graphInstance = null
   }
-
-  // 准备数据：对于compact-box布局使用树数据，否则使用图数据
-  let graphData: any = data
   
-  if (layout.name === 'compact-box' && (data as any)?.treesData) {
-    // 多树数据：将每棵树转换后合并
-    const treesData = (data as any).treesData as any[]
-    const rootIds = (data as any).rootIds as string[]
-    
-    const allNodes: any[] = []
-    const allEdges: any[] = []
-    
-    treesData.forEach((tree) => {
-      const converted = treeToGraphData(tree)
-      allNodes.push(...converted.nodes)
-      allEdges.push(...converted.edges)
-    })
-    
-    graphData = {
-      nodes: allNodes,
-      edges: allEdges,
-      rootIds: rootIds
-    }
-  }
-
-  // 创建G6实例
-  graphInstance = new Graph({
-    container: containerRef.value,
-    width: containerRef.value.clientWidth,
-    height: containerRef.value.clientHeight,
-
-    // 🔑 渲染器选择（使用Canvas渲染器）
-    renderer: () => new CanvasRenderer(),
-
-    // 🔑 数据
-    data: graphData,
-
-    // 🔑 布局配置
-    layout: (() => {
-      if (layout.name === 'concentric') {
-        return { type: 'preset' }
-      } else if (graphData.rootIds?.length > 1) {
-        return {
-          type: 'multi-root-radial',
-          width: containerRef.value.clientWidth,
-          height: containerRef.value.clientHeight,
-          rootIds: graphData.rootIds
+  // ===== 1. 数据适配 =====
+  let adaptedData = data
+  const adapter = plugin.createDataAdapter()
+  
+  if (adapter) {
+    if (Array.isArray(adapter)) {
+      // 多个适配器
+      for (const a of adapter) {
+        adaptedData = await a.adapt(adaptedData)
     }
   } else {
-        return {
-          type: 'compact-box',
-          radial: true,
-          direction: 'RL',
-          getId: (d: any) => d.id,
-          getHeight: () => 32,
-          getWidth: () => 32,
-          getVGap: () => 40,
-          getHGap: () => 80,
-          preLayout: false
-        }
-      }
-    })(),
-
-    // 🔑 节点配置（使用circle类型，暂时简化）
+      // 单个适配器
+      adaptedData = await adapter.adapt(adaptedData)
+    }
+  }
+  
+  // ===== 2. 执行布局计算 =====
+  const layoutResult = await plugin.execute(adaptedData, {
+    width: containerRef.value.clientWidth,
+    height: containerRef.value.clientHeight,
+    rootIds: adaptedData.rootIds
+  })
+  
+  // ===== 3. 获取样式规则 =====
+  const pluginStyles = plugin.getDefaultStyles()
+  const finalStyles = plugin.mergeStyles(adaptedData, pluginStyles)
+  
+  // ===== 4. 创建G6实例 =====
+  const graphConfig: any = {
+    container: containerRef.value,
+    width: containerRef.value.clientWidth,
+    height: containerRef.value.clientWidth,
+    renderer: () => new CanvasRenderer(),
+    
+    // 使用布局计算的结果（包含树结构）
+    data: layoutResult,
+    
+    // 使用preset布局（位置已计算）
+    layout: { type: 'preset' },
+    
+    // 使用插件提供的样式
     node: {
       type: 'circle',
-      style: {
-        size: 20,
-        fill: '#5B8FF9',
-        stroke: '#5B8FF9',
-        lineWidth: 2,
-      },
+      style: finalStyles.node
     },
-
-    // 🔑 边配置
-    edge: layout.name === 'concentric'
-      ? {
-          type: 'line',
-          style: {
-            lineWidth: 1,
-            opacity: 0.6,
-            stroke: '#e2e2e2',
-          },
-        }
-      : {
-          // 对于树布局，根据边的标记选择类型：根到第一层用直线，其他用曲线
-          type: (edge: any) => edge.isDirectLine ? 'line' : 'cubic-radial',
-          style: {
-            lineWidth: 2,
-            opacity: 0.6,
-            stroke: '#99a9bf',
-          },
-        },
-
-    // 🔑 交互行为
+    
+    edge: {
+      type: (edge: any) => edge.type || 'line',
+      style: finalStyles.edge
+    },
+    
+    // 交互行为
     behaviors: [
       'drag-canvas',
       {
@@ -151,73 +126,28 @@ const initGraph = () => {
       },
       'drag-element',
     ],
-
-    // 自适应视图
+    
     autoFit: 'view',
-  })
-
-  // 🔑 事件绑定
+  }
+  
+  graphInstance = new Graph(graphConfig)
+  
+  // 事件绑定
   graphInstance.on('node:click', (evt: any) => {
     starChartStore.selectNode(evt.itemId)
-    console.log(`[StarChartViewport] 节点选中: ${evt.itemId}`)
   })
-
+  
   graphInstance.on('viewportchange', (evt: any) => {
     starChartStore.updateViewport({
       zoom: evt.zoom || 1,
       pan: evt.translate || { x: 0, y: 0 }
     })
   })
-
+  
   // 渲染
   graphInstance.render()
   
-  // 设置滚轮灵敏度
-  setupBehaviors()
-  
   console.log('[StarChartViewport] G6 初始化完成')
-}
-
-/**
- * 配置交互行为（更新滚轮灵敏度）
- */
-const setupBehaviors = () => {
-  if (!graphInstance) return
-
-  const sensitivity = configStore.config.interaction.wheelSensitivity
-
-  try {
-    graphInstance.updateBehavior({
-      key: 'zoom-canvas-behavior',
-      sensitivity: sensitivity,
-      enableOptimize: true,
-    })
-    console.log(`[StarChartViewport] 滚轮灵敏度已更新: ${sensitivity}`)
-  } catch (error) {
-    console.warn('[StarChartViewport] 更新滚轮灵敏度失败:', error)
-  }
-}
-
-// 节流函数
-let sensitivityTimeout: ReturnType<typeof setTimeout> | null = null
-const updateSensitivityThrottled = () => {
-  if (sensitivityTimeout) {
-    clearTimeout(sensitivityTimeout)
-  }
-  sensitivityTimeout = setTimeout(() => {
-    setupBehaviors()
-  }, 300)
-}
-
-/**
- * 更新数据
- */
-const updateData = (newData: G6GraphData) => {
-  if (!graphInstance || !newData?.nodes?.length) return
-
-  console.log(`[StarChartViewport] 更新数据: ${newData.nodes.length} 节点`)
-  graphInstance.setData(newData)
-  graphInstance.render()
 }
 
 /**
@@ -245,45 +175,25 @@ onBeforeUnmount(() => {
 })
 
 // 监听数据变化
-watch(() => starChartStore.graphData, (newData) => {
-  if (newData && newData.nodes.length > 0) {
-    if (graphInstance) {
-      updateData(newData)
-    } else {
-      nextTick(initGraph)
-    }
+watch(() => starChartStore.graphData, () => {
+  if (starChartStore.graphData?.nodes?.length > 0) {
+    nextTick(initGraph)
   }
 }, { deep: true })
 
 // 监听布局变化
 watch(() => configStore.layoutConfig, () => {
-  if (graphInstance) {
-    graphInstance.destroy()
-    nextTick(initGraph)
-  }
+  nextTick(initGraph)
 })
 
-// 监听滚轮灵敏度变化（节流处理）
+// 监听滚轮灵敏度变化
 watch(() => configStore.config.interaction.wheelSensitivity, () => {
-  updateSensitivityThrottled()
-})
-
-// 监听渲染器变化
-watch(() => configStore.config.g6.renderer, () => {
   if (graphInstance) {
-    graphInstance.destroy()
-    nextTick(initGraph)
-  }
-})
-
-// 监听点击激活配置变化
-watch(() => [
-  configStore.config.interaction.enableClickActivate,
-  configStore.config.interaction.activateDegree
-], () => {
-  if (graphInstance) {
-    graphInstance.destroy()
-    nextTick(initGraph)
+    graphInstance.updateBehavior({
+      key: 'zoom-canvas-behavior',
+      sensitivity: configStore.config.interaction.wheelSensitivity,
+      enableOptimize: true,
+    })
   }
 })
 
@@ -304,3 +214,4 @@ defineExpose({
   overflow: hidden;
 }
 </style>
+

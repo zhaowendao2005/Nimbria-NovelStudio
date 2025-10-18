@@ -8,8 +8,6 @@
  * 4. 混入扩展：通过混入系统实现无限扩展
  */
 
-import type { GraphData, NodeDisplayModel, EdgeDisplayModel } from '@antv/g6'
-
 // ==================== 数据格式 ====================
 
 /**

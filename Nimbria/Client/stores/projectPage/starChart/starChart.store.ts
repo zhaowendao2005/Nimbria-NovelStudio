@@ -1,14 +1,13 @@
 /**
- * StarChart Store - G6原生版
- * 直接管理G6格式数据，同心圆布局需要预计算坐标
+ * StarChart Store - 插件化版本
+ * 管理图数据，布局由插件系统处理
  */
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { ViewportState } from './starChart.config.types'
+import type { ViewportState } from './config/types'
 import type { G6GraphData, DataSourceType } from './data/types'
 import { dataSourceManager } from './data/DataSourceManager'
-import { layoutManager } from './layouts/LayoutManager'
 import { useStarChartConfigStore } from './starChart.config.store'
 
 export const useStarChartStore = defineStore('projectPage-starChart', () => {
@@ -53,16 +52,9 @@ export const useStarChartStore = defineStore('projectPage-starChart', () => {
       
       console.log('[StarChart Store] 开始初始化')
       
-      // 1. 加载G6格式数据
+      // 加载G6格式数据（布局由插件系统在视图层处理）
       graphData.value = await dataSourceManager.loadData(configStore.dataSource)
       console.log(`[StarChart Store] 数据加载完成：${graphData.value.nodes.length} 节点，${graphData.value.edges.length} 边`)
-      
-      // 2. 如果是同心圆布局，预计算坐标
-      if (configStore.currentLayoutType === 'concentric') {
-        const layoutEngine = layoutManager.getLayout('concentric')
-        layoutEngine.compute(graphData.value, configStore.layoutConfig)
-        console.log('[StarChart Store] 同心圆布局坐标已计算')
-      }
       
       initialized.value = true
       console.log('[StarChart Store] 初始化成功')
@@ -87,16 +79,9 @@ export const useStarChartStore = defineStore('projectPage-starChart', () => {
       
       console.log(`[StarChart Store] 切换数据源：${source}`)
       
-      // 重新加载数据
+      // 重新加载数据（布局由插件系统处理）
       graphData.value = await dataSourceManager.loadData(source)
       console.log(`[StarChart Store] 数据加载完成：${graphData.value.nodes.length} 节点，${graphData.value.edges.length} 边`)
-      
-      // 如果是同心圆布局，重新计算坐标
-      if (configStore.currentLayoutType === 'concentric') {
-        const layoutEngine = layoutManager.getLayout('concentric')
-        layoutEngine.compute(graphData.value, configStore.layoutConfig)
-        console.log('[StarChart Store] 同心圆布局坐标已重新计算')
-      }
       
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -108,33 +93,25 @@ export const useStarChartStore = defineStore('projectPage-starChart', () => {
   }
   
   /**
-   * 切换布局
+   * 切换布局（由插件系统处理）
    */
-  const switchLayout = async (layoutType: 'concentric' | 'compact-box') => {
+  const switchLayout = (layoutType: 'concentric' | 'compact-box') => {
     const configStore = useStarChartConfigStore()
     configStore.setLayoutType(layoutType)
     
-    // 如果切换到同心圆，预计算坐标
-    if (layoutType === 'concentric' && graphData.value) {
-      const layoutEngine = layoutManager.getLayout('concentric')
-      layoutEngine.compute(graphData.value, configStore.layoutConfig)
-      console.log(`[StarChart Store] 切换到同心圆布局，坐标已计算`)
-    } else {
-      console.log(`[StarChart Store] 切换到紧凑树布局，由G6处理`)
-    }
+    console.log(`[StarChart Store] 切换布局: ${layoutType}（由插件系统处理）`)
   }
   
   /**
-   * 重新计算布局
+   * 重新计算布局（现由插件系统处理，此方法保留用于触发视图更新）
    */
-  const recomputeLayout = async () => {
-    const configStore = useStarChartConfigStore()
-    
-    // 只有同心圆需要重新计算
-    if (configStore.currentLayoutType === 'concentric' && graphData.value) {
-      const layoutEngine = layoutManager.getLayout('concentric')
-      layoutEngine.compute(graphData.value, configStore.layoutConfig)
-      console.log('[StarChart Store] 同心圆布局已重新计算')
+  const recomputeLayout = () => {
+    // 布局计算现在由插件系统在视图层处理
+    // 这里只需触发响应式更新
+    if (graphData.value) {
+      // 触发一个响应式更新
+      graphData.value = { ...graphData.value }
+      console.log('[StarChart Store] 触发布局重新计算（由插件系统处理）')
     }
   }
   

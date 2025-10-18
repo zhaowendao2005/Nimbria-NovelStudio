@@ -36,13 +36,20 @@ export class TreeDataAdapter implements IDataAdapter {
       return {
         nodes: allNodes,
         edges: allEdges,
-        rootIds: data.rootIds || []
+        rootIds: data.rootIds || [],
+        // 保留原始树结构，供 cubic-radial 使用
+        treesData: data.treesData
       }
     }
     
     // 如果是单棵树
     if (data.id && data.children) {
-      return treeToGraphData(data)
+      const converted = treeToGraphData(data)
+      return {
+        ...converted,
+        // 兼容单树场景，提供 tree 字段
+        tree: data
+      }
     }
     
     // 已经是图数据，直接返回

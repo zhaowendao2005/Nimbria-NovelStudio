@@ -39,7 +39,7 @@ export class MultiRootRadialLayoutAlgorithm {
     
     if (!rootIds || rootIds.length === 0) {
       console.warn('[MultiRootRadialLayout] 没有提供rootIds，返回原始数据')
-      return { nodes: nodes.map((n: any) => ({ id: n.id, style: { x: 0, y: 0 } })) }
+      return data
     }
     
     // 根节点尺寸
@@ -54,6 +54,7 @@ export class MultiRootRadialLayoutAlgorithm {
     const maxArcLength = rootNodeSize * maxArcLengthMultiplier
     
     const rootPositions = new Map<string, { x: number; y: number; angle: number }>()
+    const positionMap = new Map<string, { x: number; y: number }>()
     
     // 在大环上随机分布根节点
     let currentAngle = Math.random() * Math.PI * 2
@@ -63,31 +64,34 @@ export class MultiRootRadialLayoutAlgorithm {
       const y = centerY + baseRadius * Math.sin(currentAngle)
       
       rootPositions.set(rootId, { x, y, angle: currentAngle })
+      positionMap.set(rootId, { x, y })
       
       const arcLength = minArcLength + Math.random() * (maxArcLength - minArcLength)
       const angleStep = arcLength / baseRadius
       currentAngle += angleStep
     })
     
-    // 为所有节点计算位置
     const rootSet = new Set(rootIds)
     
+    // 为所有节点计算位置
     const layoutedNodes = nodes.map((node: any) => {
       const nodeData = node.data || node
       const nodeId = node.id
       
       if (rootSet.has(nodeId)) {
-        const pos = rootPositions.get(nodeId)
+        const pos = positionMap.get(nodeId)
+        const style = {
+          ...(node.style || {}),
+          x: pos?.x ?? 0,
+          y: pos?.y ?? 0
+        }
         return {
-          id: nodeId,
-          style: {
-            x: pos!.x,
-            y: pos!.y
-          }
+          ...node,
+          style
         }
       } else {
         const groupId = nodeData.groupId
-        const hierarchy = nodeData.hierarchy || 1
+        const hierarchy = nodeData.hierarchy ?? 1
         
         if (groupId !== undefined && groupId >= 0 && groupId < rootIds.length) {
           const rootId = rootIds[groupId]
@@ -103,39 +107,49 @@ export class MultiRootRadialLayoutAlgorithm {
             const x = rootX + distance * Math.cos(randomAngle)
             const y = rootY + distance * Math.sin(randomAngle)
             
+            positionMap.set(nodeId, { x, y })
+            
+            const style = {
+              ...(node.style || {}),
+              x,
+              y
+            }
+            
             return {
-              id: nodeId,
-              style: { x, y }
+              ...node,
+              style
             }
           }
         }
         
-        throw new Error(`[MultiRootRadialLayout] 无法为节点 ${nodeId} 计算位置，groupId: ${groupId}`)
+        console.error(`[MultiRootRadialLayout] 无法为节点 ${nodeId} 计算位置，groupId: ${groupId}`)
+        return {
+          ...node,
+          style: {
+            ...(node.style || {}),
+            x: 0,
+            y: 0
+          }
+        }
       }
     })
     
-    // 为边添加标记：第一层子节点到根的边用直线，其他用曲线
     const layoutedEdges = edges.map((edge: any) => {
-      const sourceNode = nodes.find((n: any) => n.id === edge.source)
-      const targetNode = nodes.find((n: any) => n.id === edge.target)
-      
-      const sourceData = sourceNode?.data || sourceNode
-      const targetData = targetNode?.data || targetNode
-      
-      // 判断是否是"根到第一层"的边
-      const isRootToFirstLevel = 
-        (rootSet.has(edge.source) && (targetData?.hierarchy === 1 || targetData?.hierarchy === undefined)) ||
-        (rootSet.has(edge.target) && (sourceData?.hierarchy === 1 || sourceData?.hierarchy === undefined))
-      
+      const isRootToFirstLevel = edge.isDirectLine
       return {
         ...edge,
-        isDirectLine: isRootToFirstLevel
+        type: isRootToFirstLevel ? 'line' : 'cubic-radial'
       }
     })
     
     return {
+      ...data,
       nodes: layoutedNodes,
-      edges: layoutedEdges
+      edges: layoutedEdges,
+      rootIds,
+      treesData: data.treesData,
+      trees: data.trees ?? data.treesData,
+      tree: data.tree
     }
   }
 }
