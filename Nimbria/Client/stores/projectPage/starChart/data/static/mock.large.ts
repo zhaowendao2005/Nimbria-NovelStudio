@@ -125,7 +125,7 @@ export class MockLargeDataSource extends StaticDataSource {
           
           // 第3层：40%概率有1-2个孙节点
           if (Math.random() < 0.4) {
-            const grandChildCount = 1 + Math.floor(Math.random() * 2)
+            const grandChildCount = 10 + Math.floor(Math.random() * 2)
             for (let gcIdx = 0; gcIdx < grandChildCount; gcIdx++) {
               const grandChildId = `tree${treeIdx}-branch${branchIdx}-child${childIdx}-gc${gcIdx}`
               

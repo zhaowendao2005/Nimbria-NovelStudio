@@ -4,46 +4,41 @@
  */
 
 import { treeToGraphData } from '@antv/g6'
+import type { G6GraphData, TreeNodeData } from '../types'
 import type { 
-  G6GraphData, 
-  TreeNodeData, 
-  G6NodeData, 
-  G6EdgeData 
-} from '../types'
+  RadialPluginInput,
+  RadialAdapterOutput,
+  RadialGraphDataInput,
+  RadialTreeInput
+} from './data.types'
+import { 
+  isRadialGraphData, 
+  isTreeData 
+} from './data.types'
 
 export class TreeDataAdapter {
   /**
    * 适配数据
+   * 
+   * 输入：RadialPluginInput（多种格式）
+   * 输出：RadialAdapterOutput（标准化格式）
+   * 
    * 确保输出包含完整的树结构信息（tree, treesData, rootIds）
    */
-  async adapt(data: G6GraphData | TreeNodeData | unknown): Promise<G6GraphData> {
-    // 类型守卫：检查是否为图数据
-    const isGraphData = (d: unknown): d is G6GraphData => {
-      return typeof d === 'object' && 
-             d !== null && 
-             'nodes' in d && 
-             'edges' in d &&
-             Array.isArray((d as Record<string, unknown>).nodes)
-    }
+  async adapt(data: RadialPluginInput): Promise<RadialAdapterOutput> {
     
-    // 类型守卫：检查是否为树数据
-    const isTreeData = (d: unknown): d is TreeNodeData => {
-      return typeof d === 'object' && 
-             d !== null && 
-             'id' in d &&
-             typeof (d as Record<string, unknown>).id === 'string'
-    }
-    
-    // 情况1：多树数据（treesData 格式）
-    if (isGraphData(data) && data.treesData && Array.isArray(data.treesData) && data.treesData.length > 0) {
-      const allNodes: G6NodeData[] = []
-      const allEdges: G6EdgeData[] = []
+    // ===== 情况1：完整的图数据（含 treesData） =====
+    if (isRadialGraphData(data) && data.treesData && data.treesData.length > 0) {
+      console.log('[TreeDataAdapter] 检测到多树图数据格式')
+      
+      const allNodes: RadialAdapterOutput['nodes'] = []
+      const allEdges: RadialAdapterOutput['edges'] = []
 
       data.treesData.forEach((tree: TreeNodeData) => {
         const converted = treeToGraphData(tree as Record<string, unknown>)
-        allNodes.push(...(converted.nodes as G6NodeData[]))
+        allNodes.push(...(converted.nodes as RadialAdapterOutput['nodes']))
         if (converted.edges) {
-          allEdges.push(...(converted.edges as G6EdgeData[]))
+          allEdges.push(...(converted.edges as RadialAdapterOutput['edges']))
         }
       })
 
@@ -51,38 +46,43 @@ export class TreeDataAdapter {
         ...data,
         nodes: allNodes,
         edges: allEdges,
-        rootIds: data.rootIds || [],
+        rootIds: data.rootIds,
         treesData: data.treesData,
         tree: data.treesData[0] // 取第一个作为默认 tree
-      }
+      } as RadialAdapterOutput
     }
 
-    // 情况2：单树数据（tree 格式）
+    // ===== 情况2：单树数据（tree 格式） =====
     if (isTreeData(data) && 'children' in data) {
+      console.log('[TreeDataAdapter] 检测到单树格式，转换为图数据')
+      
       const converted = treeToGraphData(data as Record<string, unknown>)
       return {
-        nodes: converted.nodes as G6NodeData[],
-        edges: (converted.edges || []) as G6EdgeData[],
+        nodes: converted.nodes as RadialAdapterOutput['nodes'],
+        edges: (converted.edges || []) as RadialAdapterOutput['edges'],
         rootIds: [data.id],
         tree: data,
         treesData: [data]
       }
     }
 
-    // 情况3：已经是图数据格式
-    if (isGraphData(data)) {
+    // ===== 情况3：图数据格式（但可能缺少 treesData） =====
+    if (isRadialGraphData(data)) {
+      console.log('[TreeDataAdapter] 检测到基础图数据格式')
+      
       return {
-        ...data,
-        nodes: data.nodes || [],
-        edges: data.edges || [],
+        nodes: data.nodes,
+        edges: data.edges,
+        rootIds: data.rootIds,
         treesData: data.treesData || [],
-        tree: data.tree || (data.treesData && data.treesData.length > 0 ? data.treesData[0] : undefined),
-        rootIds: data.rootIds || []
-      }
+        tree: data.tree || (data.treesData && data.treesData.length > 0 ? data.treesData[0] : undefined)
+      } as RadialAdapterOutput
     }
 
-    // 默认情况：返回空数据
-    console.warn('[TreeDataAdapter] 无法识别数据格式，返回空图数据')
+    // ===== 默认情况：无法识别格式 =====
+    console.error('[TreeDataAdapter] 无法识别数据格式，返回空数据')
+    console.error('[TreeDataAdapter] 接收到的数据:', data)
+    
     return {
       nodes: [],
       edges: [],

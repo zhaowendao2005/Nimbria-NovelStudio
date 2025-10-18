@@ -148,7 +148,7 @@
               
               <div class="config-divider-line"></div>
 
-              <!-- 🆕 布局选择 -->
+              <!-- 布局选择 -->
               <div class="config-section">
                 <h5>🎨 布局算法</h5>
                 <div class="config-item">
@@ -160,83 +160,23 @@
                     size="default"
                   >
                     <el-option 
-                      label="分组同心圆" 
-                      value="concentric"
+                      label="多根径向树布局" 
+                      value="multi-root-radial"
                     >
-                      <span style="float: left">分组同心圆</span>
-                      <span style="float: right; color: #8492a6; font-size: 12px; margin-left: 12px">环形+同心圆</span>
-                    </el-option>
-                    
-                    <el-option 
-                      label="径向紧凑树" 
-                      value="compact-box"
-                    >
-                      <span style="float: left">径向紧凑树</span>
-                      <span style="float: right; color: #409eff; font-size: 12px; margin-left: 12px">放射状树形</span>
+                      <span style="float: left">多根径向树</span>
+                      <span style="float: right; color: #409eff; font-size: 12px; margin-left: 12px">Multi-Root Radial</span>
                     </el-option>
                   </el-select>
                 </div>
-                
-                <!-- 🔥 同心圆布局专属配置 -->
-                <div v-show="configStore.showNodeSpacingCorrection">
-                  <div class="config-divider-line-thin"></div>
-                  
-                  <div class="config-item">
-                    <el-tooltip 
-                      content="自动修正节点间距，防止节点重叠。仅同心圆布局可用。" 
-                      placement="top"
-                    >
-                      <label>
-                        节点间距修正
-                        <el-tag size="small" type="info" style="margin-left: 4px">同心圆专用</el-tag>
-                      </label>
-                    </el-tooltip>
-                    <el-switch
-                      v-model="configStore.layoutConfig.enableNodeSpacingCorrection"
-                      @change="updateLayoutConfig('enableNodeSpacingCorrection', $event)"
-                      active-text="启用"
-                      inactive-text="禁用"
-                    />
-                  </div>
-                  
-                  <div 
-                    class="config-item" 
-                    v-show="configStore.layoutConfig.enableNodeSpacingCorrection"
-                  >
-                    <el-tooltip 
-                      content="节点间最小距离 = 节点直径 × 倍数。1.5=紧凑，2.5=舒适，4.0=宽松" 
-                      placement="top"
-                    >
-                      <label>最小间距倍数</label>
-                    </el-tooltip>
-                    <el-slider
-                      v-model="configStore.layoutConfig.minNodeDistanceMultiplier"
-                      @change="updateLayoutConfig('minNodeDistanceMultiplier', $event)"
-                      :min="1.5"
-                      :max="4.0"
-                      :step="0.1"
-                    />
-                  </div>
-                  
-                  <div 
-                    class="config-item" 
-                    v-show="configStore.layoutConfig.enableNodeSpacingCorrection"
-                  >
-                    <el-tooltip 
-                      content="控制修正强度。0.3=温和，0.7=平衡，1.0=强力" 
-                      placement="top"
-                    >
-                      <label>修正强度</label>
-                    </el-tooltip>
-                    <el-slider
-                      v-model="configStore.layoutConfig.spacingCorrectionStrength"
-                      @change="updateLayoutConfig('spacingCorrectionStrength', $event)"
-                      :min="0.1"
-                      :max="1.0"
-                      :step="0.1"
-                    />
-                  </div>
-                </div>
+                <el-alert 
+                  type="info" 
+                  :closable="false"
+                  style="margin-top: 12px;"
+                >
+                  <template #title>
+                    <span style="font-size: 12px;">未来版本将支持更多布局算法</span>
+                  </template>
+                </el-alert>
               </div>
               
               <div class="config-divider-line"></div>
@@ -567,7 +507,7 @@ const onDataSourceChange = async (source: DataSourceType) => {
   }
 }
 
-// 🆕 切换布局
+// 切换布局
 const onLayoutChange = async (layoutType: LayoutType) => {
   try {
     const starChartStore = useStarChartStore()
@@ -577,7 +517,6 @@ const onLayoutChange = async (layoutType: LayoutType) => {
     console.error('[WritingPanel] 切换布局失败:', error)
   }
 }
-
 
 // 🆕 切换 G6 渲染器类型（Canvas/WebGL/SVG）
 const onG6RendererChange = async (rendererType: 'canvas' | 'webgl' | 'svg' | 'auto') => {
@@ -802,6 +741,20 @@ const handleResetConfig = async () => {
 .config-item .el-select {
   flex: 1;
   max-width: 120px; /* 减小宽度 */
+}
+
+/* 布局信息样式 */
+.layout-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.layout-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--obsidian-text-primary);
 }
 
 .config-actions {

@@ -6,8 +6,12 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { StarChartConfig, ConfigPreset, DataSourceType, LayoutType } from './starChart.config.types'
-import type { LayoutConfig } from './layouts/types'
-import { DEFAULT_CONCENTRIC_LAYOUT } from './config/layout.presets'
+
+// 布局配置类型（通用）
+interface LayoutConfig {
+  name: string
+  [key: string]: unknown
+}
 
 const STORAGE_KEY = 'nimbria:starChart:config'
 
@@ -73,16 +77,20 @@ export const useStarChartConfigStore = defineStore('projectPage-starChart-config
   const config = ref<StarChartConfig>(structuredClone(DEFAULT_CONFIG))
   const activePreset = ref<ConfigPreset | 'custom'>('production')
   const dataSource = ref<DataSourceType>('mock-normal')
-  const currentLayoutType = ref<LayoutType>('concentric')
-  const layoutConfig = ref<LayoutConfig>(structuredClone(DEFAULT_CONCENTRIC_LAYOUT))
+  const currentLayoutType = ref<LayoutType>('multi-root-radial')
+  const layoutConfig = ref<LayoutConfig>({
+    name: 'compact-box',
+    radial: true,
+    direction: 'radial'
+  })
   
   // ==================== 计算属性 ====================
   
   /**
-   * 是否显示节点间距修正配置（仅同心圆布局）
+   * 是否显示节点间距修正配置（已废弃，保留用于兼容性）
    */
   const showNodeSpacingCorrection = computed(() => {
-    return currentLayoutType.value === 'concentric'
+    return false  // 多根径向树布局不需要节点间距修正
   })
   
   // ==================== 方法 ====================
@@ -126,16 +134,13 @@ export const useStarChartConfigStore = defineStore('projectPage-starChart-config
   const setLayoutType = (layoutType: LayoutType) => {
     currentLayoutType.value = layoutType
     
-    // 根据布局类型自动调整布局配置
-    if (layoutType === 'concentric') {
-      layoutConfig.value = structuredClone(DEFAULT_CONCENTRIC_LAYOUT)
-    } else if (layoutType === 'compact-box') {
-      layoutConfig.value = {
-        name: 'compact-box',
-        radial: true,
-        direction: 'radial'
-      } as LayoutConfig
-    }
+    // 目前只有一个布局：multi-root-radial
+    // 使用默认的布局配置
+    layoutConfig.value = {
+      name: 'compact-box',  // 插件内部映射到 multi-root-radial
+      radial: true,
+      direction: 'radial'
+    } as LayoutConfig
     
     saveConfig()
   }
@@ -170,8 +175,12 @@ export const useStarChartConfigStore = defineStore('projectPage-starChart-config
         config.value = merge(structuredClone(DEFAULT_CONFIG), state.config || {})
         activePreset.value = state.activePreset || 'production'
         dataSource.value = state.dataSource || 'mock-normal'
-        currentLayoutType.value = state.currentLayoutType || 'concentric'
-        layoutConfig.value = state.layoutConfig || structuredClone(DEFAULT_CONCENTRIC_LAYOUT)
+        currentLayoutType.value = state.currentLayoutType || 'multi-root-radial'
+        layoutConfig.value = state.layoutConfig || {
+          name: 'compact-box',
+          radial: true,
+          direction: 'radial'
+        } as LayoutConfig
         console.log('[StarChart Config] 配置已加载')
       }
     } catch (error) {
@@ -186,8 +195,12 @@ export const useStarChartConfigStore = defineStore('projectPage-starChart-config
     config.value = structuredClone(DEFAULT_CONFIG)
     activePreset.value = 'production'
     dataSource.value = 'mock-normal'
-    currentLayoutType.value = 'concentric'
-    layoutConfig.value = structuredClone(DEFAULT_CONCENTRIC_LAYOUT)
+    currentLayoutType.value = 'multi-root-radial'
+    layoutConfig.value = {
+      name: 'compact-box',
+      radial: true,
+      direction: 'radial'
+    } as LayoutConfig
     saveConfig()
   }
   

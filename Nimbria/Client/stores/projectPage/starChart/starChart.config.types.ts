@@ -11,9 +11,9 @@
 export type DataSourceType = 'mock-large' | 'mock-normal' | 'mcrecipe-static' | 'gun'
 
 /**
- * 布局类型（仅2个）
+ * 布局类型
  */
-export type LayoutType = 'concentric' | 'compact-box'
+export type LayoutType = 'multi-root-radial'
 
 // ==================== 配置接口 ====================
 

@@ -20,6 +20,10 @@ import type {
   NodeStyleData,
   EdgeStyleData
 } from '../types'
+import type {
+  RadialPluginInput,
+  RadialAdapterOutput
+} from './data.types'
 
 // 为类型安全起见保留别名
 type G6NodeData = G6Node
@@ -76,19 +80,35 @@ export class MultiRootRadialPlugin extends BaseLayoutPlugin {
   
   /**
    * 执行布局（包含数据适配）
+   * 
+   * @param data 输入数据（支持多种格式，见 RadialPluginInput）
+   * @param options 布局选项
+   * @returns 布局结果
    */
   override async execute(
-    data: G6GraphData | TreeNodeData | unknown, 
+    data: RadialPluginInput, 
     options?: LayoutOptions
   ): Promise<LayoutResult> {
-    // 1. 数据适配（内部处理）
-    const adaptedData = await this.adapter.adapt(data)
+    // 1. 数据适配（转换为标准格式）
+    const adaptedData: RadialAdapterOutput = await this.adapter.adapt(data)
     
-    // 2. 布局计算
+    // 2. 验证必需字段
+    if (!adaptedData.rootIds || adaptedData.rootIds.length === 0) {
+      console.error('[MultiRootRadialPlugin] 缺少 rootIds，无法计算布局')
+      return {
+        nodes: adaptedData.nodes,
+        edges: adaptedData.edges,
+        rootIds: [],
+        treesData: adaptedData.treesData,
+        tree: adaptedData.tree
+      } as LayoutResult
+    }
+    
+    // 3. 布局计算
     return this.algorithm.calculate(adaptedData, {
       width: options?.width || 1000,
       height: options?.height || 1000,
-      rootIds: adaptedData.rootIds || [],
+      rootIds: adaptedData.rootIds,
       ...this.config
     })
   }

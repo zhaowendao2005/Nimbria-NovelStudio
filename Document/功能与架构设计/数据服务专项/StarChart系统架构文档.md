@@ -314,7 +314,471 @@ return {
 
 ## 5. 开发规范
 
-### 5.1 添加新插件
+### 5.1 数据源与插件适配规范
+
+#### 📋 适配策略概述
+
+数据源与布局插件之间通过**数据格式契约**建立连接。根据适配目标的不同，有两种策略：
+
+```
+策略一：单插件适配（紧耦合）
+  数据源 → 直接使用插件的数据类型 → 插件
+
+策略二：多插件适配（松耦合）
+  数据源 → 通用格式 → Adapter层 → 插件
+```
+
+---
+
+#### 🎯 策略一：单插件适配（推荐用于专用数据源）
+
+**适用场景**：数据源专门为某个布局插件设计
+
+**实现步骤**：
+
+**Step 1: 导入插件的数据类型定义**
+
+```typescript
+// data/static/radial-specific-data.ts
+import { StaticDataSource } from '../base/DataSourceBase'
+
+// ✅ 直接导入插件的数据类型
+import type { 
+  RadialPluginInput,
+  RadialNodeData,
+  RadialEdgeData 
+} from '../../plugins/MultiRootRadialPlugin/data.types'
+
+export class RadialSpecificDataSource extends StaticDataSource {
+  readonly metadata = {
+    id: 'radial-specific',
+    name: '径向树专用数据',
+    category: 'static',
+    
+    // 🔑 关键：声明专用插件和数据格式
+    recommendedLayouts: ['multi-root-radial'],
+    dataFormat: 'RadialPluginInput',  // 标注数据格式
+    targetPlugin: 'multi-root-radial', // 标注目标插件
+    
+    // 其他元数据...
+  }
+  
+  async loadGraphData(): Promise<RadialPluginInput> {
+    // ✅ 直接生成符合插件要求的数据
+    const nodes: RadialNodeData[] = [
+      {
+        id: 'root1',
+        data: {
+          hierarchy: 0,      // 必需字段
+          groupId: 0,        // 必需字段
+          label: '根节点1'
+        }
+      },
+      {
+        id: 'child1',
+        data: {
+          hierarchy: 1,
+          groupId: 0,
+          label: '子节点1'
+        }
+      }
+    ]
+    
+    const edges: RadialEdgeData[] = [
+      { source: 'root1', target: 'child1' }
+    ]
+    
+    return {
+      nodes,
+      edges,
+      rootIds: ['root1'],
+      treesData: this.buildTreeData(nodes, edges)
+    }
+  }
+}
+```
+
+**优点**：
+- ✅ 类型安全，编译时检查
+- ✅ 无需额外适配层
+- ✅ 性能最优
+
+**缺点**：
+- ❌ 与插件紧耦合
+- ❌ 只能用于特定插件
+
+---
+
+#### 🎯 策略二：多插件适配（推荐用于通用数据源）
+
+**适用场景**：数据源需要支持多个布局插件
+
+**实现步骤**：
+
+**Step 1: 定义通用数据格式**
+
+```typescript
+// data/types.ts
+export interface UniversalGraphData {
+  nodes: Array<{
+    id: string
+    label?: string
+    type?: string
+    // 通用字段
+    [key: string]: unknown
+  }>
+  edges: Array<{
+    source: string
+    target: string
+    weight?: number
+  }>
+  
+  // 可选的扩展信息
+  metadata?: {
+    category?: string
+    tags?: string[]
+  }
+}
+```
+
+**Step 2: 创建数据源（使用通用格式）**
+
+```typescript
+// data/static/universal-data.ts
+import { StaticDataSource } from '../base/DataSourceBase'
+import type { UniversalGraphData } from '../types'
+
+export class UniversalDataSource extends StaticDataSource {
+  readonly metadata = {
+    id: 'universal-data',
+    name: '通用数据源',
+    category: 'static',
+    
+    // 🔑 关键：声明支持多个插件
+    recommendedLayouts: [
+      'multi-root-radial',
+      'force-directed',
+      'circular'
+    ],
+    dataFormat: 'UniversalGraphData',  // 标注通用格式
+    requiresAdapter: true,              // 标注需要适配器
+    
+    // 其他元数据...
+  }
+  
+  async loadGraphData(): Promise<UniversalGraphData> {
+    // 生成通用格式的数据
+    return {
+      nodes: [/* ... */],
+      edges: [/* ... */],
+      metadata: {
+        category: 'novel-characters'
+      }
+    }
+  }
+}
+```
+
+**Step 3: 创建针对性的 Adapter**
+
+每个插件创建一个专用的 Adapter：
+
+```typescript
+// plugins/MultiRootRadialPlugin/adapters/UniversalDataAdapter.ts
+import type { UniversalGraphData } from '../../../data/types'
+import type { RadialPluginInput, RadialNodeData } from '../data.types'
+
+/**
+ * 通用数据 → 径向树插件 适配器
+ * 
+ * @dataFormat UniversalGraphData
+ * @targetFormat RadialPluginInput
+ */
+export class UniversalToRadialAdapter {
+  /**
+   * 将通用格式转换为径向树格式
+   */
+  adapt(data: UniversalGraphData): RadialPluginInput {
+    // 🔍 分析数据，推断层级和分组
+    const analysis = this.analyzeData(data)
+    
+    // 🔄 转换节点
+    const nodes: RadialNodeData[] = data.nodes.map((node, idx) => ({
+      id: node.id,
+      data: {
+        hierarchy: analysis.nodeHierarchy.get(node.id) ?? 1,
+        groupId: analysis.nodeGroup.get(node.id) ?? 0,
+        label: node.label,
+        type: node.type
+      }
+    }))
+    
+    // 🔄 转换边
+    const edges = data.edges.map(edge => ({
+      source: edge.source,
+      target: edge.target,
+      data: { weight: edge.weight }
+    }))
+    
+    // 🌳 构建树结构
+    const treesData = this.buildTrees(nodes, edges, analysis.rootIds)
+    
+    return {
+      nodes,
+      edges,
+      rootIds: analysis.rootIds,
+      treesData
+    }
+  }
+  
+  /**
+   * 分析数据，推断层级和分组
+   */
+  private analyzeData(data: UniversalGraphData) {
+    // 实现层级推断逻辑
+    // 例如：通过入度为0识别根节点，BFS计算层级
+    const rootIds = this.findRoots(data)
+    const nodeHierarchy = this.calculateHierarchy(data, rootIds)
+    const nodeGroup = this.assignGroups(data, rootIds)
+    
+    return { rootIds, nodeHierarchy, nodeGroup }
+  }
+  
+  // ... 其他辅助方法
+}
+```
+
+**Step 4: 在插件中集成 Adapter**
+
+```typescript
+// plugins/MultiRootRadialPlugin/index.ts
+import { UniversalToRadialAdapter } from './adapters/UniversalDataAdapter'
+
+export class MultiRootRadialPlugin extends BaseLayoutPlugin {
+  // 内置的适配器（用于树数据）
+  private treeAdapter = new TreeDataAdapter()
+  
+  // 通用数据适配器
+  private universalAdapter = new UniversalToRadialAdapter()
+  
+  override async execute(data: unknown, options?: LayoutOptions) {
+    // 根据数据格式选择适配器
+    let adaptedData: RadialAdapterOutput
+    
+    if (this.isUniversalData(data)) {
+      // 使用通用适配器
+      adaptedData = this.universalAdapter.adapt(data)
+    } else {
+      // 使用内置适配器
+      adaptedData = await this.treeAdapter.adapt(data)
+    }
+    
+    // 执行布局计算
+    return this.algorithm.calculate(adaptedData, options)
+  }
+  
+  private isUniversalData(data: unknown): data is UniversalGraphData {
+    // 类型守卫：检查是否为通用格式
+    return typeof data === 'object' && 
+           data !== null &&
+           'metadata' in data
+  }
+}
+```
+
+**优点**：
+- ✅ 松耦合，易于扩展
+- ✅ 一个数据源支持多个插件
+- ✅ 各插件独立演化
+
+**缺点**：
+- ❌ 需要额外的适配层
+- ❌ 可能损失部分插件特性
+
+---
+
+#### 📋 数据格式标注规范
+
+为了让开发者清楚知道数据格式和适配关系，必须在相关位置添加标注：
+
+##### 1️⃣ 数据源元数据标注
+
+```typescript
+export class MyDataSource extends StaticDataSource {
+  readonly metadata = {
+    id: 'my-data',
+    name: '我的数据源',
+    
+    // ✅ 必需：标注数据格式
+    dataFormat: 'RadialPluginInput' | 'UniversalGraphData' | string,
+    
+    // ✅ 推荐：标注推荐的布局
+    recommendedLayouts: ['multi-root-radial'],
+    
+    // ✅ 如果需要适配器，标注之
+    requiresAdapter?: boolean,
+    targetPlugin?: string,
+    
+    // ✅ 如果使用自定义适配器，标注适配器类型
+    adapterType?: 'UniversalToRadialAdapter' | string,
+    
+    // ... 其他元数据
+  }
+}
+```
+
+##### 2️⃣ Adapter 文件头标注
+
+```typescript
+/**
+ * 通用数据 → 径向树插件 适配器
+ * 
+ * @dataFormat UniversalGraphData - 输入格式
+ * @targetFormat RadialPluginInput - 输出格式
+ * @targetPlugin multi-root-radial - 目标插件
+ * @version 1.0.0
+ * 
+ * 功能说明：
+ * - 自动推断节点层级（基于拓扑排序）
+ * - 自动分配分组ID（基于连通分量）
+ * - 构建树结构（用于 cubic-radial 边渲染）
+ */
+export class UniversalToRadialAdapter {
+  // ...
+}
+```
+
+##### 3️⃣ 插件 README 标注
+
+在每个插件目录下创建 `README.md`：
+
+```markdown
+# MultiRootRadialPlugin
+
+## 支持的数据格式
+
+### 原生格式（推荐）
+- **类型**: `RadialPluginInput`
+- **定义**: `./data.types.ts`
+- **适配器**: 无需（内置 TreeDataAdapter）
+
+### 通用格式（兼容）
+- **类型**: `UniversalGraphData`
+- **定义**: `../../data/types.ts`
+- **适配器**: `UniversalToRadialAdapter`
+- **限制**: 
+  - 需要数据具有明确的树形结构
+  - 自动推断的层级可能不准确
+
+## 数据要求
+
+必需字段：
+- `nodes[].data.hierarchy` - 节点层级（0=根节点）
+- `nodes[].data.groupId` - 所属树ID
+- `rootIds` - 根节点ID列表
+```
+
+---
+
+#### 🔄 格式兼容性矩阵
+
+维护一个矩阵，说明各数据源与插件的兼容性：
+
+```typescript
+// data/compatibility-matrix.ts
+
+/**
+ * 数据源与插件兼容性矩阵
+ */
+export const COMPATIBILITY_MATRIX = {
+  // 数据源 → 插件 → 适配方式
+  'radial-specific': {
+    'multi-root-radial': { adapter: 'none', compatibility: 'native' },
+    'force-directed': { adapter: null, compatibility: 'incompatible' }
+  },
+  
+  'universal-data': {
+    'multi-root-radial': { 
+      adapter: 'UniversalToRadialAdapter', 
+      compatibility: 'compatible' 
+    },
+    'force-directed': { 
+      adapter: 'UniversalToForceAdapter', 
+      compatibility: 'compatible' 
+    }
+  },
+  
+  'mock-large': {
+    'multi-root-radial': { adapter: 'none', compatibility: 'native' }
+  }
+} as const
+
+type CompatibilityLevel = 'native' | 'compatible' | 'incompatible'
+```
+
+---
+
+#### 🚀 实际使用示例
+
+##### 示例 1: 使用专用数据源
+
+```typescript
+// 1. 导入专用数据源（已经是 RadialPluginInput 格式）
+const dataSource = new RadialSpecificDataSource()
+const data = await dataSource.loadGraphData()
+
+// 2. 直接传给插件（无需适配）
+const plugin = PluginRegistry.get('multi-root-radial')
+const result = await plugin.execute(data, options)
+
+// ✅ 类型安全，无运行时开销
+```
+
+##### 示例 2: 使用通用数据源
+
+```typescript
+// 1. 导入通用数据源
+const dataSource = new UniversalDataSource()
+const data = await dataSource.loadGraphData()  // UniversalGraphData
+
+// 2. 插件内部自动选择适配器
+const plugin = PluginRegistry.get('multi-root-radial')
+const result = await plugin.execute(data, options)
+// 内部: isUniversalData → 使用 UniversalToRadialAdapter → 执行布局
+
+// ✅ 灵活，支持多插件
+```
+
+---
+
+#### ⚠️ 注意事项
+
+1. **类型导入路径**
+   ```typescript
+   // ✅ 正确：从插件的 data.types.ts 导入
+   import type { RadialPluginInput } from '../../plugins/MultiRootRadialPlugin/data.types'
+   
+   // ❌ 错误：从插件内部模块导入
+   import type { RadialPluginInput } from '../../plugins/MultiRootRadialPlugin/adapter'
+   ```
+
+2. **Adapter 位置**
+   ```
+   ✅ 推荐：插件内部
+   plugins/MultiRootRadialPlugin/adapters/UniversalDataAdapter.ts
+   
+   ⚠️ 备选：数据源旁边（如果多个插件共享）
+   data/adapters/UniversalDataAdapter.ts
+   ```
+
+3. **版本兼容性**
+   - 数据类型定义变更时，更新版本号
+   - Adapter 需要同步更新
+   - 在 CHANGELOG 中记录破坏性变更
+
+---
+
+### 5.2 添加新插件
 
 #### Step 1: 创建插件目录
 
@@ -377,7 +841,7 @@ import { MyNewPlugin } from './MyNewPlugin'
 PluginRegistry.register(new MyNewPlugin())
 ```
 
-### 5.2 添加新数据源
+### 5.3 添加新数据源
 
 #### Step 1: 创建数据源类
 
@@ -422,7 +886,7 @@ import { myDataSource } from './static/my-data'
 dataSourceManager.register(myDataSource)
 ```
 
-### 5.3 类型定义规范
+### 5.4 类型定义规范
 
 #### 核心契约类型 (`plugins/types.ts`)
 
@@ -453,7 +917,7 @@ export interface MyAlgorithmOptions {
 }
 ```
 
-### 5.4 代码风格
+### 5.5 代码风格
 
 #### 命名约定
 

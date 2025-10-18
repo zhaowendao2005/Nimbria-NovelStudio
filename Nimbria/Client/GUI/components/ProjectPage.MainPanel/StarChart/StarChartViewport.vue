@@ -24,6 +24,7 @@ const configStore = useStarChartConfigStore()
 // Refs
 const containerRef = ref<HTMLDivElement>()
 let graphInstance: Graph | null = null
+let isInitializing = false  // 防止重复初始化
 
 /**
  * 获取当前插件
@@ -45,6 +46,12 @@ const currentPlugin = computed((): ILayoutPlugin | undefined => {
  * 初始化G6图实例
  */
 const initGraph = async () => {
+  // 防止重复初始化
+  if (isInitializing) {
+    console.log('[StarChartViewport] 正在初始化中，跳过重复调用')
+    return
+  }
+  
   const data = starChartStore.graphData
   const layout = configStore.layoutConfig
   const plugin = currentPlugin.value
@@ -60,83 +67,96 @@ const initGraph = async () => {
   }
 
   console.log(`[StarChartViewport] 使用插件: ${plugin.displayName}`)
+  
+  // 设置初始化标志
+  isInitializing = true
 
-  // 销毁旧实例
-  if (graphInstance) {
-    graphInstance.destroy()
-    graphInstance = null
-  }
-  
-  // ===== 1. 执行布局计算（插件内部处理数据适配） =====
-  const layoutResult = await plugin.execute(data, {
-    width: containerRef.value.clientWidth,
-    height: containerRef.value.clientHeight
-  })
-  
-  // ===== 2. 获取样式规则 =====
-  const pluginStyles = plugin.getDefaultStyles()
-  const finalStyles = plugin.mergeStyles(data, pluginStyles)
-  
-  // ===== 3. 创建G6实例 =====
-  graphInstance = new Graph({
-    container: containerRef.value,
-    width: containerRef.value.clientWidth,
-    height: containerRef.value.clientWidth,
-    renderer: () => new CanvasRenderer(),
-    
-    // 使用布局计算的结果（包含树结构）
-    data: layoutResult as unknown as GraphData,
-    
-    // 使用preset布局（位置已计算）
-    layout: { type: 'preset' },
-    
-    // 使用插件提供的样式
-    node: {
-      type: 'circle',
-      style: finalStyles.node as unknown as Parameters<typeof Graph>[0]['node']
-    },
-    
-    edge: {
-      type: (edge) => (edge as Record<string, unknown>).type as string || 'line',
-      style: finalStyles.edge as unknown as Parameters<typeof Graph>[0]['edge']
-    },
-    
-    // 交互行为
-    behaviors: [
-      'drag-canvas',
-      {
-        type: 'zoom-canvas',
-        key: 'zoom-canvas-behavior',
-        sensitivity: configStore.config.interaction.wheelSensitivity,
-        enableOptimize: true,
-      },
-      'drag-element',
-    ],
-    
-    autoFit: 'view',
-  })
-  
-  // 事件绑定
-  graphInstance.on('node:click', (evt) => {
-    const evtObj = evt as unknown as Record<string, unknown>
-    const itemId = evtObj.itemId
-    if (itemId && typeof itemId === 'string') {
-      starChartStore.selectNode(itemId)
+  try {
+    // 销毁旧实例
+    if (graphInstance) {
+      console.log('[StarChartViewport] 销毁旧的图实例')
+      graphInstance.destroy()
+      graphInstance = null
     }
-  })
-  
-  graphInstance.on('viewportchange', (evt) => {
-    const evtObj = evt as unknown as Record<string, unknown>
-    starChartStore.updateViewport({
-      zoom: (evtObj.zoom as number) || 1,
-      pan: (evtObj.translate as { x: number; y: number }) || { x: 0, y: 0 }
+    
+    // ===== 1. 执行布局计算（插件内部处理数据适配） =====
+    const layoutResult = await plugin.execute(data, {
+      width: containerRef.value.clientWidth,
+      height: containerRef.value.clientHeight
     })
-  })
-  
-  // 渲染
-  graphInstance.render()
-  
-  console.log('[StarChartViewport] G6 初始化完成')
+    
+    // ===== 2. 获取样式规则 =====
+    const pluginStyles = plugin.getDefaultStyles()
+    const finalStyles = plugin.mergeStyles(data, pluginStyles)
+    
+    // ===== 3. 创建G6实例 =====
+    graphInstance = new Graph({
+      container: containerRef.value,
+      width: containerRef.value.clientWidth,
+      height: containerRef.value.clientWidth,
+      renderer: () => new CanvasRenderer(),
+      
+      // 使用布局计算的结果（包含树结构）
+      data: layoutResult as unknown as GraphData,
+      
+      // 使用preset布局（位置已计算）
+      layout: { type: 'preset' },
+      
+      // 使用插件提供的样式
+      node: {
+        type: 'circle',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        style: finalStyles.node as any
+      },
+      
+      edge: {
+        type: (edge) => (edge as Record<string, unknown>).type as string || 'line',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        style: finalStyles.edge as any
+      },
+      
+      // 交互行为
+      behaviors: [
+        'drag-canvas',
+        {
+          type: 'zoom-canvas',
+          key: 'zoom-canvas-behavior',
+          sensitivity: configStore.config.interaction.wheelSensitivity,
+          enableOptimize: true,
+        },
+        'drag-element',
+      ],
+      
+      autoFit: 'view',
+    })
+    
+    // 事件绑定
+    graphInstance.on('node:click', (evt) => {
+      const evtObj = evt as unknown as Record<string, unknown>
+      const itemId = evtObj.itemId
+      if (itemId && typeof itemId === 'string') {
+        starChartStore.selectNode(itemId)
+      }
+    })
+    
+    graphInstance.on('viewportchange', (evt) => {
+      const evtObj = evt as unknown as Record<string, unknown>
+      starChartStore.updateViewport({
+        zoom: (evtObj.zoom as number) || 1,
+        pan: (evtObj.translate as { x: number; y: number }) || { x: 0, y: 0 }
+      })
+    })
+    
+    // 渲染
+    await graphInstance.render()
+    
+    console.log('[StarChartViewport] G6 初始化完成')
+  } catch (error) {
+    console.error('[StarChartViewport] 初始化失败:', error)
+  } finally {
+    // 无论成功失败都重置标志
+    isInitializing = false
+  }
 }
 
 /**
