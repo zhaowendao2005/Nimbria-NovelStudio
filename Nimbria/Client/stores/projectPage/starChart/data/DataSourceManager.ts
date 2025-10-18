@@ -24,8 +24,6 @@ export class DataSourceManager {
     this.register(mockLargeDataSource)
     // this.register(mcrecipeDataSource)
     // this.register(gunDataSource)
-    
-    console.log('[DataSourceManager] 已注册数据源:', Array.from(this.dataSources.keys()))
   }
   
   /**
@@ -63,11 +61,8 @@ export class DataSourceManager {
       throw new Error(`未知数据源类型: ${sourceType}`)
     }
     
-    console.log(`[DataSourceManager] 📊 加载数据源: ${dataSource.metadata.name}`)
-    
     try {
       const data = await dataSource.loadGraphData(options)
-      console.log(`[DataSourceManager] ✅ 加载完成: ${data.nodes.length} 节点, ${data.edges.length} 边`)
       return data
     } catch (error) {
       console.error(`[DataSourceManager] ❌ 加载失败:`, error)

@@ -131,7 +131,8 @@ const initGraph = () => {
           },
         }
       : {
-          type: 'cubic-radial',  // 径向树专用边类型
+          // 对于树布局，根据边的标记选择类型：根到第一层用直线，其他用曲线
+          type: (edge: any) => edge.isDirectLine ? 'line' : 'cubic-radial',
           style: {
             lineWidth: 2,
             opacity: 0.6,
