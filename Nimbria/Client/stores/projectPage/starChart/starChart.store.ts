@@ -13,6 +13,7 @@ import type { LayoutType } from './layouts/types'
 import { dataSourceManager } from './data/DataSourceManager'
 import { layoutManager } from './layouts/LayoutManager'
 import { CytoscapeTransformer } from './transforms/CytoscapeTransformer'
+import { G6Transformer, type G6Data } from './transforms/G6Transformer'
 import { useStarChartConfigStore } from './starChart.config.store'
 
 export const useStarChartStore = defineStore('projectPage-starChart', () => {
@@ -26,6 +27,9 @@ export const useStarChartStore = defineStore('projectPage-starChart', () => {
   
   // Cytoscape元素（用于渲染）
   const cytoscapeElements = ref<CytoscapeElement[]>([])
+  
+  // 🆕 G6 数据（用于渲染）
+  const g6Data = ref<G6Data | null>(null)
   
   // 视口状态
   const viewportState = ref<ViewportState>({
@@ -84,6 +88,7 @@ export const useStarChartStore = defineStore('projectPage-starChart', () => {
   
   /**
    * 应用布局（计算位置 + 转换格式）
+   * 🆕 支持双引擎：根据 renderEngine 选择转换器
    */
   const applyLayout = async () => {
     if (!rawGraphData.value) {
@@ -95,20 +100,34 @@ export const useStarChartStore = defineStore('projectPage-starChart', () => {
     const layoutEngine = layoutManager.getLayout(configStore.currentLayoutType)
     
     console.log(`[StarChart Store] 应用布局：${configStore.currentLayoutType}`)
+    console.log(`[StarChart Store] 渲染引擎：${configStore.renderEngine}`)
     
-    // 计算布局
+    // 计算布局（引擎无关）
     layoutedNodes.value = layoutEngine.compute(rawGraphData.value, configStore.layoutConfig)
     console.log(`[StarChart Store] 布局计算完成：${layoutedNodes.value.length} 个节点`)
     
-    // 转换为Cytoscape格式
-    const transformer = new CytoscapeTransformer()
-    cytoscapeElements.value = transformer.transform(
-      layoutedNodes.value,
-      rawGraphData.value.edges,
-      configStore.config,
-      layoutEngine.needsCytoscapeCompute()
-    )
-    console.log(`[StarChart Store] Cytoscape格式转换完成：${cytoscapeElements.value.length} 个元素`)
+    // 根据渲染引擎选择转换器
+    if (configStore.renderEngine === 'g6') {
+      // 🆕 转换为 G6 格式
+      const g6Transformer = new G6Transformer()
+      g6Data.value = g6Transformer.transform(
+        layoutedNodes.value,
+        rawGraphData.value.edges,
+        configStore.config,
+        layoutEngine.needsCytoscapeCompute()
+      )
+      console.log(`[StarChart Store] G6格式转换完成：${g6Data.value.nodes.length} 节点，${g6Data.value.edges.length} 边`)
+    } else {
+      // 转换为Cytoscape格式
+      const cytoscapeTransformer = new CytoscapeTransformer()
+      cytoscapeElements.value = cytoscapeTransformer.transform(
+        layoutedNodes.value,
+        rawGraphData.value.edges,
+        configStore.config,
+        layoutEngine.needsCytoscapeCompute()
+      )
+      console.log(`[StarChart Store] Cytoscape格式转换完成：${cytoscapeElements.value.length} 个元素`)
+    }
   }
   
   /**
@@ -202,6 +221,7 @@ export const useStarChartStore = defineStore('projectPage-starChart', () => {
     rawGraphData.value = null
     layoutedNodes.value = []
     cytoscapeElements.value = []
+    g6Data.value = null
     initialized.value = false
     loading.value = false
     error.value = null
@@ -214,6 +234,7 @@ export const useStarChartStore = defineStore('projectPage-starChart', () => {
     rawGraphData,
     layoutedNodes,
     cytoscapeElements,
+    g6Data,              // 🆕 G6 数据
     viewportState,
     loading,
     error,

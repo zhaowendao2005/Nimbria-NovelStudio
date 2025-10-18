@@ -96,6 +96,102 @@
               
               <div class="config-divider-line"></div>
 
+              <!-- 🆕 渲染引擎选择 -->
+              <div class="config-section config-section-highlight">
+                <h5>🎨 渲染引擎</h5>
+                <div class="config-item">
+                  <label>引擎类型</label>
+                  <el-select 
+                    :model-value="configStore.renderEngine"
+                    @change="onRenderEngineChange"
+                    placeholder="选择渲染引擎"
+                    size="default"
+                  >
+                    <el-option value="cytoscape">
+                      <span style="float: left">Cytoscape.js</span>
+                      <span style="float: right; color: #67c23a; font-size: 12px; margin-left: 12px">稳定版</span>
+                    </el-option>
+                    
+                    <el-option value="g6">
+                      <span style="float: left">AntV G6</span>
+                      <span style="float: right; color: #409eff; font-size: 12px; margin-left: 12px">高性能</span>
+                    </el-option>
+                  </el-select>
+                </div>
+                
+                <!-- G6 渲染器类型选择（仅在 G6 引擎时显示）-->
+                <div v-show="configStore.renderEngine === 'g6'">
+                  <div class="config-divider-line-thin"></div>
+                  
+                  <div class="config-item">
+                    <el-tooltip 
+                      content="Canvas: 通用渲染 | WebGL: 高性能大规模数据 | SVG: 矢量导出 | Auto: 自动选择" 
+                      placement="top"
+                    >
+                      <label>
+                        G6 渲染器
+                        <el-tag size="small" type="warning" style="margin-left: 4px">G6专用</el-tag>
+                      </label>
+                    </el-tooltip>
+                    <el-select 
+                      :model-value="configStore.config.g6.renderer"
+                      @change="onG6RendererChange"
+                      size="default"
+                    >
+                      <el-option value="canvas">
+                        <span style="float: left">Canvas</span>
+                        <span style="float: right; color: #8492a6; font-size: 12px">通用</span>
+                      </el-option>
+                      <el-option value="webgl">
+                        <span style="float: left">WebGL</span>
+                        <span style="float: right; color: #409eff; font-size: 12px">高性能</span>
+                      </el-option>
+                      <el-option value="svg">
+                        <span style="float: left">SVG</span>
+                        <span style="float: right; color: #67c23a; font-size: 12px">矢量</span>
+                      </el-option>
+                      <el-option value="auto">
+                        <span style="float: left">自动选择</span>
+                        <span style="float: right; color: #e6a23c; font-size: 12px">智能</span>
+                      </el-option>
+                    </el-select>
+                  </div>
+                </div>
+                
+                <!-- 引擎特性说明 -->
+                <el-alert 
+                  v-if="configStore.renderEngine === 'g6'"
+                  type="success"
+                  :closable="false"
+                  style="margin-top: 8px"
+                >
+                  <template #title>
+                    <strong>G6 引擎优势：</strong>
+                  </template>
+                  ✅ WebGL 加速，支持 10万+ 节点<br>
+                  ✅ 更流畅的动画和交互<br>
+                  ✅ 官方 AntV 团队维护<br>
+                  ✅ 支持分层渲染优化<br>
+                  📊 当前节点数: {{ starChartStore.nodeCount }}
+                </el-alert>
+                
+                <el-alert 
+                  v-else
+                  type="info"
+                  :closable="false"
+                  style="margin-top: 8px"
+                >
+                  <template #title>
+                    <strong>Cytoscape 引擎：</strong>
+                  </template>
+                  ✅ 成熟稳定，生产环境验证<br>
+                  ✅ 完善的插件生态<br>
+                  ✅ 当前项目默认引擎
+                </el-alert>
+              </div>
+              
+              <div class="config-divider-line"></div>
+
               <!-- 🆕 布局选择 -->
               <div class="config-section">
                 <h5>🎨 布局算法</h5>
@@ -317,7 +413,7 @@
                     v-model="configStore.config.interaction.wheelSensitivity"
                     @change="updateConfig('interaction.wheelSensitivity', $event)"
                     :min="0.1"
-                    :max="1.0"
+                    :max="20.0"
                     :step="0.1"
                   />
                 </div>
@@ -587,8 +683,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { ElMessageBox } from 'element-plus'
+import { ref, nextTick } from 'vue'
+import { ElMessageBox, ElMessage } from 'element-plus'
 import { useStarChartConfigStore, useStarChartStore } from '@stores/projectPage/starChart'
 import type { ConfigPreset, DataSourceType, LayoutType } from '@stores/projectPage/starChart/starChart.config.types'
 import { SVG_NODE_ICONS } from '@stores/projectPage/starChart'
@@ -604,6 +700,9 @@ const activeNames = ref(['category2'])
 
 // 使用配置store
 const configStore = useStarChartConfigStore()
+
+// 🆕 使用 starChart store（用于访问节点数等信息）
+const starChartStore = useStarChartStore()
 
 // 初始化配置
 configStore.loadConfig()
@@ -661,6 +760,64 @@ const onLayoutChange = async (layoutType: LayoutType) => {
     console.log(`[WritingPanel] 布局已切换: ${layoutType}`)
   } catch (error) {
     console.error('[WritingPanel] 切换布局失败:', error)
+  }
+}
+
+// 🆕 切换渲染引擎（Cytoscape ↔ G6）
+const onRenderEngineChange = async (engine: 'cytoscape' | 'g6') => {
+  try {
+    // 1. 保存当前视口状态
+    const starChartStore = useStarChartStore()
+    const currentViewport = starChartStore.viewportState
+    
+    // 2. 更新配置
+    configStore.setRenderEngine(engine)
+    
+    // 3. 重新应用布局（触发数据转换）
+    await starChartStore.recomputeLayout()
+    
+    // 4. 恢复视口状态
+    await nextTick()
+    starChartStore.updateViewport(currentViewport)
+    
+    // 5. 用户反馈
+    ElMessage.success({
+      message: `已切换到 ${engine === 'g6' ? 'G6' : 'Cytoscape'} 渲染引擎`,
+      duration: 2000
+    })
+    
+    console.log(`[WritingPanel] 渲染引擎切换完成: ${engine}`)
+  } catch (error) {
+    console.error('[WritingPanel] 切换渲染引擎失败:', error)
+    ElMessage.error('切换失败，请重试')
+    
+    // 回滚到之前的引擎
+    configStore.setRenderEngine(engine === 'g6' ? 'cytoscape' : 'g6')
+  }
+}
+
+// 🆕 切换 G6 渲染器类型（Canvas/WebGL/SVG）
+const onG6RendererChange = async (rendererType: 'canvas' | 'webgl' | 'svg' | 'auto') => {
+  try {
+    // 更新配置
+    configStore.updateConfig('g6.renderer', rendererType)
+    
+    // 用户反馈
+    const rendererNames: Record<string, string> = {
+      canvas: 'Canvas（通用）',
+      webgl: 'WebGL（高性能）',
+      svg: 'SVG（矢量）',
+      auto: '自动选择'
+    }
+    ElMessage.success({
+      message: `G6 渲染器已切换到: ${rendererNames[rendererType]}`,
+      duration: 2000
+    })
+    
+    console.log(`[WritingPanel] G6 渲染器切换完成: ${rendererType}`)
+  } catch (error) {
+    console.error('[WritingPanel] 切换 G6 渲染器失败:', error)
+    ElMessage.error('渲染器切换失败')
   }
 }
 

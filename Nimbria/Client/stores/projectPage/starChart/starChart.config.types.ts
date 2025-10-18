@@ -146,6 +146,7 @@ export interface StarChartConfig {
   throttle: ThrottleConfig
   edgeStyle: EdgeStyleConfig
   nodeStyle: NodeStyleConfig
+  g6: G6Config                    // 🆕 G6 专属配置
 }
 
 // 配置预设
@@ -160,3 +161,49 @@ export type DataSourceType = 'mock-large' | 'mock-normal' | 'gun'
  * 布局类型
  */
 export type LayoutType = 'concentric' | 'force-directed'
+
+// ==================== G6 渲染引擎相关类型 ====================
+
+/**
+ * 渲染引擎类型
+ */
+export type RenderEngine = 'cytoscape' | 'g6'
+
+/**
+ * G6 渲染器类型
+ */
+export type G6RendererType = 'canvas' | 'webgl' | 'svg' | 'auto'
+
+/**
+ * 渲染引擎特性定义
+ */
+export interface RenderEngineFeatures {
+  supportWebGL: boolean         // 支持 WebGL 加速
+  supportLargeGraph: boolean    // 支持大规模图 (10000+ 节点)
+  supportCustomNode: boolean    // 支持自定义节点
+  supportAnimation: boolean     // 支持动画
+  supportSVG: boolean          // 支持 SVG 导出
+  maxNodes: number             // 性能上限（节点数）
+}
+
+/**
+ * G6 专属配置
+ */
+export interface G6Config {
+  renderer: G6RendererType       // G6 渲染器类型
+  pixelRatio: number             // 设备像素比（默认 auto）
+  fitView: boolean               // 自动适应视口
+  groupByTypes: boolean          // 按类型分组渲染
+  enableOptimize: boolean        // 启用性能优化
+  layeredRendering: boolean      // 分层渲染（主画布 WebGL + 交互层 Canvas）
+}
+
+/**
+ * 配置兼容性映射
+ * 定义哪些配置项是特定渲染引擎专属的
+ */
+export interface ConfigCompatibility {
+  cytoscapeOnly: string[]        // Cytoscape 专属配置路径
+  g6Only: string[]              // G6 专属配置路径
+  shared: string[]              // 通用配置路径
+}

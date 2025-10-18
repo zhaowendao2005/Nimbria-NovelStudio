@@ -31,7 +31,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
 import { useStarChartStore, useStarChartConfigStore } from '@stores/projectPage/starChart'
@@ -45,8 +45,8 @@ const configStore = useStarChartConfigStore()
 // 确保配置已加载
 configStore.loadConfig()
 
-// 滚轮灵敏度
-const wheelSensitivity = ref(0.2)
+// 滚轮灵敏度（从store获取，实现联动）
+const wheelSensitivity = computed(() => configStore.config.interaction.wheelSensitivity)
 
 // 处理创建视图
 const handleCreateView = async () => {
@@ -80,9 +80,8 @@ const handleViewportChange = (state: Partial<ViewportState>) => {
   starChartStore.updateViewport(state)
 }
 
-// 处理滚轮灵敏度变化
+// 处理滚轮灵敏度变化（TopBar已经更新store，这里只需打印日志）
 const handleSensitivityChange = (sensitivity: number) => {
-  wheelSensitivity.value = sensitivity
   console.log('[StarChartPage] 滚轮灵敏度已更新:', sensitivity)
 }
 

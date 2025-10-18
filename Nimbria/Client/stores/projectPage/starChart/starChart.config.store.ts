@@ -125,6 +125,15 @@ const DEFAULT_CONFIG: StarChartConfig = {
     // 高级设置
     enableSVGCache: true,
     nodeTypeMapping: false
+  },
+  // 🆕 G6 专属配置
+  g6: {
+    renderer: 'auto',           // 自动选择渲染器
+    pixelRatio: 2,              // 设备像素比
+    fitView: true,              // 自动适应视口
+    groupByTypes: false,        // 按类型分组渲染
+    enableOptimize: true,       // 启用性能优化
+    layeredRendering: false     // 分层渲染
   }
 }
 
@@ -261,6 +270,9 @@ export const useStarChartConfigStore = defineStore('starChart-config', () => {
   // 🆕 布局配置
   const layoutConfig = ref<LayoutConfig>(structuredClone(DEFAULT_CONCENTRIC_LAYOUT))
   
+  // 🆕 渲染引擎配置
+  const renderEngine = ref<'cytoscape' | 'g6'>('cytoscape')
+  
   // ==================== 计算属性 ====================
   
   // Cytoscape 渲染器配置
@@ -302,6 +314,16 @@ export const useStarChartConfigStore = defineStore('starChart-config', () => {
   // 🆕 是否显示节点间距修正配置（只在同心圆布局时显示）
   const showNodeSpacingCorrection = computed(() => {
     return currentLayoutType.value === 'concentric'
+  })
+  
+  // 🆕 配置项可见性（根据渲染引擎）
+  const configVisibility = computed(() => {
+    return {
+      showWebGLSettings: renderEngine.value === 'cytoscape',
+      showG6Settings: renderEngine.value === 'g6',
+      showMotionBlur: renderEngine.value === 'cytoscape',
+      showCytoscapeCurveStyle: renderEngine.value === 'cytoscape',
+    }
   })
   
   // ==================== 日志控制方法 ====================
@@ -444,6 +466,30 @@ export const useStarChartConfigStore = defineStore('starChart-config', () => {
     log(`[StarChart配置] 更新布局配置: ${path} = ${value}`)
   }
   
+  // ==================== 🆕 渲染引擎管理 ====================
+  
+  /** 设置渲染引擎 */
+  const setRenderEngine = (engine: 'cytoscape' | 'g6') => {
+    const oldEngine = renderEngine.value
+    renderEngine.value = engine
+    log(`[StarChart配置] 渲染引擎切换: ${oldEngine} → ${engine}`, 'normal')
+    
+    // 配置适配：某些配置在不同引擎下有不同的默认值
+    adaptConfigForEngine(engine)
+    saveConfig()
+  }
+  
+  /** 配置适配：不同引擎的配置调整 */
+  const adaptConfigForEngine = (engine: 'cytoscape' | 'g6') => {
+    if (engine === 'g6') {
+      // G6 默认启用 WebGL（通过 renderer 配置控制）
+      log('[StarChart配置] G6 引擎：使用 G6 渲染器配置', 'verbose')
+    } else {
+      // Cytoscape 使用 WebGL 配置
+      log('[StarChart配置] Cytoscape 引擎：使用 WebGL 配置', 'verbose')
+    }
+  }
+  
   // ==================== 工具函数 ====================
   
   /** 深度合并对象 */
@@ -513,6 +559,11 @@ export const useStarChartConfigStore = defineStore('starChart-config', () => {
     showNodeSpacingCorrection,
     setLayoutType,
     updateLayoutConfig,
+    
+    // 🆕 渲染引擎
+    renderEngine,
+    setRenderEngine,
+    configVisibility,
     
     // 常量
     DEFAULT_CONFIG,

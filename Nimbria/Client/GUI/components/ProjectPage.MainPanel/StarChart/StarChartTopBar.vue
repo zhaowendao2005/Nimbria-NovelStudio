@@ -41,8 +41,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed } from 'vue'
 import { Plus, Refresh, Download } from '@element-plus/icons-vue'
+import { useStarChartConfigStore } from '@stores/projectPage/starChart'
 
 const emit = defineEmits<{
   'create-view': []
@@ -51,11 +52,20 @@ const emit = defineEmits<{
   'sensitivity-change': [sensitivity: number]
 }>()
 
-// 滚轮灵敏度（0.05-1.0，默认0.2）
-const sensitivityValue = ref(0.2)
+const configStore = useStarChartConfigStore()
+
+// 滚轮灵敏度（从store获取，保持联动）
+const sensitivityValue = computed({
+  get: () => configStore.config.interaction.wheelSensitivity,
+  set: (value: number) => {
+    configStore.updateConfig('interaction.wheelSensitivity', value)
+    emit('sensitivity-change', value)
+  }
+})
 
 // 处理灵敏度变化
 const handleSensitivityChange = (value: number) => {
+  // computed setter 会自动调用，这里只需emit
   emit('sensitivity-change', value)
 }
 </script>

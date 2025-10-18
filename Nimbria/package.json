@@ -55,6 +55,9 @@
     }
   },
   "dependencies": {
+    "@antv/g-svg": "^2.0.42",
+    "@antv/g-webgl": "^2.0.52",
+    "@antv/g6": "^5.0.50",
     "@element-plus/icons-vue": "^2.3.1",
     "@guolao/vue-monaco-editor": "^1.5.2",
     "@headlessui/vue": "^1.7.22",

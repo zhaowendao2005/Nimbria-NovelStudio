@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>G6 WebGL 渲染器示例</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: #f5f5f5;
+      overflow: hidden;
+    }
+
+    .header {
+      background: #fff;
+      padding: 16px 24px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header h1 {
+      font-size: 20px;
+      color: #333;
+    }
+
+    .info {
+      display: flex;
+      gap: 20px;
+      font-size: 14px;
+      color: #666;
+    }
+
+    .status {
+      padding: 4px 12px;
+      background: #52c41a;
+      color: white;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
+    #container {
+      width: 100vw;
+      height: calc(100vh - 64px);
+      background: #fff;
+    }
+
+    .loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: #666;
+    }
+
+    .loading::after {
+      content: '...';
+      animation: dots 1.5s steps(4, end) infinite;
+    }
+
+    @keyframes dots {
+      0%, 20% { content: '.'; }
+      40% { content: '..'; }
+      60%, 100% { content: '...'; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>G6 WebGL 渲染器示例 - 20000 节点</h1>
+    <div class="info">
+      <span id="nodeCount">节点数: 加载中...</span>
+      <span id="edgeCount">边数: 加载中...</span>
+      <span class="status" id="rendererStatus">Canvas 渲染</span>
+    </div>
+  </div>
+
+  <div id="container">
+    <div class="loading">正在加载数据</div>
+  </div>
+
+  <!-- 使用 UMD 方式引入 G6（参考官方文档）-->
+  <script src="https://unpkg.com/@antv/g6@latest/dist/g6.min.js"></script>
+  
+  <script>
+    const startTime = performance.now();
+    
+    console.log('开始加载 G6 图形库...');
+
+    fetch('https://assets.antv.antgroup.com/g6/20000.json')
+      .then((res) => {
+        console.log('数据响应状态:', res.status);
+        return res.json();
+      })
+      .then((data) => {
+        console.log('✅ 数据加载成功，节点数:', data.nodes?.length, '边数:', data.edges?.length);
+        
+        // 移除 loading 提示
+        const loading = document.querySelector('.loading');
+        if (loading) loading.remove();
+
+        // 更新统计信息
+        document.getElementById('nodeCount').textContent = `节点数: ${data.nodes?.length || 0}`;
+        document.getElementById('edgeCount').textContent = `边数: ${data.edges?.length || 0}`;
+
+        console.log('开始创建 Graph 实例...');
+        
+        try {
+          // 创建图实例（G6 v5 API）
+          const graph = new G6.Graph({
+            container: 'container',
+            // renderer: 'webgl',  // WebGL 渲染器可能需要额外依赖
+            width: document.getElementById('container').clientWidth,
+            height: document.getElementById('container').clientHeight,
+            data,  // v5 直接在配置中传入 data
+            layout: {
+              type: 'force',
+              preventOverlap: true,
+              nodeSize: 8,
+            },
+            node: {
+              style: {
+                size: 8,
+                fill: '#5B8FF9',
+              },
+            },
+            behaviors: ['zoom-canvas', 'drag-canvas'],
+          });
+
+          console.log('Graph 实例创建成功，开始渲染...');
+          graph.render();
+
+          // 计算渲染时间
+          const endTime = performance.now();
+          const renderTime = (endTime - startTime).toFixed(2);
+          console.log(`✅ 渲染完成，总耗时: ${renderTime}ms`);
+        } catch (err) {
+          console.error('❌ Graph 创建/渲染错误:', err);
+          const loading = document.querySelector('.loading');
+          if (loading) {
+            loading.textContent = '渲染失败: ' + err.message;
+            loading.style.color = '#f5222d';
+          }
+        }
+      })
+      .catch((error) => {
+        console.error('❌ 加载数据失败:', error);
+        const loading = document.querySelector('.loading');
+        if (loading) {
+          loading.textContent = '数据加载失败，请检查网络连接';
+          loading.style.color = '#f5222d';
+        }
+      });
+  </script>
+</body>
+</html>
+
