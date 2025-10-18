@@ -45,15 +45,6 @@ export interface CytoscapeElement {
   group?: 'nodes' | 'edges'
 }
 
-// 布局配置
-export interface LayoutConfig {
-  name: 'fcose' | 'grid' | 'circle' | 'cose' | 'preset'
-  nodeRepulsion?: number
-  idealEdgeLength?: number
-  animate?: boolean
-  randomize?: boolean
-}
-
 // 视图状态
 export interface ViewportState {
   zoom: number

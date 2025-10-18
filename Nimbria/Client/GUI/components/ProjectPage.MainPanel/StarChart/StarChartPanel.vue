@@ -9,9 +9,9 @@
     
     <!-- Cytoscape 视口 -->
     <StarChartViewport 
-      v-if="starChartStore.initialized"
+      v-if="starChartStore.initialized && configStore.layoutConfig"
       :elements="starChartStore.cytoscapeElements"
-      :layout="starChartStore.layoutConfig"
+      :layout="configStore.layoutConfig"
       :fast-rebuild="starChartStore.fastRebuild"
       @viewport-change="handleViewportChange"
     />
@@ -37,12 +37,16 @@
 import { onMounted } from 'vue'
 import { Loading } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { useStarChartStore } from '@stores/projectPage/starChart'
+import { useStarChartStore, useStarChartConfigStore } from '@stores/projectPage/starChart'
 import StarChartTopBar from './StarChartTopBar.vue'
 import StarChartViewport from './StarChartViewport.vue'
 import type { ViewportState } from '@stores/projectPage/starChart/starChart.types'
 
 const starChartStore = useStarChartStore()
+const configStore = useStarChartConfigStore()
+
+// 确保配置已加载
+configStore.loadConfig()
 
 // 创建视图
 const handleCreateView = async () => {
@@ -55,9 +59,15 @@ const handleCreateView = async () => {
 }
 
 // 重新布局
-const handleRelayout = () => {
-  starChartStore.updateLayout({ randomize: true, animate: true })
-  ;(ElMessage as any).success('布局已更新')
+const handleRelayout = async () => {
+  try {
+    // 重新计算布局
+    await starChartStore.recomputeLayout()
+    ;(ElMessage as any).success('布局已更新')
+  } catch (error) {
+    console.error('[StarChartPanel] 重新布局失败:', error)
+    ;(ElMessage as any).error('布局更新失败')
+  }
 }
 
 // 导出

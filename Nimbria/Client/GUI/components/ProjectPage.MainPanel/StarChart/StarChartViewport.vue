@@ -7,9 +7,11 @@ import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import cytoscape from 'cytoscape'
 // @ts-ignore - cytoscape-fcose 没有类型定义
 import fcose from 'cytoscape-fcose'
-import type { CytoscapeElement, LayoutConfig, ViewportState } from '@stores/projectPage/starChart/starChart.types'
+import type { CytoscapeElement, ViewportState } from '@stores/projectPage/starChart/starChart.types'
+import type { LayoutConfig } from '@stores/projectPage/starChart/layouts/types'
 import { useStarChartConfigStore } from '@stores/projectPage/starChart'
 import { getSVGIcon, getRandomSVGIcon, generateNodeSVGDataURL } from '@stores/projectPage/starChart/node.svg.library'
+import { layoutManager } from '@stores/projectPage/starChart/layouts/LayoutManager'
 
 // 注册 fcose 布局 (WebGL是内置的，不需要额外注册)
 cytoscape.use(fcose)
@@ -158,8 +160,7 @@ const initCytoscape = () => {
       name: 'preset',
       fit: config.layout.firstTimeAutoFit,
       padding: 80,
-      animate: config.layout.animate,
-      randomize: config.layout.randomize
+      animate: config.layout.animate
     },
     
     // 🔥 使用配置store的实例配置
@@ -822,29 +823,59 @@ const runLayout = (shouldFit = false) => {
     return  // 🔥 直接返回，不运行任何布局算法
   }
   
-  // 🔥 正常模式：使用 preset 布局（手动预设位置）
-  const layout = cyInstance.layout({
-    name: 'preset',  // 使用节点的预设 position
-    fit: shouldFit,  // 只在初始化时自动缩放
-    padding: 80,     // 视口边缘留白
-    animate: false,  // 禁用动画（直接显示最终位置）
-    ready: () => {
-      if (config.logging.enableLayoutLogs) {
-        configStore.log('[StarChartViewport] Preset 布局完成')
-      }
-      
-      // 🆕 布局完成后进行节点间距修正
-      if (cyInstance && config.layout.enableNodeSpacingCorrection) {
-        correctNodeSpacing(cyInstance)
-        
-        // 修正后重新适配视口（如果需要）
-        if (shouldFit) {
-          cyInstance.fit(undefined, 80)
-        }
+  // 🆕 根据布局类型决定使用什么布局算法
+  if (!props.layout) {
+    console.warn('[StarChartViewport] Layout config is undefined, skipping layout')
+    return
+  }
+  
+  const layoutType = props.layout.name
+  const layoutEngine = layoutManager.getLayout(layoutType)
+  
+  let layoutConfig: any
+  
+  if (layoutEngine.needsCytoscapeCompute()) {
+    // 力导向布局：使用 fcose 算法
+    if (config.logging.enableLayoutLogs) {
+      configStore.log(`[StarChartViewport] 使用 ${layoutType} 布局（Cytoscape计算）`)
+    }
+    
+    // 获取布局配置
+    if (layoutEngine.getCytoscapeLayoutConfig) {
+      layoutConfig = layoutEngine.getCytoscapeLayoutConfig(props.layout)
+      layoutConfig.fit = shouldFit
+      layoutConfig.padding = 80
+    } else {
+      layoutConfig = {
+        name: 'fcose',
+        fit: shouldFit,
+        padding: 80,
+        animate: props.layout.animate ?? true,
+        randomize: props.layout.randomize ?? false
       }
     }
-  })
+  } else {
+    // 同心圆布局：使用 preset（位置已经计算好）
+    if (config.logging.enableLayoutLogs) {
+      configStore.log(`[StarChartViewport] 使用 ${layoutType} 布局（预设位置）`)
+    }
+    
+    layoutConfig = {
+      name: 'preset',  // 使用节点的预设 position
+      fit: shouldFit,  // 只在初始化时自动缩放
+      padding: 80,     // 视口边缘留白
+      animate: false,  // 禁用动画（直接显示最终位置）
+      ready: () => {
+        if (config.logging.enableLayoutLogs) {
+          configStore.log('[StarChartViewport] Preset 布局完成')
+        }
+        
+        // 🆕 同心圆布局不需要在这里修正间距（已在布局引擎中完成）
+      }
+    }
+  }
 
+  const layout = cyInstance.layout(layoutConfig)
   layout.run()
 }
 
@@ -1052,8 +1083,8 @@ watch(() => props.elements, (newElements, oldElements) => {
 })
 
 // 监听 layout 名称变化
-watch(() => props.layout.name, (newName, oldName) => {
-  if (newName !== oldName) {
+watch(() => props.layout?.name, (newName, oldName) => {
+  if (newName && newName !== oldName) {
     console.log('[StarChartViewport] 布局类型变化:', newName)
     runLayout()
   }

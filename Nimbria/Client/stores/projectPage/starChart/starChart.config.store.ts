@@ -4,7 +4,10 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import type { StarChartConfig, ConfigPreset } from './starChart.config.types'
+import type { StarChartConfig, ConfigPreset, DataSourceType, LayoutType } from './starChart.config.types'
+import type { LayoutConfig } from './layouts/types'
+import { DEFAULT_CONCENTRIC_LAYOUT, DEFAULT_FORCE_LAYOUT } from './config/layout.presets'
+import { layoutManager } from './layouts/LayoutManager'
 
 const STORAGE_KEY = 'nimbria:starChart:config'
 
@@ -252,6 +255,12 @@ export const useStarChartConfigStore = defineStore('starChart-config', () => {
   const activePreset = ref<ConfigPreset | 'custom'>('development')
   const isDirty = ref(false)
   
+  // 🆕 数据源配置
+  const dataSource = ref<DataSourceType>('mock-large')
+  
+  // 🆕 布局配置
+  const layoutConfig = ref<LayoutConfig>(structuredClone(DEFAULT_CONCENTRIC_LAYOUT))
+  
   // ==================== 计算属性 ====================
   
   // Cytoscape 渲染器配置
@@ -286,6 +295,14 @@ export const useStarChartConfigStore = defineStore('starChart-config', () => {
     headless: config.value.rendering.headless,
     selectionType: config.value.interaction.selectionType
   }))
+  
+  // 🆕 当前布局类型
+  const currentLayoutType = computed(() => layoutConfig.value.name)
+  
+  // 🆕 是否显示节点间距修正配置（只在同心圆布局时显示）
+  const showNodeSpacingCorrection = computed(() => {
+    return currentLayoutType.value === 'concentric'
+  })
   
   // ==================== 日志控制方法 ====================
   
@@ -400,6 +417,31 @@ export const useStarChartConfigStore = defineStore('starChart-config', () => {
     }
   }
   
+  // ==================== 🆕 数据源和布局方法 ====================
+  
+  /** 设置数据源 */
+  const setDataSource = (source: DataSourceType) => {
+    dataSource.value = source
+    log(`[StarChart配置] 切换数据源: ${source}`)
+  }
+  
+  /** 设置布局类型 */
+  const setLayoutType = (type: LayoutType) => {
+    if (type === 'concentric') {
+      layoutConfig.value = structuredClone(DEFAULT_CONCENTRIC_LAYOUT)
+    } else if (type === 'force-directed') {
+      layoutConfig.value = structuredClone(DEFAULT_FORCE_LAYOUT)
+    }
+    log(`[StarChart配置] 切换布局: ${type}`)
+  }
+  
+  /** 更新布局配置 */
+  const updateLayoutConfig = (path: string, value: any) => {
+    setNestedProperty(layoutConfig.value, path, value)
+    isDirty.value = true
+    log(`[StarChart配置] 更新布局配置: ${path} = ${value}`)
+  }
+  
   // ==================== 工具函数 ====================
   
   /** 深度合并对象 */
@@ -460,6 +502,15 @@ export const useStarChartConfigStore = defineStore('starChart-config', () => {
     loadConfig,
     exportConfig,
     importConfig,
+    
+    // 🆕 数据源和布局
+    dataSource,
+    setDataSource,
+    layoutConfig,
+    currentLayoutType,
+    showNodeSpacingCorrection,
+    setLayoutType,
+    updateLayoutConfig,
     
     // 常量
     DEFAULT_CONFIG,

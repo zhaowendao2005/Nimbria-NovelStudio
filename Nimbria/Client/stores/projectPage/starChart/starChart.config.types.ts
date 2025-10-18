@@ -150,3 +150,13 @@ export interface StarChartConfig {
 
 // 配置预设
 export type ConfigPreset = 'performance' | 'development' | 'production' | 'minimal'
+
+/**
+ * 数据源类型
+ */
+export type DataSourceType = 'mock-large' | 'mock-normal' | 'gun'
+
+/**
+ * 布局类型
+ */
+export type LayoutType = 'concentric' | 'force-directed'

@@ -47,6 +47,140 @@
               <h4>⚙️ 图表配置</h4>
             </div>
             <div class="config-content">
+              <!-- 🆕 数据源选择 -->
+              <div class="config-section config-section-highlight">
+                <h5>📊 数据源</h5>
+                <div class="config-item">
+                  <label>数据来源</label>
+                  <el-select 
+                    :model-value="configStore.dataSource"
+                    @change="onDataSourceChange"
+                    placeholder="选择数据源"
+                    size="default"
+                  >
+                    <el-option 
+                      label="性能测试数据（400节点）" 
+                      value="mock-large"
+                    >
+                      <span style="float: left">性能测试数据</span>
+                      <span style="float: right; color: #8492a6; font-size: 12px; margin-left: 12px">400节点</span>
+                    </el-option>
+                    
+                    <el-option 
+                      label="测试数据A（30节点）" 
+                      value="mock-normal"
+                    >
+                      <span style="float: left">测试数据A</span>
+                      <span style="float: right; color: #8492a6; font-size: 12px; margin-left: 12px">30节点</span>
+                    </el-option>
+                    
+                    <el-option 
+                      label="真实后端（Gun数据库）" 
+                      value="gun"
+                      disabled
+                    >
+                      <span style="float: left">真实后端</span>
+                      <span style="float: right; color: #f56c6c; font-size: 12px; margin-left: 12px">待实现</span>
+                    </el-option>
+                  </el-select>
+                </div>
+              </div>
+              
+              <div class="config-divider-line"></div>
+
+              <!-- 🆕 布局选择 -->
+              <div class="config-section">
+                <h5>🎨 布局算法</h5>
+                <div class="config-item">
+                  <label>布局类型</label>
+                  <el-select 
+                    :model-value="configStore.currentLayoutType"
+                    @change="onLayoutChange"
+                    placeholder="选择布局"
+                    size="default"
+                  >
+                    <el-option 
+                      label="同心圆布局" 
+                      value="concentric"
+                    >
+                      <span style="float: left">同心圆布局</span>
+                      <span style="float: right; color: #8492a6; font-size: 12px; margin-left: 12px">手动布局</span>
+                    </el-option>
+                    
+                    <el-option 
+                      label="力导向布局" 
+                      value="force-directed"
+                    >
+                      <span style="float: left">力导向布局</span>
+                      <span style="float: right; color: #8492a6; font-size: 12px; margin-left: 12px">自动布局</span>
+                    </el-option>
+                  </el-select>
+                </div>
+                
+                <!-- 🔥 同心圆布局专属配置 -->
+                <div v-show="configStore.showNodeSpacingCorrection">
+                  <div class="config-divider-line-thin"></div>
+                  
+                  <div class="config-item">
+                    <el-tooltip 
+                      content="自动修正节点间距，防止节点重叠。仅同心圆布局可用。" 
+                      placement="top"
+                    >
+                      <label>
+                        节点间距修正
+                        <el-tag size="small" type="info" style="margin-left: 4px">同心圆专用</el-tag>
+                      </label>
+                    </el-tooltip>
+                    <el-switch
+                      v-model="configStore.layoutConfig.enableNodeSpacingCorrection"
+                      @change="updateLayoutConfig('enableNodeSpacingCorrection', $event)"
+                      active-text="启用"
+                      inactive-text="禁用"
+                    />
+                  </div>
+                  
+                  <div 
+                    class="config-item" 
+                    v-show="configStore.layoutConfig.enableNodeSpacingCorrection"
+                  >
+                    <el-tooltip 
+                      content="节点间最小距离 = 节点直径 × 倍数。1.5=紧凑，2.5=舒适，4.0=宽松" 
+                      placement="top"
+                    >
+                      <label>最小间距倍数</label>
+                    </el-tooltip>
+                    <el-slider
+                      v-model="configStore.layoutConfig.minNodeDistanceMultiplier"
+                      @change="updateLayoutConfig('minNodeDistanceMultiplier', $event)"
+                      :min="1.5"
+                      :max="4.0"
+                      :step="0.1"
+                    />
+                  </div>
+                  
+                  <div 
+                    class="config-item" 
+                    v-show="configStore.layoutConfig.enableNodeSpacingCorrection"
+                  >
+                    <el-tooltip 
+                      content="控制修正强度。0.3=温和，0.7=平衡，1.0=强力" 
+                      placement="top"
+                    >
+                      <label>修正强度</label>
+                    </el-tooltip>
+                    <el-slider
+                      v-model="configStore.layoutConfig.spacingCorrectionStrength"
+                      @change="updateLayoutConfig('spacingCorrectionStrength', $event)"
+                      :min="0.1"
+                      :max="1.0"
+                      :step="0.1"
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div class="config-divider-line"></div>
+
               <!-- 配置预设 -->
               <div class="config-section">
                 <h5>📊 配置预设</h5>
@@ -176,57 +310,6 @@
                   <el-switch
                     v-model="configStore.config.interaction.boxSelectionEnabled"
                     @change="updateConfig('interaction.boxSelectionEnabled', $event)"
-                  />
-                </div>
-              </div>
-              
-              <div class="config-divider-line"></div>
-
-              <!-- 布局优化设置 -->
-              <div class="config-section">
-                <h5>📐 布局优化</h5>
-                <div class="config-item">
-                  <el-tooltip 
-                    content="自动修正节点间距，防止节点贴在一起。仅修正距离过近的节点，保留原有布局结构。" 
-                    placement="top"
-                  >
-                    <label>节点间距修正</label>
-                  </el-tooltip>
-                  <el-switch
-                    v-model="configStore.config.layout.enableNodeSpacingCorrection"
-                    @change="updateConfig('layout.enableNodeSpacingCorrection', $event)"
-                    active-text="启用"
-                    inactive-text="禁用"
-                  />
-                </div>
-                <div class="config-item" v-show="configStore.config.layout.enableNodeSpacingCorrection">
-                  <el-tooltip 
-                    content="节点间最小距离 = 大节点直径 × 倍数。1.5=紧凑，2.5=舒适（推荐），4.0=宽松" 
-                    placement="top"
-                  >
-                    <label>最小间距倍数</label>
-                  </el-tooltip>
-                  <el-slider
-                    v-model="configStore.config.layout.minNodeDistanceMultiplier"
-                    @change="updateConfig('layout.minNodeDistanceMultiplier', $event)"
-                    :min="1.5"
-                    :max="4.0"
-                    :step="0.1"
-                  />
-                </div>
-                <div class="config-item" v-show="configStore.config.layout.enableNodeSpacingCorrection">
-                  <el-tooltip 
-                    content="控制修正的强度。0.3=温和保留布局，0.7=平衡（推荐），1.0=强力修正确保间距" 
-                    placement="top"
-                  >
-                    <label>修正强度</label>
-                  </el-tooltip>
-                  <el-slider
-                    v-model="configStore.config.layout.spacingCorrectionStrength"
-                    @change="updateConfig('layout.spacingCorrectionStrength', $event)"
-                    :min="0.1"
-                    :max="1.0"
-                    :step="0.1"
                   />
                 </div>
               </div>
@@ -490,8 +573,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { ElMessageBox } from 'element-plus'
-import { useStarChartConfigStore } from '@stores/projectPage/starChart'
-import type { ConfigPreset } from '@stores/projectPage/starChart/starChart.config.types'
+import { useStarChartConfigStore, useStarChartStore } from '@stores/projectPage/starChart'
+import type { ConfigPreset, DataSourceType, LayoutType } from '@stores/projectPage/starChart/starChart.config.types'
 import { SVG_NODE_ICONS } from '@stores/projectPage/starChart'
 
 /**
@@ -541,6 +624,36 @@ const onPresetChange = (preset: ConfigPreset | 'custom') => {
 // 更新配置的通用方法
 const updateConfig = (path: string, value: unknown) => {
   configStore.updateConfig(path, value)
+}
+
+// 🆕 切换数据源
+const onDataSourceChange = async (source: DataSourceType) => {
+  try {
+    const starChartStore = useStarChartStore()
+    await starChartStore.switchDataSource(source)
+    console.log(`[WritingPanel] 数据源已切换: ${source}`)
+  } catch (error) {
+    console.error('[WritingPanel] 切换数据源失败:', error)
+  }
+}
+
+// 🆕 切换布局
+const onLayoutChange = async (layoutType: LayoutType) => {
+  try {
+    const starChartStore = useStarChartStore()
+    await starChartStore.switchLayout(layoutType)
+    console.log(`[WritingPanel] 布局已切换: ${layoutType}`)
+  } catch (error) {
+    console.error('[WritingPanel] 切换布局失败:', error)
+  }
+}
+
+// 🆕 更新布局配置
+const updateLayoutConfig = (path: string, value: unknown) => {
+  configStore.updateLayoutConfig(path, value)
+  // 重新计算布局
+  const starChartStore = useStarChartStore()
+  starChartStore.recomputeLayout()
 }
 
 // 应用配置
@@ -679,6 +792,23 @@ const handleResetConfig = async () => {
   background-color: var(--obsidian-border);
   margin: 12px 0 8px 0;
   width: 100%;
+}
+
+/* 🆕 细分割线 */
+.config-divider-line-thin {
+  height: 1px;
+  background: var(--obsidian-border-color);
+  margin: 8px 0;
+  opacity: 0.5;
+}
+
+/* 🆕 高亮section */
+.config-section-highlight {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(102, 126, 234, 0.2);
 }
 
 .config-section h5 {
