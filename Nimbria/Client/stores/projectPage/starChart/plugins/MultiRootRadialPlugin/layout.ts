@@ -3,7 +3,13 @@
  * 从原 MultiRootRadialLayout 提取的纯算法逻辑
  */
 
-import type { LayoutResult } from '../types'
+import type { 
+  LayoutResult, 
+  G6GraphData, 
+  G6NodeData, 
+  G6EdgeData,
+  NodeStyleData 
+} from '../types'
 
 interface LayoutConfig {
   width: number
@@ -18,11 +24,20 @@ interface LayoutConfig {
   randomOffset?: number
 }
 
+interface NodePosition {
+  x: number
+  y: number
+}
+
+interface RootPosition extends NodePosition {
+  angle: number
+}
+
 export class MultiRootRadialLayoutAlgorithm {
   /**
    * 计算布局
    */
-  calculate(data: any, config: LayoutConfig): LayoutResult {
+  calculate(data: G6GraphData, config: LayoutConfig): LayoutResult {
     const { nodes = [], edges = [] } = data
     const {
       width,
@@ -53,8 +68,8 @@ export class MultiRootRadialLayoutAlgorithm {
     const minArcLength = rootNodeSize * minArcLengthMultiplier
     const maxArcLength = rootNodeSize * maxArcLengthMultiplier
     
-    const rootPositions = new Map<string, { x: number; y: number; angle: number }>()
-    const positionMap = new Map<string, { x: number; y: number }>()
+    const rootPositions = new Map<string, RootPosition>()
+    const positionMap = new Map<string, NodePosition>()
     
     // 在大环上随机分布根节点
     let currentAngle = Math.random() * Math.PI * 2
@@ -74,13 +89,13 @@ export class MultiRootRadialLayoutAlgorithm {
     const rootSet = new Set(rootIds)
     
     // 为所有节点计算位置
-    const layoutedNodes = nodes.map((node: any) => {
-      const nodeData = node.data || node
+    const layoutedNodes = nodes.map((node: G6NodeData): G6NodeData => {
+      const nodeData = node.data || {}
       const nodeId = node.id
       
       if (rootSet.has(nodeId)) {
         const pos = positionMap.get(nodeId)
-        const style = {
+        const style: NodeStyleData = {
           ...(node.style || {}),
           x: pos?.x ?? 0,
           y: pos?.y ?? 0
@@ -90,8 +105,8 @@ export class MultiRootRadialLayoutAlgorithm {
           style
         }
       } else {
-        const groupId = nodeData.groupId
-        const hierarchy = nodeData.hierarchy ?? 1
+        const groupId = nodeData.groupId as number | undefined
+        const hierarchy = (nodeData.hierarchy as number | undefined) ?? 1
         
         if (groupId !== undefined && groupId >= 0 && groupId < rootIds.length) {
           const rootId = rootIds[groupId]
@@ -109,7 +124,7 @@ export class MultiRootRadialLayoutAlgorithm {
             
             positionMap.set(nodeId, { x, y })
             
-            const style = {
+            const style: NodeStyleData = {
               ...(node.style || {}),
               x,
               y
@@ -134,8 +149,8 @@ export class MultiRootRadialLayoutAlgorithm {
       }
     })
     
-    const layoutedEdges = edges.map((edge: any) => {
-      const isRootToFirstLevel = edge.isDirectLine
+    const layoutedEdges = edges.map((edge: G6EdgeData): G6EdgeData => {
+      const isRootToFirstLevel = (edge as Record<string, unknown>).isDirectLine as boolean | undefined
       return {
         ...edge,
         type: isRootToFirstLevel ? 'line' : 'cubic-radial'

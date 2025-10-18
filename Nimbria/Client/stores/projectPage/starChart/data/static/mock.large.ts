@@ -8,7 +8,7 @@
  * - 完整的树结构信息（tree, treesData, rootIds）
  */
 
-import type { G6GraphData, G6Node, G6Edge } from '../types'
+import type { G6GraphData, G6Node, G6Edge, TreeNodeData } from '../types'
 import type { DataSourceMetadata } from '../base/DataSourceTypes'
 import { StaticDataSource, type LoadOptions } from '../base/DataSourceBase'
 
@@ -174,7 +174,7 @@ export class MockLargeDataSource extends StaticDataSource {
     nodes: G6Node[],
     edges: G6Edge[],
     rootIds: string[]
-  ): any[] {
+  ): TreeNodeData[] {
     // 构建节点映射
     const nodeMap = new Map<string, G6Node>()
     nodes.forEach(n => nodeMap.set(n.id, n))
@@ -190,20 +190,23 @@ export class MockLargeDataSource extends StaticDataSource {
     })
     
     // 递归构建单棵树
-    const buildTree = (nodeId: string): any => {
+    const buildTree = (nodeId: string): TreeNodeData | null => {
       const node = nodeMap.get(nodeId)
       if (!node) return null
       
-      const treeNode: any = {
+      const treeNode: TreeNodeData = {
         id: node.id,
         data: node.data || {}
       }
       
       const children = childrenMap.get(nodeId)
       if (children && children.length > 0) {
-        treeNode.children = children
+        const childNodes = children
           .map(childId => buildTree(childId))
-          .filter(Boolean)
+          .filter((n): n is TreeNodeData => n !== null)
+        if (childNodes.length > 0) {
+          treeNode.children = childNodes
+        }
       }
       
       return treeNode
@@ -212,7 +215,7 @@ export class MockLargeDataSource extends StaticDataSource {
     // 为每个根节点构建一棵树
     return rootIds
       .map(rootId => buildTree(rootId))
-      .filter(Boolean)
+      .filter((n): n is TreeNodeData => n !== null)
   }
 }
 

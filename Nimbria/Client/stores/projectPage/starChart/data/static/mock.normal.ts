@@ -2,7 +2,7 @@
  * 测试数据A - 30个节点的小说设定关系网
  * 直接生成G6原生格式，无需转换
  */
-import type { G6GraphData, G6Node, G6Edge } from '../types'
+import type { G6GraphData, G6Node, G6Edge, TreeNodeData } from '../types'
 import type { DataSourceMetadata } from '../base/DataSourceTypes'
 import { StaticDataSource, type LoadOptions } from '../base/DataSourceBase'
 import { 
@@ -111,7 +111,7 @@ export class MockNormalDataSource extends StaticDataSource {
   /**
    * 将图数据转换为多棵树的数据格式
    */
-  private graphToMultiTreeData(nodes: G6Node[], edges: G6Edge[], rootIds: string[]): any[] {
+  private graphToMultiTreeData(nodes: G6Node[], edges: G6Edge[], rootIds: string[]): TreeNodeData[] {
     const nodeMap = new Map<string, G6Node>()
     nodes.forEach(n => nodeMap.set(n.id, n))
     
@@ -126,25 +126,28 @@ export class MockNormalDataSource extends StaticDataSource {
     })
     
     // 递归构建单棵树
-    const buildTree = (nodeId: string): any => {
+    const buildTree = (nodeId: string): TreeNodeData | null => {
       const node = nodeMap.get(nodeId)
       if (!node) return null
       
-      const treeNode: any = {
+      const treeNode: TreeNodeData = {
         id: node.id,
         data: { ...node }
       }
       
       const children = childrenMap.get(nodeId)
       if (children && children.length > 0) {
-        treeNode.children = children.map(childId => buildTree(childId)).filter(Boolean)
+        const childNodes = children.map(childId => buildTree(childId)).filter((n): n is TreeNodeData => n !== null)
+        if (childNodes.length > 0) {
+          treeNode.children = childNodes
+        }
       }
       
       return treeNode
     }
     
     // 为每个根节点构建一棵树
-    return rootIds.map(rootId => buildTree(rootId)).filter(Boolean)
+    return rootIds.map(rootId => buildTree(rootId)).filter((n): n is TreeNodeData => n !== null)
   }
   
   /**
@@ -154,7 +157,15 @@ export class MockNormalDataSource extends StaticDataSource {
     nodes: G6Node[], 
     edges: G6Edge[], 
     parentId: string,
-    branches: any[],
+    branches: Array<{
+      id: string
+      name: string
+      type: string
+      score: number
+      color: string
+      groupId: number
+      children?: Array<{ id: string; name: string; type: string; score: number; color: string; groupId: number }>
+    }>,
     startLevel: number
   ): void {
     branches.forEach(branch => {
@@ -171,7 +182,7 @@ export class MockNormalDataSource extends StaticDataSource {
       
       // 递归添加子节点
       if (branch.children) {
-        branch.children.forEach((child: any) => {
+        branch.children.forEach((child) => {
           nodes.push(this.createNode(
             child.id, 
             child.name, 

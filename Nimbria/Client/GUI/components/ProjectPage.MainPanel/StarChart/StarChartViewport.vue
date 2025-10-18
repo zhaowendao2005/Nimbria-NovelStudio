@@ -4,10 +4,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch, onBeforeUnmount, nextTick, computed } from 'vue'
-import { Graph } from '@antv/g6'
+import { Graph, type GraphData } from '@antv/g6'
 import { Renderer as CanvasRenderer } from '@antv/g-canvas'
 import { useStarChartStore, useStarChartConfigStore } from '@stores/projectPage/starChart'
 import { PluginRegistry } from '@stores/projectPage/starChart/plugins'
+import type { 
+  ILayoutPlugin
+} from '@stores/projectPage/starChart/plugins/types'
 
 /**
  * StarChartViewport - 插件化版本
@@ -25,7 +28,7 @@ let graphInstance: Graph | null = null
 /**
  * 获取当前插件
  */
-const currentPlugin = computed(() => {
+const currentPlugin = computed((): ILayoutPlugin | undefined => {
   const layoutName = configStore.layoutConfig.name
   // 映射布局名称到插件名称
   const pluginNameMap: Record<string, string> = {
@@ -75,14 +78,14 @@ const initGraph = async () => {
   const finalStyles = plugin.mergeStyles(data, pluginStyles)
   
   // ===== 3. 创建G6实例 =====
-  const graphConfig: any = {
+  graphInstance = new Graph({
     container: containerRef.value,
     width: containerRef.value.clientWidth,
     height: containerRef.value.clientWidth,
     renderer: () => new CanvasRenderer(),
     
     // 使用布局计算的结果（包含树结构）
-    data: layoutResult,
+    data: layoutResult as unknown as GraphData,
     
     // 使用preset布局（位置已计算）
     layout: { type: 'preset' },
@@ -90,12 +93,12 @@ const initGraph = async () => {
     // 使用插件提供的样式
     node: {
       type: 'circle',
-      style: finalStyles.node
+      style: finalStyles.node as unknown as Parameters<typeof Graph>[0]['node']
     },
     
     edge: {
-      type: (edge: any) => edge.type || 'line',
-      style: finalStyles.edge
+      type: (edge) => (edge as Record<string, unknown>).type as string || 'line',
+      style: finalStyles.edge as unknown as Parameters<typeof Graph>[0]['edge']
     },
     
     // 交互行为
@@ -111,19 +114,22 @@ const initGraph = async () => {
     ],
     
     autoFit: 'view',
-  }
-  
-  graphInstance = new Graph(graphConfig)
-  
-  // 事件绑定
-  graphInstance.on('node:click', (evt: any) => {
-    starChartStore.selectNode(evt.itemId)
   })
   
-  graphInstance.on('viewportchange', (evt: any) => {
+  // 事件绑定
+  graphInstance.on('node:click', (evt) => {
+    const evtObj = evt as unknown as Record<string, unknown>
+    const itemId = evtObj.itemId
+    if (itemId && typeof itemId === 'string') {
+      starChartStore.selectNode(itemId)
+    }
+  })
+  
+  graphInstance.on('viewportchange', (evt) => {
+    const evtObj = evt as unknown as Record<string, unknown>
     starChartStore.updateViewport({
-      zoom: evt.zoom || 1,
-      pan: evt.translate || { x: 0, y: 0 }
+      zoom: (evtObj.zoom as number) || 1,
+      pan: (evtObj.translate as { x: number; y: number }) || { x: 0, y: 0 }
     })
   })
   
@@ -145,8 +151,8 @@ const resize = () => {
 
 // 生命周期
 onMounted(() => {
-  nextTick(() => {
-    initGraph()
+  void nextTick(() => {
+    void initGraph()
   })
 })
 
@@ -160,13 +166,13 @@ onBeforeUnmount(() => {
 // 监听数据变化
 watch(() => starChartStore.graphData, () => {
   if (starChartStore.graphData?.nodes && starChartStore.graphData.nodes.length > 0) {
-    nextTick(initGraph)
+    void nextTick(() => void initGraph())
   }
 }, { deep: true })
 
 // 监听布局变化
 watch(() => configStore.layoutConfig, () => {
-  nextTick(initGraph)
+  void nextTick(() => void initGraph())
 })
 
 // 监听滚轮灵敏度变化

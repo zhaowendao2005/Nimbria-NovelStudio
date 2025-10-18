@@ -7,6 +7,27 @@
  * 3. 插件内部实现细节由各插件自行定义
  */
 
+// 从统一的类型定义中导入
+import type {
+  G6NodeData,
+  G6EdgeData,
+  TreeNodeData,
+  G6GraphData,
+  NodeStyleData,
+  EdgeStyleData,
+  NodeStyleFunction,
+  EdgeStyleFunction,
+  StyleRules,
+  UserStyleConfig,
+  FinalStyleRules,
+  LayoutOptions,
+  LayoutResult,
+  ConfigSchema,
+  ConfigItem,
+  ConfigGroup,
+  ConfigValue
+} from '../types/g6.types'
+
 // ==================== 数据格式 ====================
 
 /**
@@ -14,78 +35,36 @@
  */
 export type DataFormat = 'graph' | 'tree' | 'multi-tree' | 'hierarchy'
 
-// ==================== 核心数据结构 ====================
+// ==================== 重新导出核心类型 ====================
 
-/**
- * G6 节点
- */
-export interface G6Node {
-  id: string
-  data?: any
-  style?: any
-  [key: string]: any
-}
-
-/**
- * G6 边
- */
-export interface G6Edge {
-  source: string
-  target: string
-  type?: string
-  style?: any
-  [key: string]: any
-}
-
-/**
- * 树节点
- */
-export interface TreeNode {
-  id: string
-  data?: any
-  children?: TreeNode[]
-  [key: string]: any
-}
-
-/**
- * G6 图数据（扩展支持树结构）
- */
-export interface G6GraphData {
-  nodes: G6Node[]
-  edges: G6Edge[]
+export type {
+  // 数据结构 - 同时支持新旧命名
+  G6NodeData,
+  G6NodeData as G6Node,
+  G6EdgeData,
+  G6EdgeData as G6Edge,
+  TreeNodeData,
+  TreeNodeData as TreeNode,
+  G6GraphData,
   
-  // 树布局相关元数据（cubic-radial等树布局必需）
-  tree?: TreeNode
-  treesData?: TreeNode[]
-  rootIds?: string[]
+  // 样式
+  NodeStyleData,
+  EdgeStyleData,
+  NodeStyleFunction,
+  EdgeStyleFunction,
+  StyleRules,
+  UserStyleConfig,
+  FinalStyleRules,
   
-  [key: string]: any
-}
-
-// ==================== 样式系统 ====================
-
-/**
- * 样式规则（可以是静态对象或动态函数）
- */
-export interface StyleRules {
-  node?: any | ((node: any) => any)
-  edge?: any | ((edge: any) => any)
-}
-
-/**
- * 用户样式配置
- */
-export interface UserStyleConfig {
-  node?: (node: any) => any
-  edge?: (edge: any) => any
-}
-
-/**
- * 最终样式规则（经过合并后的函数）
- */
-export interface FinalStyleRules {
-  node: (node: any) => any
-  edge: (edge: any) => any
+  // 布局
+  LayoutOptions,
+  LayoutResult,
+  
+  // 配置
+  ConfigSchema,
+  ConfigItem,
+  ConfigGroup,
+  ConfigValue
 }
 
 // ==================== 数据适配器 ====================
@@ -96,56 +75,10 @@ export interface FinalStyleRules {
 export interface IDataAdapter {
   /**
    * 适配数据
+   * @param data 输入数据（图数据或树数据）
+   * @returns 适配后的G6图数据
    */
-  adapt(data: any): Promise<any> | any
-}
-
-// ==================== 布局系统 ====================
-
-/**
- * 布局选项
- */
-export interface LayoutOptions {
-  width?: number
-  height?: number
-  [key: string]: any
-}
-
-/**
- * 布局结果（必须包含完整的图数据和树结构信息）
- */
-export interface LayoutResult extends G6GraphData {
-  // 继承 G6GraphData 的所有字段
-  // 布局计算后应保留所有原始字段
-}
-
-/**
- * 配置项定义
- */
-export interface ConfigItem {
-  type: 'slider' | 'select' | 'switch' | 'input'
-  label: string
-  default?: any
-  description?: string
-  min?: number
-  max?: number
-  options?: Array<{ label: string; value: any }>
-}
-
-/**
- * 配置组
- */
-export interface ConfigGroup {
-  type: 'group'
-  label: string
-  children: Record<string, ConfigItem>
-}
-
-/**
- * 配置Schema
- */
-export interface ConfigSchema {
-  [key: string]: ConfigItem | ConfigGroup
+  adapt(data: G6GraphData | TreeNodeData): Promise<G6GraphData> | G6GraphData
 }
 
 // ==================== 插件核心接口 ====================
@@ -167,11 +100,14 @@ export interface ILayoutPlugin {
   
   /**
    * 执行布局计算
-   * @param data 输入数据（可能是任何格式，插件内部负责适配）
+   * @param data 输入数据（图数据或树数据，插件内部负责适配）
    * @param options 布局选项
    * @returns 布局结果（必须包含完整的树结构信息）
    */
-  execute(data: any, options?: LayoutOptions): Promise<LayoutResult>
+  execute(
+    data: G6GraphData | TreeNodeData, 
+    options?: LayoutOptions
+  ): Promise<LayoutResult>
   
   /**
    * 获取默认样式规则
@@ -180,12 +116,12 @@ export interface ILayoutPlugin {
   
   /**
    * 合并样式
-   * @param dataStyles 数据源样式
+   * @param dataStyles 数据源样式（可能包含在data中）
    * @param pluginStyles 插件样式
    * @param userConfig 用户配置
    */
   mergeStyles(
-    dataStyles: any,
+    dataStyles: G6GraphData,
     pluginStyles: StyleRules,
     userConfig?: UserStyleConfig
   ): FinalStyleRules
@@ -199,20 +135,38 @@ export interface ILayoutPlugin {
 // ==================== 混入系统 ====================
 
 /**
+ * 插件配置对象
+ */
+export type PluginConfig = Record<string, ConfigValue>
+
+/**
  * 插件混入（可选扩展机制）
  */
 export interface PluginMixin {
   name: string
   
   // 生命周期钩子
-  beforeLayout?(data: any, plugin: ILayoutPlugin): Promise<any> | any
-  afterLayout?(result: LayoutResult, plugin: ILayoutPlugin): Promise<LayoutResult> | LayoutResult
+  beforeLayout?(
+    data: G6GraphData | TreeNodeData, 
+    plugin: ILayoutPlugin
+  ): Promise<G6GraphData | TreeNodeData> | G6GraphData | TreeNodeData
+  
+  afterLayout?(
+    result: LayoutResult, 
+    plugin: ILayoutPlugin
+  ): Promise<LayoutResult> | LayoutResult
   
   // 样式修改
-  modifyStyles?(styles: StyleRules, plugin: ILayoutPlugin): StyleRules
+  modifyStyles?(
+    styles: StyleRules, 
+    plugin: ILayoutPlugin
+  ): StyleRules
   
   // 配置修改
-  modifyConfig?(config: any, plugin: ILayoutPlugin): any
+  modifyConfig?(
+    config: PluginConfig, 
+    plugin: ILayoutPlugin
+  ): PluginConfig
 }
 
 // ==================== 辅助类型 ====================
@@ -220,16 +174,14 @@ export interface PluginMixin {
 /**
  * 节点样式映射（用于样式管理）
  */
-export type NodeStyleMap = Record<string, Partial<any>>
+export type NodeStyleMap = Record<string, Partial<NodeStyleData>>
 
 /**
  * 边样式映射（用于样式管理）
  */
-export type EdgeStyleMap = Record<string, Partial<any>>
+export type EdgeStyleMap = Record<string, Partial<EdgeStyleData>>
 
 /**
  * 适配后的数据（泛型）
  */
-export interface AdaptedData extends G6GraphData {
-  // 继承 G6GraphData，确保包含树结构信息
-}
+export type AdaptedData = G6GraphData

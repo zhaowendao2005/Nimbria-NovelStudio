@@ -196,15 +196,15 @@ export const useStarChartConfigStore = defineStore('projectPage-starChart-config
   /**
    * 设置嵌套属性
    */
-  function setNestedProperty(obj: any, path: string, value: unknown) {
+  function setNestedProperty(obj: Record<string, unknown>, path: string, value: unknown): void {
     const keys = path.split('.')
-    let current = obj
+    let current: Record<string, unknown> = obj
     
     for (let i = 0; i < keys.length - 1; i++) {
       if (!(keys[i] in current)) {
         current[keys[i]] = {}
       }
-      current = current[keys[i]]
+      current = current[keys[i]] as Record<string, unknown>
     }
     
     current[keys[keys.length - 1]] = value
@@ -213,14 +213,18 @@ export const useStarChartConfigStore = defineStore('projectPage-starChart-config
   /**
    * 深度合并对象
    */
-  function merge(target: any, source: any): any {
+  function merge<T extends Record<string, unknown>>(target: T, source: Partial<T>): T {
     const result = { ...target }
     
     for (const key in source) {
-      if (source[key] !== null && typeof source[key] === 'object' && !Array.isArray(source[key])) {
-        result[key] = merge(result[key] || {}, source[key])
+      const sourceValue = source[key]
+      if (sourceValue !== null && typeof sourceValue === 'object' && !Array.isArray(sourceValue)) {
+        result[key] = merge(
+          (result[key] || {}) as Record<string, unknown>,
+          sourceValue as Record<string, unknown>
+        ) as T[Extract<keyof T, string>]
       } else {
-        result[key] = source[key]
+        result[key] = sourceValue as T[Extract<keyof T, string>]
       }
     }
     

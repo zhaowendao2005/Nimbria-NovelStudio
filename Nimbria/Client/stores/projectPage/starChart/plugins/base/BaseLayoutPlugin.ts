@@ -13,8 +13,19 @@ import type {
   LayoutOptions,
   LayoutResult,
   ConfigSchema,
-  PluginMixin
+  PluginMixin,
+  PluginConfig,
+  G6GraphData,
+  TreeNodeData,
+  G6Node,
+  G6Edge,
+  NodeStyleData,
+  EdgeStyleData
 } from '../types'
+
+// 为类型安全起见保留别名
+type G6NodeData = G6Node
+type G6EdgeData = G6Edge
 
 export abstract class BaseLayoutPlugin implements ILayoutPlugin {
   // 基础信息（子类必须实现）
@@ -30,7 +41,7 @@ export abstract class BaseLayoutPlugin implements ILayoutPlugin {
   mixins: PluginMixin[] = []
   
   // 配置存储
-  protected config: any = {}
+  protected config: PluginConfig = {}
   
   /**
    * 创建数据适配器（子类可选实现）
@@ -62,7 +73,7 @@ export abstract class BaseLayoutPlugin implements ILayoutPlugin {
    * 合并样式（提供默认实现）
    */
   mergeStyles(
-    dataStyles: any,
+    dataStyles: G6GraphData,
     pluginStyles: StyleRules,
     userConfig?: UserStyleConfig
   ): FinalStyleRules {
@@ -75,7 +86,7 @@ export abstract class BaseLayoutPlugin implements ILayoutPlugin {
     }
     
     return {
-      node: (node: any) => {
+      node: (node: G6NodeData): NodeStyleData => {
         // 1. 插件基础样式
         const baseStyle = typeof finalPluginStyles.node === 'function'
           ? finalPluginStyles.node(node)
@@ -92,10 +103,10 @@ export abstract class BaseLayoutPlugin implements ILayoutPlugin {
           ...baseStyle,
           ...dataStyle,
           ...userStyle
-        }
+        } as NodeStyleData
       },
       
-      edge: (edge: any) => {
+      edge: (edge: G6EdgeData): EdgeStyleData => {
         const baseStyle = typeof finalPluginStyles.edge === 'function'
           ? finalPluginStyles.edge(edge)
           : finalPluginStyles.edge || {}
@@ -107,7 +118,7 @@ export abstract class BaseLayoutPlugin implements ILayoutPlugin {
           ...baseStyle,
           ...dataStyle,
           ...userStyle
-        }
+        } as EdgeStyleData
       }
     }
   }
@@ -115,7 +126,10 @@ export abstract class BaseLayoutPlugin implements ILayoutPlugin {
   /**
    * 执行布局（子类必须实现）
    */
-  abstract execute(data: any, options?: LayoutOptions): Promise<LayoutResult>
+  abstract execute(
+    data: G6GraphData | TreeNodeData | unknown, 
+    options?: LayoutOptions
+  ): Promise<LayoutResult>
   
   /**
    * 获取配置Schema（子类可选实现）
@@ -127,14 +141,14 @@ export abstract class BaseLayoutPlugin implements ILayoutPlugin {
   /**
    * 获取当前配置
    */
-  getConfig(): any {
+  getConfig(): PluginConfig {
     return { ...this.config }
   }
   
   /**
    * 更新配置
    */
-  configure(config: any): void {
+  configure(config: PluginConfig): void {
     this.config = { ...this.config, ...config }
     
     // 应用混入的配置修改
@@ -157,7 +171,9 @@ export abstract class BaseLayoutPlugin implements ILayoutPlugin {
   /**
    * 前置钩子（可选）
    */
-  async beforeLayout(data: any): Promise<any> {
+  async beforeLayout(
+    data: G6GraphData | TreeNodeData | unknown
+  ): Promise<G6GraphData | TreeNodeData | unknown> {
     return data
   }
   
@@ -171,14 +187,20 @@ export abstract class BaseLayoutPlugin implements ILayoutPlugin {
   /**
    * 执行完整的布局流程（包含钩子）
    */
-  async executeWithHooks(data: any, options?: LayoutOptions): Promise<LayoutResult> {
+  async executeWithHooks(
+    data: G6GraphData | TreeNodeData | unknown, 
+    options?: LayoutOptions
+  ): Promise<LayoutResult> {
     // 1. 前置钩子 - 插件自己的
     let processedData = await this.beforeLayout(data)
     
     // 2. 前置钩子 - 混入的
     for (const mixin of this.mixins) {
       if (mixin.beforeLayout) {
-        processedData = await mixin.beforeLayout(processedData, this)
+        processedData = await mixin.beforeLayout(
+          processedData as G6GraphData | TreeNodeData, 
+          this
+        )
       }
     }
     

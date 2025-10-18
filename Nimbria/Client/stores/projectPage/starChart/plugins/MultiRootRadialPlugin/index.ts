@@ -12,8 +12,18 @@ import type {
   StyleRules,
   LayoutOptions,
   LayoutResult,
-  ConfigSchema
+  ConfigSchema,
+  G6GraphData,
+  TreeNodeData,
+  G6Node,
+  G6Edge,
+  NodeStyleData,
+  EdgeStyleData
 } from '../types'
+
+// 为类型安全起见保留别名
+type G6NodeData = G6Node
+type G6EdgeData = G6Edge
 
 export class MultiRootRadialPlugin extends BaseLayoutPlugin {
   override name = 'multi-root-radial'
@@ -33,8 +43,8 @@ export class MultiRootRadialPlugin extends BaseLayoutPlugin {
    */
   override getDefaultStyles(): StyleRules {
     return {
-      node: (node: any) => {
-        const baseStyle = {
+      node: (node: G6NodeData): NodeStyleData => {
+        const baseStyle: NodeStyleData = {
           size: 20,
           fill: '#5B8FF9',
           stroke: '#fff',
@@ -42,18 +52,18 @@ export class MultiRootRadialPlugin extends BaseLayoutPlugin {
         }
         
         // 如果有层级信息，应用层级样式
-        const hierarchy = node.hierarchy || node.data?.hierarchy
+        const hierarchy = (node as Record<string, unknown>).hierarchy || node.data?.hierarchy
         if (hierarchy !== undefined) {
           return {
             ...baseStyle,
-            ...this.hierarchyStyleHelper.getStyle(hierarchy)
+            ...this.hierarchyStyleHelper.getStyle(hierarchy as number)
           }
         }
         
         return baseStyle
       },
       
-      edge: (edge: any) => {
+      edge: (edge: G6EdgeData): EdgeStyleData => {
         // 样式只返回公共部分，type由插件的execute后置处理决定
         return {
           lineWidth: 2,
@@ -67,7 +77,10 @@ export class MultiRootRadialPlugin extends BaseLayoutPlugin {
   /**
    * 执行布局（包含数据适配）
    */
-  override async execute(data: any, options?: LayoutOptions): Promise<LayoutResult> {
+  override async execute(
+    data: G6GraphData | TreeNodeData | unknown, 
+    options?: LayoutOptions
+  ): Promise<LayoutResult> {
     // 1. 数据适配（内部处理）
     const adaptedData = await this.adapter.adapt(data)
     
