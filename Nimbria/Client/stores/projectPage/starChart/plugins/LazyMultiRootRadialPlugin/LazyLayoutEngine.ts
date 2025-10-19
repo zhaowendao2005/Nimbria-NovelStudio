@@ -5,8 +5,9 @@
 
 import { MultiRootRadialLayoutAlgorithm } from '../MultiRootRadialPlugin/layout'
 import type { RadialAdapterOutput } from '../MultiRootRadialPlugin/data.types'
-import type { LayoutResult, G6NodeData, G6EdgeData } from '../types'
+import type { LayoutResult, G6NodeData, G6EdgeData, TreeNodeData } from '../types'
 import type { LazyDataManager } from './LazyDataManager'
+import { LAZY_RADIAL_EDGE_TYPE } from './LazyRadialEdge'
 
 export interface LazyLayoutOptions {
   width: number
@@ -14,6 +15,15 @@ export interface LazyLayoutOptions {
   baseDistance?: number
   hierarchyStep?: number
   baseRadiusMultiplier?: number
+}
+
+/**
+ * 懒加载布局结果（包含子树结构）
+ */
+export interface LazyLayoutChildrenResult {
+  nodes: G6NodeData[]
+  edges: G6EdgeData[]
+  subtree: TreeNodeData  // 新增：用于同步G6树结构
 }
 
 /**
@@ -74,7 +84,7 @@ export class LazyLayoutEngine {
     dataManager: LazyDataManager,
     parentNode: G6NodeData,
     options: LazyLayoutOptions
-  ): Promise<{ nodes: G6NodeData[], edges: G6EdgeData[] }> {
+  ): Promise<LazyLayoutChildrenResult> {
     console.log(`[LazyLayoutEngine] 🌱 增量布局: ${parentNodeId} 的子节点`)
     
     // 1. 获取父节点位置和层级
@@ -91,7 +101,9 @@ export class LazyLayoutEngine {
     
     if (children.length === 0) {
       console.warn(`[LazyLayoutEngine] 节点 ${parentNodeId} 没有子节点`)
-      return { nodes: [], edges: [] }
+      // 返回空子树
+      const emptySubtree = dataManager.getSubtreeTreeData(parentNodeId)
+      return { nodes: [], edges: [], subtree: { ...emptySubtree, children: [] } }
     }
     
     // 3. 使用与主算法相同的径向分布策略
@@ -123,18 +135,17 @@ export class LazyLayoutEngine {
       }
     })
     
-    // 5. 处理边的类型（与主算法一致）
+    // 5. 处理边的类型（临时使用内置 quadratic 边验证）
     const edgesWithType = edges.map(edge => {
       const sourceHierarchy = parentLevel
       const targetHierarchy = parentLevel + 1
-      const isRootToFirst = sourceHierarchy === 0 && targetHierarchy === 1
       
       return {
         ...edge,
-        type: isRootToFirst ? 'line' : 'cubic-radial',
+        type: 'quadratic',  // 🔥 临时使用内置边类型验证边是否能显示
         data: {
           ...(edge.data || {}),
-          isDirectLine: isRootToFirst,
+          isDirectLine: false,
           sourceHierarchy,
           targetHierarchy
         }
@@ -143,9 +154,14 @@ export class LazyLayoutEngine {
     
     console.log(`[LazyLayoutEngine] ✅ 计算完成: ${childrenWithPosition.length} 个子节点 (半径: ${radius})`)
     
+    // 6. 构建子树结构（用于同步G6树）
+    const subtree = dataManager.getSubtreeTreeData(parentNodeId)
+    console.log(`[LazyLayoutEngine] 📦 生成子树结构:`, subtree)
+    
     return {
       nodes: childrenWithPosition,
-      edges: edgesWithType
+      edges: edgesWithType,
+      subtree
     }
   }
 }

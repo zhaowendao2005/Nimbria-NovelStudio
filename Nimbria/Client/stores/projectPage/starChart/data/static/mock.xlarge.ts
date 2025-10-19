@@ -18,18 +18,30 @@
  * - 5000-10000: 大规模测试
  * - 10000+: 极限性能测试
  */
-const TARGET_NODE_COUNT = 2000
+const TARGET_NODE_COUNT = 7000
 
 /**
  * 树的数量
- * 自动计算：目标节点数 / 每棵树的平均节点数（约100个）
+ * 自动计算：目标节点数 / 每棵树的平均节点数（约210个）
  */
-const TREE_COUNT = Math.max(1, Math.round(TARGET_NODE_COUNT / 100))
+const TREE_COUNT = Math.max(1, Math.round(TARGET_NODE_COUNT / 210))
 
 /**
  * 每棵树的平均节点数（根据目标自动计算）
  */
 const AVG_NODES_PER_TREE = Math.round(TARGET_NODE_COUNT / TREE_COUNT)
+
+// 树结构参数（根据目标节点数动态调整）
+const BRANCH_MIN = 8  // 第1层最少分支数
+const BRANCH_MAX = 6  // 第1层最多分支数
+const CHILD_MIN = 6   // 第2层每分支最少子节点
+const CHILD_MAX = 10  // 第2层每分支最多子节点
+const GRANDCHILD_PROB = 0.7   // 第3层生成概率（70%）
+const GRANDCHILD_MIN = 2      // 第3层最少节点数
+const GRANDCHILD_MAX = 4      // 第3层最多节点数
+const GREATGRANDCHILD_PROB = 0.4  // 第4层生成概率（40%）
+const GREATGRANDCHILD_MIN = 2     // 第4层最少节点数
+const GREATGRANDCHILD_MAX = 3     // 第4层最多节点数
 // ================================================
 
 import type { G6GraphData, G6Node, G6Edge, TreeNodeData } from '../types'
@@ -57,13 +69,14 @@ export class MockXLargeDataSource extends StaticDataSource {
   /**
    * 加载图数据
    */
-  async loadGraphData(options?: LoadOptions): Promise<G6GraphData> {
+  // eslint-disable-next-line @typescript-eslint/require-await, @typescript-eslint/no-unused-vars
+  async loadGraphData(_options?: LoadOptions): Promise<G6GraphData> {
     if (!this.cachedData) {
-      console.log(`[MockXLargeDataSource] 开始生成 ${TARGET_NODE_COUNT} 节点数据（${TREE_COUNT} 棵树）...`)
+      console.log(`[MockXLargeDataSource] 开始生成 ${TARGET_NODE_COUNT} 节点数据（${TREE_COUNT} 棵树，每棵约${AVG_NODES_PER_TREE}节点）...`)
       const startTime = performance.now()
       this.cachedData = this.generateMultiTreeData()
       const endTime = performance.now()
-      console.log(`[MockXLargeDataSource] 数据生成完成，耗时: ${(endTime - startTime).toFixed(2)}ms`)
+      console.log(`[MockXLargeDataSource] 数据生成完成：${this.cachedData.nodes.length} 节点，耗时: ${(endTime - startTime).toFixed(2)}ms`)
     }
     return this.cachedData
   }
@@ -72,11 +85,16 @@ export class MockXLargeDataSource extends StaticDataSource {
    * 生成多棵树的数据
    * 
    * 结构设计：
-   * - ${TREE_COUNT}棵树（每棵树约${AVG_NODES_PER_TREE}个节点）
-   * - 每棵树的层级：根节点 → 3-5个分支 → 每分支5-8个子节点 → 部分有孙节点 → 部分有曾孙节点
+   * - 树的数量：${TREE_COUNT} 棵（每棵约 ${AVG_NODES_PER_TREE} 个节点）
+   * - 层级结构：
+   *   * 第0层：根节点（1个）
+   *   * 第1层：${BRANCH_MIN}-${BRANCH_MAX}个主分支
+   *   * 第2层：每分支${CHILD_MIN}-${CHILD_MAX}个子节点
+   *   * 第3层：${(GRANDCHILD_PROB * 100).toFixed(0)}%概率生成${GRANDCHILD_MIN}-${GRANDCHILD_MAX}个孙节点
+   *   * 第4层：${(GREATGRANDCHILD_PROB * 100).toFixed(0)}%概率生成${GREATGRANDCHILD_MIN}-${GREATGRANDCHILD_MAX}个曾孙节点
    * - 每棵树有独立的颜色和groupId
-   * - 总节点数约 ${TARGET_NODE_COUNT} 个
-   * - 总边数约 ${TARGET_NODE_COUNT - TREE_COUNT} 条（节点数 - 树数量）
+   * - 目标总节点数：约 ${TARGET_NODE_COUNT} 个
+   * - 预计总边数：约 ${TARGET_NODE_COUNT - TREE_COUNT} 条（节点数 - 树数量）
    */
   private generateMultiTreeData(): G6GraphData {
     const nodes: G6Node[] = []
@@ -105,8 +123,8 @@ export class MockXLargeDataSource extends StaticDataSource {
       })
       rootIds.push(rootId)
       
-      // 第1层：3-5个主分支
-      const branchCount = 3 + Math.floor(Math.random() * 3)
+      // 第1层：主分支（使用配置参数）
+      const branchCount = BRANCH_MIN + Math.floor(Math.random() * (BRANCH_MAX - BRANCH_MIN + 1))
       for (let branchIdx = 0; branchIdx < branchCount; branchIdx++) {
         const branchId = `tree${treeIdx}-branch${branchIdx}`
         
@@ -132,8 +150,8 @@ export class MockXLargeDataSource extends StaticDataSource {
           }
         })
         
-        // 第2层：每个分支5-8个子节点
-        const childCount = 5 + Math.floor(Math.random() * 4)
+        // 第2层：每个分支的子节点（使用配置参数）
+        const childCount = CHILD_MIN + Math.floor(Math.random() * (CHILD_MAX - CHILD_MIN + 1))
         for (let childIdx = 0; childIdx < childCount; childIdx++) {
           const childId = `tree${treeIdx}-branch${branchIdx}-child${childIdx}`
           
@@ -158,9 +176,9 @@ export class MockXLargeDataSource extends StaticDataSource {
             }
           })
           
-          // 第3层：60%概率有2-4个孙节点
-          if (Math.random() < 0.6) {
-            const grandChildCount = 2 + Math.floor(Math.random() * 3)
+          // 第3层：孙节点（使用配置参数）
+          if (Math.random() < GRANDCHILD_PROB) {
+            const grandChildCount = GRANDCHILD_MIN + Math.floor(Math.random() * (GRANDCHILD_MAX - GRANDCHILD_MIN + 1))
             for (let gcIdx = 0; gcIdx < grandChildCount; gcIdx++) {
               const grandChildId = `tree${treeIdx}-branch${branchIdx}-child${childIdx}-gc${gcIdx}`
               
@@ -185,9 +203,9 @@ export class MockXLargeDataSource extends StaticDataSource {
                 }
               })
               
-              // 第4层：30%概率有1-2个曾孙节点（增加深度）
-              if (Math.random() < 0.3) {
-                const greatGrandChildCount = 1 + Math.floor(Math.random() * 2)
+              // 第4层：曾孙节点（使用配置参数）
+              if (Math.random() < GREATGRANDCHILD_PROB) {
+                const greatGrandChildCount = GREATGRANDCHILD_MIN + Math.floor(Math.random() * (GREATGRANDCHILD_MAX - GREATGRANDCHILD_MIN + 1))
                 for (let ggcIdx = 0; ggcIdx < greatGrandChildCount; ggcIdx++) {
                   const greatGrandChildId = `tree${treeIdx}-branch${branchIdx}-child${childIdx}-gc${gcIdx}-ggc${ggcIdx}`
                   

@@ -7,7 +7,9 @@ import { BaseLayoutPlugin } from '../base/BaseLayoutPlugin'
 import { LazyLayoutEngine } from './LazyLayoutEngine'
 import { LazyStyleService } from './styles'
 import { LazyDataManager } from './LazyDataManager'
+import { LazyTreeManager } from './LazyTreeManager'
 import { CollapsibleNodeBehavior } from './CollapsibleNodeBehavior'
+import { LAZY_RADIAL_EDGE_TYPE } from './LazyRadialEdge'
 import type {
   DataFormat,
   StyleRules,
@@ -15,18 +17,19 @@ import type {
   LayoutResult,
   G6GraphData,
   G6Node,
-  G6Edge,
   NodeStyleData,
   EdgeStyleData
 } from '../types'
 import type { LazyPluginConfig } from './types'
 
-// 扩展 LayoutResult 以传递数据管理器
+// 扩展 LayoutResult 以传递数据管理器和树结构信息
 export interface LazyLayoutResult extends LayoutResult {
   _lazyDataManager?: LazyDataManager
+  _treeManager?: LazyTreeManager  // 🔥 新增：树管理器
   _layoutEngine?: LazyLayoutEngine
   _styleService?: LazyStyleService
   _layoutOptions?: LayoutOptions
+  _treeKey?: string  // 树结构的键名（兼容性）
 }
 
 export class LazyMultiRootRadialPlugin extends BaseLayoutPlugin {
@@ -41,6 +44,7 @@ export class LazyMultiRootRadialPlugin extends BaseLayoutPlugin {
   private layoutEngine: LazyLayoutEngine
   private styleService: LazyStyleService
   private dataManager: LazyDataManager | null = null
+  private treeManager: LazyTreeManager | null = null
   private behavior: CollapsibleNodeBehavior | null = null
   
   // 插件配置
@@ -90,13 +94,12 @@ export class LazyMultiRootRadialPlugin extends BaseLayoutPlugin {
         }
       },
       
-      edge: (edge: G6Edge): EdgeStyleData => {
-        const isDirectLine = edge.data?.isDirectLine as boolean ?? false
+      edge: (): EdgeStyleData => {
         return {
           stroke: '#e0e0e0',
           lineWidth: 1.5,
           opacity: 0.6,
-          type: isDirectLine ? 'line' : 'cubic-radial'
+          type: 'quadratic'  // 🔥 临时使用内置 quadratic 边验证
         }
       }
     }
@@ -121,7 +124,12 @@ export class LazyMultiRootRadialPlugin extends BaseLayoutPlugin {
     const lazyData = this.dataManager.getInitialData()
     console.log(`[LazyPlugin] 🌱 初始加载：${lazyData.nodes.length} 个根节点（优化率：${(100 - lazyData.nodes.length / data.nodes.length * 100).toFixed(1)}%）`)
     
-    // 3. 执行布局算法（仅对根节点布局）
+    // 3. 创建树管理器并初始化根节点
+    this.treeManager = new LazyTreeManager()
+    this.treeManager.initializeRoots(lazyData.rootIds)
+    console.log('[LazyPlugin] 🌲 树管理器初始化完成')
+    
+    // 4. 执行布局算法（仅对根节点布局）
     const layoutOptions = {
       width: options?.width ?? 800,
       height: options?.height ?? 600,
@@ -139,19 +147,44 @@ export class LazyMultiRootRadialPlugin extends BaseLayoutPlugin {
     
     console.log('[LazyPlugin] ✅ 布局计算完成')
     
-    // 4. 应用样式
+    // 5. 应用样式
     const styledNodes = this.styleService.applyNodeStyles(layoutResult.nodes)
     const styledEdges = this.styleService.applyEdgeStyles(layoutResult.edges || [])
     
-    // 5. 返回结果，附带必要的引用（用于后续懒加载）
+    // 6. 构建初始树结构（仅根节点，children为空）- 为兼容性保留，但不再必需
+    const initialTreesData = lazyData.rootIds.map(rootId => 
+      this.dataManager!.getSubtreeTreeData(rootId)
+    ).map(tree => ({
+      ...tree,
+      children: []  // 初始时children为空，等待用户展开
+    }))
+    
+    console.log('[LazyPlugin] 🌳 初始树结构:', initialTreesData)
+    
+    // 7. 构建 tree 字段（单根/多根统一处理）- 为兼容性保留，但不再必需
+    const tree = initialTreesData.length === 1
+      ? initialTreesData[0]  // 单根：直接使用
+      : {  // 多根：构造虚拟根节点包装所有树
+          id: '__forest_root__',
+          data: { label: 'Forest Root', hierarchy: -1 },
+          children: initialTreesData
+        }
+    
+    // 8. 返回结果，附带必要的引用（用于后续懒加载）
     return {
       ...layoutResult,
       nodes: styledNodes,
       edges: styledEdges,
+      treesData: initialTreesData,  // 多根树结构（兼容性）
+      trees: initialTreesData,       // 多根树结构（兼容性）
+      tree,                          // 单树结构（兼容性）
+      rootIds: lazyData.rootIds,
       _lazyDataManager: this.dataManager,
+      _treeManager: this.treeManager,  // 🔥 新增：树管理器引用
       _layoutEngine: this.layoutEngine,
       _styleService: this.styleService,
-      _layoutOptions: layoutOptions
+      _layoutOptions: layoutOptions,
+      _treeKey: 'tree'  // G6树结构键名（兼容性）
     } as LazyLayoutResult
   }
   
@@ -162,16 +195,18 @@ export class LazyMultiRootRadialPlugin extends BaseLayoutPlugin {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     graph: any, 
     dataManager: LazyDataManager,
+    treeManager: LazyTreeManager,
     layoutEngine: LazyLayoutEngine,
     styleService: LazyStyleService,
     layoutOptions: LayoutOptions
   ) {
     if (this.behavior) {
-      this.behavior.destroy()
+      this.behavior.cleanup()
     }
     this.behavior = new CollapsibleNodeBehavior(
       graph,
       dataManager,
+      treeManager,
       layoutEngine,
       styleService,
       {
@@ -189,9 +224,10 @@ export class LazyMultiRootRadialPlugin extends BaseLayoutPlugin {
    * 销毁
    */
   cleanup() {
-    this.behavior?.destroy()
+    this.behavior?.cleanup()
     this.behavior = null
     this.dataManager = null
+    this.treeManager = null
     console.log('[LazyPlugin] 已销毁')
   }
 }

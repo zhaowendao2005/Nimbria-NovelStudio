@@ -11,6 +11,122 @@ import type {
 } from '../types'
 import type { RadialAdapterOutput } from './data.types'
 
+/**
+ * 多根径向树布局参数配置
+ * 
+ * 使用说明：
+ * - baseRadiusMultiplier: 根节点圆形轨道半径倍数（相对于画布尺寸）
+ * - baseDistance: 根节点到第一层子节点的基础距离（px）
+ * - hierarchyStep: 每增加一层的距离增量（px）
+ * - minArcLengthMultiplier: 根节点间最小弧长倍数（相对于节点大小）
+ * - maxArcLengthMultiplier: 根节点间最大弧长倍数（相对于节点大小）
+ * - angleSpread: 子节点的角度扩散范围（弧度）
+ * - randomOffset: 节点位置随机偏移量（px）
+ */
+const LAYOUT_PARAMS = {
+  /**
+   * 同步布局参数（适用于小数据集，带碰撞检测）
+   */
+  sync: {
+    baseRadiusMultiplier: 5,        // 根节点轨道半径倍数
+    minArcLengthMultiplier: 3,      // 根节点最小间距
+    maxArcLengthMultiplier: 5,      // 根节点最大间距
+    baseDistance: 300,              // 基础距离
+    hierarchyStep: 600,             // 层级步长
+    angleSpread: Math.PI / 3,       // 角度扩散（60度）
+    randomOffset: 20                // 随机偏移
+  },
+  
+  /**
+   * 异步布局参数（适用于大数据集，零碰撞预分配）
+   */
+  async: {
+    baseRadiusMultiplier: 10,        // 根节点轨道半径倍数（较小，适合大数据）
+    baseDistance: 300,              // 基础距离
+    hierarchyStep: 800              // 层级步长（较大，避免重叠）
+  },
+  
+  /**
+   * 懒加载布局参数（适用于按需展开的场景）
+   */
+  lazy: {
+    baseRadiusMultiplier: 1,        // 根节点轨道半径倍数
+    baseDistance: 300,              // 基础距离
+    hierarchyStep: 120              // 层级步长（较小，节约空间）
+  },
+  
+  /**
+   * 碰撞检测参数
+   */
+  collision: {
+    maxIterations: 50,              // 最大迭代次数
+    minDistance: 15,                // 节点间最小距离
+    gridCellSize: 100,              // 空间分区网格大小
+    forceStrength: 0.1              // 排斥力强度
+  }
+} as const
+
+/**
+ * 推荐配置预设
+ */
+export const LAYOUT_PRESETS = {
+  /**
+   * 小型图（< 100 节点）
+   */
+  small: {
+    ...LAYOUT_PARAMS.sync,
+    baseDistance: 200,
+    hierarchyStep: 400
+  },
+  
+  /**
+   * 中型图（100-1000 节点）
+   */
+  medium: {
+    ...LAYOUT_PARAMS.async,
+    baseDistance: 300,
+    hierarchyStep: 600
+  },
+  
+  /**
+   * 大型图（1000-10000 节点）
+   */
+  large: {
+    ...LAYOUT_PARAMS.async,
+    baseDistance: 300,
+    hierarchyStep: 800
+  },
+  
+  /**
+   * 超大型图（> 10000 节点）- 懒加载模式
+   */
+  xlarge: {
+    ...LAYOUT_PARAMS.lazy,
+    baseDistance: 250,
+    hierarchyStep: 100
+  },
+  
+  /**
+   * 紧凑布局（节约空间）
+   */
+  compact: {
+    ...LAYOUT_PARAMS.async,
+    baseRadiusMultiplier: 0.8,
+    baseDistance: 150,
+    hierarchyStep: 400
+  },
+  
+  /**
+   * 松散布局（便于查看）
+   */
+  spacious: {
+    ...LAYOUT_PARAMS.async,
+    baseRadiusMultiplier: 1.5,
+    baseDistance: 500,
+    hierarchyStep: 1000
+  }
+} as const
+
 interface LayoutConfig {
   width: number
   height: number
@@ -122,13 +238,13 @@ export class MultiRootRadialLayoutAlgorithm {
       width,
       height,
       rootIds,
-      baseRadiusMultiplier = 5,
-      minArcLengthMultiplier = 3,
-      maxArcLengthMultiplier = 5,
-      baseDistance = 300,
-      hierarchyStep = 600,
-      angleSpread = Math.PI / 3,
-      randomOffset = 20
+      baseRadiusMultiplier = LAYOUT_PARAMS.sync.baseRadiusMultiplier,
+      minArcLengthMultiplier = LAYOUT_PARAMS.sync.minArcLengthMultiplier,
+      maxArcLengthMultiplier = LAYOUT_PARAMS.sync.maxArcLengthMultiplier,
+      baseDistance = LAYOUT_PARAMS.sync.baseDistance,
+      hierarchyStep = LAYOUT_PARAMS.sync.hierarchyStep,
+      angleSpread = LAYOUT_PARAMS.sync.angleSpread,
+      randomOffset = LAYOUT_PARAMS.sync.randomOffset
     } = config
     
     if (!rootIds || rootIds.length === 0) {
@@ -304,9 +420,9 @@ export class MultiRootRadialLayoutAlgorithm {
     const {
       width,
       height,
-      baseRadiusMultiplier = 1,
-      baseDistance = 300,
-      hierarchyStep = 800
+      baseRadiusMultiplier = LAYOUT_PARAMS.async.baseRadiusMultiplier,
+      baseDistance = LAYOUT_PARAMS.async.baseDistance,
+      hierarchyStep = LAYOUT_PARAMS.async.hierarchyStep
     } = config
     
     console.log('[MultiRootRadialLayout] 🚀 使用零碰撞预分配算法')
@@ -335,7 +451,7 @@ export class MultiRootRadialLayoutAlgorithm {
     nodes.forEach(node => {
       if (rootIds.includes(node.id)) return  // 跳过根节点本身
       
-      const groupId = (node.data?.groupId as number) ?? -1
+      const groupId = typeof node.data?.groupId === 'number' ? node.data.groupId : -1
       if (groupId >= 0 && groupId < rootIds.length) {
         const rootId = rootIds[groupId]
         if (rootId) {
@@ -348,19 +464,16 @@ export class MultiRootRadialLayoutAlgorithm {
     
     // ===== 第2步：为每个根节点分配角度空间 =====
     console.log('[MultiRootRadialLayout] 📐 预分配角度空间...')
-    const totalChildren = Array.from(nodesByRoot.values()).reduce((sum, arr) => sum + arr.length, 0)
-    let currentAngle = 0
     const fullCircle = Math.PI * 2
+    const angleStep = fullCircle / rootIds.length  // 均匀分配角度
     
-    rootIds.forEach(rootId => {
+    rootIds.forEach((rootId, index) => {
       const children = nodesByRoot.get(rootId) || []
       const childCount = children.length
       
-      // 按子节点比例分配角度（至少给 π/6）
-      const angleRatio = totalChildren > 0 ? childCount / totalChildren : 1 / rootIds.length
-      const angleRange = Math.max(Math.PI / 6, fullCircle * angleRatio)
-      
-      const rootAngle = currentAngle + angleRange / 2
+      // 均匀分配角度，每个根节点占据相等的扇形区域
+      const rootAngle = angleStep * index
+      const angleRange = angleStep  // 每个根节点的扇形范围
       
       rootInfoMap.set(rootId, {
         id: rootId,
@@ -368,8 +481,6 @@ export class MultiRootRadialLayoutAlgorithm {
         angle: rootAngle,
         angleRange
       })
-      
-      currentAngle += angleRange
     })
     
     // ===== 第3步：计算根节点位置 =====
@@ -544,12 +655,12 @@ export class MultiRootRadialLayoutAlgorithm {
     })
     
     // 2. 执行碰撞检测和调整（迭代式）
-    const maxIterations = 50  // 最大迭代次数
-    const minDistance = 15     // 节点间最小距离
+    const maxIterations = LAYOUT_PARAMS.collision.maxIterations
+    const minDistance = LAYOUT_PARAMS.collision.minDistance
     
     for (let iter = 0; iter < maxIterations; iter++) {
       // 使用空间网格优化碰撞检测
-      const grid = new SpatialGrid(100) // 网格大小100px
+      const grid = new SpatialGrid(LAYOUT_PARAMS.collision.gridCellSize)
       
       // 将所有节点加入网格
       nodeInfos.forEach(node => grid.add(node))
@@ -610,15 +721,15 @@ export class MultiRootRadialLayoutAlgorithm {
         if (node.isRoot && node.angle !== undefined && node.radius !== undefined) {
           // 根节点：只调整角度，保持在圆形轨道上
           const angleForce = (-force.dx * Math.sin(node.angle) + force.dy * Math.cos(node.angle)) / node.radius
-          node.angle += angleForce * 0.1  // 缓慢调整
+          node.angle += angleForce * LAYOUT_PARAMS.collision.forceStrength
           
           // 重新计算位置
           node.x = centerX + node.radius * Math.cos(node.angle)
           node.y = centerY + node.radius * Math.sin(node.angle)
         } else {
           // 子节点：自由移动
-          node.x += force.dx * 0.1  // 缓慢调整，避免震荡
-          node.y += force.dy * 0.1
+          node.x += force.dx * LAYOUT_PARAMS.collision.forceStrength
+          node.y += force.dy * LAYOUT_PARAMS.collision.forceStrength
         }
       }
       
@@ -685,11 +796,11 @@ export class MultiRootRadialLayoutAlgorithm {
     })
     
     // 2. 异步执行碰撞检测和调整
-    const maxIterations = 50
-    const minDistance = 15
+    const maxIterations = LAYOUT_PARAMS.collision.maxIterations
+    const minDistance = LAYOUT_PARAMS.collision.minDistance
     
     for (let iter = 0; iter < maxIterations; iter++) {
-      const grid = new SpatialGrid(100)
+      const grid = new SpatialGrid(LAYOUT_PARAMS.collision.gridCellSize)
       nodeInfos.forEach(node => grid.add(node))
       
       let hasCollision = false
@@ -746,14 +857,14 @@ export class MultiRootRadialLayoutAlgorithm {
         if (node.isRoot && node.radius !== undefined && node.angle !== undefined) {
           // 根节点：只能沿圆形轨道移动
           const angleForce = (-force.dx * Math.sin(node.angle) + force.dy * Math.cos(node.angle)) / node.radius
-          node.angle += angleForce * 0.1
+          node.angle += angleForce * LAYOUT_PARAMS.collision.forceStrength
           
           node.x = centerX + node.radius * Math.cos(node.angle)
           node.y = centerY + node.radius * Math.sin(node.angle)
         } else {
           // 子节点：自由移动
-          node.x += force.dx * 0.1
-          node.y += force.dy * 0.1
+          node.x += force.dx * LAYOUT_PARAMS.collision.forceStrength
+          node.y += force.dy * LAYOUT_PARAMS.collision.forceStrength
         }
       }
       

@@ -23,6 +23,8 @@ import type { InitializationProgressMessage } from '@service/starChart/types/wor
 import type { InitProgressState } from '@stores/projectPage/starChart/types/progress.types'
 import { LazyMultiRootRadialPlugin, type LazyLayoutResult } from '@stores/projectPage/starChart/plugins/LazyMultiRootRadialPlugin'
 import type { LazyDataManager } from '@stores/projectPage/starChart/plugins/LazyMultiRootRadialPlugin/LazyDataManager'
+import type { LazyTreeManager } from '@stores/projectPage/starChart/plugins/LazyMultiRootRadialPlugin/LazyTreeManager'
+import { LazyRadialEdge, LAZY_RADIAL_EDGE_TYPE } from '@stores/projectPage/starChart/plugins/LazyMultiRootRadialPlugin/LazyRadialEdge'
 
 /**
  * StarChartViewport - 插件化版本
@@ -44,6 +46,7 @@ let preloadingPromise: Promise<void> | null = null  // 预热过程的Promise
 
 // 懒加载插件专用
 let lazyDataManager: LazyDataManager | null = null
+let lazyTreeManager: LazyTreeManager | null = null
 
 /**
  * 检测是否是懒加载插件
@@ -146,6 +149,26 @@ async function preloadGraphInstance() {
   preloadingPromise = (async () => {
     try {
       await scheduleIdle(() => {
+        // 🔥 注册自定义边类型
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const G6 = (Graph as any)
+          const edgeInstance = new LazyRadialEdge()
+          
+          // 尝试多种注册方式
+          if (typeof G6.registerEdge === 'function') {
+            G6.registerEdge(LAZY_RADIAL_EDGE_TYPE, edgeInstance, 'line')
+            console.log(`[StarChartViewport] ✅ 使用 registerEdge 注册: ${LAZY_RADIAL_EDGE_TYPE}`)
+          } else if (typeof G6.extend === 'function') {
+            G6.extend(LAZY_RADIAL_EDGE_TYPE, edgeInstance, 'line')
+            console.log(`[StarChartViewport] ✅ 使用 extend 注册: ${LAZY_RADIAL_EDGE_TYPE}`)
+          } else {
+            console.warn(`[StarChartViewport] ⚠️ 未找到边注册方法，使用默认边`)
+          }
+        } catch (error) {
+          console.error(`[StarChartViewport] ❌ 注册自定义边失败:`, error)
+        }
+        
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const graphConfig: any = {
           container: containerRef.value!,
@@ -154,7 +177,8 @@ async function preloadGraphInstance() {
           renderer: getRenderer(),
           animation: false,  // 🔥 关键优化：关闭动画系统
     layout: { type: 'preset' },
-          data: { nodes: [], edges: [] },
+          treeKey: 'tree',  // 🔥 关键：指定树结构键名（兼容性，现已使用自定义边）
+          data: { nodes: [], edges: [], treesData: [], tree: undefined },
           
           // 基础交互行为
     behaviors: [
@@ -240,8 +264,46 @@ async function loadDataOnce(
   await scheduleIdle(() => {
     // 🔥 关键优化：使用 setData() 一次性加载所有数据
     // 这样 G6 内部会做批量优化，比循环 addData() 快得多
+    
+    // 📊 详细日志：暴露初始化时的树结构
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const payloadAny = layoutResult as any
+    console.log(`[StarChartViewport] 📋 setData Payload:`)
+    console.log(`  - nodes 数量: ${totalNodes}`)
+    console.log(`  - edges 数量: ${totalEdges}`)
+    console.log(`  - treesData 存在: ${!!payloadAny.treesData}`)
+    console.log(`  - treesData 数量: ${payloadAny.treesData?.length || 0}`)
+    console.log(`  - trees 存在: ${!!payloadAny.trees}`)
+    console.log(`  - tree 存在: ${!!payloadAny.tree}`)
+    console.log(`  - tree.id: ${payloadAny.tree?.id || 'undefined'}`)
+    console.log(`  - tree.children 数量: ${payloadAny.tree?.children?.length || 0}`)
+    
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     graph.setData(layoutResult as any)
+    
+    // 检查 G6 内部树结构
+    console.log(`[StarChartViewport] 🔍 检查 G6 内部树结构 (setData后):`)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const g6Data = graph.getData() as any
+      console.log(`  - G6.getData().treesData 存在: ${!!g6Data.treesData}`)
+      console.log(`  - G6.getData().treesData 数量: ${g6Data.treesData?.length || 0}`)
+      console.log(`  - G6.getData().tree 存在: ${!!g6Data.tree}`)
+      console.log(`  - G6.getData().tree.id: ${g6Data.tree?.id || 'undefined'}`)
+      
+      // 尝试直接访问内部树结构
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const graphInternal = graph as any
+      if (graphInternal.dataController) {
+        console.log(`  - dataController.trees 存在: ${!!graphInternal.dataController.trees}`)
+        console.log(`  - dataController.treeKey: ${graphInternal.dataController.treeKey || 'undefined'}`)
+      }
+      if (graphInternal.context && graphInternal.context.options) {
+        console.log(`  - context.options.treeKey: ${graphInternal.context.options.treeKey || 'undefined'}`)
+      }
+    } catch (err) {
+      console.error(`  ❌ 无法读取 G6 内部数据:`, err)
+    }
   })
   
   onProgress()
@@ -390,8 +452,9 @@ async function initGraph() {
       
       layoutResult = lazyResult
       
-      // 保存 dataManager 以便后续懒加载
+      // 保存 dataManager 和 treeManager 以便后续懒加载
       lazyDataManager = lazyResult._lazyDataManager || null
+      lazyTreeManager = lazyResult._treeManager || null
       
       const pluginStyles = plugin.getDefaultStyles()
       plugin.mergeStyles(data, pluginStyles)
@@ -402,11 +465,12 @@ async function initGraph() {
       await runMainThreadPipeline(layoutResult as { nodes: unknown[]; edges: unknown[]; [key: string]: unknown }, undefined)
       
       // 🔥 关键：初始化懒加载行为
-      if (graphInstance && lazyDataManager && lazyResult._layoutEngine && lazyResult._styleService && lazyResult._layoutOptions) {
+      if (graphInstance && lazyDataManager && lazyTreeManager && lazyResult._layoutEngine && lazyResult._styleService && lazyResult._layoutOptions) {
         console.log('[StarChartViewport] 🎯 初始化懒加载折叠展开行为')
         plugin.initializeBehavior(
           graphInstance, 
-          lazyDataManager, 
+          lazyDataManager,
+          lazyTreeManager,
           lazyResult._layoutEngine,
           lazyResult._styleService,
           lazyResult._layoutOptions
@@ -552,6 +616,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   // 清理懒加载资源
   lazyDataManager = null
+  lazyTreeManager = null
   
   // 清理预热状态
   preloadingPromise = null

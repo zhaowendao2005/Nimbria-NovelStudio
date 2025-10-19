@@ -3,12 +3,13 @@
  * 核心职责：管理节点的按需加载
  */
 
-import type { G6GraphData, G6Edge } from '../types'
+import type { G6GraphData, G6Edge, TreeNodeData } from '../types'
 import type { LazyNodeData, LazyGraphData } from './types'
 
 export class LazyDataManager {
   private fullNodesMap: Map<string, LazyNodeData> = new Map()
   private childrenMap: Map<string, string[]> = new Map()
+  private parentMap: Map<string, string> = new Map()  // 新增：子节点 -> 父节点映射
   private rootIds: string[] = []
   private loadedNodeIds: Set<string> = new Set()  // 跟踪已加载的节点
   
@@ -34,13 +35,19 @@ export class LazyDataManager {
       })
     })
     
-    // 2. 构建父子关系
+    // 2. 构建父子关系和父映射
     data.edges.forEach(edge => {
       const parentId = edge.source
+      const childId = edge.target
+      
+      // 父 -> 子列表
       if (!this.childrenMap.has(parentId)) {
         this.childrenMap.set(parentId, [])
       }
-      this.childrenMap.get(parentId)!.push(edge.target)
+      this.childrenMap.get(parentId)!.push(childId)
+      
+      // 子 -> 父映射
+      this.parentMap.set(childId, parentId)
     })
     
     // 3. 更新节点的子节点信息
@@ -202,6 +209,112 @@ export class LazyDataManager {
       avgChildrenPerNode: Array.from(this.childrenMap.values())
         .reduce((sum, children) => sum + children.length, 0) / this.childrenMap.size
     }
+  }
+  
+  // ==================== 树结构工具方法 ====================
+  
+  /**
+   * 获取节点的完整数据
+   */
+  getTreeNode(nodeId: string): LazyNodeData | undefined {
+    return this.fullNodesMap.get(nodeId)
+  }
+  
+  /**
+   * 获取节点的父节点ID
+   */
+  getParentId(nodeId: string): string | null {
+    return this.parentMap.get(nodeId) || null
+  }
+  
+  /**
+   * 递归构建子树的TreeNodeData结构
+   * 用于同步给G6的树结构
+   */
+  getSubtreeTreeData(nodeId: string): TreeNodeData {
+    const node = this.fullNodesMap.get(nodeId)
+    if (!node) {
+      throw new Error(`[LazyDataManager] 节点不存在: ${nodeId}`)
+    }
+    
+    const childIds = this.childrenMap.get(nodeId) || []
+    const children: TreeNodeData[] = childIds.map(childId => 
+      this.getSubtreeTreeData(childId)
+    )
+    
+    const result: TreeNodeData = {
+      id: node.id,
+      data: node.data,
+      children  // 始终包含children字段，即使为空数组，确保树结构完整
+    }
+    
+    return result
+  }
+  
+  /**
+   * 获取节点的祖先链（从根到该节点的所有父节点ID）
+   */
+  getAncestorChain(nodeId: string): string[] {
+    const chain: string[] = []
+    let currentId: string | null = nodeId
+    
+    while (currentId !== null) {
+      const parentId = this.parentMap.get(currentId)
+      if (parentId) {
+        chain.unshift(parentId)  // 插入到前面，保持根 -> 子的顺序
+        currentId = parentId
+      } else {
+        break  // 到达根节点
+      }
+    }
+    
+    return chain
+  }
+  
+  /**
+   * 检查节点的整个子树是否都已加载
+   */
+  isSubtreeLoaded(nodeId: string): boolean {
+    const descendantIds = this.getDescendantIds(nodeId)
+    return descendantIds.every(id => this.loadedNodeIds.has(id))
+  }
+  
+  // ==================== 实时树结构构建（用于G6同步） ====================
+  
+  /**
+   * 获取当前已加载（可见）部分的树结构
+   * 用于同步给G6的treesData，保证只包含已展开的节点
+   */
+  getLoadedTrees(): TreeNodeData[] {
+    return this.rootIds.map(rootId => this.buildLoadedTreeNode(rootId))
+  }
+  
+  /**
+   * 根据loadedNodeIds构建树节点
+   * 只有已展开的节点才会包含children，未展开的节点children为空
+   */
+  private buildLoadedTreeNode(nodeId: string): TreeNodeData {
+    const node = this.fullNodesMap.get(nodeId)
+    if (!node) {
+      throw new Error(`[LazyDataManager] 节点不存在: ${nodeId}`)
+    }
+    
+    // 只有已加载（展开）的节点才包含children，否则children为空数组
+    let children: TreeNodeData[] = []
+    if (this.loadedNodeIds.has(nodeId)) {
+      const childIds = this.childrenMap.get(nodeId) || []
+      children = childIds
+        .map(childId => this.buildLoadedTreeNode(childId))
+        .filter(child => child !== null)
+    }
+    
+    const result: TreeNodeData = {
+      id: node.id,
+      data: node.data,
+      children  // 始终包含children字段，保证树结构完整性
+    }
+    
+    return result
   }
 }
 

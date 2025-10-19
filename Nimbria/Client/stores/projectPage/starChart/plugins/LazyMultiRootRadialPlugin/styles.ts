@@ -4,6 +4,7 @@
  */
 
 import type { G6NodeData, G6EdgeData, NodeStyleData, EdgeStyleData } from '../types'
+import { LAZY_RADIAL_EDGE_TYPE } from './LazyRadialEdge'
 
 /**
  * 懒加载样式服务
@@ -56,11 +57,9 @@ export class LazyStyleService {
   }
   
   /**
-   * 为边应用样式
+   * 为边应用样式（临时使用内置边验证）
    */
   applyEdgeStyle(edge: G6EdgeData): G6EdgeData {
-    const isDirectLine = edge.data?.isDirectLine as boolean ?? false
-    
     const style: EdgeStyleData = {
       ...(edge.style || {}),
       stroke: '#e0e0e0',
@@ -70,7 +69,7 @@ export class LazyStyleService {
     
     return {
       ...edge,
-      type: isDirectLine ? 'line' : 'cubic-radial',
+      type: 'quadratic',  // 🔥 临时使用内置 quadratic 边验证
       style
     }
   }
