@@ -101,7 +101,7 @@
                 <h5>⚡ G6 渲染器</h5>
                 <div class="config-item">
                   <el-tooltip 
-                    content="Canvas: 通用渲染 | WebGL: 高性能大规模数据 | SVG: 矢量导出 | Auto: 自动选择" 
+                    content="Canvas: 通用渲染（推荐） | WebGL: 大规模数据高性能 | SVG: 矢量导出" 
                     placement="top"
                   >
                     <label>渲染器类型</label>
@@ -113,7 +113,7 @@
                   >
                     <el-option value="canvas">
                       <span style="float: left">Canvas</span>
-                      <span style="float: right; color: #8492a6; font-size: 12px">通用</span>
+                      <span style="float: right; color: #8492a6; font-size: 12px">推荐</span>
                     </el-option>
                     <el-option value="webgl">
                       <span style="float: left">WebGL</span>
@@ -122,10 +122,6 @@
                     <el-option value="svg">
                       <span style="float: left">SVG</span>
                       <span style="float: right; color: #67c23a; font-size: 12px">矢量</span>
-                    </el-option>
-                    <el-option value="auto">
-                      <span style="float: left">自动选择</span>
-                      <span style="float: right; color: #e6a23c; font-size: 12px">智能</span>
                     </el-option>
                   </el-select>
                 </div>
@@ -143,6 +139,224 @@
                   ✅ 更流畅的动画和交互<br>
                   ✅ 官方 AntV 团队维护<br>
                   📊 当前节点数: {{ starChartStore.nodeCount }}
+                </el-alert>
+              </div>
+              
+              <div class="config-divider-line"></div>
+
+              <!-- WebGL 优化配置 -->
+              <div class="config-section config-section-highlight" v-show="configStore.config.g6.renderer === 'webgl'">
+                <h5>🚀 WebGL 优化配置</h5>
+                
+                <!-- 渲染优化 -->
+                <div class="webgl-subsection">
+                  <h6>🎨 渲染优化</h6>
+                  <div class="config-item">
+                    <label>实例化渲染</label>
+                    <el-switch
+                      v-model="configStore.config.g6.webglOptimization.enableInstancedRendering"
+                      @change="updateConfig('g6.webglOptimization.enableInstancedRendering', $event)"
+                    />
+                  </div>
+                  <div class="config-item">
+                    <label>视锥剔除</label>
+                    <el-switch
+                      v-model="configStore.config.g6.webglOptimization.enableFrustumCulling"
+                      @change="updateConfig('g6.webglOptimization.enableFrustumCulling', $event)"
+                    />
+                  </div>
+                  <div class="config-item">
+                    <label>脏矩形渲染</label>
+                    <el-switch
+                      v-model="configStore.config.g6.webglOptimization.enableDirtyRectangleRendering"
+                      @change="updateConfig('g6.webglOptimization.enableDirtyRectangleRendering', $event)"
+                    />
+                  </div>
+                  <div class="config-item">
+                    <label>剔除优化</label>
+                    <el-switch
+                      v-model="configStore.config.g6.webglOptimization.enableCulling"
+                      @change="updateConfig('g6.webglOptimization.enableCulling', $event)"
+                    />
+                  </div>
+                </div>
+
+                <!-- LOD 系统 -->
+                <div class="webgl-subsection">
+                  <h6>📊 LOD 细节层次</h6>
+                  <div class="config-item">
+                    <label>启用 LOD</label>
+                    <el-switch
+                      v-model="configStore.config.g6.webglOptimization.enableLOD"
+                      @change="updateConfig('g6.webglOptimization.enableLOD', $event)"
+                    />
+                  </div>
+                  <div class="config-item" v-show="configStore.config.g6.webglOptimization.enableLOD">
+                    <label>低细节阈值</label>
+                    <el-slider
+                      v-model="configStore.config.g6.webglOptimization.lodZoomThresholds.low"
+                      @change="updateConfig('g6.webglOptimization.lodZoomThresholds.low', $event)"
+                      :min="0.01"
+                      :max="0.5"
+                      :step="0.01"
+                    />
+                  </div>
+                  <div class="config-item" v-show="configStore.config.g6.webglOptimization.enableLOD">
+                    <label>中等细节阈值</label>
+                    <el-slider
+                      v-model="configStore.config.g6.webglOptimization.lodZoomThresholds.medium"
+                      @change="updateConfig('g6.webglOptimization.lodZoomThresholds.medium', $event)"
+                      :min="0.1"
+                      :max="1.0"
+                      :step="0.05"
+                    />
+                  </div>
+                </div>
+
+                <!-- 几何体优化 -->
+                <div class="webgl-subsection">
+                  <h6>🔺 几何体优化</h6>
+                  <div class="config-item">
+                    <label>低细节段数</label>
+                    <el-slider
+                      v-model="configStore.config.g6.webglOptimization.nodeSegments.low"
+                      @change="updateConfig('g6.webglOptimization.nodeSegments.low', $event)"
+                      :min="3"
+                      :max="8"
+                      :step="1"
+                    />
+                  </div>
+                  <div class="config-item">
+                    <label>中等细节段数</label>
+                    <el-slider
+                      v-model="configStore.config.g6.webglOptimization.nodeSegments.medium"
+                      @change="updateConfig('g6.webglOptimization.nodeSegments.medium', $event)"
+                      :min="6"
+                      :max="16"
+                      :step="1"
+                    />
+                  </div>
+                  <div class="config-item">
+                    <label>高细节段数</label>
+                    <el-slider
+                      v-model="configStore.config.g6.webglOptimization.nodeSegments.high"
+                      @change="updateConfig('g6.webglOptimization.nodeSegments.high', $event)"
+                      :min="12"
+                      :max="32"
+                      :step="2"
+                    />
+                  </div>
+                </div>
+
+                <!-- 批处理优化 -->
+                <div class="webgl-subsection">
+                  <h6>📦 批处理优化</h6>
+                  <div class="config-item">
+                    <label>启用批处理</label>
+                    <el-switch
+                      v-model="configStore.config.g6.webglOptimization.enableBatching"
+                      @change="updateConfig('g6.webglOptimization.enableBatching', $event)"
+                    />
+                  </div>
+                  <div class="config-item" v-show="configStore.config.g6.webglOptimization.enableBatching">
+                    <label>批处理大小</label>
+                    <el-slider
+                      v-model="configStore.config.g6.webglOptimization.batchSize"
+                      @change="updateConfig('g6.webglOptimization.batchSize', $event)"
+                      :min="1000"
+                      :max="20000"
+                      :step="1000"
+                    />
+                  </div>
+                </div>
+
+                <!-- 交互优化 -->
+                <div class="webgl-subsection">
+                  <h6>🖱️ 交互优化</h6>
+                  <div class="config-item">
+                    <label>交互节流(ms)</label>
+                    <el-slider
+                      v-model="configStore.config.g6.webglOptimization.interactionThrottle"
+                      @change="updateConfig('g6.webglOptimization.interactionThrottle', $event)"
+                      :min="16"
+                      :max="100"
+                      :step="1"
+                    />
+                  </div>
+                  <div class="config-item">
+                    <label>空间索引</label>
+                    <el-switch
+                      v-model="configStore.config.g6.webglOptimization.enableSpatialIndex"
+                      @change="updateConfig('g6.webglOptimization.enableSpatialIndex', $event)"
+                    />
+                  </div>
+                </div>
+
+                <!-- 内存优化 -->
+                <div class="webgl-subsection">
+                  <h6>💾 内存优化</h6>
+                  <div class="config-item">
+                    <label>纹理图集</label>
+                    <el-switch
+                      v-model="configStore.config.g6.webglOptimization.enableTextureAtlas"
+                      @change="updateConfig('g6.webglOptimization.enableTextureAtlas', $event)"
+                    />
+                  </div>
+                  <div class="config-item">
+                    <label>几何体压缩</label>
+                    <el-switch
+                      v-model="configStore.config.g6.webglOptimization.enableGeometryCompression"
+                      @change="updateConfig('g6.webglOptimization.enableGeometryCompression', $event)"
+                    />
+                  </div>
+                  <div class="config-item">
+                    <label>最大可见节点</label>
+                    <el-slider
+                      v-model="configStore.config.g6.webglOptimization.maxVisibleNodes"
+                      @change="updateConfig('g6.webglOptimization.maxVisibleNodes', $event)"
+                      :min="1000"
+                      :max="100000"
+                      :step="1000"
+                    />
+                  </div>
+                </div>
+
+                <!-- 性能监控 -->
+                <div class="webgl-subsection">
+                  <h6>📈 性能监控</h6>
+                  <div class="config-item">
+                    <label>性能监控</label>
+                    <el-switch
+                      v-model="configStore.config.g6.webglOptimization.enablePerformanceMonitoring"
+                      @change="updateConfig('g6.webglOptimization.enablePerformanceMonitoring', $event)"
+                    />
+                  </div>
+                  <div class="config-item">
+                    <label>目标帧率</label>
+                    <el-slider
+                      v-model="configStore.config.g6.webglOptimization.fpsTarget"
+                      @change="updateConfig('g6.webglOptimization.fpsTarget', $event)"
+                      :min="30"
+                      :max="120"
+                      :step="10"
+                    />
+                  </div>
+                </div>
+
+                <!-- WebGL 优化说明 -->
+                <el-alert 
+                  type="info"
+                  :closable="false"
+                  style="margin-top: 12px"
+                >
+                  <template #title>
+                    <strong>WebGL 优化说明：</strong>
+                  </template>
+                  🚀 实例化渲染：大幅提升相同几何体的渲染性能<br>
+                  📊 LOD 系统：根据缩放级别动态调整细节<br>
+                  📦 批处理：减少 draw call 数量<br>
+                  💾 内存优化：降低 GPU 内存占用<br>
+                  ⚡ 推荐用于 10000+ 节点的大规模数据
                 </el-alert>
               </div>
               
@@ -282,46 +496,6 @@
                     @change="updateConfig('nodeStyle.sizeMultiplier', $event)"
                     :min="0.5"
                     :max="2.0"
-                    :step="0.1"
-                  />
-                </div>
-                <div class="config-item">
-                  <label>选中节点大小</label>
-                  <el-slider
-                    v-model="configStore.config.nodeStyle.selectedNodeSize"
-                    @change="updateConfig('nodeStyle.selectedNodeSize', $event)"
-                    :min="0.8"
-                    :max="1.5"
-                    :step="0.1"
-                  />
-                </div>
-                <div class="config-item">
-                  <label>一级邻居大小</label>
-                  <el-slider
-                    v-model="configStore.config.nodeStyle.firstDegreeNodeSize"
-                    @change="updateConfig('nodeStyle.firstDegreeNodeSize', $event)"
-                    :min="0.8"
-                    :max="1.3"
-                    :step="0.1"
-                  />
-                </div>
-                <div class="config-item">
-                  <label>二级邻居大小</label>
-                  <el-slider
-                    v-model="configStore.config.nodeStyle.secondDegreeNodeSize"
-                    @change="updateConfig('nodeStyle.secondDegreeNodeSize', $event)"
-                    :min="0.8"
-                    :max="1.2"
-                    :step="0.1"
-                  />
-                </div>
-                <div class="config-item">
-                  <label>淡化节点大小</label>
-                  <el-slider
-                    v-model="configStore.config.nodeStyle.fadedNodeSize"
-                    @change="updateConfig('nodeStyle.fadedNodeSize', $event)"
-                    :min="0.5"
-                    :max="1.0"
                     :step="0.1"
                   />
                 </div>
@@ -511,7 +685,8 @@ const onDataSourceChange = async (source: DataSourceType) => {
 const onLayoutChange = async (layoutType: LayoutType) => {
   try {
     const starChartStore = useStarChartStore()
-    await starChartStore.switchLayout(layoutType)
+    // 暂时注释掉，因为当前只有一个布局
+    // await starChartStore.switchLayout(layoutType)
     console.log(`[WritingPanel] 布局已切换: ${layoutType}`)
   } catch (error) {
     console.error('[WritingPanel] 切换布局失败:', error)
@@ -519,27 +694,30 @@ const onLayoutChange = async (layoutType: LayoutType) => {
 }
 
 // 🆕 切换 G6 渲染器类型（Canvas/WebGL/SVG）
-const onG6RendererChange = async (rendererType: 'canvas' | 'webgl' | 'svg' | 'auto') => {
+const onG6RendererChange = async (rendererType: 'canvas' | 'webgl' | 'svg') => {
   try {
-    // 更新配置
+    // 更新配置（会自动触发重新初始化）
     configStore.updateConfig('g6.renderer', rendererType)
     
     // 用户反馈
     const rendererNames: Record<string, string> = {
       canvas: 'Canvas（通用）',
       webgl: 'WebGL（高性能）',
-      svg: 'SVG（矢量）',
-      auto: '自动选择'
+      svg: 'SVG（矢量）'
     }
-    ElMessage.success({
-      message: `G6 渲染器已切换到: ${rendererNames[rendererType]}`,
+    ElMessage({
+      message: `正在切换渲染器到: ${rendererNames[rendererType]}...`,
+      type: 'info',
       duration: 2000
     })
     
-    console.log(`[WritingPanel] G6 渲染器切换完成: ${rendererType}`)
+    console.log(`[WritingPanel] 开始切换渲染器: ${rendererType}`)
   } catch (error) {
     console.error('[WritingPanel] 切换 G6 渲染器失败:', error)
-    ElMessage.error('渲染器切换失败')
+    ElMessage({
+      message: '渲染器切换失败',
+      type: 'error'
+    })
   }
 }
 
@@ -704,6 +882,23 @@ const handleResetConfig = async () => {
   border-radius: 8px;
   margin-bottom: 12px;
   border: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+/* WebGL 子区域样式 */
+.webgl-subsection {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 8px;
+  border: 1px solid rgba(102, 126, 234, 0.15);
+}
+
+.webgl-subsection h6 {
+  margin: 0 0 6px 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--obsidian-text-primary);
+  opacity: 0.9;
 }
 
 .config-section h5 {

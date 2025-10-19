@@ -44,30 +44,201 @@ const DEFAULT_CONFIG: StarChartConfig = {
     fontSize: 11
   },
   g6: {
-    renderer: 'auto',
+    renderer: 'canvas',  // 默认使用 Canvas
     pixelRatio: 2,
-    fitView: true
+    fitView: true,
+    webglOptimization: {
+      // 渲染优化
+      enableInstancedRendering: true,
+      enableFrustumCulling: true,
+      enableDirtyRectangleRendering: false,
+      enableCulling: true,
+      
+      // LOD 系统
+      enableLOD: true,
+      lodZoomThresholds: {
+        low: 0.1,
+        medium: 0.5,
+        high: 1.0
+      },
+      
+      // 几何体优化
+      nodeSegments: {
+        low: 4,      // 方形
+        medium: 8,   // 八边形
+        high: 16     // 接近圆形
+      },
+      
+      // 批处理优化
+      enableBatching: true,
+      batchSize: 5000,
+      
+      // 交互优化
+      interactionThrottle: 16,  // 60fps
+      enableSpatialIndex: true,
+      
+      // 内存优化
+      enableTextureAtlas: true,
+      enableGeometryCompression: true,
+      maxVisibleNodes: 10000,
+      
+      // 性能监控
+      enablePerformanceMonitoring: false,
+      fpsTarget: 60
+    }
   }
 }
 
 // 配置预设
 const CONFIG_PRESETS: Record<ConfigPreset, Partial<StarChartConfig>> = {
   performance: {
-    g6: { renderer: 'webgl' },
-    nodeStyle: { defaultSize: 24, fontSize: 10 }
+    g6: { 
+      renderer: 'webgl',
+      pixelRatio: 2,
+      fitView: true,
+      webglOptimization: {
+        enableInstancedRendering: true,
+        enableFrustumCulling: true,
+        enableDirtyRectangleRendering: false,
+        enableCulling: true,
+        enableLOD: true,
+        lodZoomThresholds: { low: 0.05, medium: 0.3, high: 0.8 },
+        nodeSegments: { low: 4, medium: 6, high: 12 },
+        enableBatching: true,
+        batchSize: 10000,
+        interactionThrottle: 16,
+        enableSpatialIndex: true,
+        enableTextureAtlas: true,
+        enableGeometryCompression: true,
+        maxVisibleNodes: 50000,
+        enablePerformanceMonitoring: true,
+        fpsTarget: 60
+      }
+    },
+    nodeStyle: { 
+      defaultSize: 24, 
+      fontSize: 10,
+      sizeMultiplier: 1.0,
+      randomSVGSelection: true,
+      selectedSVGIndex: 0,
+      fillMode: 'transparent' as const,
+      fillOpacity: 0.08,
+      strokeWidth: 1.5,
+      textPosition: 'bottom' as const
+    }
   },
   development: {
-    g6: { renderer: 'canvas' },
-    nodeStyle: { defaultSize: 32, fontSize: 12 }
+    g6: { 
+      renderer: 'canvas',
+      pixelRatio: 2,
+      fitView: true,
+      webglOptimization: {
+        enableInstancedRendering: false,
+        enableFrustumCulling: false,
+        enableDirtyRectangleRendering: false,
+        enableCulling: false,
+        enableLOD: false,
+        lodZoomThresholds: { low: 0.1, medium: 0.5, high: 1.0 },
+        nodeSegments: { low: 8, medium: 12, high: 24 },
+        enableBatching: false,
+        batchSize: 1000,
+        interactionThrottle: 50,
+        enableSpatialIndex: false,
+        enableTextureAtlas: false,
+        enableGeometryCompression: false,
+        maxVisibleNodes: 1000,
+        enablePerformanceMonitoring: true,
+        fpsTarget: 30
+      }
+    },
+    nodeStyle: { 
+      defaultSize: 32, 
+      fontSize: 12,
+      sizeMultiplier: 1.0,
+      randomSVGSelection: true,
+      selectedSVGIndex: 0,
+      fillMode: 'transparent' as const,
+      fillOpacity: 0.08,
+      strokeWidth: 1.5,
+      textPosition: 'bottom' as const
+    }
   },
   production: {
-    g6: { renderer: 'auto' },
-    nodeStyle: { defaultSize: 28, fontSize: 11 }
+    g6: { 
+      renderer: 'canvas',
+      pixelRatio: 2,
+      fitView: true,
+      webglOptimization: {
+        enableInstancedRendering: true,
+        enableFrustumCulling: true,
+        enableDirtyRectangleRendering: false,
+        enableCulling: true,
+        enableLOD: true,
+        lodZoomThresholds: { low: 0.1, medium: 0.5, high: 1.0 },
+        nodeSegments: { low: 4, medium: 8, high: 16 },
+        enableBatching: true,
+        batchSize: 5000,
+        interactionThrottle: 16,
+        enableSpatialIndex: true,
+        enableTextureAtlas: true,
+        enableGeometryCompression: true,
+        maxVisibleNodes: 10000,
+        enablePerformanceMonitoring: false,
+        fpsTarget: 60
+      }
+    },
+    nodeStyle: { 
+      defaultSize: 28, 
+      fontSize: 11,
+      sizeMultiplier: 1.0,
+      randomSVGSelection: true,
+      selectedSVGIndex: 0,
+      fillMode: 'transparent' as const,
+      fillOpacity: 0.08,
+      strokeWidth: 1.5,
+      textPosition: 'bottom' as const
+    }
   },
   minimal: {
-    g6: { renderer: 'canvas' },
-    edgeStyle: { defaultEdgeWidth: 0.5, edgeOpacity: 0.3 },
-    nodeStyle: { defaultSize: 20, fontSize: 9 }
+    g6: { 
+      renderer: 'canvas',
+      pixelRatio: 2,
+      fitView: true,
+      webglOptimization: {
+        enableInstancedRendering: false,
+        enableFrustumCulling: true,
+        enableDirtyRectangleRendering: false,
+        enableCulling: true,
+        enableLOD: true,
+        lodZoomThresholds: { low: 0.2, medium: 0.6, high: 1.2 },
+        nodeSegments: { low: 4, medium: 6, high: 8 },
+        enableBatching: true,
+        batchSize: 2000,
+        interactionThrottle: 33,
+        enableSpatialIndex: true,
+        enableTextureAtlas: false,
+        enableGeometryCompression: true,
+        maxVisibleNodes: 5000,
+        enablePerformanceMonitoring: false,
+        fpsTarget: 30
+      }
+    },
+    edgeStyle: { 
+      defaultEdgeWidth: 0.5, 
+      edgeOpacity: 0.3,
+      arrowShape: 'triangle' as const
+    },
+    nodeStyle: { 
+      defaultSize: 20, 
+      fontSize: 9,
+      sizeMultiplier: 1.0,
+      randomSVGSelection: true,
+      selectedSVGIndex: 0,
+      fillMode: 'transparent' as const,
+      fillOpacity: 0.08,
+      strokeWidth: 1.5,
+      textPosition: 'bottom' as const
+    }
   }
 }
 
@@ -214,13 +385,19 @@ export const useStarChartConfigStore = defineStore('projectPage-starChart-config
     let current: Record<string, unknown> = obj
     
     for (let i = 0; i < keys.length - 1; i++) {
-      if (!(keys[i] in current)) {
-        current[keys[i]] = {}
+      const key = keys[i]
+      if (key && !(key in current)) {
+        current[key] = {}
       }
-      current = current[keys[i]] as Record<string, unknown>
+      if (key && key in current) {
+        current = current[key] as Record<string, unknown>
+      }
     }
     
-    current[keys[keys.length - 1]] = value
+    const lastKey = keys[keys.length - 1]
+    if (lastKey) {
+      current[lastKey] = value
+    }
   }
   
   /**

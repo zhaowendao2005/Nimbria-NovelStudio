@@ -2,10 +2,28 @@
   <div class="starchart-topbar">
     <div class="topbar-left">
       <span class="topbar-title">📊 StarChart 可视化视图</span>
-      <span class="topbar-desc">基于 Cytoscape.js 的小说设定关系图</span>
+      <span class="topbar-desc">基于 G6 的小说设定关系图</span>
     </div>
     
     <div class="topbar-right">
+      <!-- 节点和边数量显示 -->
+      <div class="graph-stats">
+        <el-tooltip content="节点数量" placement="bottom">
+          <div class="stat-item">
+            <el-icon><Connection /></el-icon>
+            <span class="stat-value">{{ starChartStore.nodeCount }}</span>
+          </div>
+        </el-tooltip>
+        <el-tooltip content="边数量" placement="bottom">
+          <div class="stat-item">
+            <el-icon><Share /></el-icon>
+            <span class="stat-value">{{ starChartStore.edgeCount }}</span>
+          </div>
+        </el-tooltip>
+      </div>
+      
+      <el-divider direction="vertical" />
+      
       <!-- 滚轮灵敏度控制 -->
       <div class="sensitivity-control">
         <span class="control-label">滚轮灵敏度</span>
@@ -42,8 +60,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Plus, Refresh, Download } from '@element-plus/icons-vue'
-import { useStarChartConfigStore } from '@stores/projectPage/starChart'
+import { Plus, Refresh, Download, Connection, Share } from '@element-plus/icons-vue'
+import { useStarChartStore, useStarChartConfigStore } from '@stores/projectPage/starChart'
 
 const emit = defineEmits<{
   'create-view': []
@@ -52,6 +70,7 @@ const emit = defineEmits<{
   'sensitivity-change': [sensitivity: number]
 }>()
 
+const starChartStore = useStarChartStore()
 const configStore = useStarChartConfigStore()
 
 // 滚轮灵敏度（从store获取，保持联动）
@@ -103,6 +122,43 @@ const handleSensitivityChange = (value: number) => {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+/* 图表统计信息 */
+.graph-stats {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 12px;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: help;
+  
+  .el-icon {
+    font-size: 16px;
+    color: var(--obsidian-text-secondary);
+  }
+  
+  .stat-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--obsidian-text-primary);
+    min-width: 30px;
+    text-align: right;
+  }
+  
+  &:hover {
+    .el-icon {
+      color: var(--el-color-primary);
+    }
+    .stat-value {
+      color: var(--el-color-primary);
+    }
+  }
 }
 
 /* 滚轮灵敏度控制 */
