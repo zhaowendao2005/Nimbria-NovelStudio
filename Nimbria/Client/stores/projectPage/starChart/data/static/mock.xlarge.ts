@@ -59,7 +59,7 @@ export class MockXLargeDataSource extends StaticDataSource {
    */
   async loadGraphData(options?: LoadOptions): Promise<G6GraphData> {
     if (!this.cachedData) {
-      console.log('[MockXLargeDataSource] 开始生成 10000 节点数据...')
+      console.log(`[MockXLargeDataSource] 开始生成 ${TARGET_NODE_COUNT} 节点数据（${TREE_COUNT} 棵树）...`)
       const startTime = performance.now()
       this.cachedData = this.generateMultiTreeData()
       const endTime = performance.now()
@@ -72,13 +72,13 @@ export class MockXLargeDataSource extends StaticDataSource {
    * 生成多棵树的数据
    * 
    * 结构设计：
-   * - 100棵树（每棵树约100个节点）
+   * - ${TREE_COUNT}棵树（每棵树约${AVG_NODES_PER_TREE}个节点）
    * - 每棵树的层级：根节点 → 3-5个分支 → 每分支5-8个子节点 → 部分有孙节点 → 部分有曾孙节点
    * - 每棵树有独立的颜色和groupId
-   * - 总节点数约 10000 个
+   * - 总节点数约 ${TARGET_NODE_COUNT} 个
+   * - 总边数约 ${TARGET_NODE_COUNT - TREE_COUNT} 条（节点数 - 树数量）
    */
   private generateMultiTreeData(): G6GraphData {
-    const TREE_COUNT = 100
     const nodes: G6Node[] = []
     const edges: G6Edge[] = []
     const rootIds: string[] = []
