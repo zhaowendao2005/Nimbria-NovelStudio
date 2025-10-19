@@ -46,8 +46,16 @@ const DEFAULT_CONFIG: StarChartConfig = {
   g6: {
     renderer: 'canvas',  // 默认使用 Canvas
     pixelRatio: 2,
-    fitView: true
-    // ✅ webglOptimization 已清理
+    fitView: true,
+    // Canvas 优化配置（默认全部启用以获得最佳性能）
+    canvasOptimization: {
+      enableOffscreen: true,           // 启用离屏渲染（双缓存）
+      enableFrustumCulling: true,      // 启用视锥剔除
+      enableGroupByTypes: true,        // 按类型分组渲染
+      enableCSSTransform: true,        // CSS 变换加速
+      pixelRatioMode: 'auto',          // 自动选择像素比
+      paintSelector: 'all'             // 绘制所有状态
+    }
   }
 }
 
@@ -55,9 +63,17 @@ const DEFAULT_CONFIG: StarChartConfig = {
 const CONFIG_PRESETS: Record<ConfigPreset, Partial<StarChartConfig>> = {
   performance: {
     g6: { 
-      renderer: 'webgl',
+      renderer: 'canvas',
       pixelRatio: 2,
-      fitView: true
+      fitView: true,
+      canvasOptimization: {
+        enableOffscreen: true,
+        enableFrustumCulling: true,
+        enableGroupByTypes: true,
+        enableCSSTransform: true,
+        pixelRatioMode: 'performance',  // 性能优先
+        paintSelector: 'none'            // 禁用选中效果以提升性能
+      }
     },
     nodeStyle: { 
       defaultSize: 24, 
@@ -75,7 +91,15 @@ const CONFIG_PRESETS: Record<ConfigPreset, Partial<StarChartConfig>> = {
     g6: { 
       renderer: 'canvas',
       pixelRatio: 2,
-      fitView: true
+      fitView: true,
+      canvasOptimization: {
+        enableOffscreen: true,
+        enableFrustumCulling: false,     // 开发时可能需要看到所有节点
+        enableGroupByTypes: true,
+        enableCSSTransform: true,
+        pixelRatioMode: 'quality',       // 开发时优先清晰度
+        paintSelector: 'all'
+      }
     },
     nodeStyle: { 
       defaultSize: 32, 
@@ -93,7 +117,15 @@ const CONFIG_PRESETS: Record<ConfigPreset, Partial<StarChartConfig>> = {
     g6: { 
       renderer: 'canvas',
       pixelRatio: 2,
-      fitView: true
+      fitView: true,
+      canvasOptimization: {
+        enableOffscreen: true,
+        enableFrustumCulling: true,
+        enableGroupByTypes: true,
+        enableCSSTransform: true,
+        pixelRatioMode: 'auto',          // 生产环境自动选择
+        paintSelector: 'all'
+      }
     },
     nodeStyle: { 
       defaultSize: 28, 
@@ -111,7 +143,15 @@ const CONFIG_PRESETS: Record<ConfigPreset, Partial<StarChartConfig>> = {
     g6: { 
       renderer: 'canvas',
       pixelRatio: 2,
-      fitView: true
+      fitView: true,
+      canvasOptimization: {
+        enableOffscreen: false,          // 最小配置，禁用离屏渲染
+        enableFrustumCulling: false,
+        enableGroupByTypes: false,
+        enableCSSTransform: false,
+        pixelRatioMode: 'auto',
+        paintSelector: 'all'
+      }
     },
     edgeStyle: { 
       defaultEdgeWidth: 0.5, 
@@ -177,7 +217,7 @@ export const useStarChartConfigStore = defineStore('projectPage-starChart-config
    */
   const applyPreset = (preset: ConfigPreset) => {
     const presetConfig = CONFIG_PRESETS[preset]
-    config.value = merge(structuredClone(DEFAULT_CONFIG), presetConfig)
+    config.value = merge(structuredClone(DEFAULT_CONFIG) as unknown as Record<string, unknown>, presetConfig as Record<string, unknown>) as unknown as StarChartConfig
     activePreset.value = preset
     saveConfig()
   }
@@ -234,7 +274,7 @@ export const useStarChartConfigStore = defineStore('projectPage-starChart-config
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored) {
         const state = JSON.parse(stored)
-        config.value = merge(structuredClone(DEFAULT_CONFIG), state.config || {})
+        config.value = merge(structuredClone(DEFAULT_CONFIG) as unknown as Record<string, unknown>, state.config || {}) as unknown as StarChartConfig
         activePreset.value = state.activePreset || 'production'
         dataSource.value = state.dataSource || 'mock-normal'
         currentLayoutType.value = state.currentLayoutType || 'multi-root-radial'

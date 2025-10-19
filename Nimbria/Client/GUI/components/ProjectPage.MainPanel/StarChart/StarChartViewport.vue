@@ -164,9 +164,10 @@ async function preloadGraphInstance() {
           autoFit: 'view' as const
         }
         
-        // 🔥 合并插件特定配置
+        // 🔥 合并插件特定配置 + Canvas 优化配置
         if (plugin) {
-          const pluginConfig = PluginRegistry.getMergedGraphConfig(plugin.name)
+          const canvasOptimization = configStore.config.g6.canvasOptimization
+          const pluginConfig = PluginRegistry.getMergedGraphConfig(plugin.name, canvasOptimization)
           Object.assign(baseConfig, pluginConfig)
           console.log(`[StarChartViewport] 📦 合并插件 ${plugin.name} 配置:`, pluginConfig)
         }

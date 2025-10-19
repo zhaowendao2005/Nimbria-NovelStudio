@@ -67,16 +67,38 @@ export interface NodeStyleConfig {
   fontSize: number                // 字体大小 (8-16)
 }
 
-// ✅ WebGLOptimizationConfig 已清理
+/**
+ * Canvas 性能优化配置
+ */
+export interface CanvasOptimizationConfig {
+  // 离屏渲染（最关键）
+  enableOffscreen: boolean          // 启用离屏渲染（双缓存）- 大幅提升拖动/缩放帧率
+  
+  // 视锥体剔除
+  enableFrustumCulling: boolean     // 启用视锥剔除 - 只渲染可见节点，大规模数据必备
+  
+  // 渲染优化
+  enableGroupByTypes: boolean       // 按类型分组渲染 - 减少状态切换
+  enableCSSTransform: boolean       // CSS 变换加速 - 快速缩放平移
+  
+  // 像素比优化
+  pixelRatioMode: 'auto' | 'performance' | 'quality'  // 像素比模式
+  customPixelRatio?: number         // 自定义像素比 (0.5-3.0)
+  
+  // 高级选项
+  paintSelector: 'all' | 'none'     // 绘制选中/悬停状态
+}
 
 /**
  * G6 专属配置
  */
 export interface G6Config {
   renderer: 'canvas' | 'webgl' | 'svg'  // G6 渲染器类型（手动选择）
-  pixelRatio: number               // 设备像素比
+  pixelRatio: number               // 设备像素比（已废弃，使用 canvasOptimization.pixelRatioMode）
   fitView: boolean                 // 自动适应视口
-  // ✅ webglOptimization 已清理（G6 内置优化已足够）
+  
+  // Canvas 优化配置
+  canvasOptimization: CanvasOptimizationConfig
 }
 
 /**

@@ -8,7 +8,7 @@
  * - 配置合并：提供插件配置的统一获取接口
  */
 
-import type { ILayoutPlugin, PluginMetadata } from './types'
+import type { ILayoutPlugin } from './types'
 
 export class PluginRegistry {
   private static plugins = new Map<string, ILayoutPlugin>()
@@ -127,9 +127,11 @@ export class PluginRegistry {
   /**
    * 获取插件合并后的 Graph 配置
    * 在创建 Graph 实例时调用
+   * @param pluginName 插件名称
+   * @param canvasOptimization 用户配置的 Canvas 优化选项（可选）
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  static getMergedGraphConfig(pluginName: string): Record<string, any> {
+  static getMergedGraphConfig(pluginName: string, canvasOptimization?: any): Record<string, any> {
     const plugin = this.plugins.get(pluginName)
     if (!plugin) {
       console.warn(`[PluginRegistry] 插件 "${pluginName}" 不存在，返回空配置`)
@@ -150,6 +152,62 @@ export class PluginRegistry {
       const pluginConfig = plugin.getGraphConfig()
       Object.assign(config, pluginConfig)
       console.log(`[PluginRegistry] 插件 ${pluginName} 提供自定义配置:`, pluginConfig)
+    }
+    
+    // 🔥 合并用户的 Canvas 优化配置
+    if (canvasOptimization) {
+      // 离屏渲染
+      if (canvasOptimization.enableOffscreen !== undefined) {
+        config.offscreen = canvasOptimization.enableOffscreen
+      }
+      
+      // 视锥剔除
+      if (canvasOptimization.enableFrustumCulling !== undefined) {
+        config.enableFrustumCulling = canvasOptimization.enableFrustumCulling
+      }
+      
+      // 按类型分组
+      if (canvasOptimization.enableGroupByTypes !== undefined) {
+        config.groupByTypes = canvasOptimization.enableGroupByTypes
+      }
+      
+      // CSS 变换加速
+      if (canvasOptimization.enableCSSTransform !== undefined) {
+        config.supportsCSSTransform = canvasOptimization.enableCSSTransform
+      }
+      
+      // 像素比
+      if (canvasOptimization.pixelRatioMode) {
+        switch (canvasOptimization.pixelRatioMode) {
+          case 'performance':
+            config.pixelRatio = 1
+            break
+          case 'quality':
+            config.pixelRatio = window.devicePixelRatio || 2
+            break
+          case 'auto':
+          default:
+            config.pixelRatio = window.devicePixelRatio > 1.5 ? 1.5 : 1
+            break
+        }
+      }
+      if (canvasOptimization.customPixelRatio !== undefined) {
+        config.pixelRatio = canvasOptimization.customPixelRatio
+      }
+      
+      // 绘制选择器
+      if (canvasOptimization.paintSelector) {
+        config.paintSelector = canvasOptimization.paintSelector
+      }
+      
+      console.log(`[PluginRegistry] 应用 Canvas 优化配置:`, {
+        offscreen: config.offscreen,
+        enableFrustumCulling: config.enableFrustumCulling,
+        groupByTypes: config.groupByTypes,
+        supportsCSSTransform: config.supportsCSSTransform,
+        pixelRatio: config.pixelRatio,
+        paintSelector: config.paintSelector
+      })
     }
     
     return config
@@ -205,7 +263,7 @@ export class PluginRegistry {
   /**
    * 获取所有插件元数据
    */
-  static getAllMetadata(): PluginMetadata[] {
+  static getAllMetadata() {
     return Array.from(this.plugins.values()).map(plugin => ({
       name: plugin.name,
       displayName: plugin.displayName,
