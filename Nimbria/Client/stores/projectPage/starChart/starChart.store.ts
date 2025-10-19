@@ -223,8 +223,9 @@ export const useStarChartStore = defineStore('projectPage-starChart', () => {
       'data-adapt': '数据适配',
       'layout-calc': '布局计算',
       'style-gen': '样式生成',
-      'g6-init': 'G6初始化',
-      'rendering': '渲染中',
+      'g6-preload': 'G6实例预热',
+      'g6-data-load': '数据分批加载',
+      'g6-render': '分帧渲染',
       'completed': '完成',
       'error': '错误'
     }

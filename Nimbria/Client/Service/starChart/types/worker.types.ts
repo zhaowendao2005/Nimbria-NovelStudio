@@ -14,38 +14,10 @@ export interface GraphConfig {
   width: number
   height: number
   renderer: 'canvas' | 'webgl' | 'svg'
-  webglOptimization?: WebGLOptimizationConfig
+  // ✅ webglOptimization 已清理
 }
 
-/**
- * WebGL 优化配置
- */
-export interface WebGLOptimizationConfig {
-  enableInstancedRendering: boolean
-  enableFrustumCulling: boolean
-  enableDirtyRectangleRendering: boolean
-  enableCulling: boolean
-  enableLOD: boolean
-  enableBatching: boolean
-  enableSpatialIndex: boolean
-  enableTextureAtlas: boolean
-  enableGeometryCompression: boolean
-  enablePerformanceMonitoring: boolean
-  lodZoomThresholds: {
-    low: number
-    medium: number
-    high: number
-  }
-  nodeSegments: {
-    low: number
-    medium: number
-    high: number
-  }
-  batchSize: number
-  interactionThrottle: number
-  maxVisibleNodes: number
-  fpsTarget: number
-}
+// ✅ WebGLOptimizationConfig 已清理
 
 /**
  * 用户配置
@@ -75,7 +47,7 @@ export interface InitializationWorkerMessage {
     containerWidth: number
     containerHeight: number
     rendererType: 'canvas' | 'webgl' | 'svg'
-    webglOptimization?: WebGLOptimizationConfig
+    // ✅ webglOptimization 已清理
   }
   
   // 可选：用户配置
@@ -89,8 +61,9 @@ export type InitializationStage =
   | 'data-adapt'    // 数据适配
   | 'layout-calc'   // 布局计算（零碰撞预分配）
   | 'style-gen'     // 样式生成
-  | 'g6-init'       // G6初始化（主线程执行）
-  | 'rendering'     // 渲染（主线程执行）
+  | 'g6-preload'    // G6实例预热（主线程执行）
+  | 'g6-data-load'  // G6数据分批加载（主线程执行）
+  | 'g6-render'     // G6分帧渲染（主线程执行）
   | 'completed'     // 完成
   | 'error'         // 错误
 

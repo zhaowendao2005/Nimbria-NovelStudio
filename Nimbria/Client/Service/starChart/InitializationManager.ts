@@ -20,7 +20,7 @@ export interface InitializationConfig {
   graphData: InitializationWorkerMessage['data']['graphData']
   layoutOptions: LayoutOptions
   rendererType: 'canvas' | 'webgl' | 'svg'
-  webglOptimization?: InitializationWorkerMessage['data']['webglOptimization']
+  // ✅ webglOptimization 已清理
 }
 
 /**
@@ -75,23 +75,16 @@ export class InitializationManager {
       this.createWorker()
       
       // 构建消息数据
-      const messageData: InitializationWorkerMessage['data'] = {
-        graphData: config.graphData,
-        layoutOptions: config.layoutOptions,
-        containerWidth: config.layoutOptions.width || 800,
-        containerHeight: config.layoutOptions.height || 600,
-        rendererType: config.rendererType
-      }
-      
-      // 只有在有值时才添加 webglOptimization
-      if (config.webglOptimization) {
-        messageData.webglOptimization = config.webglOptimization
-      }
-      
       const message: InitializationWorkerMessage = {
         command: 'start-init',
         pluginName: config.pluginName,
-        data: messageData
+        data: {
+          graphData: config.graphData,
+          layoutOptions: config.layoutOptions,
+          containerWidth: config.layoutOptions.width || 800,
+          containerHeight: config.layoutOptions.height || 600,
+          rendererType: config.rendererType
+        }
       }
       
       // 序列化整个消息以移除 Proxy 和不可序列化对象

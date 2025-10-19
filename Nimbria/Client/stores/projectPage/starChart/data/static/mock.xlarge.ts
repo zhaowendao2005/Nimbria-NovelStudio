@@ -6,24 +6,48 @@
  * - 多棵独立的树（每组是一棵树）
  * - 严格的层级结构（便于径向扩散）
  * - 完整的树结构信息（tree, treesData, rootIds）
- * - 10000+ 节点，适合 WebGL 性能测试
+ * - 可配置节点数，适合性能测试
  */
+
+// ========== 📊 数据规模配置（可修改） ==========
+/**
+ * 目标节点总数
+ * 修改这个值来控制生成的节点数量
+ * 推荐值：
+ * - 2000-5000: 中等规模测试
+ * - 5000-10000: 大规模测试
+ * - 10000+: 极限性能测试
+ */
+const TARGET_NODE_COUNT = 2000
+
+/**
+ * 树的数量
+ * 自动计算：目标节点数 / 每棵树的平均节点数（约100个）
+ */
+const TREE_COUNT = Math.max(1, Math.round(TARGET_NODE_COUNT / 100))
+
+/**
+ * 每棵树的平均节点数（根据目标自动计算）
+ */
+const AVG_NODES_PER_TREE = Math.round(TARGET_NODE_COUNT / TREE_COUNT)
+// ================================================
 
 import type { G6GraphData, G6Node, G6Edge, TreeNodeData } from '../types'
 import type { DataSourceMetadata } from '../base/DataSourceTypes'
 import { StaticDataSource, type LoadOptions } from '../base/DataSourceBase'
 
 /**
- * 超大规模性能测试数据源（10000节点，100棵树）
+ * 可配置规模的性能测试数据源
+ * 当前配置：${TARGET_NODE_COUNT} 节点，${TREE_COUNT} 棵树
  */
 export class MockXLargeDataSource extends StaticDataSource {
   readonly metadata: DataSourceMetadata = {
     id: 'mock-xlarge',
-    name: '多根径向树（10000节点）',
+    name: `多根径向树（${TARGET_NODE_COUNT}节点）`,
     category: 'static',
-    description: '100棵独立树形结构，专为 WebGL 大规模性能测试设计',
-    estimatedNodeCount: 10000,
-    estimatedEdgeCount: 9900,
+    description: `${TREE_COUNT}棵独立树形结构，专为性能测试设计`,
+    estimatedNodeCount: TARGET_NODE_COUNT,
+    estimatedEdgeCount: TARGET_NODE_COUNT - TREE_COUNT,  // 边数 = 节点数 - 树的数量
     recommendedLayouts: ['compact-box'],
     requiresPreprocessing: false
   }

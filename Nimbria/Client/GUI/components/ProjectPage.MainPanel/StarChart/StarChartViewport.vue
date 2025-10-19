@@ -4,7 +4,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch, onBeforeUnmount, nextTick, computed } from 'vue'
-import { Graph, type GraphData } from '@antv/g6'
+import { Graph } from '@antv/g6'
 import { Renderer as CanvasRenderer } from '@antv/g-canvas'
 import { Renderer as WebGLRenderer } from '@antv/g-webgl'
 import { Renderer as SVGRenderer } from '@antv/g-svg'
@@ -34,7 +34,9 @@ const configStore = useStarChartConfigStore()
 // Refs
 const containerRef = ref<HTMLDivElement>()
 let graphInstance: Graph | null = null
+let preloadedGraphInstance: Graph | null = null  // 预热的G6实例
 let isInitializing = false  // 防止重复初始化
+let isPreloading = false  // 防止重复预热
 
 /**
  * 获取当前插件
@@ -75,238 +77,9 @@ const getRenderer = () => {
   }
 }
 
-/**
- * 获取 WebGL 优化配置
- */
-const getWebGLOptimizationConfig = () => {
-  const webglConfig = configStore.config.g6.webglOptimization
-  const rendererType = configStore.config.g6.renderer
-  
-  // 只在 WebGL 渲染器时应用优化配置
-  if (rendererType !== 'webgl') {
-    return {}
-  }
-  
-  console.log('[StarChartViewport] 应用 WebGL 优化配置:', webglConfig)
-  
-  return {
-    // 渲染优化
-    enableInstancedRendering: webglConfig.enableInstancedRendering,
-    enableDirtyRectangleRendering: webglConfig.enableDirtyRectangleRendering,
-    enableCulling: webglConfig.enableCulling,
-    
-    // 性能优化
-    optimize: {
-      enableFrustumCulling: webglConfig.enableFrustumCulling,
-      enableBatching: webglConfig.enableBatching,
-      batchSize: webglConfig.batchSize,
-      maxVisibleNodes: webglConfig.maxVisibleNodes,
-      enableSpatialIndex: webglConfig.enableSpatialIndex,
-      enableTextureAtlas: webglConfig.enableTextureAtlas,
-      enableGeometryCompression: webglConfig.enableGeometryCompression,
-    },
-    
-    // 交互优化
-    interaction: {
-      throttle: webglConfig.interactionThrottle,
-    },
-    
-    // 性能监控
-    performance: {
-      enableMonitoring: webglConfig.enablePerformanceMonitoring,
-      fpsTarget: webglConfig.fpsTarget,
-    }
-  }
-}
-
-/**
- * 应用 WebGL 特有优化
- */
-const applyWebGLOptimizations = (graph: Graph) => {
-  const webglConfig = configStore.config.g6.webglOptimization
-  
-  try {
-    // LOD 系统实现
-    if (webglConfig.enableLOD) {
-      setupLODSystem(graph, webglConfig)
-    }
-    
-    // 性能监控
-    if (webglConfig.enablePerformanceMonitoring) {
-      setupPerformanceMonitoring(graph, webglConfig)
-    }
-    
-    // 视锥剔除
-    if (webglConfig.enableFrustumCulling) {
-      setupFrustumCulling(graph, webglConfig)
-    }
-    
-    console.log('[StarChartViewport] WebGL 优化应用完成')
-  } catch (error) {
-    console.error('[StarChartViewport] WebGL 优化应用失败:', error)
-  }
-}
-
-/**
- * 设置 LOD 系统
- */
-const setupLODSystem = (graph: Graph, config: typeof configStore.config.g6.webglOptimization) => {
-  let currentLODLevel = 'high'
-  
-  const updateLOD = (zoomLevel: number) => {
-    let newLODLevel = 'high'
-    
-    if (zoomLevel < config.lodZoomThresholds.low) {
-      newLODLevel = 'low'
-    } else if (zoomLevel < config.lodZoomThresholds.medium) {
-      newLODLevel = 'medium'
-    }
-    
-    if (newLODLevel !== currentLODLevel) {
-      currentLODLevel = newLODLevel
-      
-      // 更新节点细节级别
-      const nodeSegments = config.nodeSegments[newLODLevel as keyof typeof config.nodeSegments]
-      
-      console.log(`[StarChartViewport] LOD 切换到 ${newLODLevel} 级别，节点段数: ${nodeSegments}`)
-      
-      // LOD 系统：根据缩放级别调整渲染细节
-      // 注意：动态更新节点样式需要根据具体的 G6 版本 API 来实现
-      // 这里主要记录 LOD 级别变化，实际的几何体优化由 WebGL 渲染器处理
-      console.log(`[StarChartViewport] LOD 级别变化: ${currentLODLevel} → ${newLODLevel}`)
-      
-      // 可以在这里触发重新渲染或样式更新
-      // 具体实现取决于 G6 版本和 WebGL 优化需求
-    }
-  }
-  
-  // 监听缩放事件
-  graph.on('viewportchange', (evt) => {
-    const zoom = (evt as unknown as Record<string, unknown>).zoom as number
-    if (zoom) {
-      updateLOD(zoom)
-    }
-  })
-}
-
-/**
- * 设置性能监控
- */
-const setupPerformanceMonitoring = (graph: Graph, config: typeof configStore.config.g6.webglOptimization) => {
-  let frameCount = 0
-  let lastTime = performance.now()
-  let fps = 0
-  
-  const monitorPerformance = () => {
-    frameCount++
-    const currentTime = performance.now()
-    
-    if (currentTime - lastTime >= 1000) {
-      fps = Math.round((frameCount * 1000) / (currentTime - lastTime))
-      
-      // 性能警告
-      if (fps < config.fpsTarget * 0.8) {
-        console.warn(`[StarChartViewport] 性能警告: 当前FPS ${fps}, 目标FPS ${config.fpsTarget}`)
-        
-        // 可以在这里触发自动优化
-        if (fps < 20) {
-          console.log('[StarChartViewport] 自动启用性能优化模式')
-          // 自动降低细节级别或启用更多优化
-        }
-      }
-      
-      // 更新性能信息到 store（如果需要在 UI 中显示）
-      // starChartStore.updatePerformanceInfo?.({ fps, frameCount })
-      console.log(`[StarChartViewport] 性能监控: FPS ${fps}, 帧数 ${frameCount}`)
-      
-      frameCount = 0
-      lastTime = currentTime
-    }
-    
-    requestAnimationFrame(monitorPerformance)
-  }
-  
-  monitorPerformance()
-}
-
-/**
- * 设置视锥剔除
- */
-const setupFrustumCulling = (graph: Graph, config: typeof configStore.config.g6.webglOptimization) => {
-  let visibleNodes = new Set<string>()
-  
-  const updateVisibleNodes = () => {
-    // 使用 G6 的 getZoom 和 getPosition 方法
-    const zoom = graph.getZoom() || 1
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const position = (graph.getPosition() as unknown as any) as { x: number; y: number } | undefined
-    const { x: panX, y: panY } = position || { x: 0, y: 0 }
-    
-    // 计算可视区域
-    const containerWidth = containerRef.value?.clientWidth || 800
-    const containerHeight = containerRef.value?.clientHeight || 600
-    
-    const viewBounds = {
-      left: -panX / zoom - 100, // 添加一些边距
-      right: (-panX + containerWidth) / zoom + 100,
-      top: -panY / zoom - 100,
-      bottom: (-panY + containerHeight) / zoom + 100
-    }
-    
-    const newVisibleNodes = new Set<string>()
-    let culledCount = 0
-    
-    // 检查每个节点是否在可视区域内
-    const allNodes = graph.getNodeData()
-    if (Array.isArray(allNodes)) {
-      allNodes.forEach((node: unknown) => {
-        const nodeData = node as { id: string; style?: { x?: number; y?: number } }
-        const x = nodeData.style?.x || 0
-        const y = nodeData.style?.y || 0
-        
-        const isVisible = x >= viewBounds.left && 
-                         x <= viewBounds.right && 
-                         y >= viewBounds.top && 
-                         y <= viewBounds.bottom
-        
-        if (isVisible) {
-          newVisibleNodes.add(nodeData.id)
-          
-          // 显示节点
-          if (!visibleNodes.has(nodeData.id)) {
-            void graph.showElement(nodeData.id)
-          }
-        } else {
-          culledCount++
-          
-          // 隐藏节点（如果启用了剔除）
-          if (visibleNodes.has(nodeData.id)) {
-            void graph.hideElement(nodeData.id)
-          }
-        }
-      })
-    }
-    
-    visibleNodes = newVisibleNodes
-    
-    if (culledCount > 0) {
-      console.log(`[StarChartViewport] 视锥剔除: 隐藏 ${culledCount} 个节点`)
-    }
-  }
-  
-  // 节流更新
-  let updateTimeout: NodeJS.Timeout | null = null
-  const throttledUpdate = () => {
-    if (updateTimeout) clearTimeout(updateTimeout)
-    updateTimeout = setTimeout(updateVisibleNodes, config.interactionThrottle)
-  }
-  
-  // 监听视口变化
-  graph.on('viewportchange', throttledUpdate)
-  
-  // 初始更新
-  setTimeout(updateVisibleNodes, 100)
-}
+// ✅ WebGL 优化代码已清理
+// 经验总结：G6 内置的 WebGL 优化已经足够，手动优化反而会增加主线程负担
+// 详见：.Document/总结/2025-10-19-StarChart大数据优化经验总结.md
 
 /**
  * 异步调度任务（使用浏览器空闲时间或 setTimeout）
@@ -326,18 +99,197 @@ function scheduleIdle<T>(task: () => Promise<T> | T, timeout = 32): Promise<T> {
 }
 
 /**
+ * 预热 G6 实例（在空闲时间创建）
+ */
+async function preloadGraphInstance() {
+  if (preloadedGraphInstance || isPreloading || !containerRef.value) {
+    return
+  }
+  
+  isPreloading = true
+  console.log('[StarChartViewport] 🔥 开始预热 G6 实例...')
+  
+  try {
+    await scheduleIdle(() => {
+      preloadedGraphInstance = new Graph({
+        container: containerRef.value!,
+        width: containerRef.value!.clientWidth,
+        height: containerRef.value!.clientHeight,
+        renderer: getRenderer(),
+        animation: false,  // 🔥 关键优化：关闭动画系统
+    layout: { type: 'preset' },
+        data: { nodes: [], edges: [] },
+        
+        // 基础交互行为
+    behaviors: [
+      'drag-canvas',
+      {
+        type: 'zoom-canvas',
+        key: 'zoom-canvas-behavior',
+        sensitivity: configStore.config.interaction.wheelSensitivity,
+            enableOptimize: true
+          },
+          'drag-element'
+        ],
+        
+        autoFit: 'view' as const
+      })
+      
+      // 绑定事件（只做一次）
+      preloadedGraphInstance.on('node:click', (evt) => {
+        const evtObj = evt as unknown as Record<string, unknown>
+        const itemId = evtObj.itemId
+        if (itemId && typeof itemId === 'string') {
+          starChartStore.selectNode(itemId)
+        }
+      })
+      
+      preloadedGraphInstance.on('viewportchange', (evt) => {
+        const evtObj = evt as unknown as Record<string, unknown>
+    starChartStore.updateViewport({
+          zoom: (evtObj.zoom as number) || 1,
+          pan: (evtObj.translate as { x: number; y: number }) || { x: 0, y: 0 }
+        })
+      })
+      
+      console.log('[StarChartViewport] ✅ G6 实例预热完成')
+    })
+  } catch (error) {
+    console.error('[StarChartViewport] ❌ G6 实例预热失败:', error)
+    preloadedGraphInstance = null
+  } finally {
+    isPreloading = false
+  }
+}
+
+/**
  * 推送主线程阶段进度
  */
-function pushMainThreadStage(stage: 'g6-init' | 'rendering' | 'completed', message: string, overallProgress: number) {
+function pushMainThreadStage(
+  stage: 'g6-preload' | 'g6-data-load' | 'g6-render' | 'completed', 
+  message: string, 
+  overallProgress: number,
+  details: Record<string, unknown> = {}
+) {
   starChartStore.updateProgressState({
     type: 'progress',
     stage,
     stageProgress: { dataAdapt: 100, layoutCalc: 100, styleGen: 100 },
     overallProgress,
     message,
-    details: {}
+    details
   })
-  console.log(`[StarChartViewport] 📊 主线程阶段: ${stage} - ${overallProgress}%`)
+  console.log(`[StarChartViewport] 📊 主线程阶段: ${stage} - ${overallProgress}% - ${message}`)
+}
+
+/**
+ * 一次性加载数据到 G6 实例（GPU 优化）
+ */
+async function loadDataOnce(
+  graph: Graph,
+  layoutResult: { nodes: unknown[]; edges: unknown[]; [key: string]: unknown },
+  onProgress: () => void
+) {
+  const totalNodes = layoutResult.nodes.length
+  const totalEdges = layoutResult.edges.length
+  
+  console.log(`[StarChartViewport] 📦 一次性加载数据：${totalNodes} 节点，${totalEdges} 边`)
+  
+  await scheduleIdle(() => {
+    // 🔥 关键优化：使用 setData() 一次性加载所有数据
+    // 这样 G6 内部会做批量优化，比循环 addData() 快得多
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    graph.setData(layoutResult as any)
+  })
+  
+  onProgress()
+  console.log(`[StarChartViewport] ✅ 数据加载完成：${totalNodes} 节点，${totalEdges} 边`)
+}
+
+/**
+ * 单次渲染（让 GPU 全力工作）
+ */
+async function renderOnce(
+  graph: Graph,
+  onProgress: () => void
+) {
+  console.log(`[StarChartViewport] 🎬 开始渲染 (GPU 加速)`)
+  
+  // 🔥 关键优化：只调用一次 render()，让 WebGL GPU 连续工作
+  // 不要循环调用，那样会打断 GPU 管线，反而更慢
+  await scheduleIdle(async () => {
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => {
+        void graph.render()
+        onProgress()
+        resolve()
+      })
+    })
+  })
+  
+  console.log(`[StarChartViewport] ✅ 渲染完成`)
+}
+
+/**
+ * 主线程管线：一次性加载数据并单次 GPU 渲染
+ */
+async function runMainThreadPipeline(
+  layoutResult: { nodes: unknown[]; edges: unknown[]; [key: string]: unknown },
+  performanceMetrics: InitProgressState['performanceMetrics']
+) {
+  console.log(`[StarChartViewport] 🚀 开始主线程管线`)
+  
+  // 确保有预热的实例，没有则创建
+  if (!preloadedGraphInstance) {
+    pushMainThreadStage('g6-preload', '正在预热 G6 实例...', 80)
+    await preloadGraphInstance()
+  }
+  
+  // 使用预热的实例
+  graphInstance = preloadedGraphInstance
+  preloadedGraphInstance = null  // 清空，下次重新预热
+  
+  if (!graphInstance) {
+    throw new Error('G6 实例创建失败')
+  }
+  
+  const totalNodes = layoutResult.nodes.length
+  const totalEdges = layoutResult.edges.length
+  
+  // 阶段 1: 一次性加载数据
+  pushMainThreadStage('g6-data-load', '正在加载数据...', 85)
+  await loadDataOnce(
+    graphInstance,
+    layoutResult,
+    () => {
+      pushMainThreadStage('g6-data-load', '数据加载完成', 88, { 
+        totalNodes, 
+        totalEdges 
+      })
+    }
+  )
+  
+  // 阶段 2: 单次 GPU 渲染
+  pushMainThreadStage('g6-render', '正在渲染 (GPU 加速)...', 92)
+  await renderOnce(
+    graphInstance,
+    () => {
+      pushMainThreadStage('g6-render', '渲染完成', 96)
+    }
+  )
+  
+  // 阶段 3: 标记完成
+  pushMainThreadStage('completed', '初始化完成', 100)
+  if (performanceMetrics) {
+    starChartStore.completeInitialization(performanceMetrics)
+  }
+  
+  console.log(`[StarChartViewport] ✅ 主线程管线完成`)
+  console.log(`[StarChartViewport] 📊 最终节点数: ${totalNodes}，边数: ${totalEdges}`)
+  
+  // 注意：不在这里预热下一个实例，因为 new Graph() 是同步的会阻塞主线程
+  // 预热已在 onMounted 时完成，后续需要时会自动创建
+  // void preloadGraphInstance()
 }
 
 /**
@@ -353,12 +305,12 @@ async function initGraph() {
   
   try {
     // ===== 1. 准备数据 =====
-    const data = starChartStore.graphData
+  const data = starChartStore.graphData
     if (!data || !data.nodes || data.nodes.length === 0) {
       console.error('[StarChartViewport] 无效的图数据')
-      return
-    }
-    
+    return
+  }
+
     const nodeCount = data.nodes.length
     console.log(`[StarChartViewport] 初始化 ${nodeCount} 个节点的图...`)
     
@@ -367,15 +319,14 @@ async function initGraph() {
     
     // ===== 2. 执行布局计算 =====
     const plugin = currentPlugin.value
-    if (!plugin) {
+  if (!plugin) {
       console.error('[StarChartViewport] 未找到布局插件')
-      return
-    }
-    
+    return
+  }
+
     console.log(`[StarChartViewport] 使用插件: ${plugin.name}`)
     
     let layoutResult: unknown
-    let finalStyles: unknown
     let performanceMetrics: InitProgressState['performanceMetrics'] | undefined
     
     const useOptimizedInit = supportsOptimizedInitialization(plugin)
@@ -397,8 +348,8 @@ async function initGraph() {
           width: containerRef.value!.clientWidth,
           height: containerRef.value!.clientHeight
         },
-        rendererType: configStore.config.g6.renderer,
-        webglOptimization: configStore.config.g6.webglOptimization
+        rendererType: configStore.config.g6.renderer
+        // ✅ webglOptimization 已清理
       }
       
       // 启动 Worker 初始化
@@ -445,18 +396,19 @@ async function initGraph() {
       
       layoutResult = initResult.layoutResult
       // 从数据中提取样式（样式已内联到数据的 _computedStyle 中）
-      finalStyles = extractStylesFromData()
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const _finalStyles = extractStylesFromData()
       
       console.log(`[StarChartViewport] ✅ Worker 计算完成！`)
       console.log(`[StarChartViewport] 📈 Worker耗时: ${workerTotalTime.toFixed(2)}ms`)
       console.log(`[StarChartViewport] 📊 详细指标:`, initResult.performanceMetrics)
       console.log(`[StarChartViewport] 🎯 主线程在此期间完全响应式，无阻塞！`)
       
-      // 进入主线程阶段（G6 创建和渲染）
-      pushMainThreadStage('g6-init', '正在创建 G6 实例...', 90)
+      // 进入主线程管线（分批加载 + 分帧渲染）
+      await runMainThreadPipeline(layoutResult as { nodes: unknown[]; edges: unknown[]; [key: string]: unknown }, performanceMetrics)
       
     } else {
-      // 插件不支持优化初始化，降级到标准流程
+      // 插件不支持优化初始化，降级到标准流程（简化版，直接使用管线）
       console.warn(`[StarChartViewport] ⚠️ 插件不支持异步初始化，降级到主线程（${nodeCount} 节点）`)
       console.warn(`[StarChartViewport] 主线程可能短暂阻塞，建议插件实现 IInitializationOptimizer`)
       
@@ -471,135 +423,15 @@ async function initGraph() {
       })
       
       const pluginStyles = plugin.getDefaultStyles()
-      finalStyles = plugin.mergeStyles(data, pluginStyles)
+      // 插件自己处理样式
+      plugin.mergeStyles(data, pluginStyles)
       
       starChartStore.progressState.isInitializing = false
-      starChartStore.progressState.currentProgress = 100
+      starChartStore.progressState.currentProgress = 80
+      
+      // 同样使用管线
+      await runMainThreadPipeline(layoutResult as { nodes: unknown[]; edges: unknown[]; [key: string]: unknown }, undefined)
     }
-    
-    // ===== 3. 获取优化配置 =====
-    const optimizationConfig = getWebGLOptimizationConfig()
-    
-    // ===== 4. 创建G6实例 =====
-    const graphConfig = {
-      container: containerRef.value!,
-      width: containerRef.value!.clientWidth,
-      height: containerRef.value!.clientHeight,
-      renderer: getRenderer(),
-      
-      // 使用布局计算的结果（包含树结构）
-      data: layoutResult as GraphData,
-      
-      // 使用preset布局（位置已计算）
-      layout: { type: 'preset' },
-      
-      // 使用插件提供的样式
-      node: {
-        type: 'circle',
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unnecessary-type-assertion
-        style: (finalStyles as any).node as any
-      },
-      
-      edge: {
-        type: (edge: unknown) => (edge as Record<string, unknown>).type as string || 'line',
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unnecessary-type-assertion
-        style: (finalStyles as any).edge as any
-      },
-      
-      // 交互行为（应用交互优化）
-      behaviors: [
-        'drag-canvas',
-        {
-          type: 'zoom-canvas',
-          key: 'zoom-canvas-behavior',
-          sensitivity: configStore.config.interaction.wheelSensitivity,
-          enableOptimize: true,
-          // 应用交互节流
-          ...(optimizationConfig.interaction && {
-            throttle: optimizationConfig.interaction.throttle
-          })
-        },
-        'drag-element',
-      ],
-      
-      autoFit: 'view' as const,
-      
-      // 应用 WebGL 优化配置
-      ...optimizationConfig,
-    }
-    
-    // 如果是 WebGL 渲染器，添加特殊的性能监控
-    if (configStore.config.g6.renderer === 'webgl') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const layoutData = layoutResult as any
-      console.log('[StarChartViewport] WebGL 渲染器配置:', {
-        节点数: layoutData.nodes?.length || 0,
-        边数: layoutData.edges?.length || 0,
-        优化配置: optimizationConfig
-      })
-      
-      // WebGL 特有的性能提示
-      const nodeCount = layoutData.nodes?.length || 0
-      if (nodeCount > 10000 && !optimizationConfig.optimize?.enableBatching) {
-        console.warn('[StarChartViewport] 建议为大规模数据启用批处理优化')
-      }
-    }
-    
-    // ===== 5. 使用 requestIdleCallback 异步创建 G6 实例 =====
-    console.log(`[StarChartViewport] 🎨 准备创建 G6 实例（${nodeCount} 节点）...`)
-    
-    await scheduleIdle(() => {
-      const g6StartTime = performance.now()
-      
-      console.log(`[StarChartViewport] 🎨 开始创建 G6 实例（${nodeCount} 节点）...`)
-      graphInstance = new Graph(graphConfig)
-      
-      const g6CreateTime = performance.now() - g6StartTime
-      console.log(`[StarChartViewport] ⚡ G6 实例创建耗时: ${g6CreateTime.toFixed(2)}ms`)
-      
-      // 事件绑定
-      graphInstance.on('node:click', (evt) => {
-        const evtObj = evt as unknown as Record<string, unknown>
-        const itemId = evtObj.itemId
-        if (itemId && typeof itemId === 'string') {
-          starChartStore.selectNode(itemId)
-        }
-      })
-      
-      graphInstance.on('viewportchange', (evt) => {
-        const evtObj = evt as unknown as Record<string, unknown>
-        starChartStore.updateViewport({
-          zoom: (evtObj.zoom as number) || 1,
-          pan: (evtObj.translate as { x: number; y: number }) || { x: 0, y: 0 }
-        })
-      })
-    })
-    
-    // ===== 6. 使用 requestIdleCallback 异步渲染 =====
-    pushMainThreadStage('rendering', '正在渲染图形...', 95)
-    
-    await scheduleIdle(async () => {
-      const renderStartTime = performance.now()
-      console.log(`[StarChartViewport] 🖼️ 开始渲染...`)
-      
-      await graphInstance!.render()
-      
-      const renderTime = performance.now() - renderStartTime
-      console.log(`[StarChartViewport] ✅ 渲染完成！耗时: ${renderTime.toFixed(2)}ms`)
-    })
-    
-    // ===== 7. 应用 WebGL 特有优化 =====
-    if (configStore.config.g6.renderer === 'webgl' && graphInstance) {
-      applyWebGLOptimizations(graphInstance)
-    }
-    
-    // ===== 8. 标记完成 =====
-    pushMainThreadStage('completed', '初始化完成', 100)
-    if (performanceMetrics) {
-      starChartStore.completeInitialization(performanceMetrics)
-    }
-    
-    console.log('[StarChartViewport] G6 初始化完成')
   } catch (error) {
     console.error('[StarChartViewport] 初始化失败:', error)
   } finally {
@@ -623,7 +455,9 @@ onMounted(() => {
   // 确保配置已加载
   configStore.loadConfig()
   
+  // 预热 G6 实例（异步，不阻塞）
   void nextTick(() => {
+    void preloadGraphInstance()
     void initGraph()
   })
 })
@@ -632,6 +466,10 @@ onBeforeUnmount(() => {
   if (graphInstance) {
     graphInstance.destroy()
     graphInstance = null
+  }
+  if (preloadedGraphInstance) {
+    preloadedGraphInstance.destroy()
+    preloadedGraphInstance = null
   }
 })
 

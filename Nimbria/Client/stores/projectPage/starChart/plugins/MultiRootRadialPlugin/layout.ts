@@ -305,8 +305,8 @@ export class MultiRootRadialLayoutAlgorithm {
       width,
       height,
       baseRadiusMultiplier = 1,
-      baseDistance = 100,
-      hierarchyStep = 50
+      baseDistance = 300,
+      hierarchyStep = 800
     } = config
     
     console.log('[MultiRootRadialLayout] 🚀 使用零碰撞预分配算法')

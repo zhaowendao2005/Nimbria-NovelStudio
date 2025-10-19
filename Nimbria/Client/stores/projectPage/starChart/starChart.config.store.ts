@@ -46,46 +46,8 @@ const DEFAULT_CONFIG: StarChartConfig = {
   g6: {
     renderer: 'canvas',  // 默认使用 Canvas
     pixelRatio: 2,
-    fitView: true,
-    webglOptimization: {
-      // 渲染优化
-      enableInstancedRendering: true,
-      enableFrustumCulling: true,
-      enableDirtyRectangleRendering: false,
-      enableCulling: true,
-      
-      // LOD 系统
-      enableLOD: true,
-      lodZoomThresholds: {
-        low: 0.1,
-        medium: 0.5,
-        high: 1.0
-      },
-      
-      // 几何体优化
-      nodeSegments: {
-        low: 4,      // 方形
-        medium: 8,   // 八边形
-        high: 16     // 接近圆形
-      },
-      
-      // 批处理优化
-      enableBatching: true,
-      batchSize: 5000,
-      
-      // 交互优化
-      interactionThrottle: 16,  // 60fps
-      enableSpatialIndex: true,
-      
-      // 内存优化
-      enableTextureAtlas: true,
-      enableGeometryCompression: true,
-      maxVisibleNodes: 10000,
-      
-      // 性能监控
-      enablePerformanceMonitoring: false,
-      fpsTarget: 60
-    }
+    fitView: true
+    // ✅ webglOptimization 已清理
   }
 }
 
@@ -95,25 +57,7 @@ const CONFIG_PRESETS: Record<ConfigPreset, Partial<StarChartConfig>> = {
     g6: { 
       renderer: 'webgl',
       pixelRatio: 2,
-      fitView: true,
-      webglOptimization: {
-        enableInstancedRendering: true,
-        enableFrustumCulling: true,
-        enableDirtyRectangleRendering: false,
-        enableCulling: true,
-        enableLOD: true,
-        lodZoomThresholds: { low: 0.05, medium: 0.3, high: 0.8 },
-        nodeSegments: { low: 4, medium: 6, high: 12 },
-        enableBatching: true,
-        batchSize: 10000,
-        interactionThrottle: 16,
-        enableSpatialIndex: true,
-        enableTextureAtlas: true,
-        enableGeometryCompression: true,
-        maxVisibleNodes: 50000,
-        enablePerformanceMonitoring: true,
-        fpsTarget: 60
-      }
+      fitView: true
     },
     nodeStyle: { 
       defaultSize: 24, 
@@ -131,25 +75,7 @@ const CONFIG_PRESETS: Record<ConfigPreset, Partial<StarChartConfig>> = {
     g6: { 
       renderer: 'canvas',
       pixelRatio: 2,
-      fitView: true,
-      webglOptimization: {
-        enableInstancedRendering: false,
-        enableFrustumCulling: false,
-        enableDirtyRectangleRendering: false,
-        enableCulling: false,
-        enableLOD: false,
-        lodZoomThresholds: { low: 0.1, medium: 0.5, high: 1.0 },
-        nodeSegments: { low: 8, medium: 12, high: 24 },
-        enableBatching: false,
-        batchSize: 1000,
-        interactionThrottle: 50,
-        enableSpatialIndex: false,
-        enableTextureAtlas: false,
-        enableGeometryCompression: false,
-        maxVisibleNodes: 1000,
-        enablePerformanceMonitoring: true,
-        fpsTarget: 30
-      }
+      fitView: true
     },
     nodeStyle: { 
       defaultSize: 32, 
@@ -167,25 +93,7 @@ const CONFIG_PRESETS: Record<ConfigPreset, Partial<StarChartConfig>> = {
     g6: { 
       renderer: 'canvas',
       pixelRatio: 2,
-      fitView: true,
-      webglOptimization: {
-        enableInstancedRendering: true,
-        enableFrustumCulling: true,
-        enableDirtyRectangleRendering: false,
-        enableCulling: true,
-        enableLOD: true,
-        lodZoomThresholds: { low: 0.1, medium: 0.5, high: 1.0 },
-        nodeSegments: { low: 4, medium: 8, high: 16 },
-        enableBatching: true,
-        batchSize: 5000,
-        interactionThrottle: 16,
-        enableSpatialIndex: true,
-        enableTextureAtlas: true,
-        enableGeometryCompression: true,
-        maxVisibleNodes: 10000,
-        enablePerformanceMonitoring: false,
-        fpsTarget: 60
-      }
+      fitView: true
     },
     nodeStyle: { 
       defaultSize: 28, 
@@ -203,25 +111,7 @@ const CONFIG_PRESETS: Record<ConfigPreset, Partial<StarChartConfig>> = {
     g6: { 
       renderer: 'canvas',
       pixelRatio: 2,
-      fitView: true,
-      webglOptimization: {
-        enableInstancedRendering: false,
-        enableFrustumCulling: true,
-        enableDirtyRectangleRendering: false,
-        enableCulling: true,
-        enableLOD: true,
-        lodZoomThresholds: { low: 0.2, medium: 0.6, high: 1.2 },
-        nodeSegments: { low: 4, medium: 6, high: 8 },
-        enableBatching: true,
-        batchSize: 2000,
-        interactionThrottle: 33,
-        enableSpatialIndex: true,
-        enableTextureAtlas: false,
-        enableGeometryCompression: true,
-        maxVisibleNodes: 5000,
-        enablePerformanceMonitoring: false,
-        fpsTarget: 30
-      }
+      fitView: true
     },
     edgeStyle: { 
       defaultEdgeWidth: 0.5, 

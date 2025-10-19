@@ -67,48 +67,7 @@ export interface NodeStyleConfig {
   fontSize: number                // 字体大小 (8-16)
 }
 
-/**
- * WebGL 优化配置
- */
-export interface WebGLOptimizationConfig {
-  // 渲染优化
-  enableInstancedRendering: boolean     // 启用实例化渲染
-  enableFrustumCulling: boolean        // 启用视锥剔除
-  enableDirtyRectangleRendering: boolean // 启用脏矩形渲染
-  enableCulling: boolean               // 启用剔除优化
-  
-  // LOD (Level of Detail) 系统
-  enableLOD: boolean                   // 启用 LOD 系统
-  lodZoomThresholds: {
-    low: number                        // 低细节阈值 (< 0.1)
-    medium: number                     // 中等细节阈值 (< 0.5)
-    high: number                       // 高细节阈值 (>= 0.5)
-  }
-  
-  // 几何体优化
-  nodeSegments: {
-    low: number                        // 低细节节点段数 (4-6)
-    medium: number                     // 中等细节节点段数 (8-12)
-    high: number                       // 高细节节点段数 (16-32)
-  }
-  
-  // 批处理优化
-  enableBatching: boolean              // 启用几何体批处理
-  batchSize: number                    // 批处理大小 (1000-10000)
-  
-  // 交互优化
-  interactionThrottle: number          // 交互事件节流 (16-100ms)
-  enableSpatialIndex: boolean          // 启用空间索引
-  
-  // 内存优化
-  enableTextureAtlas: boolean          // 启用纹理图集
-  enableGeometryCompression: boolean   // 启用几何体压缩
-  maxVisibleNodes: number              // 最大可见节点数 (1000-50000)
-  
-  // 性能监控
-  enablePerformanceMonitoring: boolean // 启用性能监控
-  fpsTarget: number                    // 目标帧率 (30-60)
-}
+// ✅ WebGLOptimizationConfig 已清理
 
 /**
  * G6 专属配置
@@ -117,7 +76,7 @@ export interface G6Config {
   renderer: 'canvas' | 'webgl' | 'svg'  // G6 渲染器类型（手动选择）
   pixelRatio: number               // 设备像素比
   fitView: boolean                 // 自动适应视口
-  webglOptimization: WebGLOptimizationConfig  // WebGL 优化配置
+  // ✅ webglOptimization 已清理（G6 内置优化已足够）
 }
 
 /**
