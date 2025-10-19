@@ -8,7 +8,7 @@
 /**
  * 数据源类型
  */
-export type DataSourceType = 'mock-large' | 'mock-normal' | 'mcrecipe-static' | 'gun'
+export type DataSourceType = 'mock-xlarge' | 'mock-large' | 'mock-normal' | 'mcrecipe-static' | 'gun'
 
 /**
  * 布局类型

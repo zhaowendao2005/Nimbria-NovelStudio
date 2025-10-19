@@ -59,6 +59,14 @@
                     size="default"
                   >
                     <el-option 
+                      label="WebGL 性能测试（10000节点）" 
+                      value="mock-xlarge"
+                    >
+                      <span style="float: left">WebGL 性能测试</span>
+                      <span style="float: right; color: #e6a23c; font-size: 12px; margin-left: 12px">10000节点</span>
+                    </el-option>
+                    
+                    <el-option 
                       label="性能测试数据（400节点）" 
                       value="mock-large"
                     >
@@ -696,8 +704,12 @@ const onLayoutChange = async (layoutType: LayoutType) => {
 // 🆕 切换 G6 渲染器类型（Canvas/WebGL/SVG）
 const onG6RendererChange = async (rendererType: 'canvas' | 'webgl' | 'svg') => {
   try {
+    console.log(`[WritingPanel] 切换渲染器: ${configStore.config.g6.renderer} → ${rendererType}`)
+    
     // 更新配置（会自动触发重新初始化）
     configStore.updateConfig('g6.renderer', rendererType)
+    
+    console.log(`[WritingPanel] 配置更新完成，当前渲染器: ${configStore.config.g6.renderer}`)
     
     // 用户反馈
     const rendererNames: Record<string, string> = {
@@ -711,7 +723,7 @@ const onG6RendererChange = async (rendererType: 'canvas' | 'webgl' | 'svg') => {
       duration: 2000
     })
     
-    console.log(`[WritingPanel] 开始切换渲染器: ${rendererType}`)
+    console.log(`[WritingPanel] 渲染器切换完成: ${rendererType}`)
   } catch (error) {
     console.error('[WritingPanel] 切换 G6 渲染器失败:', error)
     ElMessage({

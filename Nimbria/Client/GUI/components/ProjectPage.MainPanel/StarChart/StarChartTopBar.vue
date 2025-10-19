@@ -105,23 +105,33 @@ const handleSensitivityChange = (value: number) => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1;
+  min-width: 0; /* 允许收缩 */
+  overflow: hidden; /* 防止溢出 */
 }
 
 .topbar-title {
   font-size: 14px;
   font-weight: 600;
   color: var(--obsidian-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .topbar-desc {
   font-size: 12px;
   color: var(--obsidian-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .topbar-right {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0; /* 防止右侧被压缩 */
 }
 
 /* 图表统计信息 */

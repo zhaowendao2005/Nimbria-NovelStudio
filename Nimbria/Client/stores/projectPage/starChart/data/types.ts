@@ -26,7 +26,8 @@ export {
  */
 export type DataSourceType = 
   | 'mock-normal'       // 测试数据A（30节点）
-  | 'mock-large'        // 测试数据B（100节点）
+  | 'mock-xlarge'       // 测试数据C（10000节点）
+  | 'mock-large'        // 测试数据B（400节点）
   | 'mcrecipe-static'   // MC配方静态数据
   | 'gun'               // GUN动态数据源
   | 'api'               // API数据源

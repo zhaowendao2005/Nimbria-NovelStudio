@@ -272,6 +272,7 @@ export const useStarChartConfigStore = defineStore('projectPage-starChart-config
   const updateConfig = (path: string, value: unknown) => {
     setNestedProperty(config.value, path, value)
     activePreset.value = 'custom'
+    saveConfig() // 立即保存配置
   }
   
   /**

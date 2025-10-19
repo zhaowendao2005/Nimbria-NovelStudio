@@ -9,6 +9,7 @@ import type { DataSourceMetadata } from './base/DataSourceTypes'
 // 导入所有数据源
 import { mockNormalDataSource } from './static/mock.normal'
 import { mockLargeDataSource } from './static/mock.large'
+import { mockXLargeDataSource } from './static/mock.xlarge'
 // import { mcrecipeDataSource } from './static/mcrecipe.static'
 // import { gunDataSource } from './dynamic/gun.adapter'
 
@@ -22,6 +23,7 @@ export class DataSourceManager {
     // 注册所有数据源
     this.register(mockNormalDataSource)
     this.register(mockLargeDataSource)
+    this.register(mockXLargeDataSource)
     // this.register(mcrecipeDataSource)
     // this.register(gunDataSource)
   }
