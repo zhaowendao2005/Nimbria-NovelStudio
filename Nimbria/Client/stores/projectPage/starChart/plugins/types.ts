@@ -185,3 +185,18 @@ export type EdgeStyleMap = Record<string, Partial<EdgeStyleData>>
  * 适配后的数据（泛型）
  */
 export type AdaptedData = G6GraphData
+
+// ==================== 优化初始化相关类型 ====================
+
+export type {
+  IInitializationOptimizer,
+  InitializationResult,
+  PerformanceMetrics
+} from './types/initializer.types'
+
+export {
+  ProgressCalculator,
+  PerformanceTimer,
+  ProcessingSpeedCalculator,
+  supportsOptimizedInitialization
+} from './types/initializer.types'

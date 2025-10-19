@@ -6,40 +6,15 @@
     
     <el-collapse v-model="activeNames" class="writing-collapse">
       <!-- 中央控制台 -->
-      <el-collapse-item title="中央控制台" name="category1">
-        <div class="collapse-content">
-          <div class="control-panel-intro">
-            <p class="intro-text">
-              🎛️ 项目中央控制台
-            </p>
-            <p class="intro-desc">
-              统一管理和控制项目的核心功能与系统设置
-            </p>
-            <el-button type="primary" @click="handleOpenControlPanel">
-              打开控制台
-            </el-button>
-          </div>
-        </div>
-      </el-collapse-item>
+      <ControlPanel />
 
-      <!-- 分类二: StarChart 可视化视图 -->
-      <el-collapse-item title="StarChart 可视化视图" name="category2">
-        <div class="collapse-content">
-          <div class="starchart-intro">
-            <p class="intro-text">
-              📊 基于 Cytoscape.js 的小说设定关系图可视化系统
-            </p>
-            <p class="intro-desc">
-              可视化展示角色、地点、事件、物品等元素之间的关系网络
-            </p>
-            <el-button type="primary" @click="handleOpenStarChart">
-              创建视图
-            </el-button>
-          </div>
-        </div>
-      </el-collapse-item>
+      <!-- StarChart 可视化视图 -->
+      <StarChartPanel />
 
-      <!-- 分类三: StarChart 配置 -->
+      <!-- 初始化进度监听 -->
+      <InitProgressPanel ref="initProgressPanelRef" />
+
+      <!-- StarChart 配置 -->
       <el-collapse-item title="StarChart 配置" name="category3">
         <div class="collapse-content-config">
           <div class="starchart-config-card">
@@ -626,6 +601,11 @@ import { useStarChartConfigStore, useStarChartStore } from '@stores/projectPage/
 import type { ConfigPreset, DataSourceType, LayoutType } from '@stores/projectPage/starChart/starChart.config.types'
 import { SVG_NODE_ICONS } from '@stores/projectPage/starChart'
 
+// 导入 Panel 组件
+import ControlPanel from './panels/ControlPanel.vue'
+import StarChartPanel from './panels/StarChartPanel.vue'
+import InitProgressPanel from './panels/InitProgressPanel.vue'
+
 /**
  * WritingPanel
  * NovelAgent 面板
@@ -641,29 +621,25 @@ const configStore = useStarChartConfigStore()
 // 🆕 使用 starChart store（用于访问节点数等信息）
 const starChartStore = useStarChartStore()
 
+// InitProgressPanel ref
+const initProgressPanelRef = ref<InstanceType<typeof InitProgressPanel>>()
+
 // 初始化配置
 configStore.loadConfig()
 
-// 打开中央控制台
-const handleOpenControlPanel = async () => {
-  try {
-    const { CustomPageAPI } = await import('../../../../../Service/CustomPageManager')
-    await CustomPageAPI.open('control-panel')
-    console.log('[WritingPanel] 打开中央控制台')
-  } catch (error) {
-    console.error('[WritingPanel] 打开中央控制台失败:', error)
+// 暴露 initProgressPanel 的方法给外部使用
+defineExpose({
+  updateInitProgress: (state: Record<string, unknown>) => {
+    if (initProgressPanelRef.value) {
+      initProgressPanelRef.value.updateProgress(state)
+    }
+  },
+  resetInitProgress: () => {
+    if (initProgressPanelRef.value) {
+      initProgressPanelRef.value.reset()
+    }
   }
-}
-
-// 打开 StarChart 视图
-const handleOpenStarChart = async () => {
-  try {
-    const { CustomPageAPI } = await import('../../../../../Service/CustomPageManager')
-    await CustomPageAPI.open('starchart-view')
-  } catch (error) {
-    console.error('[WritingPanel] 打开 StarChart 失败:', error)
-  }
-}
+})
 
 // 配置预设变更
 const onPresetChange = (preset: ConfigPreset | 'custom') => {
@@ -717,19 +693,14 @@ const onG6RendererChange = async (rendererType: 'canvas' | 'webgl' | 'svg') => {
       webgl: 'WebGL（高性能）',
       svg: 'SVG（矢量）'
     }
-    ElMessage({
-      message: `正在切换渲染器到: ${rendererNames[rendererType]}...`,
-      type: 'info',
-      duration: 2000
-    })
+    
+    ElMessage.info(`正在切换渲染器到: ${rendererNames[rendererType]}...`)
     
     console.log(`[WritingPanel] 渲染器切换完成: ${rendererType}`)
   } catch (error) {
     console.error('[WritingPanel] 切换 G6 渲染器失败:', error)
-    ElMessage({
-      message: '渲染器切换失败',
-      type: 'error'
-    })
+    
+    ElMessage.error('渲染器切换失败')
   }
 }
 
@@ -786,48 +757,12 @@ const handleResetConfig = async () => {
 
 /* Collapse 容器占满剩余空间 */
 .writing-collapse {
-  flex: 0 0 auto; /* 自动调整高度，不占满剩余空间 */
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   --el-collapse-border-color: var(--obsidian-border-color);
   --el-collapse-header-bg-color: var(--obsidian-background-secondary);
   --el-collapse-header-text-color: var(--obsidian-text-primary);
-}
-
-/* 折叠内容区域高度自适应 */
-.collapse-content {
-  min-height: 200px; /* 最小高度 */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* 中央控制台介绍卡片 */
-.control-panel-intro {
-  text-align: center;
-  padding: 24px;
-  max-width: 400px;
-}
-
-/* StarChart 介绍卡片 */
-.starchart-intro {
-  text-align: center;
-  padding: 24px;
-  max-width: 400px;
-}
-
-.intro-text {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--obsidian-text-primary);
-  margin-bottom: 12px;
-}
-
-.intro-desc {
-  font-size: 12px;
-  color: var(--obsidian-text-secondary);
-  margin-bottom: 20px;
-  line-height: 1.6;
 }
 
 /* StarChart 配置面板 */

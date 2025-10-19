@@ -13,6 +13,13 @@ import { PluginRegistry } from '@stores/projectPage/starChart/plugins'
 import type { 
   ILayoutPlugin
 } from '@stores/projectPage/starChart/plugins/types'
+import { supportsOptimizedInitialization } from '@stores/projectPage/starChart/plugins/types'
+import { 
+  initializationManager,
+  type InitializationConfig,
+  type InitializationCompleteResult 
+} from '@service/starChart/InitializationManager'
+import type { InitializationProgressMessage } from '@service/starChart/types/worker.types'
 
 /**
  * StarChartViewport - 插件化版本
@@ -230,8 +237,8 @@ const setupFrustumCulling = (graph: Graph, config: typeof configStore.config.g6.
   const updateVisibleNodes = () => {
     // 使用 G6 的 getZoom 和 getPosition 方法
     const zoom = graph.getZoom() || 1
-    const position = (graph.getPosition() as unknown as { x: number; y: number }) || { x: 0, y: 0 }
-    const { x: panX, y: panY } = position
+    const position = graph.getPosition() as { x: number; y: number } | undefined
+    const { x: panX, y: panY } = position || { x: 0, y: 0 }
     
     // 计算可视区域
     const containerWidth = containerRef.value?.clientWidth || 800
@@ -336,15 +343,74 @@ const initGraph = async () => {
       graphInstance = null
     }
     
-    // ===== 1. 执行布局计算（插件内部处理数据适配） =====
-    const layoutResult = await plugin.execute(data, {
-      width: containerRef.value.clientWidth,
-      height: containerRef.value.clientHeight
-    })
+    // 检查是否支持优化初始化（节点数大于1000时使用）
+    const nodeCount = data.nodes?.length || 0
+    const useOptimizedInit = nodeCount > 1000 && supportsOptimizedInitialization(plugin)
     
-    // ===== 2. 获取样式规则 =====
-    const pluginStyles = plugin.getDefaultStyles()
-    const finalStyles = plugin.mergeStyles(data, pluginStyles)
+    let layoutResult: unknown
+    let finalStyles: unknown
+    
+    if (useOptimizedInit) {
+      console.log(`[StarChartViewport] 使用优化初始化流程（${nodeCount} 节点）`)
+      
+      // ===== 优化初始化流程（使用 Worker） =====
+      const initConfig: InitializationConfig = {
+        pluginName: plugin.name,
+        graphData: data,
+        layoutOptions: {
+          width: containerRef.value.clientWidth,
+          height: containerRef.value.clientHeight
+        },
+        rendererType: configStore.config.g6.renderer,
+        webglOptimization: configStore.config.g6.webglOptimization
+      }
+      
+      // 启动 Worker 初始化
+      const initResult = await new Promise<InitializationCompleteResult>((resolve, reject) => {
+        try {
+          initializationManager.startInitialization(
+            initConfig,
+            // 进度回调
+            (progress: InitializationProgressMessage) => {
+              console.log(`[StarChartViewport] 进度: ${progress.stage} - ${progress.progress}%`)
+              // TODO: 将进度信息传递给 InitProgressPanel
+              // 可以通过 emit 或 store 实现
+            },
+            // 完成回调
+            (result: InitializationCompleteResult) => {
+              console.log(`[StarChartViewport] 初始化完成`)
+              resolve(result)
+            },
+            // 错误回调
+            (error: string) => {
+              console.error(`[StarChartViewport] 初始化失败:`, error)
+              reject(new Error(error))
+            }
+          )
+        } catch (error) {
+          reject(error)
+        }
+      })
+      
+      layoutResult = initResult.layoutResult
+      finalStyles = initResult.finalStyles
+      
+      console.log('[StarChartViewport] Worker 计算完成，性能指标:', initResult.performanceMetrics)
+      
+    } else {
+      console.log(`[StarChartViewport] 使用标准初始化流程（${nodeCount} 节点）`)
+      
+      // ===== 标准初始化流程（主线程） =====
+      // 1. 执行布局计算
+      layoutResult = await plugin.execute(data, {
+        width: containerRef.value.clientWidth,
+        height: containerRef.value.clientHeight
+      })
+      
+      // 2. 获取样式规则
+      const pluginStyles = plugin.getDefaultStyles()
+      finalStyles = plugin.mergeStyles(data, pluginStyles)
+    }
     
     // ===== 3. 获取优化配置 =====
     const optimizationConfig = getWebGLOptimizationConfig()
@@ -357,7 +423,7 @@ const initGraph = async () => {
       renderer: getRenderer(),
       
       // 使用布局计算的结果（包含树结构）
-      data: layoutResult as unknown as GraphData,
+      data: layoutResult as GraphData,
       
       // 使用preset布局（位置已计算）
       layout: { type: 'preset' },
@@ -366,13 +432,13 @@ const initGraph = async () => {
       node: {
         type: 'circle',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        style: finalStyles.node as any
+        style: (finalStyles as any).node as any
       },
       
       edge: {
         type: (edge: unknown) => (edge as Record<string, unknown>).type as string || 'line',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        style: finalStyles.edge as any
+        style: (finalStyles as any).edge as any
       },
       
       // 交互行为（应用交互优化）
@@ -399,14 +465,16 @@ const initGraph = async () => {
     
     // 如果是 WebGL 渲染器，添加特殊的性能监控
     if (configStore.config.g6.renderer === 'webgl') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const layoutData = layoutResult as any
       console.log('[StarChartViewport] WebGL 渲染器配置:', {
-        节点数: layoutResult.nodes?.length || 0,
-        边数: layoutResult.edges?.length || 0,
+        节点数: layoutData.nodes?.length || 0,
+        边数: layoutData.edges?.length || 0,
         优化配置: optimizationConfig
       })
       
       // WebGL 特有的性能提示
-      const nodeCount = layoutResult.nodes?.length || 0
+      const nodeCount = layoutData.nodes?.length || 0
       if (nodeCount > 10000 && !optimizationConfig.optimize?.enableBatching) {
         console.warn('[StarChartViewport] 建议为大规模数据启用批处理优化')
       }

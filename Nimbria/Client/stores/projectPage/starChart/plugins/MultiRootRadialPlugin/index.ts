@@ -25,6 +25,10 @@ import type {
   RadialAdapterOutput
 } from './data.types'
 
+// 导出初始化优化器
+export { MultiRootRadialInitializationOptimizer, multiRootRadialOptimizer } from './InitializationOptimizer'
+export type { IInitializationOptimizer } from '../types/initializer.types'
+
 // 为类型安全起见保留别名
 type G6NodeData = G6Node
 type G6EdgeData = G6Edge
