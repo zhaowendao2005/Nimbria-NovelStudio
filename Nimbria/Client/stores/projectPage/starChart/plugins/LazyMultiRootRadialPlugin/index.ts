@@ -9,7 +9,7 @@ import { LazyStyleService } from './styles'
 import { LazyDataManager } from './LazyDataManager'
 import { LazyTreeManager } from './LazyTreeManager'
 import { CollapsibleNodeBehavior } from './CollapsibleNodeBehavior'
-import { LAZY_RADIAL_EDGE_TYPE } from './LazyRadialEdge'
+import { LazyRadialEdge, LAZY_RADIAL_EDGE_TYPE } from './LazyRadialEdge'
 import type {
   DataFormat,
   StyleRules,
@@ -40,12 +40,20 @@ export class LazyMultiRootRadialPlugin extends BaseLayoutPlugin {
   
   override supportedDataFormats: DataFormat[] = ['graph' as DataFormat, 'multi-tree' as DataFormat]
   
+  // 🔥 插件不需要 G6 内置树结构（我们自己维护）
+  requiresTreeStructure = false
+  
   // 内部组件
   private layoutEngine: LazyLayoutEngine
   private styleService: LazyStyleService
   private dataManager: LazyDataManager | null = null
   private treeManager: LazyTreeManager | null = null
   private behavior: CollapsibleNodeBehavior | null = null
+  
+  // Graph 实例引用（由 onGraphCreated 设置）
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private graphInstance: any = null
+  private layoutOptionsCache: LayoutOptions | null = null
   
   // 插件配置
   private pluginConfig: LazyPluginConfig = {
@@ -58,6 +66,101 @@ export class LazyMultiRootRadialPlugin extends BaseLayoutPlugin {
     super()
     this.layoutEngine = new LazyLayoutEngine()
     this.styleService = new LazyStyleService()
+  }
+  
+  // ===== 生命周期钩子实现 =====
+  
+  /**
+   * 返回插件需要的自定义边
+   */
+  getCustomEdges() {
+    return {
+      [LAZY_RADIAL_EDGE_TYPE]: LazyRadialEdge
+    }
+  }
+  
+  /**
+   * 返回插件特定的 Graph 配置
+   */
+  getGraphConfig() {
+    return {
+      animation: false,  // 大数据量优化：关闭动画
+      // 其他插件特定配置可在此添加
+    }
+  }
+  
+  /**
+   * Graph 实例创建后的钩子
+   * 在此初始化交互行为
+   */
+  async onGraphCreated(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    graph: any,
+    container: HTMLElement
+  ): Promise<void> {
+    console.log('[LazyPlugin] 🎯 Graph 实例已创建，保存引用')
+    
+    // 保存 Graph 实例引用
+    this.graphInstance = graph
+    
+    // 如果数据管理器已就绪，立即初始化行为
+    if (this.dataManager && this.treeManager && this.layoutOptionsCache) {
+      console.log('[LazyPlugin] 🚀 数据已就绪，立即初始化行为')
+      this.initializeBehaviorIfNeeded()
+    } else {
+      console.log('[LazyPlugin] ⏳ 等待 execute 完成后初始化行为...')
+    }
+  }
+  
+  /**
+   * 自动初始化行为（由插件内部调用）
+   * 在 Graph 实例和数据管理器都就绪后调用
+   */
+  private initializeBehaviorIfNeeded() {
+    if (!this.graphInstance) {
+      console.warn('[LazyPlugin] ⚠️ Graph 实例未就绪')
+      return
+    }
+    
+    if (!this.dataManager || !this.treeManager) {
+      console.warn('[LazyPlugin] ⚠️ 数据管理器未就绪')
+      return
+    }
+    
+    if (!this.layoutOptionsCache) {
+      console.warn('[LazyPlugin] ⚠️ 布局选项未就绪')
+      return
+    }
+    
+    // 清理旧行为
+    if (this.behavior) {
+      this.behavior.cleanup()
+    }
+    
+    // 创建新行为
+    this.behavior = new CollapsibleNodeBehavior(
+      this.graphInstance,
+      this.dataManager,
+      this.treeManager,
+      this.layoutEngine,
+      this.styleService,
+      {
+        width: this.layoutOptionsCache.width ?? 800,
+        height: this.layoutOptionsCache.height ?? 600,
+        baseDistance: (this.layoutOptionsCache.baseDistance as number | undefined) ?? 300,
+        hierarchyStep: (this.layoutOptionsCache.hierarchyStep as number | undefined) ?? 120,
+        baseRadiusMultiplier: (this.layoutOptionsCache.baseRadiusMultiplier as number | undefined) ?? 1
+      }
+    )
+    console.log('[LazyPlugin] ✅ 折叠展开行为已初始化（双击节点展开/收起）')
+  }
+  
+  /**
+   * 插件销毁钩子
+   */
+  async onDestroy(): Promise<void> {
+    console.log('[LazyPlugin] 🧹 开始清理插件资源...')
+    this.cleanup()
   }
   
   /**
@@ -138,6 +241,9 @@ export class LazyMultiRootRadialPlugin extends BaseLayoutPlugin {
       baseRadiusMultiplier: (options?.baseRadiusMultiplier as number | undefined) ?? 1
     }
     
+    // 缓存布局选项
+    this.layoutOptionsCache = layoutOptions
+    
     const layoutResult = await this.layoutEngine.layoutInitialRoots(
       lazyData.nodes,
       lazyData.edges,
@@ -170,7 +276,15 @@ export class LazyMultiRootRadialPlugin extends BaseLayoutPlugin {
           children: initialTreesData
         }
     
-    // 8. 返回结果，附带必要的引用（用于后续懒加载）
+    // 8. 🔥 如果 Graph 实例已就绪，立即初始化行为
+    if (this.graphInstance) {
+      console.log('[LazyPlugin] 🚀 Graph 实例已就绪，立即初始化行为')
+      this.initializeBehaviorIfNeeded()
+    } else {
+      console.log('[LazyPlugin] ⏳ 等待 Graph 实例创建后初始化行为...')
+    }
+    
+    // 9. 返回结果，附带必要的引用（用于后续懒加载）
     return {
       ...layoutResult,
       nodes: styledNodes,
@@ -189,46 +303,16 @@ export class LazyMultiRootRadialPlugin extends BaseLayoutPlugin {
   }
   
   /**
-   * 初始化行为（由根组件调用）
-   */
-  initializeBehavior(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    graph: any, 
-    dataManager: LazyDataManager,
-    treeManager: LazyTreeManager,
-    layoutEngine: LazyLayoutEngine,
-    styleService: LazyStyleService,
-    layoutOptions: LayoutOptions
-  ) {
-    if (this.behavior) {
-      this.behavior.cleanup()
-    }
-    this.behavior = new CollapsibleNodeBehavior(
-      graph,
-      dataManager,
-      treeManager,
-      layoutEngine,
-      styleService,
-      {
-        width: layoutOptions.width ?? 800,
-        height: layoutOptions.height ?? 600,
-        baseDistance: (layoutOptions.baseDistance as number | undefined) ?? 300,
-        hierarchyStep: (layoutOptions.hierarchyStep as number | undefined) ?? 120,
-        baseRadiusMultiplier: (layoutOptions.baseRadiusMultiplier as number | undefined) ?? 1
-      }
-    )
-    console.log('[LazyPlugin] ✅ 折叠展开行为已初始化（双击节点展开/收起）')
-  }
-  
-  /**
-   * 销毁
+   * 清理插件资源
    */
   cleanup() {
     this.behavior?.cleanup()
     this.behavior = null
     this.dataManager = null
     this.treeManager = null
-    console.log('[LazyPlugin] 已销毁')
+    this.graphInstance = null
+    this.layoutOptionsCache = null
+    console.log('[LazyPlugin] 资源已清理')
   }
 }
 

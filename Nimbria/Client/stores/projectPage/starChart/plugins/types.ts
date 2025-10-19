@@ -95,6 +95,7 @@ export interface ILayoutPlugin {
   
   // ===== 能力声明 =====
   supportedDataFormats: DataFormat[] // 支持的数据格式
+  requiresTreeStructure?: boolean    // 是否需要树结构支持（默认 false）
   
   // ===== 核心方法 =====
   
@@ -130,6 +131,44 @@ export interface ILayoutPlugin {
    * 获取配置Schema
    */
   getConfigSchema(): ConfigSchema
+  
+  // ===== 生命周期钩子 =====
+  
+  /**
+   * 插件需要的自定义边类型
+   * 返回 { edgeType: EdgeClass } 的映射
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getCustomEdges?(): Record<string, any>
+  
+  /**
+   * 插件需要的自定义节点类型
+   * 返回 { nodeType: NodeClass } 的映射
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getCustomNodes?(): Record<string, any>
+  
+  /**
+   * 获取插件特定的 Graph 配置
+   * 这些配置会在创建 Graph 实例时合并
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getGraphConfig?(): Record<string, any>
+  
+  /**
+   * Graph 实例创建后的钩子
+   * 插件可以在这里注册事件、初始化交互行为等
+   * @param graph G6 Graph 实例
+   * @param container 容器 DOM 元素
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onGraphCreated?(graph: any, container: HTMLElement): void | Promise<void>
+  
+  /**
+   * 插件销毁钩子
+   * 插件应该在这里清理资源、解绑事件等
+   */
+  onDestroy?(): void | Promise<void>
 }
 
 // ==================== 混入系统 ====================

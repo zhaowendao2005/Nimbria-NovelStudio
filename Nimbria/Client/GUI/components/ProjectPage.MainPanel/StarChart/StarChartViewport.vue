@@ -21,14 +21,15 @@ import {
 } from '@service/starChart/InitializationManager'
 import type { InitializationProgressMessage } from '@service/starChart/types/worker.types'
 import type { InitProgressState } from '@stores/projectPage/starChart/types/progress.types'
-import { LazyMultiRootRadialPlugin, type LazyLayoutResult } from '@stores/projectPage/starChart/plugins/LazyMultiRootRadialPlugin'
-import type { LazyDataManager } from '@stores/projectPage/starChart/plugins/LazyMultiRootRadialPlugin/LazyDataManager'
-import type { LazyTreeManager } from '@stores/projectPage/starChart/plugins/LazyMultiRootRadialPlugin/LazyTreeManager'
-import { LazyRadialEdge, LAZY_RADIAL_EDGE_TYPE } from '@stores/projectPage/starChart/plugins/LazyMultiRootRadialPlugin/LazyRadialEdge'
 
 /**
- * StarChartViewport - 插件化版本
- * 使用插件系统，极大简化组件逻辑
+ * StarChartViewport - 完全通用的图表渲染组件
+ * 
+ * 重构说明：
+ * - 不再依赖任何特定插件类型或实现细节
+ * - 插件的自定义元素（边、节点）由插件自己注册
+ * - 插件的行为初始化由插件自己在 onGraphCreated 钩子中完成
+ * - ViewPort 只负责容器管理、Graph 生命周期、数据加载和渲染
  */
 
 // Stores
@@ -43,17 +44,6 @@ let isInitializing = false  // 防止重复初始化
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 let isPreloading = false  // 防止重复预热（用于调试）
 let preloadingPromise: Promise<void> | null = null  // 预热过程的Promise
-
-// 懒加载插件专用
-let lazyDataManager: LazyDataManager | null = null
-let lazyTreeManager: LazyTreeManager | null = null
-
-/**
- * 检测是否是懒加载插件
- */
-function isLazyPlugin(plugin: ILayoutPlugin | undefined): plugin is LazyMultiRootRadialPlugin {
-  return plugin instanceof LazyMultiRootRadialPlugin
-}
 
 /**
  * 获取当前插件
@@ -100,10 +90,6 @@ const getRenderer = () => {
   }
 }
 
-// ✅ WebGL 优化代码已清理
-// 经验总结：G6 内置的 WebGL 优化已经足够，手动优化反而会增加主线程负担
-// 详见：.Document/总结/2025-10-19-StarChart大数据优化经验总结.md
-
 /**
  * 异步调度任务（使用浏览器空闲时间或 setTimeout）
  */
@@ -123,6 +109,7 @@ function scheduleIdle<T>(task: () => Promise<T> | T, timeout = 32): Promise<T> {
 
 /**
  * 预热 G6 实例（在空闲时间创建）
+ * 🔥 完全通用化：不依赖任何特定插件
  * 支持并发调用，会等待同一个预热过程完成
  */
 async function preloadGraphInstance() {
@@ -149,36 +136,18 @@ async function preloadGraphInstance() {
   preloadingPromise = (async () => {
     try {
       await scheduleIdle(() => {
-        // 🔥 注册自定义边类型
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const G6 = (Graph as any)
-          const edgeInstance = new LazyRadialEdge()
-          
-          // 尝试多种注册方式
-          if (typeof G6.registerEdge === 'function') {
-            G6.registerEdge(LAZY_RADIAL_EDGE_TYPE, edgeInstance, 'line')
-            console.log(`[StarChartViewport] ✅ 使用 registerEdge 注册: ${LAZY_RADIAL_EDGE_TYPE}`)
-          } else if (typeof G6.extend === 'function') {
-            G6.extend(LAZY_RADIAL_EDGE_TYPE, edgeInstance, 'line')
-            console.log(`[StarChartViewport] ✅ 使用 extend 注册: ${LAZY_RADIAL_EDGE_TYPE}`)
-          } else {
-            console.warn(`[StarChartViewport] ⚠️ 未找到边注册方法，使用默认边`)
-          }
-        } catch (error) {
-          console.error(`[StarChartViewport] ❌ 注册自定义边失败:`, error)
-        }
+        // 获取当前插件
+        const plugin = currentPlugin.value
         
+        // 🔥 基础配置（通用）
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const graphConfig: any = {
+        const baseConfig: any = {
           container: containerRef.value!,
           width: containerRef.value!.clientWidth,
           height: containerRef.value!.clientHeight,
           renderer: getRenderer(),
-          animation: false,  // 🔥 关键优化：关闭动画系统
     layout: { type: 'preset' },
-          treeKey: 'tree',  // 🔥 关键：指定树结构键名（兼容性，现已使用自定义边）
-          data: { nodes: [], edges: [], treesData: [], tree: undefined },
+          data: { nodes: [], edges: [] },
           
           // 基础交互行为
     behaviors: [
@@ -195,9 +164,20 @@ async function preloadGraphInstance() {
           autoFit: 'view' as const
         }
         
-        preloadedGraphInstance = new Graph(graphConfig)
+        // 🔥 合并插件特定配置
+        if (plugin) {
+          const pluginConfig = PluginRegistry.getMergedGraphConfig(plugin.name)
+          Object.assign(baseConfig, pluginConfig)
+          console.log(`[StarChartViewport] 📦 合并插件 ${plugin.name} 配置:`, pluginConfig)
+        }
         
-        // 绑定事件（只做一次）
+        // 创建实例
+        preloadedGraphInstance = new Graph(baseConfig)
+        
+        // 🔥 通知插件系统 Graph 已创建（插件会自动注册自定义元素）
+        PluginRegistry.setGraphInstance(preloadedGraphInstance, containerRef.value!)
+        
+        // 绑定通用事件
         preloadedGraphInstance.on('node:click', (evt) => {
           const evtObj = evt as unknown as Record<string, unknown>
           const itemId = evtObj.itemId
@@ -264,46 +244,8 @@ async function loadDataOnce(
   await scheduleIdle(() => {
     // 🔥 关键优化：使用 setData() 一次性加载所有数据
     // 这样 G6 内部会做批量优化，比循环 addData() 快得多
-    
-    // 📊 详细日志：暴露初始化时的树结构
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const payloadAny = layoutResult as any
-    console.log(`[StarChartViewport] 📋 setData Payload:`)
-    console.log(`  - nodes 数量: ${totalNodes}`)
-    console.log(`  - edges 数量: ${totalEdges}`)
-    console.log(`  - treesData 存在: ${!!payloadAny.treesData}`)
-    console.log(`  - treesData 数量: ${payloadAny.treesData?.length || 0}`)
-    console.log(`  - trees 存在: ${!!payloadAny.trees}`)
-    console.log(`  - tree 存在: ${!!payloadAny.tree}`)
-    console.log(`  - tree.id: ${payloadAny.tree?.id || 'undefined'}`)
-    console.log(`  - tree.children 数量: ${payloadAny.tree?.children?.length || 0}`)
-    
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     graph.setData(layoutResult as any)
-    
-    // 检查 G6 内部树结构
-    console.log(`[StarChartViewport] 🔍 检查 G6 内部树结构 (setData后):`)
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const g6Data = graph.getData() as any
-      console.log(`  - G6.getData().treesData 存在: ${!!g6Data.treesData}`)
-      console.log(`  - G6.getData().treesData 数量: ${g6Data.treesData?.length || 0}`)
-      console.log(`  - G6.getData().tree 存在: ${!!g6Data.tree}`)
-      console.log(`  - G6.getData().tree.id: ${g6Data.tree?.id || 'undefined'}`)
-      
-      // 尝试直接访问内部树结构
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const graphInternal = graph as any
-      if (graphInternal.dataController) {
-        console.log(`  - dataController.trees 存在: ${!!graphInternal.dataController.trees}`)
-        console.log(`  - dataController.treeKey: ${graphInternal.dataController.treeKey || 'undefined'}`)
-      }
-      if (graphInternal.context && graphInternal.context.options) {
-        console.log(`  - context.options.treeKey: ${graphInternal.context.options.treeKey || 'undefined'}`)
-      }
-    } catch (err) {
-      console.error(`  ❌ 无法读取 G6 内部数据:`, err)
-    }
   })
   
   onProgress()
@@ -382,7 +324,16 @@ async function runMainThreadPipeline(
     }
   )
   
-  // 阶段 3: 标记完成
+  // 阶段 3: 调用插件的后处理钩子（如果需要）
+  // 🔥 新增：在渲染完成后，通知插件可以进行后处理（如初始化行为）
+  const plugin = currentPlugin.value
+  if (plugin && plugin.onGraphCreated && graphInstance && containerRef.value) {
+    console.log('[StarChartViewport] 🎯 调用插件后处理钩子...')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await plugin.onGraphCreated(graphInstance as any, containerRef.value)
+  }
+  
+  // 阶段 4: 标记完成
   pushMainThreadStage('completed', '初始化完成', 100)
   if (performanceMetrics) {
     starChartStore.completeInitialization(performanceMetrics)
@@ -398,6 +349,7 @@ async function runMainThreadPipeline(
 
 /**
  * 初始化图表
+ * 🔥 完全通用化：不再有任何插件特定逻辑
  */
 async function initGraph() {
   if (isInitializing) {
@@ -409,11 +361,11 @@ async function initGraph() {
   
   try {
     // ===== 1. 准备数据 =====
-  const data = starChartStore.graphData
+    const data = starChartStore.graphData
     if (!data || !data.nodes || data.nodes.length === 0) {
       console.error('[StarChartViewport] 无效的图数据')
-    return
-  }
+      return
+    }
 
     const nodeCount = data.nodes.length
     console.log(`[StarChartViewport] 初始化 ${nodeCount} 个节点的图...`)
@@ -423,63 +375,17 @@ async function initGraph() {
     
     // ===== 2. 执行布局计算 =====
     const plugin = currentPlugin.value
-  if (!plugin) {
+    if (!plugin) {
       console.error('[StarChartViewport] 未找到布局插件')
-    return
-  }
+      return
+    }
 
     console.log(`[StarChartViewport] 使用插件: ${plugin.name}`)
     
     let layoutResult: unknown
     let performanceMetrics: InitProgressState['performanceMetrics'] | undefined
     
-    // ===== 懒加载插件特殊处理 =====
-    if (isLazyPlugin(plugin)) {
-      const rootIds = data.rootIds ? (data.rootIds as unknown as string[]) : undefined
-      const rootCount = rootIds?.length || '未知'
-      console.log(`[StarChartViewport] 🌱 使用懒加载模式（初始仅 ${rootCount} 个根节点）`)
-      
-      starChartStore.progressState.isInitializing = true
-      starChartStore.progressState.currentStage = 'layout-calc'
-      starChartStore.progressState.currentStageLabel = '懒加载布局计算（主线程）'
-      
-      // 执行懒加载布局
-      const executeResult = await plugin.execute(data, {
-        width: containerRef.value!.clientWidth,
-        height: containerRef.value!.clientHeight
-      })
-      const lazyResult = executeResult as unknown as LazyLayoutResult
-      
-      layoutResult = lazyResult
-      
-      // 保存 dataManager 和 treeManager 以便后续懒加载
-      lazyDataManager = lazyResult._lazyDataManager || null
-      lazyTreeManager = lazyResult._treeManager || null
-      
-      const pluginStyles = plugin.getDefaultStyles()
-      plugin.mergeStyles(data, pluginStyles)
-      
-      starChartStore.progressState.currentProgress = 80
-      
-      // 进入渲染阶段
-      await runMainThreadPipeline(layoutResult as { nodes: unknown[]; edges: unknown[]; [key: string]: unknown }, undefined)
-      
-      // 🔥 关键：初始化懒加载行为
-      if (graphInstance && lazyDataManager && lazyTreeManager && lazyResult._layoutEngine && lazyResult._styleService && lazyResult._layoutOptions) {
-        console.log('[StarChartViewport] 🎯 初始化懒加载折叠展开行为')
-        plugin.initializeBehavior(
-          graphInstance, 
-          lazyDataManager,
-          lazyTreeManager,
-          lazyResult._layoutEngine,
-          lazyResult._styleService,
-          lazyResult._layoutOptions
-        )
-      }
-      
-      return
-    }
-    
+    // 检查是否支持优化初始化（Worker）
     const useOptimizedInit = supportsOptimizedInitialization(plugin)
     
     if (useOptimizedInit) {
@@ -614,9 +520,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  // 清理懒加载资源
-  lazyDataManager = null
-  lazyTreeManager = null
+  // 🔥 通知插件系统清理（插件会自动清理资源）
+  void PluginRegistry.cleanup()
   
   // 清理预热状态
   preloadingPromise = null
@@ -631,6 +536,8 @@ onBeforeUnmount(() => {
     preloadedGraphInstance.destroy()
     preloadedGraphInstance = null
   }
+  
+  console.log('[StarChartViewport] ✅ 组件卸载，资源已清理')
 })
 
 // 监听数据变化

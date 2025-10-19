@@ -46,10 +46,45 @@ export class MultiRootRadialPlugin extends BaseLayoutPlugin implements IInitiali
   
   override supportedDataFormats: DataFormat[] = ['graph' as DataFormat, 'multi-tree' as DataFormat]
   
+  // 🔥 插件需要 G6 内置树结构（使用 cubic-radial 边）
+  requiresTreeStructure = true
+  
   // 内部依赖（自包含）
   private algorithm = new MultiRootRadialLayoutAlgorithm()
   private adapter = new TreeDataAdapter()
   private hierarchyStyleHelper = new HierarchyStyleHelper()
+  
+  // ===== 生命周期钩子实现 =====
+  
+  /**
+   * 返回插件特定的 Graph 配置
+   */
+  getGraphConfig() {
+    return {
+      animation: false,  // 大数据量优化：关闭动画
+      // 其他插件特定配置可在此添加
+    }
+  }
+  
+  /**
+   * Graph 实例创建后的钩子
+   */
+  async onGraphCreated(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    graph: any,
+    container: HTMLElement
+  ): Promise<void> {
+    console.log('[MultiRootRadialPlugin] 🎯 Graph 实例已创建')
+    // 此插件不需要特殊的初始化逻辑
+  }
+  
+  /**
+   * 插件销毁钩子
+   */
+  async onDestroy(): Promise<void> {
+    console.log('[MultiRootRadialPlugin] 🧹 清理插件资源')
+    // 此插件没有需要清理的资源
+  }
   
   /**
    * 获取默认样式
