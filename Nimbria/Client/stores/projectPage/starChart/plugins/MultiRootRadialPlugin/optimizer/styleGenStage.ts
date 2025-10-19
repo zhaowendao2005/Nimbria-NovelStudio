@@ -20,15 +20,15 @@ export class StyleGenStage {
   }
   
   /**
-   * 执行样式生成
+   * 执行样式生成并应用到布局结果
    * @param layoutResult 布局结果
    * @param onProgress 进度回调
-   * @returns 最终样式规则
+   * @returns 应用了样式的布局结果
    */
   async execute(
     layoutResult: LayoutResult,
     onProgress: (progress: InitializationProgressMessage) => void
-  ): Promise<FinalStyleRules> {
+  ): Promise<LayoutResult> {
     // 阶段开始
     onProgress(this.progressCalc.createProgressMessage(
       0,
@@ -68,14 +68,14 @@ export class StyleGenStage {
       layoutResult
     )
     
-    // 4. 应用边类型
+    // 4. 应用样式到节点和边
     onProgress(this.progressCalc.createProgressMessage(
       0.8,
-      '正在配置边样式...',
+      '正在应用样式到数据...',
       {}
     ))
     
-    this.applyEdgeStyles(finalStyles, layoutResult)
+    const styledLayoutResult = this.applyStylesToData(layoutResult, finalStyles)
     
     // 完成
     onProgress(this.progressCalc.createProgressMessage(
@@ -84,7 +84,7 @@ export class StyleGenStage {
       {}
     ))
     
-    return finalStyles
+    return styledLayoutResult
   }
   
   /**
@@ -181,13 +181,54 @@ export class StyleGenStage {
   }
   
   /**
-   * 应用边样式（根据边类型）
+   * 将样式函数应用到实际数据上
+   * 返回包含内联样式的布局结果
    */
-  private applyEdgeStyles(_styles: FinalStyleRules, _layoutResult: LayoutResult): void {
-    // 边的样式已经在 mergeStyles 中处理
-    // 这里可以添加额外的边样式逻辑
+  private applyStylesToData(
+    layoutResult: LayoutResult,
+    finalStyles: FinalStyleRules
+  ): LayoutResult {
+    // 深拷贝布局结果
+    const styledResult = JSON.parse(JSON.stringify(layoutResult)) as LayoutResult
     
-    console.log('[StyleGenStage] 边样式配置完成')
+    // 应用节点样式
+    if (styledResult.nodes && Array.isArray(styledResult.nodes)) {
+      styledResult.nodes = styledResult.nodes.map((node) => {
+        const nodeStyle = typeof finalStyles.node === 'function'
+          ? finalStyles.node(node)
+          : finalStyles.node
+        
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            // 将计算后的样式存储到 data 中
+            _computedStyle: nodeStyle
+          }
+        }
+      })
+    }
+    
+    // 应用边样式
+    if (styledResult.edges && Array.isArray(styledResult.edges)) {
+      styledResult.edges = styledResult.edges.map((edge) => {
+        const edgeStyle = typeof finalStyles.edge === 'function'
+          ? finalStyles.edge(edge)
+          : finalStyles.edge
+        
+        return {
+          ...edge,
+          data: {
+            ...edge.data,
+            // 将计算后的样式存储到 data 中
+            _computedStyle: edgeStyle
+          }
+        }
+      })
+    }
+    
+    console.log('[StyleGenStage] 样式已应用到数据')
+    return styledResult
   }
 }
 

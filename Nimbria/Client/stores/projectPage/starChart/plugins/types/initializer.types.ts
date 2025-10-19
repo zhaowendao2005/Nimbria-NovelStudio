@@ -5,10 +5,11 @@
  */
 
 import type { G6GraphData, TreeNodeData } from '../../types/g6.types'
-import type { LayoutOptions, LayoutResult, FinalStyleRules } from '../types'
+import type { LayoutOptions, LayoutResult } from '../types'
 import type { 
   InitializationProgressMessage,
-  InitializationStage 
+  InitializationStage,
+  StageProgressState
 } from '@service/starChart/types/worker.types'
 
 /**
@@ -40,11 +41,8 @@ export interface IInitializationOptimizer {
  * 初始化结果
  */
 export interface InitializationResult {
-  // 布局计算结果
+  // 布局计算结果（已包含应用的样式）
   layoutResult: LayoutResult
-  
-  // 最终样式规则
-  finalStyles: FinalStyleRules
   
   // 性能指标
   performanceMetrics: PerformanceMetrics
@@ -96,21 +94,44 @@ export class ProgressCalculator {
   }
   
   /**
-   * 创建进度消息
+   * 创建进度消息（新格式，包含各阶段独立进度）
    * @param stageProgress 阶段内进度 0-1
    * @param message 消息内容
    * @param details 详细信息
+   * @param allStagesProgress 所有阶段的进度状态（可选）
    * @returns 进度消息对象
    */
   createProgressMessage(
     stageProgress: number,
     message: string,
-    details: InitializationProgressMessage['details'] = {}
+    details: InitializationProgressMessage['details'] = {},
+    allStagesProgress?: Partial<StageProgressState>
   ): InitializationProgressMessage {
+    // 计算当前阶段的百分比进度
+    const currentStagePercent = Math.round(stageProgress * 100)
+    
+    // 如果没有提供完整的进度状态，根据当前阶段推断
+    const stageProgressState: StageProgressState = {
+      dataAdapt: this.stage === 'data-adapt' ? currentStagePercent : 
+                  (allStagesProgress?.dataAdapt ?? 0),
+      layoutCalc: this.stage === 'layout-calc' ? currentStagePercent : 
+                  (allStagesProgress?.layoutCalc ?? 0),
+      styleGen: this.stage === 'style-gen' ? currentStagePercent : 
+                (allStagesProgress?.styleGen ?? 0)
+    }
+    
+    // 计算全局总进度
+    const overallProgress = Math.round(
+      (stageProgressState.dataAdapt * 0.2 + 
+       stageProgressState.layoutCalc * 0.5 + 
+       stageProgressState.styleGen * 0.3)
+    )
+    
     return {
       type: 'progress',
       stage: this.stage,
-      progress: this.calculate(stageProgress),
+      stageProgress: stageProgressState,
+      overallProgress,
       message,
       details
     }

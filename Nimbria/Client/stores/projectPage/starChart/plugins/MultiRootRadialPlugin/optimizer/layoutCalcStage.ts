@@ -4,11 +4,11 @@
  * 负责执行多根径向树布局算法，计算所有节点的位置
  */
 
-import type { G6GraphData } from '../../../types/g6.types'
 import type { LayoutOptions, LayoutResult } from '../../types'
 import type { InitializationProgressMessage } from '@service/starChart/types/worker.types'
 import { ProgressCalculator, ProcessingSpeedCalculator } from '../../types/initializer.types'
 import { MultiRootRadialLayoutAlgorithm } from '../layout'
+import type { RadialAdapterOutput } from '../data.types'
 
 /**
  * 布局计算阶段执行器
@@ -24,13 +24,13 @@ export class LayoutCalcStage {
   
   /**
    * 执行布局计算
-   * @param data 适配后的图数据
+   * @param data 适配后的图数据（包含完整树结构）
    * @param options 布局选项
    * @param onProgress 进度回调
    * @returns 布局结果
    */
   async execute(
-    data: G6GraphData,
+    data: RadialAdapterOutput,
     options: LayoutOptions,
     onProgress: (progress: InitializationProgressMessage) => void
   ): Promise<LayoutResult> {
@@ -99,7 +99,7 @@ export class LayoutCalcStage {
    * 添加进度追踪功能
    */
   private async calculateLayoutWithProgress(
-    data: G6GraphData,
+    data: RadialAdapterOutput,
     options: LayoutOptions,
     onNodeProcessed: (processedCount: number) => void
   ): Promise<LayoutResult> {
@@ -121,30 +121,39 @@ export class LayoutCalcStage {
   }
   
   /**
-   * 分批计算布局（避免阻塞）
+   * 分批计算布局（真正的异步，避免阻塞）
    */
   private async calculateInBatches(
-    data: G6GraphData,
+    data: RadialAdapterOutput,
     options: LayoutOptions,
     onBatchComplete: (batchSize: number) => void
   ): Promise<LayoutResult> {
-    // 直接调用现有的布局算法
+    console.log('[LayoutCalcStage] 🚀 开始异步分批布局计算')
+    
     const algorithm = new MultiRootRadialLayoutAlgorithm()
-    const result = algorithm.calculate(data, options)
-    
-    // 模拟分批处理进度（实际应该在算法内部实现）
     const totalNodes = data.nodes?.length || 0
-    const batchSize = Math.max(100, Math.floor(totalNodes / 10)) // 分10批
     
-    for (let i = 0; i < totalNodes; i += batchSize) {
-      const currentBatch = Math.min(batchSize, totalNodes - i)
-      onBatchComplete(currentBatch)
-      
-      // 让出控制权，避免阻塞
-      if (i + batchSize < totalNodes) {
-        await new Promise(resolve => setTimeout(resolve, 0))
-      }
+    // ===== 使用异步计算方法（内部分批） =====
+    // 构建完整的 LayoutConfig（包含 rootIds 和默认值）
+    const layoutConfig = {
+      width: options.width || 800,
+      height: options.height || 600,
+      center: options.center || [400, 300],
+      rootIds: data.rootIds
     }
+    
+    const result = await algorithm.calculateAsync(
+      data,
+      layoutConfig,
+      (stage, processed, total) => {
+        // 布局进度回调
+        const progress = total > 0 ? processed / total : 0
+        console.log(`[LayoutCalcStage] 📊 ${stage} 进度: ${processed}/${total} (${Math.round(progress * 100)}%)`)
+        onBatchComplete(Math.min(processed, totalNodes))
+      }
+    )
+    
+    console.log('[LayoutCalcStage] ✅ 异步布局计算完成')
     
     return result
   }

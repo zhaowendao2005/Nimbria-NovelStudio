@@ -24,11 +24,10 @@ export interface InitializationConfig {
 }
 
 /**
- * 初始化结果
+ * 初始化结果（从 Worker 返回）
  */
 export interface InitializationCompleteResult {
-  layoutResult: unknown
-  finalStyles: unknown
+  layoutResult: unknown  // 已包含应用了样式的节点和边数据
   performanceMetrics: {
     dataAdaptTime: number
     layoutCalcTime: number
@@ -75,7 +74,7 @@ export class InitializationManager {
       // 创建 Worker
       this.createWorker()
       
-      // 发送初始化消息
+      // 构建消息数据
       const messageData: InitializationWorkerMessage['data'] = {
         graphData: config.graphData,
         layoutOptions: config.layoutOptions,
@@ -95,8 +94,11 @@ export class InitializationManager {
         data: messageData
       }
       
+      // 序列化整个消息以移除 Proxy 和不可序列化对象
+      const serializedMessage = JSON.parse(JSON.stringify(message))
+      
       console.log('[InitializationManager] 发送初始化消息到 Worker')
-      this.worker?.postMessage(message)
+      this.worker?.postMessage(serializedMessage)
       
     } catch (error) {
       console.error('[InitializationManager] 初始化失败:', error)

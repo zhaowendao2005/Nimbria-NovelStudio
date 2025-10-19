@@ -7,27 +7,31 @@
 import type { G6GraphData, TreeNodeData } from '../../../types/g6.types'
 import type { InitializationProgressMessage } from '@service/starChart/types/worker.types'
 import { ProgressCalculator } from '../../types/initializer.types'
+import { TreeDataAdapter } from '../adapter'
+import type { RadialAdapterOutput } from '../data.types'
 
 /**
  * 数据适配阶段执行器
  */
 export class DataAdaptStage {
   private progressCalc: ProgressCalculator
+  private adapter: TreeDataAdapter
   
   constructor() {
     this.progressCalc = new ProgressCalculator('data-adapt', [0, 20])
+    this.adapter = new TreeDataAdapter()
   }
   
   /**
    * 执行数据适配
    * @param data 输入数据
    * @param onProgress 进度回调
-   * @returns 适配后的数据
+   * @returns 适配后的数据（包含完整的树结构信息）
    */
   execute(
     data: G6GraphData | TreeNodeData,
     onProgress: (progress: InitializationProgressMessage) => void
-  ): G6GraphData {
+  ): RadialAdapterOutput {
     // 阶段开始
     onProgress(this.progressCalc.createProgressMessage(
       0,
@@ -39,9 +43,9 @@ export class DataAdaptStage {
     const isGraphData = this.isGraphData(data)
     
     if (isGraphData) {
-      // 已经是图数据，直接返回
+      // 已经是图数据
       onProgress(this.progressCalc.createProgressMessage(
-        0.5,
+        0.3,
         '数据格式验证通过',
         {}
       ))
@@ -52,12 +56,24 @@ export class DataAdaptStage {
       this.validateGraphData(graphData)
       
       onProgress(this.progressCalc.createProgressMessage(
-        1.0,
-        '数据适配完成',
-        { totalNodes: graphData.nodes?.length || 0 }
+        0.6,
+        '正在构建树结构...',
+        {}
       ))
       
-      return graphData
+      // 使用 adapter 确保有完整的树结构
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const adaptedData = this.adapter.adapt(graphData as any)
+      
+      onProgress(this.progressCalc.createProgressMessage(
+        1.0,
+        '数据适配完成',
+        { totalNodes: adaptedData.nodes?.length || 0 }
+      ))
+      
+      console.log(`[DataAdaptStage] 数据适配完成: ${adaptedData.nodes.length} 节点, ${adaptedData.treesData.length} 棵树`)
+      
+      return adaptedData
     } else {
       // 树数据，需要转换为图数据
       onProgress(this.progressCalc.createProgressMessage(
@@ -67,15 +83,25 @@ export class DataAdaptStage {
       ))
       
       const treeData = data as TreeNodeData
-      const graphData = this.convertTreeToGraph(treeData, onProgress)
+      
+      onProgress(this.progressCalc.createProgressMessage(
+        0.6,
+        '正在使用适配器处理...',
+        {}
+      ))
+      
+      // 使用 adapter 处理树数据
+      const adaptedData = this.adapter.adapt(treeData)
       
       onProgress(this.progressCalc.createProgressMessage(
         1.0,
         '数据适配完成',
-        { totalNodes: graphData.nodes?.length || 0 }
+        { totalNodes: adaptedData.nodes?.length || 0 }
       ))
       
-      return graphData
+      console.log(`[DataAdaptStage] 数据适配完成: ${adaptedData.nodes.length} 节点, ${adaptedData.treesData.length} 棵树`)
+      
+      return adaptedData
     }
   }
   

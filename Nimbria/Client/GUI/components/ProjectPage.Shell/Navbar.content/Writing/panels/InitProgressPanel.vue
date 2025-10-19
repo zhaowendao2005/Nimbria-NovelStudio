@@ -12,16 +12,58 @@
       <div v-if="progressState.isInitializing" class="progress-active">
         <!-- 总进度条 -->
         <div class="progress-bar-container">
+          <div class="progress-label">总进度</div>
           <el-progress 
             :percentage="progressState.currentProgress"
             :color="getProgressColor()"
-            :show-text="false"
-            :stroke-width="12"
+            :show-text="true"
+            :stroke-width="16"
           />
-          <div class="progress-percentage">{{ progressState.currentProgress }}%</div>
         </div>
 
-        <!-- 阶段信息 -->
+        <!-- 三条独立阶段进度条 -->
+        <div class="stage-progress-bars">
+          <div class="stage-bar-item">
+            <div class="stage-bar-label">
+              <q-icon name="transform" size="14px" />
+              <span>数据适配</span>
+            </div>
+            <el-progress 
+              :percentage="progressState.stageProgress.dataAdapt"
+              color="#409eff"
+              :show-text="true"
+              :stroke-width="8"
+            />
+          </div>
+          
+          <div class="stage-bar-item">
+            <div class="stage-bar-label">
+              <q-icon name="account_tree" size="14px" />
+              <span>布局计算</span>
+            </div>
+            <el-progress 
+              :percentage="progressState.stageProgress.layoutCalc"
+              color="#e6a23c"
+              :show-text="true"
+              :stroke-width="8"
+            />
+          </div>
+          
+          <div class="stage-bar-item">
+            <div class="stage-bar-label">
+              <q-icon name="palette" size="14px" />
+              <span>样式生成</span>
+            </div>
+            <el-progress 
+              :percentage="progressState.stageProgress.styleGen"
+              color="#67c23a"
+              :show-text="true"
+              :stroke-width="8"
+            />
+          </div>
+        </div>
+
+        <!-- 当前阶段信息 -->
         <div class="stage-info">
           <el-tag 
             :type="getStageType(progressState.currentStage)"
@@ -139,36 +181,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import { useStarChartStore } from '@stores/projectPage/starChart'
-import type { InitProgressState } from '../types/panel.types'
-import { 
-  DEFAULT_INIT_PROGRESS_STATE, 
-  formatTime, 
-  getStageLabel,
-  getStageColor 
-} from '../types/panel.types'
+import { formatTime } from '../types/panel.types'
 
 /**
  * 初始化进度监听面板
+ * 直接读取 Store 的进度状态
  */
 
 const starChartStore = useStarChartStore()
 
-// 进度状态
-const progressState = ref<InitProgressState>({ ...DEFAULT_INIT_PROGRESS_STATE })
-
-// 监听 store 中的进度状态变化
-// 注意：需要在 StarChartStore 中添加进度状态的管理
-// 这里先使用本地状态，后续集成时会连接到 store
+// 直接使用 Store 的进度状态
+const progressState = computed(() => starChartStore.progressState)
 
 /**
  * 获取进度条颜色
  */
 const getProgressColor = () => {
-  if (progressState.value.currentProgress < 30) {
+  const progress = progressState.value.currentProgress
+  if (progress < 30) {
     return '#409eff' // 蓝色
-  } else if (progressState.value.currentProgress < 70) {
+  } else if (progress < 70) {
     return '#e6a23c' // 橙色
   } else {
     return '#67c23a' // 绿色
@@ -179,29 +213,31 @@ const getProgressColor = () => {
  * 获取阶段标签类型
  */
 const getStageType = (stage: string): 'success' | 'info' | 'warning' | 'danger' => {
-  const color = getStageColor(stage)
   const typeMap: Record<string, 'success' | 'info' | 'warning' | 'danger'> = {
-    'primary': 'info',
-    'warning': 'warning',
-    'success': 'success',
-    'info': 'info',
-    'danger': 'danger'
+    'data-adapt': 'info',
+    'layout-calc': 'warning',
+    'style-gen': 'success',
+    'g6-init': 'info',
+    'rendering': 'success',
+    'completed': 'success',
+    'error': 'danger'
   }
-  return typeMap[color] || 'info'
+  return typeMap[stage] || 'info'
 }
 
 /**
  * 获取当前消息
  */
 const getCurrentMessage = () => {
+  const state = progressState.value
   const stageMessages: Record<string, string> = {
     'data-adapt': '正在验证和转换数据格式...',
-    'layout-calc': `正在计算 ${progressState.value.details.totalNodes} 个节点的位置...`,
+    'layout-calc': `正在计算 ${state.details.totalNodes} 个节点的位置（零碰撞算法）...`,
     'style-gen': '正在生成样式配置和规则...',
     'g6-init': '正在初始化 G6 渲染引擎...',
     'rendering': '正在渲染图表到画布...'
   }
-  return stageMessages[progressState.value.currentStage] || '处理中...'
+  return stageMessages[state.currentStage] || '处理中...'
 }
 
 /**
@@ -217,19 +253,13 @@ const handleCancel = () => {
  * 清除错误
  */
 const handleClearError = () => {
-  progressState.value = { ...DEFAULT_INIT_PROGRESS_STATE }
+  starChartStore.resetProgress()
 }
 
-// 暴露方法供外部调用（用于更新进度）
+// 暴露方法供外部调用
 defineExpose({
-  updateProgress: (state: Partial<InitProgressState>) => {
-    progressState.value = {
-      ...progressState.value,
-      ...state
-    }
-  },
   reset: () => {
-    progressState.value = { ...DEFAULT_INIT_PROGRESS_STATE }
+    starChartStore.resetProgress()
   }
 })
 </script>
@@ -271,16 +301,39 @@ defineExpose({
 }
 
 .progress-bar-container {
-  position: relative;
+  margin-bottom: 20px;
 }
 
-.progress-percentage {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 12px;
+.progress-label {
+  font-size: 13px;
   font-weight: 600;
+  color: var(--obsidian-text-primary);
+  margin-bottom: 8px;
+}
+
+// 三条独立阶段进度条
+.stage-progress-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 12px;
+  background: var(--obsidian-background-secondary);
+  border-radius: 6px;
+}
+
+.stage-bar-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stage-bar-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
   color: var(--obsidian-text-primary);
 }
 

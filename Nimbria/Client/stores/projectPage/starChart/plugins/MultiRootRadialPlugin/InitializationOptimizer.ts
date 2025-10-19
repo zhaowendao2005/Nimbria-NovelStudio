@@ -13,6 +13,7 @@ import type {
   PerformanceMetrics
 } from '../types/initializer.types'
 import type { InitializationProgressMessage } from '@service/starChart/types/worker.types'
+import type { RadialAdapterOutput } from './data.types'
 import { PerformanceTimer } from '../types/initializer.types'
 import { DataAdaptStage } from './optimizer/dataAdaptStage'
 import { LayoutCalcStage } from './optimizer/layoutCalcStage'
@@ -50,7 +51,7 @@ export class MultiRootRadialInitializationOptimizer implements IInitializationOp
     try {
       // ===== 阶段 1: 数据适配 (0-20%) =====
       console.log('[MultiRootRadialInitializer] 阶段1: 数据适配')
-      const adaptedData = await this.dataAdaptStage.execute(data, onProgress)
+      const adaptedData: RadialAdapterOutput = this.dataAdaptStage.execute(data, onProgress)
       this.timer.mark('data-adapt-complete')
       
       // ===== 阶段 2: 布局计算 (20-50%) =====
@@ -62,9 +63,9 @@ export class MultiRootRadialInitializationOptimizer implements IInitializationOp
       )
       this.timer.mark('layout-calc-complete')
       
-      // ===== 阶段 3: 样式生成 (50-70%) =====
+      // ===== 阶段 3: 样式生成并应用 (50-70%) =====
       console.log('[MultiRootRadialInitializer] 阶段3: 样式生成')
-      const finalStyles = await this.styleGenStage.execute(
+      const styledLayoutResult = await this.styleGenStage.execute(
         layoutResult,
         onProgress
       )
@@ -79,10 +80,9 @@ export class MultiRootRadialInitializationOptimizer implements IInitializationOp
       console.log('[MultiRootRadialInitializer] 性能指标:', performanceMetrics)
       console.timeEnd('[MultiRootRadialInitializer] 总耗时')
       
-      // 返回结果
+      // 返回结果（样式已应用到 layoutResult 中）
       return {
-        layoutResult,
-        finalStyles,
+        layoutResult: styledLayoutResult,
         performanceMetrics
       }
       
@@ -93,7 +93,7 @@ export class MultiRootRadialInitializationOptimizer implements IInitializationOp
       onProgress({
         type: 'progress',
         stage: 'error',
-        progress: 0,
+        stageProgress: { dataAdapt: 0, layoutCalc: 0, styleGen: 0 },
         message: '初始化失败',
         details: {},
         error: error instanceof Error ? error.message : String(error),

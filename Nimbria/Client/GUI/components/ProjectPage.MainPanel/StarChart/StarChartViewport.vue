@@ -20,6 +20,7 @@ import {
   type InitializationCompleteResult 
 } from '@service/starChart/InitializationManager'
 import type { InitializationProgressMessage } from '@service/starChart/types/worker.types'
+import type { InitProgressState } from '@stores/projectPage/starChart/types/progress.types'
 
 /**
  * StarChartViewport - 插件化版本
@@ -237,7 +238,8 @@ const setupFrustumCulling = (graph: Graph, config: typeof configStore.config.g6.
   const updateVisibleNodes = () => {
     // 使用 G6 的 getZoom 和 getPosition 方法
     const zoom = graph.getZoom() || 1
-    const position = graph.getPosition() as { x: number; y: number } | undefined
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const position = (graph.getPosition() as unknown as any) as { x: number; y: number } | undefined
     const { x: panX, y: panY } = position || { x: 0, y: 0 }
     
     // 计算可视区域
@@ -307,59 +309,93 @@ const setupFrustumCulling = (graph: Graph, config: typeof configStore.config.g6.
 }
 
 /**
- * 初始化G6图实例
+ * 异步调度任务（使用浏览器空闲时间或 setTimeout）
  */
-const initGraph = async () => {
-  // 防止重复初始化
+function scheduleIdle<T>(task: () => Promise<T> | T, timeout = 32): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const runner = () => {
+      Promise.resolve(task()).then(resolve).catch(reject)
+    }
+    
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => runner(), { timeout })
+    } else {
+      setTimeout(runner, 0)
+    }
+  })
+}
+
+/**
+ * 推送主线程阶段进度
+ */
+function pushMainThreadStage(stage: 'g6-init' | 'rendering' | 'completed', message: string, overallProgress: number) {
+  starChartStore.updateProgressState({
+    type: 'progress',
+    stage,
+    stageProgress: { dataAdapt: 100, layoutCalc: 100, styleGen: 100 },
+    overallProgress,
+    message,
+    details: {}
+  })
+  console.log(`[StarChartViewport] 📊 主线程阶段: ${stage} - ${overallProgress}%`)
+}
+
+/**
+ * 初始化图表
+ */
+async function initGraph() {
   if (isInitializing) {
     console.log('[StarChartViewport] 正在初始化中，跳过重复调用')
     return
   }
   
-  const data = starChartStore.graphData
-  const layout = configStore.layoutConfig
-  const plugin = currentPlugin.value
-  
-  if (!containerRef.value || !data?.nodes?.length) {
-    console.log('[StarChartViewport] 初始化跳过：容器或数据未就绪')
-    return
-  }
-
-  if (!plugin) {
-    console.error(`[StarChartViewport] 未找到插件: ${layout.name}`)
-    return
-  }
-
-  console.log(`[StarChartViewport] 使用插件: ${plugin.displayName}`)
-  
-  // 设置初始化标志
   isInitializing = true
-
+  
   try {
-    // 销毁旧实例
-    if (graphInstance) {
-      console.log('[StarChartViewport] 销毁旧的图实例')
-      graphInstance.destroy()
-      graphInstance = null
+    // ===== 1. 准备数据 =====
+    const data = starChartStore.graphData
+    if (!data || !data.nodes || data.nodes.length === 0) {
+      console.error('[StarChartViewport] 无效的图数据')
+      return
     }
     
-    // 检查是否支持优化初始化（节点数大于1000时使用）
-    const nodeCount = data.nodes?.length || 0
-    const useOptimizedInit = nodeCount > 1000 && supportsOptimizedInitialization(plugin)
+    const nodeCount = data.nodes.length
+    console.log(`[StarChartViewport] 初始化 ${nodeCount} 个节点的图...`)
+    
+    // 加载最新配置
+    configStore.loadConfig()
+    
+    // ===== 2. 执行布局计算 =====
+    const plugin = currentPlugin.value
+    if (!plugin) {
+      console.error('[StarChartViewport] 未找到布局插件')
+      return
+    }
+    
+    console.log(`[StarChartViewport] 使用插件: ${plugin.name}`)
     
     let layoutResult: unknown
     let finalStyles: unknown
+    let performanceMetrics: InitProgressState['performanceMetrics'] | undefined
+    
+    const useOptimizedInit = supportsOptimizedInitialization(plugin)
     
     if (useOptimizedInit) {
-      console.log(`[StarChartViewport] 使用优化初始化流程（${nodeCount} 节点）`)
+      console.log(`[StarChartViewport] 🚀 使用异步 Worker 初始化（${nodeCount} 节点）`)
+      console.log(`[StarChartViewport] 📊 主线程保持响应，Worker 后台计算中...`)
+      
+      const workerStartTime = performance.now()
       
       // ===== 优化初始化流程（使用 Worker） =====
+      // 深拷贝数据以避免 Proxy 和不可序列化对象
+      const clonedData = JSON.parse(JSON.stringify(data))
+      
       const initConfig: InitializationConfig = {
         pluginName: plugin.name,
-        graphData: data,
+        graphData: clonedData,
         layoutOptions: {
-          width: containerRef.value.clientWidth,
-          height: containerRef.value.clientHeight
+          width: containerRef.value!.clientWidth,
+          height: containerRef.value!.clientHeight
         },
         rendererType: configStore.config.g6.renderer,
         webglOptimization: configStore.config.g6.webglOptimization
@@ -370,46 +406,75 @@ const initGraph = async () => {
         try {
           initializationManager.startInitialization(
             initConfig,
-            // 进度回调
-            (progress: InitializationProgressMessage) => {
-              console.log(`[StarChartViewport] 进度: ${progress.stage} - ${progress.progress}%`)
-              // TODO: 将进度信息传递给 InitProgressPanel
-              // 可以通过 emit 或 store 实现
-            },
-            // 完成回调
+          // 进度回调
+          (progress: InitializationProgressMessage) => {
+            // 使用 requestIdleCallback 确保不阻塞主线程
+            if ('requestIdleCallback' in window) {
+              requestIdleCallback(() => {
+                starChartStore.updateProgressState(progress)
+                console.log(`[StarChartViewport] 📊 进度更新: ${progress.stage} - ${progress.overallProgress}%`)
+              })
+            } else {
+              // 降级方案
+              setTimeout(() => {
+                starChartStore.updateProgressState(progress)
+              }, 0)
+            }
+          },
+            // 完成回调（不立即标记为完成，先进入主线程阶段）
             (result: InitializationCompleteResult) => {
-              console.log(`[StarChartViewport] 初始化完成`)
+              console.log(`[StarChartViewport] ✅ Worker 初始化完成`)
+              // 存储指标以便后续使用，不立即调用 completeInitialization
+              performanceMetrics = result.performanceMetrics
               resolve(result)
             },
             // 错误回调
             (error: string) => {
-              console.error(`[StarChartViewport] 初始化失败:`, error)
+              console.error(`[StarChartViewport] ❌ Worker 初始化失败:`, error)
+              starChartStore.failInitialization(error)
               reject(new Error(error))
             }
           )
         } catch (error) {
-          reject(error)
+          reject(error instanceof Error ? error : new Error(String(error)))
         }
       })
       
-      layoutResult = initResult.layoutResult
-      finalStyles = initResult.finalStyles
+      const workerEndTime = performance.now()
+      const workerTotalTime = workerEndTime - workerStartTime
       
-      console.log('[StarChartViewport] Worker 计算完成，性能指标:', initResult.performanceMetrics)
+      layoutResult = initResult.layoutResult
+      // 从数据中提取样式（样式已内联到数据的 _computedStyle 中）
+      finalStyles = extractStylesFromData()
+      
+      console.log(`[StarChartViewport] ✅ Worker 计算完成！`)
+      console.log(`[StarChartViewport] 📈 Worker耗时: ${workerTotalTime.toFixed(2)}ms`)
+      console.log(`[StarChartViewport] 📊 详细指标:`, initResult.performanceMetrics)
+      console.log(`[StarChartViewport] 🎯 主线程在此期间完全响应式，无阻塞！`)
+      
+      // 进入主线程阶段（G6 创建和渲染）
+      pushMainThreadStage('g6-init', '正在创建 G6 实例...', 90)
       
     } else {
-      console.log(`[StarChartViewport] 使用标准初始化流程（${nodeCount} 节点）`)
+      // 插件不支持优化初始化，降级到标准流程
+      console.warn(`[StarChartViewport] ⚠️ 插件不支持异步初始化，降级到主线程（${nodeCount} 节点）`)
+      console.warn(`[StarChartViewport] 主线程可能短暂阻塞，建议插件实现 IInitializationOptimizer`)
       
-      // ===== 标准初始化流程（主线程） =====
-      // 1. 执行布局计算
+      // 标准初始化流程（主线程）
+      starChartStore.progressState.isInitializing = true
+      starChartStore.progressState.currentStage = 'layout-calc'
+      starChartStore.progressState.currentStageLabel = '布局计算（主线程）'
+      
       layoutResult = await plugin.execute(data, {
-        width: containerRef.value.clientWidth,
-        height: containerRef.value.clientHeight
+        width: containerRef.value!.clientWidth,
+        height: containerRef.value!.clientHeight
       })
       
-      // 2. 获取样式规则
       const pluginStyles = plugin.getDefaultStyles()
       finalStyles = plugin.mergeStyles(data, pluginStyles)
+      
+      starChartStore.progressState.isInitializing = false
+      starChartStore.progressState.currentProgress = 100
     }
     
     // ===== 3. 获取优化配置 =====
@@ -417,9 +482,9 @@ const initGraph = async () => {
     
     // ===== 4. 创建G6实例 =====
     const graphConfig = {
-      container: containerRef.value,
-      width: containerRef.value.clientWidth,
-      height: containerRef.value.clientWidth,
+      container: containerRef.value!,
+      width: containerRef.value!.clientWidth,
+      height: containerRef.value!.clientHeight,
       renderer: getRenderer(),
       
       // 使用布局计算的结果（包含树结构）
@@ -431,13 +496,13 @@ const initGraph = async () => {
       // 使用插件提供的样式
       node: {
         type: 'circle',
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unnecessary-type-assertion
         style: (finalStyles as any).node as any
       },
       
       edge: {
         type: (edge: unknown) => (edge as Record<string, unknown>).type as string || 'line',
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unnecessary-type-assertion
         style: (finalStyles as any).edge as any
       },
       
@@ -480,31 +545,58 @@ const initGraph = async () => {
       }
     }
     
-    graphInstance = new Graph(graphConfig)
+    // ===== 5. 使用 requestIdleCallback 异步创建 G6 实例 =====
+    console.log(`[StarChartViewport] 🎨 准备创建 G6 实例（${nodeCount} 节点）...`)
     
-    // 事件绑定
-    graphInstance.on('node:click', (evt) => {
-      const evtObj = evt as unknown as Record<string, unknown>
-      const itemId = evtObj.itemId
-      if (itemId && typeof itemId === 'string') {
-        starChartStore.selectNode(itemId)
-      }
-    })
-    
-    graphInstance.on('viewportchange', (evt) => {
-      const evtObj = evt as unknown as Record<string, unknown>
-      starChartStore.updateViewport({
-        zoom: (evtObj.zoom as number) || 1,
-        pan: (evtObj.translate as { x: number; y: number }) || { x: 0, y: 0 }
+    await scheduleIdle(() => {
+      const g6StartTime = performance.now()
+      
+      console.log(`[StarChartViewport] 🎨 开始创建 G6 实例（${nodeCount} 节点）...`)
+      graphInstance = new Graph(graphConfig)
+      
+      const g6CreateTime = performance.now() - g6StartTime
+      console.log(`[StarChartViewport] ⚡ G6 实例创建耗时: ${g6CreateTime.toFixed(2)}ms`)
+      
+      // 事件绑定
+      graphInstance.on('node:click', (evt) => {
+        const evtObj = evt as unknown as Record<string, unknown>
+        const itemId = evtObj.itemId
+        if (itemId && typeof itemId === 'string') {
+          starChartStore.selectNode(itemId)
+        }
+      })
+      
+      graphInstance.on('viewportchange', (evt) => {
+        const evtObj = evt as unknown as Record<string, unknown>
+        starChartStore.updateViewport({
+          zoom: (evtObj.zoom as number) || 1,
+          pan: (evtObj.translate as { x: number; y: number }) || { x: 0, y: 0 }
+        })
       })
     })
     
-    // 渲染
-    await graphInstance.render()
+    // ===== 6. 使用 requestIdleCallback 异步渲染 =====
+    pushMainThreadStage('rendering', '正在渲染图形...', 95)
     
-    // ===== 5. 应用 WebGL 特有优化 =====
-    if (configStore.config.g6.renderer === 'webgl') {
+    await scheduleIdle(async () => {
+      const renderStartTime = performance.now()
+      console.log(`[StarChartViewport] 🖼️ 开始渲染...`)
+      
+      await graphInstance!.render()
+      
+      const renderTime = performance.now() - renderStartTime
+      console.log(`[StarChartViewport] ✅ 渲染完成！耗时: ${renderTime.toFixed(2)}ms`)
+    })
+    
+    // ===== 7. 应用 WebGL 特有优化 =====
+    if (configStore.config.g6.renderer === 'webgl' && graphInstance) {
       applyWebGLOptimizations(graphInstance)
+    }
+    
+    // ===== 8. 标记完成 =====
+    pushMainThreadStage('completed', '初始化完成', 100)
+    if (performanceMetrics) {
+      starChartStore.completeInitialization(performanceMetrics)
     }
     
     console.log('[StarChartViewport] G6 初始化完成')
@@ -573,6 +665,43 @@ watch(() => configStore.config.interaction.wheelSensitivity, () => {
     })
   }
 })
+
+/**
+ * 节点/边数据接口（包含 _computedStyle）
+ */
+interface StyledNodeData {
+  id: string
+  data?: {
+    _computedStyle?: Record<string, unknown>
+    [key: string]: unknown
+  }
+  [key: string]: unknown
+}
+
+interface StyledEdgeData {
+  source: string
+  target: string
+  data?: {
+    _computedStyle?: Record<string, unknown>
+    [key: string]: unknown
+  }
+  [key: string]: unknown
+}
+
+/**
+ * 从数据中提取样式规则
+ * Worker 已将样式应用到 _computedStyle，这里转换回函数形式供 G6 使用
+ */
+const extractStylesFromData = () => {
+  return {
+    node: (nodeData: StyledNodeData) => {
+      return nodeData.data?._computedStyle || {}
+    },
+    edge: (edgeData: StyledEdgeData) => {
+      return edgeData.data?._computedStyle || {}
+    }
+  }
+}
 
 // 暴露方法
 defineExpose({

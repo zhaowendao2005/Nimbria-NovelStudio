@@ -292,7 +292,218 @@ export class MultiRootRadialLayoutAlgorithm {
   }
   
   /**
-   * 应用防碰撞算法
+   * 异步计算布局（零碰撞预分配算法）
+   * @param onProgress 进度回调 (stage, processed, total)
+   */
+  async calculateAsync(
+    data: RadialAdapterOutput, 
+    config: LayoutConfig,
+    onProgress?: (stage: 'layout' | 'collision', processed: number, total: number) => void
+  ): Promise<LayoutResult> {
+    const { nodes = [], edges = [], rootIds = [] } = data
+    const {
+      width,
+      height,
+      baseRadiusMultiplier = 1,
+      baseDistance = 100,
+      hierarchyStep = 50
+    } = config
+    
+    console.log('[MultiRootRadialLayout] 🚀 使用零碰撞预分配算法')
+    
+    const centerX = width / 2
+    const centerY = height / 2
+    const baseRadius = Math.min(width, height) * 0.25 * baseRadiusMultiplier
+    
+    // ===== 第1步：统计每个根节点的子节点 =====
+    console.log('[MultiRootRadialLayout] 📊 统计子节点分布...')
+    interface RootInfo {
+      id: string
+      childCount: number
+      angle: number
+      angleRange: number  // 分配的角度范围
+    }
+    
+    const rootInfoMap = new Map<string, RootInfo>()
+    const nodesByRoot = new Map<string, G6NodeData[]>()
+    
+    // 统计
+    rootIds.forEach(rootId => {
+      nodesByRoot.set(rootId, [])
+    })
+    
+    nodes.forEach(node => {
+      if (rootIds.includes(node.id)) return  // 跳过根节点本身
+      
+      const groupId = (node.data?.groupId as number) ?? -1
+      if (groupId >= 0 && groupId < rootIds.length) {
+        const rootId = rootIds[groupId]
+        if (rootId) {
+          const children = nodesByRoot.get(rootId) || []
+          children.push(node)
+          nodesByRoot.set(rootId, children)
+        }
+      }
+    })
+    
+    // ===== 第2步：为每个根节点分配角度空间 =====
+    console.log('[MultiRootRadialLayout] 📐 预分配角度空间...')
+    const totalChildren = Array.from(nodesByRoot.values()).reduce((sum, arr) => sum + arr.length, 0)
+    let currentAngle = 0
+    const fullCircle = Math.PI * 2
+    
+    rootIds.forEach(rootId => {
+      const children = nodesByRoot.get(rootId) || []
+      const childCount = children.length
+      
+      // 按子节点比例分配角度（至少给 π/6）
+      const angleRatio = totalChildren > 0 ? childCount / totalChildren : 1 / rootIds.length
+      const angleRange = Math.max(Math.PI / 6, fullCircle * angleRatio)
+      
+      const rootAngle = currentAngle + angleRange / 2
+      
+      rootInfoMap.set(rootId, {
+        id: rootId,
+        childCount,
+        angle: rootAngle,
+        angleRange
+      })
+      
+      currentAngle += angleRange
+    })
+    
+    // ===== 第3步：计算根节点位置 =====
+    const rootPositions = new Map<string, RootPosition>()
+    const rootSet = new Set(rootIds)
+    
+    rootIds.forEach(rootId => {
+      const info = rootInfoMap.get(rootId)
+      if (!info) return
+      
+      const x = centerX + baseRadius * Math.cos(info.angle)
+      const y = centerY + baseRadius * Math.sin(info.angle)
+      rootPositions.set(rootId, { x, y, angle: info.angle })
+    })
+    
+    // ===== 第4步：按层级网格化放置子节点（零碰撞） =====
+    console.log('[MultiRootRadialLayout] 🎯 零碰撞网格化布局...')
+    const batchSize = 500  // 减小批次大小，增加让出频率
+    const totalNodes = nodes.length
+    const layoutedNodes: G6NodeData[] = []
+    
+    for (let i = 0; i < totalNodes; i += batchSize) {
+      const batch = nodes.slice(i, Math.min(i + batchSize, totalNodes))
+      
+      const batchResult = batch.map((node: G6NodeData): G6NodeData => {
+        const nodeId = node.id
+        
+        // 处理根节点
+        if (rootSet.has(nodeId)) {
+          const pos = rootPositions.get(nodeId)
+          return {
+            ...node,
+            style: {
+              ...(node.style || {}),
+              x: pos?.x ?? 0,
+              y: pos?.y ?? 0
+            }
+          }
+        }
+        
+        // 处理子节点：在分配的扇形内按层级和序号网格化放置
+        const groupId = (node.data?.groupId as number) ?? -1
+        const hierarchy = (node.data?.hierarchy as number) ?? 1
+        
+        if (groupId >= 0 && groupId < rootIds.length) {
+          const rootId = rootIds[groupId]
+          const rootInfo = rootInfoMap.get(rootId || '')
+          const rootPos = rootPositions.get(rootId || '')
+          
+          if (rootInfo && rootPos) {
+            const children = nodesByRoot.get(rootId || '') || []
+            const nodeIndex = children.findIndex(n => n.id === nodeId)
+            
+            if (nodeIndex >= 0) {
+              // 在扇形内均匀分布
+              const angleStep = rootInfo.angleRange / Math.max(children.length, 1)
+              const startAngle = rootInfo.angle - rootInfo.angleRange / 2
+              const nodeAngle = startAngle + angleStep * (nodeIndex + 0.5)
+              
+              // 距离 = 基础距离 + 层级步长
+              const distance = baseDistance + hierarchy * hierarchyStep
+              
+              const x = rootPos.x + distance * Math.cos(nodeAngle)
+              const y = rootPos.y + distance * Math.sin(nodeAngle)
+              
+              return {
+                ...node,
+                style: {
+                  ...(node.style || {}),
+                  x,
+                  y
+                }
+              }
+            }
+          }
+        }
+        
+        // 兜底
+        return {
+          ...node,
+          style: {
+            ...(node.style || {}),
+            x: 0,
+            y: 0
+          }
+        }
+      })
+      
+      layoutedNodes.push(...batchResult)
+      
+      // 报告进度并让出线程（每一批都让出）
+      if (onProgress) {
+        onProgress('layout', layoutedNodes.length, totalNodes)
+      }
+      
+      // 每批处理完都让出线程，确保主线程响应
+      await new Promise(resolve => setTimeout(resolve, 0))
+    }
+    
+    console.log('[MultiRootRadialLayout] ✅ 零碰撞布局完成（无需碰撞检测）')
+    
+    // ===== 第5步：智能边类型判断 =====
+    const nodeHierarchyMap = new Map<string, number>()
+    layoutedNodes.forEach(node => {
+      const hierarchy = (node.data?.hierarchy as number | undefined) ?? (rootSet.has(node.id) ? 0 : 1)
+      nodeHierarchyMap.set(node.id, hierarchy)
+    })
+    
+    const layoutedEdges = edges.map((edge: G6EdgeData): G6EdgeData => {
+      const sourceHierarchy = nodeHierarchyMap.get(edge.source) ?? 1
+      const targetHierarchy = nodeHierarchyMap.get(edge.target) ?? 1
+      const isRootToFirst = sourceHierarchy === 0 && targetHierarchy === 1
+      
+      return {
+        ...edge,
+        type: isRootToFirst ? 'line' : 'cubic-radial'
+      }
+    })
+    
+    console.log('[MultiRootRadialLayout] ✅ 异步布局计算全部完成')
+    
+    return {
+      ...data,
+      nodes: layoutedNodes,
+      edges: layoutedEdges,
+      rootIds,
+      treesData: data.treesData,
+      trees: data.trees ?? data.treesData,
+      tree: data.tree || (data.treesData && data.treesData.length > 0 ? data.treesData[0] : undefined)
+    } as LayoutResult
+  }
+  
+  /**
+   * 应用防碰撞算法（同步版本）
    * @param nodes 节点列表
    * @param rootSet 根节点集合
    * @param rootRadius 根节点圆形轨道半径
@@ -418,6 +629,148 @@ export class MultiRootRadialLayoutAlgorithm {
     }
     
     // 3. 将调整后的位置应用到节点
+    const nodeInfoMap = new Map<string, NodeInfo>()
+    nodeInfos.forEach(info => nodeInfoMap.set(info.id, info))
+    
+    return nodes.map(node => {
+      const info = nodeInfoMap.get(node.id)
+      if (!info) return node
+      
+      return {
+        ...node,
+        style: {
+          ...(node.style || {}),
+          x: info.x,
+          y: info.y
+        }
+      }
+    })
+  }
+  
+  /**
+   * 异步版本的碰撞检测（分批迭代，避免阻塞）
+   * @param onIteration 每次迭代后的回调
+   */
+  private async applyCollisionAvoidanceAsync(
+    nodes: G6NodeData[],
+    rootSet: Set<string>,
+    rootRadius: number,
+    centerX: number,
+    centerY: number,
+    onIteration?: (iteration: number) => void
+  ): Promise<G6NodeData[]> {
+    // 1. 构建节点信息列表
+    const nodeInfos: NodeInfo[] = nodes.map(node => {
+      const isRoot = rootSet.has(node.id)
+      const size = (node.style?.size as number) || (isRoot ? 35 : 20)
+      const x = (node.style?.x as number) || 0
+      const y = (node.style?.y as number) || 0
+      
+      const info: NodeInfo = {
+        id: node.id,
+        x,
+        y,
+        size,
+        isRoot
+      }
+      
+      if (isRoot) {
+        const dx = x - centerX
+        const dy = y - centerY
+        info.angle = Math.atan2(dy, dx)
+        info.radius = rootRadius
+      }
+      
+      return info
+    })
+    
+    // 2. 异步执行碰撞检测和调整
+    const maxIterations = 50
+    const minDistance = 15
+    
+    for (let iter = 0; iter < maxIterations; iter++) {
+      const grid = new SpatialGrid(100)
+      nodeInfos.forEach(node => grid.add(node))
+      
+      let hasCollision = false
+      const forces: Map<string, { dx: number; dy: number }> = new Map()
+      
+      // 检测碰撞并计算排斥力
+      for (const nodeA of nodeInfos) {
+        const nearby = grid.getNearby(nodeA.x, nodeA.y)
+        
+        for (const nodeB of nearby) {
+          if (nodeA.id === nodeB.id) continue
+          
+          const dx = nodeB.x - nodeA.x
+          const dy = nodeB.y - nodeA.y
+          const distance = Math.sqrt(dx * dx + dy * dy)
+          const minDist = (nodeA.size + nodeB.size) / 2 + minDistance
+          
+          if (distance < minDist && distance > 0.1) {
+            hasCollision = true
+            
+            const overlap = minDist - distance
+            const forceStrength = overlap / distance
+            const fx = (dx / distance) * forceStrength
+            const fy = (dy / distance) * forceStrength
+            
+            if (!forces.has(nodeA.id)) {
+              forces.set(nodeA.id, { dx: 0, dy: 0 })
+            }
+            if (!forces.has(nodeB.id)) {
+              forces.set(nodeB.id, { dx: 0, dy: 0 })
+            }
+            
+            const forceA = forces.get(nodeA.id)!
+            const forceB = forces.get(nodeB.id)!
+            forceA.dx -= fx
+            forceA.dy -= fy
+            forceB.dx += fx
+            forceB.dy += fy
+          }
+        }
+      }
+      
+      // 如果没有碰撞，提前结束
+      if (!hasCollision) {
+        console.log(`[CollisionAvoidance] ✅ 第 ${iter + 1} 次迭代后无碰撞，提前结束`)
+        break
+      }
+      
+      // 应用力到节点
+      for (const node of nodeInfos) {
+        const force = forces.get(node.id)
+        if (!force) continue
+        
+        if (node.isRoot && node.radius !== undefined && node.angle !== undefined) {
+          // 根节点：只能沿圆形轨道移动
+          const angleForce = (-force.dx * Math.sin(node.angle) + force.dy * Math.cos(node.angle)) / node.radius
+          node.angle += angleForce * 0.1
+          
+          node.x = centerX + node.radius * Math.cos(node.angle)
+          node.y = centerY + node.radius * Math.sin(node.angle)
+        } else {
+          // 子节点：自由移动
+          node.x += force.dx * 0.1
+          node.y += force.dy * 0.1
+        }
+      }
+      
+      // 报告进度并让出线程（每5次迭代让出一次）
+      if (onIteration) {
+        onIteration(iter + 1)
+      }
+      if (iter % 5 === 4 && iter < maxIterations - 1) {
+        await new Promise(resolve => setTimeout(resolve, 0))
+      }
+      
+      if (iter === maxIterations - 1) {
+        console.warn(`[CollisionAvoidance] ⚠️ 达到最大迭代次数 ${maxIterations}`)
+      }
+    }
+    
+    // 3. 应用调整后的位置
     const nodeInfoMap = new Map<string, NodeInfo>()
     nodeInfos.forEach(info => nodeInfoMap.set(info.id, info))
     

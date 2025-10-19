@@ -6,7 +6,6 @@
 
 import type { G6GraphData, TreeNodeData } from '@stores/projectPage/starChart/types/g6.types'
 import type { LayoutOptions, LayoutResult } from '@stores/projectPage/starChart/plugins/types'
-import type { FinalStyleRules } from '@stores/projectPage/starChart/plugins/types'
 
 /**
  * G6 配置（简化版，仅包含必要信息）
@@ -87,26 +86,38 @@ export interface InitializationWorkerMessage {
  * 初始化阶段
  */
 export type InitializationStage = 
-  | 'data-adapt'    // 数据适配 0-20%
-  | 'layout-calc'   // 布局计算 20-50%
-  | 'style-gen'     // 样式生成 50-70%
-  | 'g6-init'       // G6初始化 70-90%（主线程执行）
-  | 'rendering'     // 渲染 90-100%（主线程执行）
+  | 'data-adapt'    // 数据适配
+  | 'layout-calc'   // 布局计算（零碰撞预分配）
+  | 'style-gen'     // 样式生成
+  | 'g6-init'       // G6初始化（主线程执行）
+  | 'rendering'     // 渲染（主线程执行）
   | 'completed'     // 完成
   | 'error'         // 错误
 
 /**
  * Worker 初始化进度消息（Worker → 主线程）
  */
+/**
+ * 各阶段独立进度状态（简化为3个阶段）
+ */
+export interface StageProgressState {
+  dataAdapt: number      // 0-100，数据适配进度
+  layoutCalc: number     // 0-100，布局计算进度（零碰撞）
+  styleGen: number       // 0-100，样式生成进度
+}
+
 export interface InitializationProgressMessage {
   // 消息类型标识
   type: 'progress'
   
-  // 进度阶段
+  // 当前进度阶段
   stage: InitializationStage
   
-  // 进度百分比 (0-100)
-  progress: number
+  // 各阶段独立进度（4个独立的进度条）
+  stageProgress: StageProgressState
+  
+  // 全局总进度 (0-100，可选)
+  overallProgress?: number
   
   // 当前消息
   message: string
@@ -115,9 +126,9 @@ export interface InitializationProgressMessage {
   details: {
     processedNodes?: number
     totalNodes?: number
-    speed?: string           // "1500 nodes/s"
-    elapsedTime?: number    // 毫秒
-    estimatedRemaining?: number  // 毫秒
+    speed?: string                 // "1500 nodes/s"
+    elapsedTime?: number          // 毫秒
+    estimatedRemaining?: number    // 毫秒
   }
   
   // 错误信息（stage 为 error 时）
@@ -135,10 +146,9 @@ export interface InitializationResultMessage {
   // 状态
   status: 'success' | 'cancelled' | 'error'
   
-  // 结果数据
+  // 结果数据（注意：样式已应用到 layoutResult 中，不再单独返回）
   result?: {
-    layoutResult: LayoutResult
-    finalStyles: FinalStyleRules
+    layoutResult: LayoutResult  // 已包含应用了样式的节点和边
     performanceMetrics: {
       dataAdaptTime: number
       layoutCalcTime: number

@@ -24,6 +24,11 @@ import type {
   RadialPluginInput,
   RadialAdapterOutput
 } from './data.types'
+import type { 
+  IInitializationOptimizer,
+  InitializationResult
+} from '../types/initializer.types'
+import type { InitializationProgressMessage } from '@service/starChart/types/worker.types'
 
 // 导出初始化优化器
 export { MultiRootRadialInitializationOptimizer, multiRootRadialOptimizer } from './InitializationOptimizer'
@@ -33,7 +38,7 @@ export type { IInitializationOptimizer } from '../types/initializer.types'
 type G6NodeData = G6Node
 type G6EdgeData = G6Edge
 
-export class MultiRootRadialPlugin extends BaseLayoutPlugin {
+export class MultiRootRadialPlugin extends BaseLayoutPlugin implements IInitializationOptimizer {
   override name = 'multi-root-radial'
   override displayName = '多根径向树'
   override version = '1.0.0'
@@ -94,7 +99,7 @@ export class MultiRootRadialPlugin extends BaseLayoutPlugin {
     options?: LayoutOptions
   ): Promise<LayoutResult> {
     // 1. 数据适配（转换为标准格式）
-    const adaptedData: RadialAdapterOutput = await this.adapter.adapt(data)
+    const adaptedData: RadialAdapterOutput = this.adapter.adapt(data)
     
     // 2. 验证必需字段
     if (!adaptedData.rootIds || adaptedData.rootIds.length === 0) {
@@ -176,6 +181,20 @@ export class MultiRootRadialPlugin extends BaseLayoutPlugin {
         }
       }
     }
+  }
+  
+  /**
+   * 实现 IInitializationOptimizer 接口
+   * 将调用委托给专门的优化器
+   */
+  async initializeOptimized(
+    data: G6GraphData | TreeNodeData,
+    options: LayoutOptions,
+    onProgress: (progress: InitializationProgressMessage) => void
+  ): Promise<InitializationResult> {
+    // 动态导入优化器以避免循环依赖
+    const { multiRootRadialOptimizer } = await import('./InitializationOptimizer')
+    return multiRootRadialOptimizer.initializeOptimized(data, options, onProgress)
   }
 }
 
