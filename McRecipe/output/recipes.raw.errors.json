@@ -1,0 +1,154 @@
+[
+  {
+    "message": "无法提取输入材料: thaumcraft:triplemeattreat",
+    "context": "recipes.addShapeless(\"thaumcraft:triplemeattreat\", <thaumcraft:triple_meat_treat>, []);"
+  },
+  {
+    "message": "无法提取输入材料: planarartifice:transmutation_iron_nugget",
+    "context": "recipes.addShapeless(\"planarartifice:transmutation_iron_nugget\", <minecraft:gold_nugget>, []);"
+  },
+  {
+    "message": "无法提取输入材料: planarartifice:transmutation_string",
+    "context": "recipes.addShapeless(\"planarartifice:transmutation_string\", <minecraft:feather>, []);"
+  },
+  {
+    "message": "无法提取输入材料: fluidtank:tankconvert",
+    "context": "recipes.addShapeless(\"fluidtank:tankconvert\", <fluidtank:blocktank1:8>, []);"
+  },
+  {
+    "message": "无法提取输入材料: planarartifice:transmutation_slime_ball",
+    "context": "recipes.addShapeless(\"planarartifice:transmutation_slime_ball\", <minecraft:magma_cream>, []);"
+  },
+  {
+    "message": "无法提取输入材料: planarartifice:transmutation_glowstone",
+    "context": "recipes.addShapeless(\"planarartifice:transmutation_glowstone\", <minecraft:blaze_powder>, []);"
+  },
+  {
+    "message": "无法提取输入材料: projectred-fabrication:ic_gate",
+    "context": "recipes.addShapeless(\"projectred-fabrication:ic_gate\", <projectred-integration:gate:34>, []);"
+  },
+  {
+    "message": "无法提取输入材料: thebetweenlands:recipe_lurker_skin_pouch_upgrade",
+    "context": "recipes.addShapeless(\"thebetweenlands:recipe_lurker_skin_pouch_upgrade\", <thebetweenlands:lurker_skin_pouch>, []);"
+  },
+  {
+    "message": "无法提取输入材料: planarartifice:transmutation_beetroot_seeds",
+    "context": "recipes.addShapeless(\"planarartifice:transmutation_beetroot_seeds\", <minecraft:wheat_seeds>, []);"
+  },
+  {
+    "message": "无法提取输入材料: planarartifice:transmutation_gunpowder",
+    "context": "recipes.addShapeless(\"planarartifice:transmutation_gunpowder\", <minecraft:glowstone_dust>, []);"
+  },
+  {
+    "message": "无法提取输入材料: extrautils2:golden_lasso",
+    "context": "recipes.addShapeless(\"extrautils2:golden_lasso\", <extrautils2:goldenlasso>, []);"
+  },
+  {
+    "message": "无法提取输入材料: thebetweenlands:recipe_colored_lurker_skin_pouch",
+    "context": "recipes.addShapeless(\"thebetweenlands:recipe_colored_lurker_skin_pouch\", <thebetweenlands:lurker_skin_pouch>, []);"
+  },
+  {
+    "message": "无法提取输入材料: planarartifice:transmutation_gold_ingot",
+    "context": "recipes.addShapeless(\"planarartifice:transmutation_gold_ingot\", <minecraft:iron_ingot>, []);"
+  },
+  {
+    "message": "无法提取输入材料: planarartifice:transmutation_redstone",
+    "context": "recipes.addShapeless(\"planarartifice:transmutation_redstone\", <thaumcraft:salis_mundus>, []);"
+  },
+  {
+    "message": "无法提取输入材料: planarartifice:transmutation_rotten_flesh",
+    "context": "recipes.addShapeless(\"planarartifice:transmutation_rotten_flesh\", <minecraft:chicken>, []);"
+  },
+  {
+    "message": "无法提取输入材料: planarartifice:transmutation_gold_nugget",
+    "context": "recipes.addShapeless(\"planarartifice:transmutation_gold_nugget\", <minecraft:iron_nugget>, []);"
+  },
+  {
+    "message": "无法提取输入材料: planarartifice:transmutation_seeds",
+    "context": "recipes.addShapeless(\"planarartifice:transmutation_seeds\", <minecraft:melon_seeds>, []);"
+  },
+  {
+    "message": "无法提取输入材料: forestry:butterflymating",
+    "context": "recipes.addShapeless(\"forestry:butterflymating\", <forestry:butterfly_ge>.withTag({MaxH: 20, Health: 20, IsAnalyzed: 0 as byte, Genome: {Chromosomes: [{UID1: \"forestry.mothBrimstone\", UID0: \"forestry.m"
+  },
+  {
+    "message": "无法提取输入材料: planarartifice:transmutation_bone",
+    "context": "recipes.addShapeless(\"planarartifice:transmutation_bone\", <minecraft:coal>, []);"
+  },
+  {
+    "message": "无法提取输入材料: extrautils2:magic_wood",
+    "context": "recipes.addShapeless(\"extrautils2:magic_wood\", <extrautils2:decorativesolidwood:1>, []);"
+  },
+  {
+    "message": "无法提取输入材料: malisisdoors:carriage_door",
+    "context": "recipes.addShapeless(\"malisisdoors:carriage_door\", <malisisdoors:carriage_door>, []);"
+  },
+  {
+    "message": "无法提取输入材料: thaumcraft:salismundus",
+    "context": "recipes.addShapeless(\"thaumcraft:salismundus\", <thaumcraft:salis_mundus>, []);"
+  },
+  {
+    "message": "无法提取输入材料: planarartifice:transmutation_emerald",
+    "context": "recipes.addShapeless(\"planarartifice:transmutation_emerald\", <minecraft:diamond>, []);"
+  },
+  {
+    "message": "无法提取输入材料: minecraft:bread",
+    "context": "recipes.addShapeless(\"minecraft:bread\", <minecraft:bread>, []);"
+  },
+  {
+    "message": "无法提取输入材料: extratrees:multi_fence_size",
+    "context": "recipes.addShapeless(\"extratrees:multi_fence_size\", <minecraft:fence>, []);"
+  },
+  {
+    "message": "无法提取输入材料: extratrees:multi_fence_embedded",
+    "context": "recipes.addShapeless(\"extratrees:multi_fence_embedded\", <minecraft:fence>, []);"
+  },
+  {
+    "message": "无法提取输入材料: microblockcbe:micro_recipe",
+    "context": "recipes.addShapeless(\"microblockcbe:micro_recipe\", <microblockcbe:microblock:257>.withTag({mat: \"tile.stone\"}), []);"
+  },
+  {
+    "message": "无法提取输入材料: planarartifice:transmutation_iron_ingot",
+    "context": "recipes.addShapeless(\"planarartifice:transmutation_iron_ingot\", <minecraft:gold_ingot>, []);"
+  },
+  {
+    "message": "无法提取输入材料: planarartifice:transmutation_sugar",
+    "context": "recipes.addShapeless(\"planarartifice:transmutation_sugar\", <minecraft:redstone>, []);"
+  },
+  {
+    "message": "无法提取输入材料: minecraft:beetroot_soup",
+    "context": "recipes.addShapeless(\"minecraft:beetroot_soup\", <minecraft:beetroot_soup>, []);"
+  },
+  {
+    "message": "无法提取输入材料: malisisdoors:medieval_door",
+    "context": "recipes.addShapeless(\"malisisdoors:medieval_door\", <malisisdoors:medieval_door>, []);"
+  },
+  {
+    "message": "无法提取输入材料: planarartifice:transmutation_diamond",
+    "context": "recipes.addShapeless(\"planarartifice:transmutation_diamond\", <minecraft:emerald>, []);"
+  },
+  {
+    "message": "无法提取输入材料: extrautils2:unstable_ingot",
+    "context": "recipes.addShapeless(\"extrautils2:unstable_ingot\", <extrautils2:unstableingots>, []);"
+  },
+  {
+    "message": "无法提取输入材料: thebetweenlands:grappling_hook_upgrade",
+    "context": "recipes.addShapeless(\"thebetweenlands:grappling_hook_upgrade\", <thebetweenlands:grappling_hook>, []);"
+  },
+  {
+    "message": "无法提取输入材料: planarartifice:transmutation_ender_pearl",
+    "context": "recipes.addShapeless(\"planarartifice:transmutation_ender_pearl\", <minecraft:ender_eye>, []);"
+  },
+  {
+    "message": "无法提取输入材料: extratrees:multi_fence_solid",
+    "context": "recipes.addShapeless(\"extratrees:multi_fence_solid\", <minecraft:fence>, []);"
+  },
+  {
+    "message": "无法提取输入材料: planarartifice:transmutation_spider_eye",
+    "context": "recipes.addShapeless(\"planarartifice:transmutation_spider_eye\", <minecraft:fermented_spider_eye>, []);"
+  },
+  {
+    "message": "无法提取输入材料: cfm:recipe_soapy_water",
+    "context": "recipes.addShapeless(\"cfm:recipe_soapy_water\", <cfm:item_soap_water>, []);"
+  }
+]
