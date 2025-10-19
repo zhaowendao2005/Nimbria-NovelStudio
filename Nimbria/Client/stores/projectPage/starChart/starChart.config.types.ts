@@ -13,7 +13,7 @@ export type DataSourceType = 'mock-xlarge' | 'mock-large' | 'mock-normal' | 'mcr
 /**
  * 布局类型
  */
-export type LayoutType = 'multi-root-radial'
+export type LayoutType = 'multi-root-radial' | 'lazy-multi-root-radial'
 
 // ==================== 配置接口 ====================
 

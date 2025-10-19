@@ -21,6 +21,8 @@ import {
 } from '@service/starChart/InitializationManager'
 import type { InitializationProgressMessage } from '@service/starChart/types/worker.types'
 import type { InitProgressState } from '@stores/projectPage/starChart/types/progress.types'
+import { LazyMultiRootRadialPlugin, type LazyLayoutResult } from '@stores/projectPage/starChart/plugins/LazyMultiRootRadialPlugin'
+import type { LazyDataManager } from '@stores/projectPage/starChart/plugins/LazyMultiRootRadialPlugin/LazyDataManager'
 
 /**
  * StarChartViewport - 插件化版本
@@ -36,7 +38,19 @@ const containerRef = ref<HTMLDivElement>()
 let graphInstance: Graph | null = null
 let preloadedGraphInstance: Graph | null = null  // 预热的G6实例
 let isInitializing = false  // 防止重复初始化
-let isPreloading = false  // 防止重复预热
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+let isPreloading = false  // 防止重复预热（用于调试）
+let preloadingPromise: Promise<void> | null = null  // 预热过程的Promise
+
+// 懒加载插件专用
+let lazyDataManager: LazyDataManager | null = null
+
+/**
+ * 检测是否是懒加载插件
+ */
+function isLazyPlugin(plugin: ILayoutPlugin | undefined): plugin is LazyMultiRootRadialPlugin {
+  return plugin instanceof LazyMultiRootRadialPlugin
+}
 
 /**
  * 获取当前插件
@@ -45,13 +59,19 @@ const currentPlugin = computed((): ILayoutPlugin | undefined => {
   const layoutName = configStore.layoutConfig.name
   // 映射布局名称到插件名称
   const pluginNameMap: Record<string, string> = {
+    'multi-root-radial': 'multi-root-radial',
+    'lazy-multi-root-radial': 'lazy-multi-root-radial',
     'compact-box': 'multi-root-radial',
     'concentric': 'concentric',
     'force-directed': 'force-directed'
   }
   
   const pluginName = pluginNameMap[layoutName] || 'multi-root-radial'
-  return PluginRegistry.get(pluginName)
+  const plugin = PluginRegistry.get(pluginName)
+  
+  console.log(`[StarChartViewport] 布局配置: layoutConfig.name="${layoutName}", currentLayoutType="${configStore.currentLayoutType}", 映射到插件="${pluginName}", 插件实例=${plugin ? '✅' : '❌'}`)
+  
+  return plugin
 })
 
 /**
@@ -100,66 +120,88 @@ function scheduleIdle<T>(task: () => Promise<T> | T, timeout = 32): Promise<T> {
 
 /**
  * 预热 G6 实例（在空闲时间创建）
+ * 支持并发调用，会等待同一个预热过程完成
  */
 async function preloadGraphInstance() {
-  if (preloadedGraphInstance || isPreloading || !containerRef.value) {
+  // 如果已经有预热的实例，直接返回
+  if (preloadedGraphInstance) {
     return
   }
-  
+
+  // 如果正在预热，等待预热完成
+  if (preloadingPromise) {
+    await preloadingPromise
+    return
+  }
+
+  // 没有容器，无法创建实例
+  if (!containerRef.value) {
+    return
+  }
+
   isPreloading = true
   console.log('[StarChartViewport] 🔥 开始预热 G6 实例...')
   
-  try {
-    await scheduleIdle(() => {
-      preloadedGraphInstance = new Graph({
-        container: containerRef.value!,
-        width: containerRef.value!.clientWidth,
-        height: containerRef.value!.clientHeight,
-        renderer: getRenderer(),
-        animation: false,  // 🔥 关键优化：关闭动画系统
+  // 创建预热Promise
+  preloadingPromise = (async () => {
+    try {
+      await scheduleIdle(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const graphConfig: any = {
+          container: containerRef.value!,
+          width: containerRef.value!.clientWidth,
+          height: containerRef.value!.clientHeight,
+          renderer: getRenderer(),
+          animation: false,  // 🔥 关键优化：关闭动画系统
     layout: { type: 'preset' },
-        data: { nodes: [], edges: [] },
-        
-        // 基础交互行为
+          data: { nodes: [], edges: [] },
+          
+          // 基础交互行为
     behaviors: [
       'drag-canvas',
       {
         type: 'zoom-canvas',
         key: 'zoom-canvas-behavior',
         sensitivity: configStore.config.interaction.wheelSensitivity,
-            enableOptimize: true
-          },
-          'drag-element'
-        ],
-        
-        autoFit: 'view' as const
-      })
-      
-      // 绑定事件（只做一次）
-      preloadedGraphInstance.on('node:click', (evt) => {
-        const evtObj = evt as unknown as Record<string, unknown>
-        const itemId = evtObj.itemId
-        if (itemId && typeof itemId === 'string') {
-          starChartStore.selectNode(itemId)
+              enableOptimize: true
+            },
+            'drag-element'
+          ],
+          
+          autoFit: 'view' as const
         }
-      })
-      
-      preloadedGraphInstance.on('viewportchange', (evt) => {
-        const evtObj = evt as unknown as Record<string, unknown>
+        
+        preloadedGraphInstance = new Graph(graphConfig)
+        
+        // 绑定事件（只做一次）
+        preloadedGraphInstance.on('node:click', (evt) => {
+          const evtObj = evt as unknown as Record<string, unknown>
+          const itemId = evtObj.itemId
+          if (itemId && typeof itemId === 'string') {
+            starChartStore.selectNode(itemId)
+          }
+        })
+        
+        preloadedGraphInstance.on('viewportchange', (evt) => {
+          const evtObj = evt as unknown as Record<string, unknown>
     starChartStore.updateViewport({
-          zoom: (evtObj.zoom as number) || 1,
-          pan: (evtObj.translate as { x: number; y: number }) || { x: 0, y: 0 }
+            zoom: (evtObj.zoom as number) || 1,
+            pan: (evtObj.translate as { x: number; y: number }) || { x: 0, y: 0 }
+          })
         })
       })
       
       console.log('[StarChartViewport] ✅ G6 实例预热完成')
-    })
-  } catch (error) {
-    console.error('[StarChartViewport] ❌ G6 实例预热失败:', error)
-    preloadedGraphInstance = null
-  } finally {
-    isPreloading = false
-  }
+    } catch (error) {
+      console.error('[StarChartViewport] ❌ G6 实例预热失败:', error)
+      preloadedGraphInstance = null
+    } finally {
+      isPreloading = false
+      preloadingPromise = null
+    }
+  })()
+  
+  await preloadingPromise
 }
 
 /**
@@ -329,6 +371,51 @@ async function initGraph() {
     let layoutResult: unknown
     let performanceMetrics: InitProgressState['performanceMetrics'] | undefined
     
+    // ===== 懒加载插件特殊处理 =====
+    if (isLazyPlugin(plugin)) {
+      const rootIds = data.rootIds ? (data.rootIds as unknown as string[]) : undefined
+      const rootCount = rootIds?.length || '未知'
+      console.log(`[StarChartViewport] 🌱 使用懒加载模式（初始仅 ${rootCount} 个根节点）`)
+      
+      starChartStore.progressState.isInitializing = true
+      starChartStore.progressState.currentStage = 'layout-calc'
+      starChartStore.progressState.currentStageLabel = '懒加载布局计算（主线程）'
+      
+      // 执行懒加载布局
+      const executeResult = await plugin.execute(data, {
+        width: containerRef.value!.clientWidth,
+        height: containerRef.value!.clientHeight
+      })
+      const lazyResult = executeResult as unknown as LazyLayoutResult
+      
+      layoutResult = lazyResult
+      
+      // 保存 dataManager 以便后续懒加载
+      lazyDataManager = lazyResult._lazyDataManager || null
+      
+      const pluginStyles = plugin.getDefaultStyles()
+      plugin.mergeStyles(data, pluginStyles)
+      
+      starChartStore.progressState.currentProgress = 80
+      
+      // 进入渲染阶段
+      await runMainThreadPipeline(layoutResult as { nodes: unknown[]; edges: unknown[]; [key: string]: unknown }, undefined)
+      
+      // 🔥 关键：初始化懒加载行为
+      if (graphInstance && lazyDataManager && lazyResult._layoutEngine && lazyResult._styleService && lazyResult._layoutOptions) {
+        console.log('[StarChartViewport] 🎯 初始化懒加载折叠展开行为')
+        plugin.initializeBehavior(
+          graphInstance, 
+          lazyDataManager, 
+          lazyResult._layoutEngine,
+          lazyResult._styleService,
+          lazyResult._layoutOptions
+        )
+      }
+      
+      return
+    }
+    
     const useOptimizedInit = supportsOptimizedInitialization(plugin)
     
     if (useOptimizedInit) {
@@ -463,6 +550,14 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  // 清理懒加载资源
+  lazyDataManager = null
+  
+  // 清理预热状态
+  preloadingPromise = null
+  isPreloading = false
+  
+  // 清理 G6 实例
   if (graphInstance) {
     graphInstance.destroy()
     graphInstance = null

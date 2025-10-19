@@ -151,6 +151,13 @@
                       <span style="float: left">多根径向树</span>
                       <span style="float: right; color: #409eff; font-size: 12px; margin-left: 12px">Multi-Root Radial</span>
                     </el-option>
+                    <el-option 
+                      label="懒加载多根径向树" 
+                      value="lazy-multi-root-radial"
+                    >
+                      <span style="float: left">🌱 懒加载多根径向树</span>
+                      <span style="float: right; color: #52c41a; font-size: 12px; margin-left: 12px">Lazy Loading 🚀</span>
+                    </el-option>
                   </el-select>
                 </div>
                 <el-alert 
@@ -456,9 +463,8 @@ const onDataSourceChange = async (source: DataSourceType) => {
 // 切换布局
 const onLayoutChange = async (layoutType: LayoutType) => {
   try {
-    const starChartStore = useStarChartStore()
-    // 暂时注释掉，因为当前只有一个布局
-    // await starChartStore.switchLayout(layoutType)
+    // 直接调用配置 store 的 setLayoutType 方法
+    configStore.setLayoutType(layoutType)
     console.log(`[WritingPanel] 布局已切换: ${layoutType}`)
   } catch (error) {
     console.error('[WritingPanel] 切换布局失败:', error)

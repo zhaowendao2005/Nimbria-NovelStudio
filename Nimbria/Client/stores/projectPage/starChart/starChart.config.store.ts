@@ -140,7 +140,7 @@ export const useStarChartConfigStore = defineStore('projectPage-starChart-config
   const dataSource = ref<DataSourceType>('mock-normal')
   const currentLayoutType = ref<LayoutType>('multi-root-radial')
   const layoutConfig = ref<LayoutConfig>({
-    name: 'compact-box',
+    name: 'multi-root-radial',  // 默认使用标准多根径向树
     radial: true,
     direction: 'radial'
   })
@@ -196,10 +196,10 @@ export const useStarChartConfigStore = defineStore('projectPage-starChart-config
   const setLayoutType = (layoutType: LayoutType) => {
     currentLayoutType.value = layoutType
     
-    // 目前只有一个布局：multi-root-radial
-    // 使用默认的布局配置
+    // 将布局类型映射到 layoutConfig.name
+    // 这样 StarChartViewport 可以正确找到对应的插件
     layoutConfig.value = {
-      name: 'compact-box',  // 插件内部映射到 multi-root-radial
+      name: layoutType,  // 使用实际的布局类型名称
       radial: true,
       direction: 'radial'
     } as LayoutConfig
@@ -239,7 +239,7 @@ export const useStarChartConfigStore = defineStore('projectPage-starChart-config
         dataSource.value = state.dataSource || 'mock-normal'
         currentLayoutType.value = state.currentLayoutType || 'multi-root-radial'
         layoutConfig.value = state.layoutConfig || {
-          name: 'compact-box',
+          name: state.currentLayoutType || 'multi-root-radial',  // 使用保存的布局类型或默认值
           radial: true,
           direction: 'radial'
         } as LayoutConfig
@@ -259,7 +259,7 @@ export const useStarChartConfigStore = defineStore('projectPage-starChart-config
     dataSource.value = 'mock-normal'
     currentLayoutType.value = 'multi-root-radial'
     layoutConfig.value = {
-      name: 'compact-box',
+      name: 'multi-root-radial',  // 使用标准多根径向树
       radial: true,
       direction: 'radial'
     } as LayoutConfig
