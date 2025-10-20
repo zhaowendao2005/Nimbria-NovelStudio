@@ -312,8 +312,7 @@ export class AppManager {
       logger.info('DOM ready for main window')
     })
     
-    // 🔥 添加 F12 快捷键支持（即使菜单不存在也能工作）
-    this.setupDevToolsShortcut(windowProcess)
+    // 🔥 F12快捷键现在由process-manager.ts统一处理
     
     // 🔥 在调试模式下添加右键菜单
     if (isDebugMode) {
@@ -348,8 +347,7 @@ export class AppManager {
       })
     }
     
-    // 🔥 添加 F12 快捷键支持
-    this.setupDevToolsShortcut(windowProcess)
+    // 🔥 F12快捷键现在由process-manager.ts统一处理
     
     // 🔥 在调试模式下添加右键菜单
     if (isDebugMode) {
@@ -443,7 +441,16 @@ export class AppManager {
       createdAt: new Date(),
       lastActive: new Date()
     }
-    this.setupDevToolsShortcut(detachedProcess)
+    // 🔥 分离窗口的F12功能需要单独设置（不通过process-manager）
+    detachedWindow.webContents.on('before-input-event', (event, input) => {
+      if (input.key === 'F12') {
+        if (detachedWindow.webContents.isDevToolsOpened()) {
+          detachedWindow.webContents.closeDevTools()
+        } else {
+          detachedWindow.webContents.openDevTools({ mode: 'detach' })
+        }
+      }
+    })
     if (isDebugMode) {
       setupContextMenu(detachedWindow, true)
     }
@@ -453,52 +460,6 @@ export class AppManager {
     return detachedWindow
   }
 
-  /**
-   * 为窗口设置 DevTools 快捷键（F12）
-   * 🔥 确保即使没有菜单，F12 也能切换 DevTools
-   */
-  private setupDevToolsShortcut(windowProcess: WindowProcess) {
-    // 只在开发模式或调试模式下启用
-    if (!isDevEnvironment && !isDebugMode) {
-      return
-    }
-
-    windowProcess.window.webContents.on('before-input-event', (event, input) => {
-      // F12 键
-      if (input.type === 'keyDown' && input.key === 'F12') {
-        // 手动检查 DevTools 状态，以 detach 模式打开
-        if (windowProcess.window.webContents.isDevToolsOpened()) {
-          windowProcess.window.webContents.closeDevTools()
-        } else {
-          windowProcess.window.webContents.openDevTools({ mode: 'detach' })
-        }
-        event.preventDefault()
-        logger.info('DevTools toggled via F12 shortcut')
-      }
-      
-      // Ctrl+Shift+I / Cmd+Shift+I (macOS)
-      if (input.type === 'keyDown' && 
-          input.key === 'I' && 
-          (input.control || input.meta) && 
-          input.shift) {
-        windowProcess.window.webContents.openDevTools({ mode: 'detach' })
-        event.preventDefault()
-        logger.info('DevTools opened via Ctrl+Shift+I shortcut')
-      }
-      
-      // Ctrl+R / Cmd+R (macOS) - 重新加载
-      if (input.type === 'keyDown' && 
-          input.key === 'r' && 
-          (input.control || input.meta) && 
-          !input.shift) {
-        windowProcess.window.reload()
-        event.preventDefault()
-        logger.info('Window reloaded via Ctrl+R shortcut')
-      }
-    })
-    
-    logger.info('DevTools shortcuts set up for window')
-  }
 
   /**
    * 解析 preload 脚本路径
