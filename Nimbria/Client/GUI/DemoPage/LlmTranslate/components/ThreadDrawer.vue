@@ -25,6 +25,61 @@
 
     <el-divider></el-divider>
 
+    <!-- 任务元数据 -->
+    <div class="drawer-section">
+      <div class="section-title"><el-icon><Setting /></el-icon> 任务配置</div>
+      <div class="metadata-grid">
+        <div class="metadata-item">
+          <span class="label">模型:</span>
+          <span class="value">{{ task.metadata.modelId }}</span>
+        </div>
+        <div class="metadata-item">
+          <span class="label">分片策略:</span>
+          <span class="value">{{ task.metadata.chunkStrategy === 'line' ? `按行 (${task.metadata.chunkSizeByLine})` : `按Token (${task.metadata.chunkSizeByToken})` }}</span>
+        </div>
+        <div class="metadata-item">
+          <span class="label">并发数:</span>
+          <span class="value">{{ task.metadata.concurrency }}</span>
+        </div>
+        <div class="metadata-item">
+          <span class="label">回复模式:</span>
+          <span class="value">{{ task.metadata.replyMode === 'predicted' ? '预测模式' : '等额模式' }}</span>
+        </div>
+        <div class="metadata-item">
+          <span class="label">预估输入Token:</span>
+          <span class="value">{{ task.metadata.estimatedInputTokens }}</span>
+        </div>
+        <div class="metadata-item">
+          <span class="label">预估输出Token:</span>
+          <span class="value">{{ task.metadata.estimatedOutputTokens }}</span>
+        </div>
+        <div class="metadata-item" v-if="task.metadata.actualInputTokens">
+          <span class="label">实际输入Token:</span>
+          <span class="value">{{ task.metadata.actualInputTokens }}</span>
+        </div>
+        <div class="metadata-item" v-if="task.metadata.actualOutputTokens">
+          <span class="label">实际输出Token:</span>
+          <span class="value">{{ task.metadata.actualOutputTokens }}</span>
+        </div>
+        <div class="metadata-item">
+          <span class="label">预估费用:</span>
+          <span class="value">¥{{ task.metadata.estimatedCost.toFixed(3) }}</span>
+        </div>
+        <div class="metadata-item" v-if="task.metadata.actualCost">
+          <span class="label">实际费用:</span>
+          <span class="value">¥{{ task.metadata.actualCost.toFixed(3) }}</span>
+        </div>
+      </div>
+      
+      <!-- 系统提示词 -->
+      <div class="system-prompt-section">
+        <div class="prompt-label">系统提示词:</div>
+        <div class="prompt-content">{{ task.metadata.systemPrompt }}</div>
+      </div>
+    </div>
+
+    <el-divider></el-divider>
+
     <!-- AI 对话流 -->
     <div class="drawer-section">
       <div class="section-title"><el-icon><ChatDotRound /></el-icon> 翻译对话</div>
@@ -110,7 +165,8 @@ import {
   Document, 
   Refresh, 
   Download, 
-  Check 
+  Check,
+  Setting 
 } from '@element-plus/icons-vue'
 import type { Task } from '../types/task'
 import type { TaskStatus } from '../types/task'
@@ -216,6 +272,56 @@ const saveTask = () => {
         color: #333;
         font-weight: 500;
       }
+    }
+  }
+
+  .metadata-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 16px;
+
+    .metadata-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 8px;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+      border-left: 3px solid #409eff;
+
+      .label {
+        font-size: 11px;
+        color: #909399;
+        font-weight: 500;
+      }
+
+      .value {
+        font-size: 12px;
+        color: #333;
+        font-weight: 600;
+      }
+    }
+  }
+
+  .system-prompt-section {
+    .prompt-label {
+      font-size: 12px;
+      font-weight: bold;
+      color: #606266;
+      margin-bottom: 8px;
+    }
+
+    .prompt-content {
+      font-size: 12px;
+      color: #333;
+      line-height: 1.5;
+      padding: 12px;
+      background-color: #f5f7fa;
+      border-radius: 4px;
+      border: 1px solid #e4e7eb;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
   }
 

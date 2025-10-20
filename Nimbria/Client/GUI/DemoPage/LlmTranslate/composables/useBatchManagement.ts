@@ -2,7 +2,7 @@
  * 批次管理组合式函数
  */
 
-import { ref } from 'vue'
+import { ref, toRaw } from 'vue'
 import { h } from 'vue'
 import { useLlmTranslateStore } from '../stores'
 import { ElMessage } from 'element-plus'
@@ -19,7 +19,9 @@ export function useBatchManagement(_options: BatchManagementOptions = {}) {
   const createNewBatch = async () => {
     isCreating.value = true
     try {
-      const newBatch = await store.createBatch(store.config)
+      // 去除 Proxy，转换为纯对象以便 Electron IPC 传递
+      const plainConfig = JSON.parse(JSON.stringify(toRaw(store.config)))
+      const newBatch = await store.createBatch(plainConfig)
       // @ts-ignore - Element Plus message type compatibility
       ElMessage({
         message: h('p', `批次 ${newBatch.id} 创建成功`),

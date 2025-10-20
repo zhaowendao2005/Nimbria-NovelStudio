@@ -4,7 +4,7 @@
  */
 
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, toRaw } from 'vue'
 import type { Batch, Task, TranslateConfig, TaskFilter } from '../types'
 import type { 
   TranslateState, 
@@ -29,12 +29,12 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     filePath: '',
     systemPrompt: '你是一个专业的翻译助手，请将以下内容翻译成英文。',
     chunkStrategy: 'line',
-    chunkSize: 50,
+    chunkSizeByLine: 50,
+    chunkSizeByToken: 2000,
     concurrency: 3,
     replyMode: 'predicted',
     predictedTokens: 2000,
-    modelId: 'gpt-4',
-    outputDir: 'D:\\output\\translate\\'
+    modelId: 'gpt-4'
   })
 
   /** 批次列表 */
@@ -72,7 +72,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
   const error = ref<string | null>(null)
 
   /** Mock 模式开关 */
-  const useMock = ref(true) // 默认true便于开发测试
+  const useMock = ref(false) // 使用真实数据
 
   // ==================== Datasource 实例 ====================
   
@@ -178,7 +178,9 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     error.value = null
 
     try {
-      const newBatch = await datasource.value.createBatch(configData)
+      // 去除 Proxy，确保能通过 Electron IPC
+      const plainConfig = JSON.parse(JSON.stringify(toRaw(configData)))
+      const newBatch = await datasource.value.createBatch(plainConfig)
       batchList.value.unshift(newBatch)
       return newBatch
     } catch (err) {

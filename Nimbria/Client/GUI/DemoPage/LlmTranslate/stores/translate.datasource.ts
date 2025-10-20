@@ -7,6 +7,16 @@ import type { Batch, Task, TranslateConfig } from '../types'
 import type { TranslateDatasource, DatasourceContext } from './translate.types'
 import { MockTranslateDatasource } from './translate.mock'
 
+// ==================== 工具函数 ====================
+
+/**
+ * 去除对象中的 Proxy，转换为纯对象
+ * 用于 Electron IPC 传递时避免 structured clone 错误
+ */
+function toPlainObject<T>(obj: T): T {
+  return JSON.parse(JSON.stringify(obj))
+}
+
 // ==================== Electron Datasource 实现 ====================
 
 class ElectronTranslateDatasource implements TranslateDatasource {
@@ -35,7 +45,8 @@ class ElectronTranslateDatasource implements TranslateDatasource {
   }
 
   async createBatch(config: TranslateConfig): Promise<Batch> {
-    const result = await this.electronAPI.createBatch({ config })
+    const plainConfig = toPlainObject(config)
+    const result = await this.electronAPI.createBatch({ config: plainConfig })
     if (result.success && result.data) {
       return result.data.batch
     } else {
@@ -44,7 +55,8 @@ class ElectronTranslateDatasource implements TranslateDatasource {
   }
 
   async updateBatch(batchId: string, updates: Partial<Batch>): Promise<Batch> {
-    const result = await this.electronAPI.updateBatch({ batchId, updates })
+    const plainUpdates = toPlainObject(updates)
+    const result = await this.electronAPI.updateBatch({ batchId, updates: plainUpdates })
     if (result.success && result.data) {
       return result.data.batch
     } else {
@@ -81,14 +93,16 @@ class ElectronTranslateDatasource implements TranslateDatasource {
   }
 
   async sendTasks(taskIds: string[]): Promise<void> {
-    const result = await this.electronAPI.sendTasks({ taskIds })
+    const plainTaskIds = toPlainObject(taskIds)
+    const result = await this.electronAPI.sendTasks({ taskIds: plainTaskIds })
     if (!result.success) {
       throw new Error(result.error || '发送任务失败')
     }
   }
 
   async deleteTasks(taskIds: string[]): Promise<void> {
-    const result = await this.electronAPI.deleteTasks({ taskIds })
+    const plainTaskIds = toPlainObject(taskIds)
+    const result = await this.electronAPI.deleteTasks({ taskIds: plainTaskIds })
     if (!result.success) {
       throw new Error(result.error || '删除任务失败')
     }
@@ -137,11 +151,10 @@ export function calculateCost(tokens: number, modelId: string): number {
   const costPerToken: Record<string, number> = {
     'gpt-4': 0.00003,
     'gpt-3.5-turbo': 0.000002,
-    'claude-3': 0.000015,
-    'default': 0.00001
+    'claude-3': 0.000015
   }
   
-  const rate = costPerToken[modelId] ?? costPerToken.default
+  const rate = costPerToken[modelId] ?? 0.00001 // 默认费率
   return Math.round(tokens * rate * 100) / 100 // 保留两位小数
 }
 

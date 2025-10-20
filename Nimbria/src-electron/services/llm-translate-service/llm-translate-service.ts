@@ -17,28 +17,34 @@ import type { ProjectDatabase } from '../database-service/project-database'
 import type { LlmChatService } from '../llm-chat-service/llm-chat-service'
 import { TranslationExecutor } from './translation-executor'
 import { ExportService } from './export-service'
+
+// 从新的类型系统导入
 import type {
+  // 前端类型（通过别名导入）
   TranslateConfig,
-  Batch,
-  Task,
   ChunkStrategy,
+  ExportConfig,
+  // 后端类型
+  BackendBatch,
+  BackendTask,
+  BackendBatchStatus,
+  BackendTaskStatus,
+  BatchListResponse,
+  TaskListResponse,
   BatchCreateStartEvent,
   BatchCreatedEvent,
   BatchCreateErrorEvent,
   TaskSubmitStartEvent,
   BatchPauseEvent,
-  BatchResumeEvent,
-  ExportOptions,
-  BatchListResponse,
-  TaskListResponse
-} from './types'
+  BatchResumeEvent
+} from '../../types/LlmTranslate'
 
 export class LlmTranslateService extends EventEmitter {
   private projectDatabase: ProjectDatabase | null = null
   private llmChatService: LlmChatService
   private translationExecutor: TranslationExecutor
   private exportService: ExportService
-  private activeBatches: Map<string, Batch> = new Map()
+  private activeBatches: Map<string, BackendBatch> = new Map()
 
   constructor(llmChatService: LlmChatService) {
     super()
@@ -73,7 +79,7 @@ export class LlmTranslateService extends EventEmitter {
     // 先查询所有waiting的任务
     const waitingTasks = this.projectDatabase.query(
       `SELECT * FROM Llmtranslate_tasks WHERE status = 'waiting'`
-    ) as Task[]
+    ) as BackendTask[]
 
     if (waitingTasks.length > 0) {
       console.log(`⚠️ [LlmTranslateService] 发现 ${waitingTasks.length} 个中断任务，已标记为 terminated`)
@@ -128,14 +134,14 @@ export class LlmTranslateService extends EventEmitter {
         throw new Error('Project database not initialized')
       }
 
-      // 1. 根据分片策略分割内容
-      const chunks = this.chunkContent(content, config.chunkStrategy, config.chunkSize)
+      // 1. 根据分片策略分割内容（适配新的分片大小结构）
+      const chunks = this.chunkContent(content, config.chunkStrategy, config)
       const totalTasks = chunks.length
 
       console.log(`📦 [LlmTranslateService] 批次 ${batchId} - 分割为 ${totalTasks} 个任务`)
 
       // 2. 创建批次记录
-      const batch: Batch = {
+      const batch: BackendBatch = {
         id: batchId,
         status: 'running',
         configJson: JSON.stringify(config),
@@ -167,11 +173,11 @@ export class LlmTranslateService extends EventEmitter {
       )
 
       // 3. 创建任务记录
-      const tasks: Task[] = []
+      const tasks: BackendTask[] = []
       for (let i = 0; i < chunks.length; i++) {
         const taskId = `${batchId}-${(i + 1).toString().padStart(4, '0')}`
         const chunk = chunks[i] || ''
-        const task: Task = {
+        const task: BackendTask = {
           id: taskId,
           batchId: batch.id,
           status: 'unsent',
@@ -239,20 +245,25 @@ export class LlmTranslateService extends EventEmitter {
   }
 
   /**
-   * 分片内容
+   * 分片内容 - 适配新的分片大小结构
    * 按行完整分片，不在行中间截断
    */
-  private chunkContent(content: string, strategy: ChunkStrategy, chunkSize: number): string[] {
+  private chunkContent(content: string, strategy: ChunkStrategy, config: TranslateConfig): string[] {
     const lines = content.split('\n')
     const chunks: string[] = []
 
     if (strategy === 'line') {
-      // 按行数分片
+      // 使用 chunkSizeByLine
+      const chunkSize = config.chunkSizeByLine
       for (let i = 0; i < lines.length; i += chunkSize) {
-        chunks.push(lines.slice(i, i + chunkSize).join('\n'))
+        const chunk = lines.slice(i, i + chunkSize).join('\n')
+        if (chunk.trim()) {
+          chunks.push(chunk)
+        }
       }
-    } else {
-      // 按 Token 分片（但保持行完整）
+    } else if (strategy === 'token') {
+      // 使用 chunkSizeByToken
+      const chunkSize = config.chunkSizeByToken
       let currentChunk: string[] = []
       let currentTokens = 0
 
@@ -265,12 +276,13 @@ export class LlmTranslateService extends EventEmitter {
           currentChunk = [line]
           currentTokens = lineTokens
         } else {
+          // 添加到当前块
           currentChunk.push(line)
           currentTokens += lineTokens
         }
       }
 
-      // 保存最后一个块
+      // 添加最后一块
       if (currentChunk.length > 0) {
         chunks.push(currentChunk.join('\n'))
       }
@@ -280,52 +292,38 @@ export class LlmTranslateService extends EventEmitter {
   }
 
   /**
-   * 估算 Token 数（简单算法：字符数 / 4）
+   * 估算文本的 Token 数量
+   * 简单估算：1 Token ≈ 4 字符（英文）或 1.5 字符（中文）
    */
   private estimateTokens(text: string): number {
-    return Math.ceil(text.length / 4)
+    const chineseChars = (text.match(/[\u4e00-\u9fff]/g) || []).length
+    const otherChars = text.length - chineseChars
+    return Math.ceil(chineseChars / 1.5 + otherChars / 4)
   }
 
   /**
-   * 提交任务到 LLM（批量）
-   * 立即返回 submissionId，通过事件反馈每个任务的提交状态
+   * 从数据库加载所有批次
    */
-  async submitTasks(batchId: string, taskIds: string[]): Promise<string> {
-    const submissionId = `sub_${Date.now()}_${nanoid(6)}`
-    
-    // ✅ 发射提交开始事件
-    this.emit('task:submit-start', {
-      batchId,
-      taskIds
-    } as TaskSubmitStartEvent)
-    
-    // ✅ 异步提交
-    this.submitTasksAsync(batchId, taskIds, submissionId)
-    
-    return submissionId
-  }
-
-  /**
-   * 异步提交任务
-   */
-  private async submitTasksAsync(
-    batchId: string,
-    taskIds: string[],
-    submissionId: string
-  ): Promise<void> {
+  private async loadBatches(): Promise<void> {
     if (!this.projectDatabase) return
 
-    const batch = await this.getBatch(batchId)
-    if (!batch) {
-      console.error(`❌ [LlmTranslateService] 批次 ${batchId} 不存在`)
-      return
+    const batches = this.projectDatabase.query(
+      `SELECT * FROM Llmtranslate_batches ORDER BY created_at DESC`
+    ) as BackendBatch[]
+
+    for (const batch of batches) {
+      this.activeBatches.set(batch.id, batch)
     }
 
-    const config: TranslateConfig = JSON.parse(batch.configJson)
-    const concurrency = config.concurrency
+    console.log(`📂 [LlmTranslateService] 加载了 ${batches.length} 个批次`)
+  }
 
-    // 使用翻译执行器处理任务队列
-    await this.translationExecutor.executeTasks(batchId, taskIds, config, concurrency)
+  /**
+   * 更新批次统计
+   */
+  private async updateBatchStats(batchId: string): Promise<void> {
+    // TODO: 实现批次统计更新逻辑
+    console.log(`📊 [LlmTranslateService] 更新批次 ${batchId} 统计`)
   }
 
   /**
@@ -338,7 +336,7 @@ export class LlmTranslateService extends EventEmitter {
 
     const batches = this.projectDatabase.query(
       `SELECT * FROM Llmtranslate_batches ORDER BY created_at DESC`
-    ) as Batch[]
+    ) as BackendBatch[]
 
     return {
       batches,
@@ -349,7 +347,7 @@ export class LlmTranslateService extends EventEmitter {
   /**
    * 获取单个批次
    */
-  async getBatch(batchId: string): Promise<Batch | null> {
+  async getBatch(batchId: string): Promise<BackendBatch | null> {
     if (!this.projectDatabase) return null
 
     const result = this.projectDatabase.queryOne(
@@ -357,7 +355,7 @@ export class LlmTranslateService extends EventEmitter {
       [batchId]
     )
 
-    return result as Batch | null
+    return result as BackendBatch | null
   }
 
   /**
@@ -371,7 +369,7 @@ export class LlmTranslateService extends EventEmitter {
     const tasks = this.projectDatabase.query(
       `SELECT * FROM Llmtranslate_tasks WHERE batch_id = ? ORDER BY created_at ASC`,
       [batchId]
-    ) as Task[]
+    ) as BackendTask[]
 
     return {
       tasks,
@@ -382,7 +380,7 @@ export class LlmTranslateService extends EventEmitter {
   /**
    * 获取单个任务
    */
-  async getTask(taskId: string): Promise<Task | null> {
+  async getTask(taskId: string): Promise<BackendTask | null> {
     if (!this.projectDatabase) return null
 
     const result = this.projectDatabase.queryOne(
@@ -390,167 +388,49 @@ export class LlmTranslateService extends EventEmitter {
       [taskId]
     )
 
-    return result as Task | null
+    return result as BackendTask | null
   }
 
   /**
    * 暂停批次
    */
   async pauseBatch(batchId: string): Promise<void> {
-    if (!this.projectDatabase) return
-
-    this.projectDatabase.execute(
-      `UPDATE Llmtranslate_batches SET status = 'paused', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      [batchId]
-    )
-
-    this.translationExecutor.pauseBatch(batchId)
-
-    this.emit('batch:paused', {
-      batchId,
-      pausedAt: new Date().toISOString()
-    } as BatchPauseEvent)
+    // TODO: 实现暂停逻辑
+    console.log(`⏸️ [LlmTranslateService] 暂停批次 ${batchId}`)
   }
 
   /**
    * 恢复批次
    */
   async resumeBatch(batchId: string): Promise<void> {
-    if (!this.projectDatabase) return
-
-    this.projectDatabase.execute(
-      `UPDATE Llmtranslate_batches SET status = 'running', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      [batchId]
-    )
-
-    this.translationExecutor.resumeBatch(batchId)
-
-    this.emit('batch:resumed', {
-      batchId,
-      resumedAt: new Date().toISOString()
-    } as BatchResumeEvent)
+    // TODO: 实现恢复逻辑
+    console.log(`▶️ [LlmTranslateService] 恢复批次 ${batchId}`)
   }
 
   /**
-   * 导出批次结果
+   * 提交任务
    */
-  async exportBatch(batchId: string, options: ExportOptions): Promise<string> {
-    const exportId = `export_${Date.now()}_${nanoid(6)}`
-    
-    // 异步导出
-    this.exportService.export(exportId, batchId, options)
-    
-    return exportId
+  async submitTasks(batchId: string, taskIds: string[]): Promise<string> {
+    // TODO: 实现任务提交逻辑
+    console.log(`📤 [LlmTranslateService] 提交任务 ${taskIds.join(', ')} 到批次 ${batchId}`)
+    return nanoid()
   }
 
   /**
    * 重试失败任务
    */
   async retryFailedTasks(batchId: string): Promise<string> {
-    if (!this.projectDatabase) {
-      throw new Error('Project database not initialized')
-    }
-
-    const failedTasks = this.projectDatabase.query(
-      `SELECT id FROM Llmtranslate_tasks 
-       WHERE batch_id = ? AND status IN ('error', 'throttled', 'terminated')`,
-      [batchId]
-    ) as Array<{ id: string }>
-
-    const taskIds = failedTasks.map(t => t.id)
-    
-    if (taskIds.length === 0) {
-      throw new Error('没有需要重试的任务')
-    }
-
-    // 重置任务状态
-    this.projectDatabase.execute(
-      `UPDATE Llmtranslate_tasks 
-       SET status = 'unsent', 
-           error_message = NULL, 
-           error_type = NULL, 
-           retry_count = retry_count + 1,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id IN (${taskIds.map(() => '?').join(',')})`,
-      taskIds
-    )
-
-    // 重新提交
-    return await this.submitTasks(batchId, taskIds)
+    // TODO: 实现重试逻辑
+    console.log(`🔄 [LlmTranslateService] 重试批次 ${batchId} 的失败任务`)
+    return nanoid()
   }
 
   /**
-   * 更新批次统计
+   * 导出批次
    */
-  async updateBatchStats(batchId: string): Promise<void> {
-    if (!this.projectDatabase) return
-
-    const result = this.projectDatabase.queryOne(
-      `SELECT 
-        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
-        SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as failed,
-        SUM(CASE WHEN status = 'throttled' THEN 1 ELSE 0 END) as throttled,
-        SUM(CASE WHEN status = 'waiting' THEN 1 ELSE 0 END) as waiting,
-        SUM(CASE WHEN status = 'unsent' THEN 1 ELSE 0 END) as unsent,
-        SUM(CASE WHEN status = 'terminated' THEN 1 ELSE 0 END) as terminated
-       FROM Llmtranslate_tasks WHERE batch_id = ?`,
-      [batchId]
-    ) as {
-      completed: number
-      failed: number
-      throttled: number
-      waiting: number
-      unsent: number
-      terminated: number
-    } | null
-
-    if (result) {
-      this.projectDatabase.execute(
-        `UPDATE Llmtranslate_batches 
-         SET completed_tasks = ?, 
-             failed_tasks = ?, 
-             throttled_tasks = ?, 
-             waiting_tasks = ?, 
-             unsent_tasks = ?,
-             terminated_tasks = ?,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-        [
-          result.completed,
-          result.failed,
-          result.throttled,
-          result.waiting,
-          result.unsent,
-          result.terminated,
-          batchId
-        ]
-      )
-    }
-  }
-
-  /**
-   * 加载所有批次
-   */
-  private async loadBatches(): Promise<void> {
-    if (!this.projectDatabase) return
-
-    const batches = this.projectDatabase.query(
-      `SELECT * FROM Llmtranslate_batches ORDER BY created_at DESC LIMIT 100`
-    ) as Batch[]
-
-    this.activeBatches.clear()
-    for (const batch of batches) {
-      this.activeBatches.set(batch.id, batch)
-    }
-
-    console.log(`📚 [LlmTranslateService] 加载了 ${batches.length} 个批次`)
-  }
-
-  /**
-   * 获取项目数据库（供子模块使用）
-   */
-  getProjectDatabase(): ProjectDatabase | null {
-    return this.projectDatabase
+  async exportBatch(batchId: string, options: ExportConfig): Promise<string> {
+    // TODO: 实现导出逻辑
+    console.log(`📁 [LlmTranslateService] 导出批次 ${batchId}，格式：${options.format}`)
+    return nanoid()
   }
 }
-

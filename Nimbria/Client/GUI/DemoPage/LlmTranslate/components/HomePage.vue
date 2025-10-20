@@ -121,7 +121,7 @@
           <div class="radio-group-item">
             <el-radio label="line">按行数分片</el-radio>
             <el-input-number
-              v-model="store.config.chunkSize"
+              v-model="store.config.chunkSizeByLine"
               :min="1"
               :max="1000"
               controls-position="right"
@@ -133,7 +133,7 @@
           <div class="radio-group-item">
             <el-radio label="token">按 Token 分片</el-radio>
             <el-input-number
-              v-model="store.config.chunkSize"
+              v-model="store.config.chunkSizeByToken"
               :min="100"
               :max="4000"
               controls-position="right"
@@ -224,22 +224,6 @@
 
       <el-divider></el-divider>
 
-      <!-- 输出配置 -->
-      <div class="config-item">
-        <div class="section-header">输出目录配置</div>
-        <el-input 
-          v-model="store.config.outputDir" 
-          placeholder="请选择输出目录"
-          :disabled="true"
-        >
-          <template #append>
-            <el-button :icon="FolderOpened" @click="selectOutputDir" />
-          </template>
-        </el-input>
-      </div>
-
-      <el-divider></el-divider>
-
       <!-- 底部操作栏 -->
       <div class="bottom-actions">
         <el-button @click="previewConfig">
@@ -316,11 +300,6 @@ const useDefaultPrompt = () => {
   ElMessage({ message: '已应用默认提示词', type: 'success' })
 }
 
-// 选择输出目录
-const selectOutputDir = () => {
-  store.config.outputDir = 'D:\\output\\translate\\'
-  ElMessage({ message: '输出目录已选择', type: 'info' })
-}
 
 // 预览配置
 const previewConfig = () => {
@@ -329,7 +308,7 @@ const previewConfig = () => {
     message: `
       <p><strong>输入方式:</strong> ${store.config.inputSource === 'file' ? '文件上传' : '文本输入'}</p>
       <p><strong>内容量:</strong> ${tokenEstimate.value.inputTokens} tokens</p>
-      <p><strong>分片策略:</strong> ${store.config.chunkStrategy === 'line' ? '按行' : '按Token'} (${store.config.chunkSize})</p>
+      <p><strong>分片策略:</strong> ${store.config.chunkStrategy === 'line' ? `按行 (${store.config.chunkSizeByLine})` : `按Token (${store.config.chunkSizeByToken})`}</p>
       <p><strong>并发数:</strong> ${store.config.concurrency}</p>
       <p><strong>回复模式:</strong> ${store.config.replyMode === 'predicted' ? `预计 ${store.config.predictedTokens} tokens` : '等额模式'}</p>
       <p><strong>模型:</strong> ${store.config.modelId}</p>
@@ -369,12 +348,12 @@ const clearConfig = () => {
     filePath: '',
     systemPrompt: '',
     chunkStrategy: 'line',
-    chunkSize: 50,
+    chunkSizeByLine: 50,
+    chunkSizeByToken: 2000,
     concurrency: 3,
     replyMode: 'predicted',
     predictedTokens: 2000,
-    modelId: 'gpt-4',
-    outputDir: ''
+    modelId: 'gpt-4'
   }
   fileName.value = ''
   fileSize.value = ''
@@ -504,6 +483,7 @@ const saveDraft = () => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  align-items: flex-start;
 }
 
 .radio-group-item {

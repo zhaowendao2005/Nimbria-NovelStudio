@@ -12,12 +12,12 @@ export interface TranslateConfig {
   filePath?: string
   systemPrompt: string
   chunkStrategy: ChunkStrategy
-  chunkSize: number
+  chunkSizeByLine: number
+  chunkSizeByToken: number
   concurrency: number
   replyMode: ReplyMode
   predictedTokens: number
   modelId: string
-  outputDir: string
 }
 
 export interface TokenEstimate {

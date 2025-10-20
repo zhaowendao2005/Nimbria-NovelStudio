@@ -119,11 +119,47 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
    */
   ipcMain.handle('llm-translate:create-batch', async (_event, args: {
     config: TranslateConfig
-    content: string
   }) => {
     try {
-      const batchId = await llmTranslateService.createBatch(args.config, args.content)
-      return { success: true, data: { batchId } }
+      // 从 config 中提取 content
+      const { content, ...configWithoutContent } = args.config
+      
+      // createBatch 返回 batchId 后会异步创建批次并通过事件通知
+      const batchId = await llmTranslateService.createBatch(args.config, content)
+      
+      // 等待批次创建完成（通过事件或轮询）
+      // 我们这里采用简单的等待策略：监听一次 batch:created 事件
+      const batch = await new Promise<any>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          cleanup()
+          reject(new Error('批次创建超时'))
+        }, 30000) // 30秒超时
+        
+        const onCreated = (data: BatchCreatedEvent) => {
+          if (data.batchId === batchId) {
+            cleanup()
+            resolve(data.batch)
+          }
+        }
+        
+        const onError = (data: BatchCreateErrorEvent) => {
+          if (data.batchId === batchId) {
+            cleanup()
+            reject(new Error(data.error))
+          }
+        }
+        
+        const cleanup = () => {
+          clearTimeout(timeout)
+          llmTranslateService.off('batch:created', onCreated)
+          llmTranslateService.off('batch:create-error', onError)
+        }
+        
+        llmTranslateService.once('batch:created', onCreated)
+        llmTranslateService.once('batch:create-error', onError)
+      })
+      
+      return { success: true, data: { batch } }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       return { success: false, error: errorMessage }
