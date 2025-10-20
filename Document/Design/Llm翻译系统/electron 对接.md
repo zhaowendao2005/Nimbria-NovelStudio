@@ -1,17 +1,19 @@
-# 📋 **LLM 翻译系统 - 完整后端集成设计文档 (v1.0)**
+# 📋 **LLM 翻译系统 - Electron 本地集成设计文档 (v1.0)**
 
 **版本**: v1.0  
 **创建时间**: 2025年10月20日  
-**架构模式**: 事件驱动 + 强类型  
-**数据库版本**: v1.2.0
+**架构模式**: 事件驱动 + 强类型 + Electron IPC  
+**数据库版本**: v1.2.0  
+**运行环境**: 纯桌面应用（无后端服务器）
 
 ## 🎯 **核心设计原则**
 
 1. ✅ **严格事件驱动**：所有异步操作立即返回操作ID，通过事件反馈进度
 2. ✅ **强类型约束**：严禁 `any`，所有类型必须显式定义
-3. ✅ **Electron 后端**：复用现有的 LlmChatService 架构模式
-4. ✅ **文件操作**：通过 Electron Dialog API 选择路径
-5. ✅ **优雅中断处理**：程序终止时，所有 `waiting` 状态的任务标记为 `error`
+3. ✅ **Electron 本地进程**：主进程运行 LlmTranslateService，通过IPC与渲染进程通信
+4. ✅ **本地数据库**：使用SQLite存储批次和任务数据
+5. ✅ **本地文件操作**：通过 Electron Dialog API 选择文件路径
+6. ✅ **优雅中断处理**：程序终止时，所有 `waiting` 状态的任务标记为 `terminated`
 
 ---
 
@@ -455,9 +457,16 @@ export interface TaskListResponse {
 
 ```typescript
 /**
- * LLM 翻译主服务类
- * 继承 EventEmitter，事件驱动架构
- * 严格强类型，禁止 any
+ * LLM 翻译主服务类 - Electron 主进程本地服务
+ * 
+ * 架构职责：
+ * - 管理批次和任务的生命周期
+ * - 与 SQLite 数据库交互（本地存储）
+ * - 集成 LlmChatService 进行翻译（本地LLM调用）
+ * - 通过事件驱动向 IPC 层广播进度反馈
+ * 
+ * ⚠️ 运行在 Electron 主进程，与渲染进程通过 IPC 通信
+ * ⚠️ 无网络请求，无后端服务器依赖
  */
 
 import { EventEmitter } from 'events'
@@ -1052,9 +1061,16 @@ export class LlmTranslateService extends EventEmitter {
 
 ```typescript
 /**
- * 翻译执行器
- * 负责任务队列管理和并发控制
- * 调用 LlmChatService 执行实际翻译
+ * 翻译执行器 - Electron 主进程任务队列管理器
+ * 
+ * 职责：
+ * - 管理任务队列（FIFO）
+ * - 并发控制（限制同时执行的任务数）
+ * - 与 LlmChatService 交互调用本地LLM进行翻译
+ * - 监听流式响应并广播进度事件
+ * - 错误捕获和重试逻辑
+ * 
+ * ⚠️ 所有操作都在主进程本地完成，无外部网络调用
  */
 
 import type { LlmTranslateService } from './llm-translate-service'
@@ -1349,12 +1365,19 @@ export class TranslationExecutor {
 src-electron/ipc/main-renderer/llm-translate-handlers.ts
 ```
 
-### **IPC Handlers 实现**
+### **IPC Handlers 实现（纯Electron 进程间通信）**
 
 ```typescript
 /**
  * LLM Translate IPC 处理器
- * 事件驱动架构，强类型约束
+ * 主进程监听来自渲染进程的 IPC 消息，调用 LlmTranslateService 执行业务逻辑
+ * 通过事件驱动架构向所有渲染窗口广播进度反馈
+ * 
+ * 架构说明：
+ * - 无后端服务器，无网络请求
+ * - 所有数据操作在主进程本地完成
+ * - 通过 IPC 与渲染进程通信
+ * - 使用 EventEmitter 实现事件驱动
  */
 
 import { ipcMain, BrowserWindow, dialog } from 'electron'
@@ -1666,8 +1689,9 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
 
 ```typescript
 /**
- * LlmTranslate Store - 真实后端集成版本
+ * LlmTranslate Store - IPC 通信版本（纯Electron本地应用）
  * 强类型，事件驱动
+ * 通过 IPC 与主进程的 LlmTranslateService 通信
  */
 
 import { defineStore } from 'pinia'
@@ -1685,10 +1709,11 @@ import type {
   TaskErrorEvent
 } from '../types'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+// ⭐ 无后端服务器，所有操作通过 IPC 在本地进行
+// 渲染进程 ←→ IPC Bridge ←→ 主进程 (LlmTranslateService)
 
 export const useLlmTranslateStore = defineStore('llmTranslate', () => {
-  // ⭐ 单一开关：改这里切换 Mock ↔ 真实后端
+  // ⭐ 单一开关：改这里切换 Mock ↔ Electron 本地服务
   const useMock = ref(import.meta.env.MODE === 'development')
 
   // ==================== 状态定义 ====================
@@ -1806,6 +1831,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
       if (useMock.value) {
         batchList.value = mockBatchList
       } else {
+        // 通过 IPC 调用主进程的 getBatches()
         const result = await window.nimbria.llmTranslate.getBatches()
         if (result.success && result.data) {
           batchList.value = result.data.batches
@@ -1829,6 +1855,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
       if (useMock.value) {
         taskList.value = mockTaskList.filter((t: Task) => t.batchId === batchId)
       } else {
+        // 通过 IPC 调用主进程的 getTasks()
         const result = await window.nimbria.llmTranslate.getTasks({ batchId })
         if (result.success && result.data) {
           taskList.value = result.data.tasks
@@ -1874,7 +1901,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
         batchList.value.unshift(newBatch)
         return newBatch
       } else {
-        // 真实后端
+        // 通过 IPC 调用主进程创建批次
         const result = await window.nimbria.llmTranslate.createBatch({
           config: configData,
           content: configData.content
@@ -1936,11 +1963,16 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
 src-electron/core/project-preload.ts
 ```
 
-### **API 暴露**
+### **IPC 通信 API 暴露（纯Electron）**
 
 ```typescript
 /**
- * LLM Translate API (强类型)
+ * LLM Translate IPC API - 主进程通信接口（强类型）
+ * 
+ * 架构流程：
+ * 渲染进程 → ipcRenderer → IPC Bridge → 主进程 LlmTranslateService → 数据库/LLM
+ * 
+ * ⚠️ 无后端服务器，所有数据操作都在主进程本地完成
  */
 
 import type {
@@ -1955,7 +1987,7 @@ import type {
 
 // 在 contextBridge.exposeInMainWorld 中添加
 llmTranslate: {
-  // ===== 数据查询 =====
+  // ===== 数据查询（同步IPC调用） =====
   getBatches: (): Promise<ApiResponse<BatchListResponse>> => 
     ipcRenderer.invoke('llm-translate:get-batches'),
   
@@ -1965,7 +1997,7 @@ llmTranslate: {
   getTask: (args: { taskId: string }): Promise<ApiResponse<Task | null>> =>
     ipcRenderer.invoke('llm-translate:get-task', args),
   
-  // ===== 批次操作 =====
+  // ===== 批次操作（异步IPC调用 + 事件反馈） =====
   createBatch: (args: { config: TranslateConfig; content: string }): Promise<ApiResponse<{ batchId: string }>> =>
     ipcRenderer.invoke('llm-translate:create-batch', args),
   
@@ -1981,7 +2013,7 @@ llmTranslate: {
   resumeBatch: (args: { batchId: string }): Promise<ApiResponse<void>> =>
     ipcRenderer.invoke('llm-translate:resume-batch', args),
   
-  // ===== 文件操作 =====
+  // ===== 本地文件操作（Electron Dialog） =====
   selectFile: (): Promise<ApiResponse<{ filePath: string; fileName: string; fileSize: number; content: string }>> =>
     ipcRenderer.invoke('llm-translate:select-file'),
   
@@ -1991,7 +2023,9 @@ llmTranslate: {
   exportBatch: (args: { batchId: string; options: ExportOptions }): Promise<ApiResponse<{ exportId: string }>> =>
     ipcRenderer.invoke('llm-translate:export-batch', args),
   
-  // ===== 事件监听 (强类型) =====
+  // ===== 事件监听（IPC 事件流） =====
+  // 这些事件由主进程发射，渲染进程监听以获取实时反馈
+  
   onBatchCreateStart: (callback: (data: BatchCreateStartEvent) => void) => {
     ipcRenderer.on('llm-translate:batch-create-start', (_event, data) => callback(data))
   },
@@ -2025,59 +2059,59 @@ llmTranslate: {
 ## 📋 **循序渐进实现 TODO (5 阶段)**
 
 ```markdown
-### Phase 0: 准备工作
-- [ ] 创建 `src-electron/services/llm-translate-service/` 目录
-- [ ] 创建 `types.ts` - 定义所有强类型接口
-- [ ] 创建 Schema v1.2.0 - 定义数据库表结构
+### Phase 0: 准备工作 ✅
+- [x] 创建 `src-electron/services/llm-translate-service/` 目录
+- [x] 创建 `types.ts` - 定义所有强类型接口
+- [x] 创建 Schema v1.2.0 - 定义数据库表结构
 
-### Phase 1: 数据读取（GET）
-- [ ] 实现 `LlmTranslateService.getBatches()` - 查询批次列表
-- [ ] 实现 `LlmTranslateService.getTasks(batchId)` - 查询任务列表
-- [ ] 实现 `LlmTranslateService.getTask(taskId)` - 查询单个任务
-- [ ] 注册 IPC Handlers: `llm-translate:get-batches`, `llm-translate:get-tasks`
-- [ ] 更新 `project-preload.ts` - 暴露 API
-- [ ] **测试**: 前端切换 useMock=false，验证数据读取
+### Phase 1: 数据查询（本地IPC读取）
+- [ ] 实现 `LlmTranslateService.getBatches()` - 从SQLite查询批次列表
+- [ ] 实现 `LlmTranslateService.getTasks(batchId)` - 从SQLite查询任务列表
+- [ ] 实现 `LlmTranslateService.getTask(taskId)` - 从SQLite查询单个任务
+- [ ] 注册 IPC Handlers: `llm-translate:get-batches`, `llm-translate:get-tasks`, `llm-translate:get-task`
+- [ ] 更新 `project-preload.ts` - 暴露IPC方法
+- [ ] **测试**: 前端通过IPC调用，验证从数据库读取数据
 
-### Phase 2: 批次创建（POST）
-- [ ] 实现 `LlmTranslateService.createBatch()` - 创建批次和分片
-- [ ] 实现 `chunkContent()` - 内容分片逻辑
-- [ ] 实现 `handleTerminatedTasks()` - 程序中断恢复
+### Phase 2: 批次创建（事件驱动异步）
+- [ ] 实现 `LlmTranslateService.createBatch()` - 创建批次和内容分片
+- [ ] 实现 `chunkContent()` - 按行/按Token分片逻辑
+- [ ] 实现 `handleTerminatedTasks()` - 程序中断恢复（将waiting标记为terminated）
 - [ ] 注册事件监听器: `batch:create-start`, `batch:created`, `batch:create-error`
-- [ ] 注册 IPC Handler: `llm-translate:create-batch`
+- [ ] 注册 IPC Handler: `llm-translate:create-batch`（立即返回batchId）
 - [ ] 前端 Store 添加事件监听: `setupListeners()`
-- [ ] **测试**: 创建批次 → 查看数据库 → 验证任务分片
+- [ ] **测试**: 调用createBatch → 监听事件反馈 → 验证数据库中的分片
 
-### Phase 3: 任务执行（翻译）
+### Phase 3: 任务执行（流式翻译）
 - [ ] 实现 `TranslationExecutor.executeTasks()` - 任务队列管理
 - [ ] 实现 `TranslationExecutor.worker()` - 并发工作线程
 - [ ] 实现 `TranslationExecutor.executeTask()` - 单个任务执行
-- [ ] 集成 `LlmChatService` - 调用 LLM API
-- [ ] 实现流式进度更新 - 监听 `message:chunk` 事件
+- [ ] 集成 `LlmChatService` - 调用本地LLM服务
+- [ ] 实现流式进度更新 - 监听 `message:chunk` 事件并广播进度
 - [ ] 注册任务事件: `task:submitted`, `task:progress`, `task:complete`, `task:error`
-- [ ] **测试**: 提交任务 → 观察流式进度 → 验证翻译结果
+- [ ] **测试**: 提交任务 → 观察流式进度 → 验证翻译结果保存
 
 ### Phase 4: 控制与导出
-- [ ] 实现 `pauseBatch()` / `resumeBatch()` - 暂停恢复
-- [ ] 实现 `retryFailedTasks()` - 重试逻辑
+- [ ] 实现 `pauseBatch()` / `resumeBatch()` - 暂停/恢复批次
+- [ ] 实现 `retryFailedTasks()` - 重试失败的任务
 - [ ] 实现 `ExportService.export()` - 导出服务
-- [ ] 实现文件选择: `llm-translate:select-file`, `llm-translate:select-output-dir`
+- [ ] 实现本地文件选择: `llm-translate:select-file`, `llm-translate:select-output-dir`
 - [ ] 实现导出格式生成: TXT / CSV / JSON
-- [ ] **测试**: 暂停/恢复批次 → 重试失败任务 → 导出结果
+- [ ] **测试**: 暂停/恢复批次 → 重试失败任务 → 验证文件导出
 
 ### Phase 5: 统计与优化
-- [ ] 实现 `updateBatchStats()` - 批次统计更新
+- [ ] 实现 `updateBatchStats()` - 实时更新批次统计
 - [ ] 实现 `Llmtranslate_stats` 表的统计计算
 - [ ] 实现错误分类统计: network/timeout/rate_limit/terminated
 - [ ] 优化并发控制: 限流时自动降低并发
 - [ ] 优化重试机制: 指数退避算法
-- [ ] **测试**: 查看统计分析 → 验证性能指标
+- [ ] **测试**: 查看统计分析 → 验证性能指标准确
 ```
 
 ---
 
 ## 🎯 **关键实现要点**
 
-### 1. **程序中断处理**
+### 1. **程序中断处理（Electron graceful shutdown）**
 ```typescript
 // 在 LlmTranslateService.initialize() 中
 await this.handleTerminatedTasks()
@@ -2095,16 +2129,16 @@ private async handleTerminatedTasks(): Promise<void> {
 }
 ```
 
-### 2. **文件上传**
+### 2. **本地文件操作（Electron Dialog API）**
 ```typescript
-// 通过 Electron Dialog
+// Electron Dialog 选择文件（本地）
 const result = await dialog.showOpenDialog(win, {
   title: '选择待翻译文件',
   properties: ['openFile'],
   filters: [{ name: '文本文件', extensions: ['txt', 'md'] }]
 })
 
-// 读取文件内容
+// 本地读取文件内容
 const fs = await import('fs/promises')
 const content = await fs.readFile(filePath, 'utf-8')
 ```
@@ -2114,13 +2148,30 @@ const content = await fs.readFile(filePath, 'utf-8')
 - ✅ 事件数据使用 `interface` 定义
 - ✅ 数据库查询结果使用泛型 `query<T>()`
 - ✅ 禁止 `any`，使用 `unknown` + 类型守卫
+- ✅ IPC 消息类型完全匹配
 
-### 4. **事件驱动流程**
+### 4. **事件驱动流程（Electron IPC + EventEmitter）**
 ```
-createBatch()
-  → 立即返回 batchId
+渲染进程 (createBatch)
+  → IPC invoke → 主进程
+  → createBatch() 立即返回 batchId
   → emit('batch:create-start')
   → 异步处理分片
   → emit('batch:created')
-  → 前端监听事件更新UI
+  → IPC send 广播给所有渲染窗口
+  → 渲染进程监听事件更新UI
 ```
+
+### 5. **本地LLM调用（LlmChatService）**
+```
+翻译执行器 → LlmChatService.sendMessage()
+  → 本地 LLM 推理（无网络调用）
+  → 流式响应
+  → 监听 message:chunk 事件
+  → 广播 task:progress 事件
+```
+
+### 6. **本地数据持久化（SQLite）**
+- 所有批次和任务数据存储在本地 SQLite 数据库
+- 支持程序重启后恢复未完成的任务
+- 无云同步，纯本地存储

@@ -665,6 +665,46 @@ export interface NimbriaWindowAPI {
   }
 
   /**
+   * LLM Translate API - 批量翻译系统
+   * 
+   * 提供批量翻译功能，支持事件驱动的任务管理和流式进度反馈。
+   * 纯Electron本地应用，无后端服务器依赖。
+   */
+  llmTranslate: {
+    // 数据查询（同步IPC调用）
+    getBatches: () => Promise<{ success: boolean; data?: { batches: any[]; total: number }; error?: string }>
+    getTasks: (args: { batchId: string }) => Promise<{ success: boolean; data?: { tasks: any[]; total: number }; error?: string }>
+    getTask: (args: { taskId: string }) => Promise<{ success: boolean; data?: any; error?: string }>
+    
+    // 批次操作（异步IPC调用 + 事件反馈）
+    createBatch: (args: { config: any; content: string }) => Promise<{ success: boolean; data?: { batchId: string }; error?: string }>
+    submitTasks: (args: { batchId: string; taskIds: string[] }) => Promise<{ success: boolean; data?: { submissionId: string }; error?: string }>
+    retryFailedTasks: (args: { batchId: string }) => Promise<{ success: boolean; data?: { submissionId: string }; error?: string }>
+    pauseBatch: (args: { batchId: string }) => Promise<{ success: boolean; error?: string }>
+    resumeBatch: (args: { batchId: string }) => Promise<{ success: boolean; error?: string }>
+    
+    // 本地文件操作（Electron Dialog）
+    selectFile: () => Promise<{ success: boolean; data?: { filePath: string; fileName: string; fileSize: number; content: string }; canceled?: boolean; error?: string }>
+    selectOutputDir: () => Promise<{ success: boolean; data?: { outputDir: string }; canceled?: boolean; error?: string }>
+    exportBatch: (args: { batchId: string; options: any }) => Promise<{ success: boolean; data?: { exportId: string }; error?: string }>
+    
+    // 事件监听（IPC 事件流）
+    onBatchCreateStart: (callback: (data: any) => void) => void
+    onBatchCreated: (callback: (data: any) => void) => void
+    onBatchCreateError: (callback: (data: any) => void) => void
+    onTaskSubmitStart: (callback: (data: any) => void) => void
+    onTaskSubmitted: (callback: (data: any) => void) => void
+    onTaskProgress: (callback: (data: any) => void) => void
+    onTaskComplete: (callback: (data: any) => void) => void
+    onTaskError: (callback: (data: any) => void) => void
+    onBatchPaused: (callback: (data: any) => void) => void
+    onBatchResumed: (callback: (data: any) => void) => void
+    onExportStart: (callback: (data: any) => void) => void
+    onExportComplete: (callback: (data: any) => void) => void
+    onExportError: (callback: (data: any) => void) => void
+  }
+
+  /**
    * StarChart API
    * 
    * 提供小说设定图数据库功能，基于 Gun.js 实现时间维度快照架构。

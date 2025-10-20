@@ -31,6 +31,8 @@ import { DatabaseService } from '../services/database-service/database-service'
 import { registerDatabaseHandlers } from '../ipc/main-renderer/database-handlers'
 import { StarChartService } from '../services/star-chart-service/star-chart-service'
 import { registerStarChartHandlers } from '../ipc/main-renderer/star-chart-handlers'
+import { LlmTranslateService } from '../services/llm-translate-service/llm-translate-service'
+import { registerLlmTranslateHandlers } from '../ipc/main-renderer/llm-translate-handlers'
 import { createApplicationMenu, setupContextMenu } from './menu'
 
 const logger = getLogger('AppManager')
@@ -43,6 +45,7 @@ export class AppManager {
   private projectManager!: ProjectManager
   private llmConfigManager!: LlmConfigManager
   private llmChatService!: LlmChatService
+  private llmTranslateService!: LlmTranslateService
   private databaseService!: DatabaseService
   private starChartService!: StarChartService
   private transferMap?: Map<string, { sourceWebContentsId: number; tabId: string }>
@@ -121,7 +124,11 @@ export class AppManager {
       logger.error('Failed to initialize LLM Chat service:', error)
     })
     
-    logger.info('File system, file watcher, project management, LLM config and LLM chat services initialized')
+    // 初始化 LLM Translate 服务
+    this.llmTranslateService = new LlmTranslateService(this.llmChatService)
+    logger.info('LLM Translate service initialized')
+    
+    logger.info('File system, file watcher, project management, LLM config, LLM chat and LLM translate services initialized')
   }
 
   /**
@@ -167,6 +174,19 @@ export class AppManager {
           logger.info(`✅ [AppManager] LLM Chat 服务已切换到项目: ${data.projectPath}`)
         } catch (error) {
           logger.error(`❌ [AppManager] LLM Chat 服务切换项目失败:`, error)
+        }
+      }
+      
+      // 初始化 LLM Translate 服务
+      if (this.llmTranslateService) {
+        try {
+          const projectDb = this.databaseService.getProjectDatabase(data.projectPath)
+          if (projectDb) {
+            await this.llmTranslateService.initialize(data.projectPath, projectDb)
+            logger.info(`✅ [AppManager] LLM Translate 服务已初始化: ${data.projectPath}`)
+          }
+        } catch (error) {
+          logger.error(`❌ [AppManager] LLM Translate 服务初始化失败:`, error)
         }
       }
     })
@@ -545,6 +565,10 @@ export class AppManager {
     // 注册 LLM Chat IPC 处理器
     registerLlmChatHandlers(this.llmChatService)
     logger.info('LLM Chat IPC handlers registered')
+    
+    // 注册 LLM Translate IPC 处理器
+    registerLlmTranslateHandlers(this.llmTranslateService)
+    logger.info('LLM Translate IPC handlers registered')
     
     // 注册 Database IPC 处理器
     registerDatabaseHandlers(this.databaseService)

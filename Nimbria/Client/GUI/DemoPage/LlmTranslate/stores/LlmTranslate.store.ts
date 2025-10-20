@@ -8,11 +8,12 @@ import { ref, computed } from 'vue'
 import { mockBatchList, mockTaskList } from './mock'
 import type { Batch, Task, TranslateConfig, TaskFilter } from '../types'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+// ⭐ 无后端服务器，所有操作通过 IPC 在本地进行
+// 渲染进程 ←→ IPC Bridge ←→ 主进程 (LlmTranslateService)
 
 export const useLlmTranslateStore = defineStore('llmTranslate', () => {
-  // ⭐ 单一开关：改这里切换 Mock ↔ 真实后端
-  const useMock = ref(import.meta.env.MODE === 'development')
+  // ⭐ 单一开关：改这里切换 Mock ↔ Electron 本地服务
+  const useMock = ref(true) // 默认true便于开发测试
 
   // ==================== 状态定义 ====================
   
@@ -108,7 +109,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
 
   /**
    * 获取批次列表
-   * 支持 Mock/真实后端切换
+   * 支持 Mock/IPC 切换
    */
   const fetchBatchList = async () => {
     loading.value = true
@@ -118,8 +119,13 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
       if (useMock.value) {
         batchList.value = mockBatchList
       } else {
-        const response = await fetch(`${API_BASE_URL}/batches`)
-        batchList.value = await response.json()
+        // 通过 IPC 调用主进程的 getBatches()
+        const result = await window.nimbria.llmTranslate.getBatches()
+        if (result.success && result.data) {
+          batchList.value = result.data.batches
+        } else {
+          throw new Error(result.error || '获取批次列表失败')
+        }
       }
     } catch (err) {
       error.value = err instanceof Error ? err.message : '获取批次列表失败'
@@ -131,7 +137,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
 
   /**
    * 获取任务列表
-   * 支持 Mock/真实后端切换
+   * 支持 Mock/IPC 切换
    */
   const fetchTaskList = async (batchId: string) => {
     loading.value = true
@@ -141,8 +147,13 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
       if (useMock.value) {
         taskList.value = mockTaskList.filter(t => t.batchId === batchId)
       } else {
-        const response = await fetch(`${API_BASE_URL}/batches/${batchId}/tasks`)
-        taskList.value = await response.json()
+        // 通过 IPC 调用主进程的 getTasks()
+        const result = await window.nimbria.llmTranslate.getTasks({ batchId })
+        if (result.success && result.data) {
+          taskList.value = result.data.tasks
+        } else {
+          throw new Error(result.error || '获取任务列表失败')
+        }
       }
 
       // 计算进度
@@ -170,32 +181,53 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
         const newBatch: Batch = {
           id: `#${Date.now().toString().slice(-8)}`,
           status: 'running',
+          configJson: JSON.stringify(configData),
           totalTasks: 0,
           completedTasks: 0,
           failedTasks: 0,
           throttledTasks: 0,
           waitingTasks: 0,
           unsentTasks: 0,
-          createdAt: new Date().toISOString(),
+          terminatedTasks: 0,
           totalCost: 0,
           totalInputTokens: 0,
           totalOutputTokens: 0,
-          avgTimePerTask: 0
+          avgTimePerTask: 0,
+          fastestTaskTime: 0,
+          slowestTaskTime: 0,
+          estimatedCompletionTime: null,
+          createdAt: new Date().toISOString(),
+          startedAt: null,
+          completedAt: null,
+          updatedAt: new Date().toISOString()
         }
         currentBatch.value = newBatch
         batchList.value.unshift(newBatch)
         return newBatch
       } else {
-        // 真实后端调用
-        const response = await fetch(`${API_BASE_URL}/batches`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ config: configData })
+        // 通过 IPC 调用主进程创建批次
+        const result = await window.nimbria.llmTranslate.createBatch({
+          config: configData,
+          content: configData.content
         })
-        const newBatch = await response.json()
-        currentBatch.value = newBatch
-        await fetchBatchList()
-        return newBatch
+        
+        if (!result.success || !result.data?.batchId) {
+          throw new Error(result.error || '创建批次失败')
+        }
+
+        // 等待批次创建完成事件（通过 Promise + 事件监听）
+        return await new Promise<Batch>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('创建超时')), 30000)
+          
+          const handler = (data: any) => {
+            if (data.batchId === result.data?.batchId) {
+              clearTimeout(timeout)
+              resolve(data.batch)
+            }
+          }
+          
+          window.nimbria.llmTranslate.onBatchCreated(handler)
+        })
       }
     } catch (err) {
       error.value = err instanceof Error ? err.message : '创建批次失败'
@@ -219,8 +251,13 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
           task.retryCount++
         })
       } else {
-        await fetch(`${API_BASE_URL}/batches/${batchId}/retry`, { method: 'POST' })
-        await fetchTaskList(batchId)
+        // 通过 IPC 调用主进程重试
+        const result = await window.nimbria.llmTranslate.retryFailedTasks({ batchId })
+        if (result.success) {
+          await fetchTaskList(batchId)
+        } else {
+          throw new Error(result.error || '重试失败')
+        }
       }
     } catch (err) {
       console.error('Failed to retry tasks:', err)
@@ -275,8 +312,11 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
   const initialize = async () => {
     await fetchBatchList()
     if (batchList.value.length > 0) {
-      currentBatch.value = batchList.value[0]
-      await fetchTaskList(currentBatch.value.id)
+      const firstBatch = batchList.value[0]
+      if (firstBatch) {
+        currentBatch.value = firstBatch
+        await fetchTaskList(firstBatch.id)
+      }
     }
   }
 
@@ -303,6 +343,94 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
       isOpen: false,
       currentTaskId: null
     }
+  }
+
+  // ==================== 事件监听器设置 ====================
+
+  /**
+   * 设置 IPC 事件监听器
+   * 在非Mock模式下调用，监听主进程发来的事件
+   */
+  const setupListeners = () => {
+    if (useMock.value) return  // Mock 模式不需要监听
+
+    // 批次创建事件
+    window.nimbria.llmTranslate.onBatchCreateStart((data: any) => {
+      console.log('📦 [Store] 批次创建开始:', data.batchId)
+    })
+
+    window.nimbria.llmTranslate.onBatchCreated((data: any) => {
+      console.log('✅ [Store] 批次创建完成:', data.batchId)
+      
+      // 更新批次列表
+      batchList.value.unshift(data.batch)
+      currentBatch.value = data.batch
+      taskList.value = data.tasks
+    })
+
+    window.nimbria.llmTranslate.onBatchCreateError((data: any) => {
+      console.error('❌ [Store] 批次创建失败:', data.error)
+      error.value = data.error
+    })
+
+    // 任务进度事件
+    window.nimbria.llmTranslate.onTaskProgress((data: any) => {
+      const task = taskList.value.find(t => t.id === data.taskId)
+      if (task) {
+        task.replyTokens = data.replyTokens
+        task.progress = data.progress
+        task.translation = (task.translation || '') + data.chunk
+      }
+    })
+
+    // 任务完成事件
+    window.nimbria.llmTranslate.onTaskComplete((data: any) => {
+      const task = taskList.value.find(t => t.id === data.taskId)
+      if (task) {
+        task.status = 'completed'
+        task.translation = data.translation
+        task.progress = 100
+        task.replyTokens = data.totalTokens
+      }
+      
+      // 更新批次统计
+      if (currentBatch.value && currentBatch.value.id === data.batchId) {
+        currentBatch.value.completedTasks++
+      }
+    })
+
+    // 任务错误事件
+    window.nimbria.llmTranslate.onTaskError((data: any) => {
+      const task = taskList.value.find(t => t.id === data.taskId)
+      if (task) {
+        if (data.errorType === 'rate_limit') {
+          task.status = 'throttled'
+        } else {
+          task.status = 'error'
+        }
+        task.errorMessage = data.errorMessage
+        task.errorType = data.errorType
+      }
+      
+      // 更新批次统计
+      if (currentBatch.value && currentBatch.value.id === data.batchId) {
+        if (data.errorType === 'rate_limit') {
+          currentBatch.value.throttledTasks++
+        } else {
+          currentBatch.value.failedTasks++
+        }
+      }
+    })
+
+    // 导出事件
+    window.nimbria.llmTranslate.onExportComplete((data: any) => {
+      console.log('✅ [Store] 导出完成:', data.filePath)
+    })
+
+    window.nimbria.llmTranslate.onExportError((data: any) => {
+      console.error('❌ [Store] 导出失败:', data.error)
+      error.value = data.error
+    })
   }
 
   return {
@@ -335,7 +463,8 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     initialize,
     switchBatch,
     openThreadDrawer,
-    closeThreadDrawer
+    closeThreadDrawer,
+    setupListeners
   }
 })
 

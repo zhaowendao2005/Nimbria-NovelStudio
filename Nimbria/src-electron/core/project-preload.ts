@@ -441,6 +441,93 @@ contextBridge.exposeInMainWorld('nimbria', {
     }
   },
 
+  // 🌐 LLM Translate API - 批量翻译系统
+  llmTranslate: {
+    // ===== 数据查询（同步IPC调用） =====
+    getBatches: () => ipcRenderer.invoke('llm-translate:get-batches'),
+    
+    getTasks: (args: { batchId: string }) => ipcRenderer.invoke('llm-translate:get-tasks', args),
+    
+    getTask: (args: { taskId: string }) => ipcRenderer.invoke('llm-translate:get-task', args),
+    
+    // ===== 批次操作（异步IPC调用 + 事件反馈） =====
+    createBatch: (args: { config: any; content: string }) => 
+      ipcRenderer.invoke('llm-translate:create-batch', args),
+    
+    submitTasks: (args: { batchId: string; taskIds: string[] }) => 
+      ipcRenderer.invoke('llm-translate:submit-tasks', args),
+    
+    retryFailedTasks: (args: { batchId: string }) => 
+      ipcRenderer.invoke('llm-translate:retry-failed-tasks', args),
+    
+    pauseBatch: (args: { batchId: string }) => 
+      ipcRenderer.invoke('llm-translate:pause-batch', args),
+    
+    resumeBatch: (args: { batchId: string }) => 
+      ipcRenderer.invoke('llm-translate:resume-batch', args),
+    
+    // ===== 本地文件操作（Electron Dialog） =====
+    selectFile: () => ipcRenderer.invoke('llm-translate:select-file'),
+    
+    selectOutputDir: () => ipcRenderer.invoke('llm-translate:select-output-dir'),
+    
+    exportBatch: (args: { batchId: string; options: any }) => 
+      ipcRenderer.invoke('llm-translate:export-batch', args),
+    
+    // ===== 事件监听（IPC 事件流） =====
+    onBatchCreateStart: (callback: (data: any) => void) => {
+      ipcRenderer.on('llm-translate:batch-create-start', (_event, data) => callback(data))
+    },
+    
+    onBatchCreated: (callback: (data: any) => void) => {
+      ipcRenderer.on('llm-translate:batch-created', (_event, data) => callback(data))
+    },
+    
+    onBatchCreateError: (callback: (data: any) => void) => {
+      ipcRenderer.on('llm-translate:batch-create-error', (_event, data) => callback(data))
+    },
+    
+    onTaskSubmitStart: (callback: (data: any) => void) => {
+      ipcRenderer.on('llm-translate:task-submit-start', (_event, data) => callback(data))
+    },
+    
+    onTaskSubmitted: (callback: (data: any) => void) => {
+      ipcRenderer.on('llm-translate:task-submitted', (_event, data) => callback(data))
+    },
+    
+    onTaskProgress: (callback: (data: any) => void) => {
+      ipcRenderer.on('llm-translate:task-progress', (_event, data) => callback(data))
+    },
+    
+    onTaskComplete: (callback: (data: any) => void) => {
+      ipcRenderer.on('llm-translate:task-complete', (_event, data) => callback(data))
+    },
+    
+    onTaskError: (callback: (data: any) => void) => {
+      ipcRenderer.on('llm-translate:task-error', (_event, data) => callback(data))
+    },
+    
+    onBatchPaused: (callback: (data: any) => void) => {
+      ipcRenderer.on('llm-translate:batch-paused', (_event, data) => callback(data))
+    },
+    
+    onBatchResumed: (callback: (data: any) => void) => {
+      ipcRenderer.on('llm-translate:batch-resumed', (_event, data) => callback(data))
+    },
+    
+    onExportStart: (callback: (data: any) => void) => {
+      ipcRenderer.on('llm-translate:export-start', (_event, data) => callback(data))
+    },
+    
+    onExportComplete: (callback: (data: any) => void) => {
+      ipcRenderer.on('llm-translate:export-complete', (_event, data) => callback(data))
+    },
+    
+    onExportError: (callback: (data: any) => void) => {
+      ipcRenderer.on('llm-translate:export-error', (_event, data) => callback(data))
+    }
+  },
+
   // 🔥 事件通信 API
   on: (channel: string, callback: (...args: unknown[]) => void) => {
     ipcRenderer.on(channel, (_event, ...args) => callback(...args))
