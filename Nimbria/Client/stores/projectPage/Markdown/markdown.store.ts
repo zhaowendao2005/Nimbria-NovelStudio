@@ -379,6 +379,35 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     return newTab
   }
   
+  // 打开StarChart标签页
+  const openStarChart = () => {
+    // 检查是否已经打开了StarChart标签页
+    const existingTab = openTabs.value.find(tab => tab.type === 'starchart')
+    if (existingTab) {
+      // 如果已存在，直接切换到该标签页
+      activeTabId.value = existingTab.id
+      console.log('[Markdown] StarChart tab already exists, switching to it')
+      return existingTab
+    }
+    
+    // 创建新的StarChart标签页
+    const newTab: MarkdownTab = {
+      id: `starchart-${Date.now()}`,
+      type: 'starchart',
+      filePath: '', // StarChart不需要文件路径
+      fileName: 'StarChart - 图数据可视化',
+      content: '',
+      mode: 'edit', // StarChart不使用mode，但保持兼容
+      isDirty: false
+    }
+    
+    openTabs.value.push(newTab)
+    activeTabId.value = newTab.id
+    
+    console.log('[Markdown] StarChart tab created:', newTab.id)
+    return newTab
+  }
+  
   // 关闭标签页
   const closeTab = (tabId: string) => {
     const index = openTabs.value.findIndex(tab => tab.id === tabId)
@@ -967,6 +996,7 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     initializeFileTree,
     openFile,
     openDocParser,
+    openStarChart,
     closeTab,
     switchTab,
     updateTabContent,

@@ -35,6 +35,9 @@
         <DocParserPanel
           v-else-if="localActiveTabId && activeTabType === 'docparser'"
         />
+        <StarChartPanel
+          v-else-if="localActiveTabId && activeTabType === 'starchart'"
+        />
         
         <!-- 动态渲染自定义页面 -->
         <component 
@@ -105,6 +108,7 @@ import type { PaneContextMenuItem, SplitAction } from '@stores/projectPage/paneL
 import { CustomPageAPI } from '../../../../Service/CustomPageManager'
 import MarkdownTab from '@components/ProjectPage.MainPanel/Markdown/MarkdownTab.vue'
 import { DocParserPanel } from '@components/ProjectPage.MainPanel/DocParser'
+import { StarChartPanel } from '@components/ProjectPage.MainPanel/StarChart'
 import DraggableTabBar from './DraggableTabBar.vue'
 import ContextMenu from './ContextMenu.vue'
 

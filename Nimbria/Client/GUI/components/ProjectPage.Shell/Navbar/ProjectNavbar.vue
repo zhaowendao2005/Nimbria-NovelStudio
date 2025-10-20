@@ -76,6 +76,17 @@
       </button>
     </el-tooltip>
     
+    <!-- StarChart图数据可视化 -->
+    <el-tooltip content="StarChart - 图数据可视化" placement="right" :show-after="500">
+      <button 
+        class="nav-icon-btn"
+        :class="{ active: currentView === 'starchart' }"
+        @click="handleClick('starchart')"
+      >
+        <el-icon class="nav-icon"><Histogram /></el-icon>
+      </button>
+    </el-tooltip>
+    
     <!-- 底部设置按钮 -->
     <div class="navbar-bottom">
       <el-tooltip content="设置" placement="right" :show-after="500">
@@ -93,7 +104,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Folder, Search, Calendar, Setting, HomeFilled, DocumentCopy, ChatDotRound, Edit } from '@element-plus/icons-vue'
+import { Folder, Search, Calendar, Setting, HomeFilled, DocumentCopy, ChatDotRound, Edit, Histogram } from '@element-plus/icons-vue'
 import { useMarkdownStore } from '@stores/projectPage/Markdown'
 import { usePaneLayoutStore } from '@stores/projectPage/paneLayout'
 import { useLeftSidebarStore } from '@stores/projectPage/leftSidebar'
@@ -160,6 +171,41 @@ const handleClick = async (type: string) => {
       leftSidebarStore.setView('docparser')
     } else {
       console.error('[ProjectNavbar] Failed to open DocParser: no focused pane available')
+    }
+    
+    return
+  }
+  
+  // StarChart图数据可视化 - 特殊处理，在主内容区创建panel
+  if (type === 'starchart') {
+    console.log('[ProjectNavbar] 打开StarChart标签页')
+    
+    // 1. 打开StarChart标签页
+    const tab = markdownStore.openStarChart()
+    
+    if (!tab) {
+      console.error('[ProjectNavbar] Failed to create StarChart tab')
+      return
+    }
+      
+    // 2. 🔥 如果没有面板，先创建默认面板
+    if (!paneLayoutStore.focusedPane) {
+      console.log('[ProjectNavbar] No pane exists, creating default layout')
+      paneLayoutStore.resetToDefaultLayout()
+    }
+    
+    // 3. 在焦点面板中显示该 tab
+    if (paneLayoutStore.focusedPane) {
+      paneLayoutStore.openTabInPane(paneLayoutStore.focusedPane.id, tab.id)
+      console.log('[ProjectNavbar] Opened StarChart in focused pane:', {
+        paneId: paneLayoutStore.focusedPane.id,
+        tabId: tab.id
+      })
+      
+      // 更新 leftSidebarStore 的当前视图
+      leftSidebarStore.setView('starchart')
+    } else {
+      console.error('[ProjectNavbar] Failed to open StarChart: no focused pane available')
     }
     
     return

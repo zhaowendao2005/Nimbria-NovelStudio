@@ -30,9 +30,39 @@
  * 控制台面板 - 提供启动按钮和系统介绍
  */
 
+import { useMarkdownStore } from '@stores/projectPage/Markdown'
+import { usePaneLayoutStore } from '@stores/projectPage/paneLayout'
+
+const markdownStore = useMarkdownStore()
+const paneLayoutStore = usePaneLayoutStore()
+
 const handleCreate = () => {
-  // TODO: 创建新视图的逻辑
   console.log('创建新的StarChart视图')
+  
+  // 1. 打开StarChart标签页
+  const tab = markdownStore.openStarChart()
+  
+  if (!tab) {
+    console.error('[ConsolePanel] Failed to create StarChart tab')
+    return
+  }
+  
+  // 2. 🔥 如果没有面板，先创建默认面板
+  if (!paneLayoutStore.focusedPane) {
+    console.log('[ConsolePanel] No pane exists, creating default layout')
+    paneLayoutStore.resetToDefaultLayout()
+  }
+  
+  // 3. 在焦点面板中显示该 tab
+  if (paneLayoutStore.focusedPane) {
+    paneLayoutStore.openTabInPane(paneLayoutStore.focusedPane.id, tab.id)
+    console.log('[ConsolePanel] Opened StarChart in focused pane:', {
+      paneId: paneLayoutStore.focusedPane.id,
+      tabId: tab.id
+    })
+  } else {
+    console.error('[ConsolePanel] Failed to open StarChart: no focused pane available')
+  }
 }
 </script>
 
