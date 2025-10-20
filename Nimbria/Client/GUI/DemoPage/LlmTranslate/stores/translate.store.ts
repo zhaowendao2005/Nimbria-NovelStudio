@@ -54,7 +54,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
 
   /** 任务过滤器 */
   const taskFilters = ref<TaskFilter>({
-    status: ['queued', 'waiting', 'throttled', 'error', 'unsent'],
+    status: ['queued', 'waiting', 'sending', 'throttled', 'error', 'unsent', 'completed'],
     searchText: '',
     selectMode: false
   })
@@ -573,7 +573,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     })
 
     // 任务完成
-    ;(window as any).nimbria.on('llm-translate:task-completed', (data: any) => {
+    ;(window as any).nimbria.on('llm-translate:task-complete', (data: any) => {
       console.log(`✅ [Store] 任务完成: ${data.taskId}`)
       
       // 更新任务列表中的任务

@@ -6,19 +6,19 @@
       <div class="info-grid">
         <div class="info-item">
           <span class="label">任务ID:</span>
-          <span class="value">{{ task.id }}</span>
+          <span class="value">{{ taskData.id }}</span>
         </div>
         <div class="info-item">
           <span class="label">状态:</span>
-          <el-tag :type="getStatusTagType(task.status)" size="small">{{ getStatusText(task.status) }}</el-tag>
+          <el-tag :type="getStatusTagType(taskData.status)" size="small">{{ getStatusText(taskData.status) }}</el-tag>
         </div>
         <div class="info-item">
           <span class="label">发送时间:</span>
-          <span class="value">{{ task.sentTime || '未发送' }}</span>
+          <span class="value">{{ taskData.sentTime || '未发送' }}</span>
         </div>
         <div class="info-item">
           <span class="label">进度:</span>
-          <span class="value">{{ task.progress.toFixed(0) }}%</span>
+          <span class="value">{{ taskData.progress.toFixed(0) }}%</span>
         </div>
       </div>
     </div>
@@ -26,55 +26,55 @@
     <el-divider></el-divider>
 
     <!-- 任务元数据 -->
-    <div v-if="task.metadata" class="drawer-section">
+    <div v-if="taskData.metadata" class="drawer-section">
       <div class="section-title"><el-icon><Setting /></el-icon> 任务配置</div>
       <div class="metadata-grid">
         <div class="metadata-item">
           <span class="label">模型:</span>
-          <span class="value">{{ task.metadata.modelId }}</span>
+          <span class="value">{{ taskData.metadata.modelId }}</span>
         </div>
         <div class="metadata-item">
           <span class="label">分片策略:</span>
-          <span class="value">{{ task.metadata.chunkStrategy === 'line' ? `按行 (${task.metadata.chunkSizeByLine})` : `按Token (${task.metadata.chunkSizeByToken})` }}</span>
+          <span class="value">{{ taskData.metadata.chunkStrategy === 'line' ? `按行 (${taskData.metadata.chunkSizeByLine})` : `按Token (${taskData.metadata.chunkSizeByToken})` }}</span>
         </div>
         <div class="metadata-item">
           <span class="label">并发数:</span>
-          <span class="value">{{ task.metadata.concurrency }}</span>
+          <span class="value">{{ taskData.metadata.concurrency }}</span>
         </div>
         <div class="metadata-item">
           <span class="label">回复模式:</span>
-          <span class="value">{{ task.metadata.replyMode === 'predicted' ? '预测模式' : '等额模式' }}</span>
+          <span class="value">{{ taskData.metadata.replyMode === 'predicted' ? '预测模式' : '等额模式' }}</span>
         </div>
         <div class="metadata-item">
           <span class="label">预估输入Token:</span>
-          <span class="value">{{ task.metadata.estimatedInputTokens }}</span>
+          <span class="value">{{ taskData.metadata.estimatedInputTokens }}</span>
         </div>
         <div class="metadata-item">
           <span class="label">预估输出Token:</span>
-          <span class="value">{{ task.metadata.estimatedOutputTokens }}</span>
+          <span class="value">{{ taskData.metadata.estimatedOutputTokens }}</span>
         </div>
-        <div class="metadata-item" v-if="task.metadata.actualInputTokens">
+        <div class="metadata-item" v-if="taskData.metadata.actualInputTokens">
           <span class="label">实际输入Token:</span>
-          <span class="value">{{ task.metadata.actualInputTokens }}</span>
+          <span class="value">{{ taskData.metadata.actualInputTokens }}</span>
         </div>
-        <div class="metadata-item" v-if="task.metadata.actualOutputTokens">
+        <div class="metadata-item" v-if="taskData.metadata.actualOutputTokens">
           <span class="label">实际输出Token:</span>
-          <span class="value">{{ task.metadata.actualOutputTokens }}</span>
+          <span class="value">{{ taskData.metadata.actualOutputTokens }}</span>
         </div>
         <div class="metadata-item">
           <span class="label">预估费用:</span>
-          <span class="value">¥{{ task.metadata.estimatedCost.toFixed(3) }}</span>
+          <span class="value">¥{{ taskData.metadata.estimatedCost.toFixed(3) }}</span>
         </div>
-        <div class="metadata-item" v-if="task.metadata.actualCost">
+        <div class="metadata-item" v-if="taskData.metadata.actualCost">
           <span class="label">实际费用:</span>
-          <span class="value">¥{{ task.metadata.actualCost.toFixed(3) }}</span>
+          <span class="value">¥{{ taskData.metadata.actualCost.toFixed(3) }}</span>
         </div>
       </div>
 
       <!-- 系统提示词 -->
       <div class="system-prompt-section">
         <div class="prompt-label">系统提示词:</div>
-        <div class="prompt-content">{{ task.metadata.systemPrompt }}</div>
+        <div class="prompt-content">{{ taskData.metadata.systemPrompt }}</div>
       </div>
     </div>
 
@@ -89,11 +89,11 @@
         <div class="chat-message user-message">
           <div class="message-header">
             <span class="message-sender"><el-icon><User /></el-icon> 用户</span>
-            <span class="message-time">{{ task.sentTime }}</span>
+            <span class="message-time">{{ taskData.sentTime }}</span>
           </div>
           <div class="message-content">
             <div class="message-label">原文:</div>
-            <div class="message-text">{{ task.content }}</div>
+            <div class="message-text">{{ taskData.content }}</div>
           </div>
         </div>
 
@@ -101,7 +101,7 @@
         <div class="chat-message llm-message">
           <div class="message-header">
             <span class="message-sender"><el-icon><Monitor /></el-icon> LLM</span>
-            <span class="message-time" v-if="task.status === 'completed'">已完成</span>
+            <span class="message-time" v-if="taskData.status === 'completed'">已完成</span>
             <span v-else class="message-status">
               <el-icon class="is-loading"><Loading /></el-icon>
               翻译中...
@@ -110,32 +110,32 @@
           <div class="message-content">
             <div class="message-label">翻译结果:</div>
             <div class="message-text">
-              {{ task.translation || '（翻译结果尚未返回）' }}
+              {{ taskData.translation || '（翻译结果尚未返回）' }}
             </div>
 
             <!-- 进度条（waiting/sending 时显示） -->
-            <div v-if="task.status === 'waiting' || task.status === 'sending'" class="stream-progress">
+            <div v-if="taskData.status === 'waiting' || taskData.status === 'sending'" class="stream-progress">
               <el-progress
-                :percentage="task.progress"
+                :percentage="taskData.progress"
                 :stroke-width="3"
-                :color="task.status === 'sending' ? '#409eff' : '#67c23a'"
+                :color="taskData.status === 'sending' ? '#409eff' : '#67c23a'"
               ></el-progress>
               <span class="progress-info">
-                {{ task.replyTokens }} / {{ task.predictedTokens }} tokens
-                ({{ task.progress.toFixed(0) }}%)
+                {{ taskData.replyTokens }} / {{ taskData.predictedTokens }} tokens
+                ({{ taskData.progress.toFixed(0) }}%)
               </span>
             </div>
             
             <!-- 完成时显示最终结果 -->
-            <div v-else-if="task.status === 'completed'" class="stream-progress completed">
+            <div v-else-if="taskData.status === 'completed'" class="stream-progress completed">
               <el-progress
                 :percentage="100"
                 :stroke-width="3"
                 color="#67c23a"
               ></el-progress>
               <span class="progress-info success">
-                已完成：{{ task.replyTokens }} / {{ task.predictedTokens }} tokens (100%)
-                <span v-if="task.durationMs" class="duration"> · 耗时 {{ task.durationMs }}ms</span>
+                已完成：{{ taskData.replyTokens }} / {{ taskData.predictedTokens }} tokens (100%)
+                <span v-if="taskData.durationMs" class="duration"> · 耗时 {{ taskData.durationMs }}ms</span>
               </span>
             </div>
           </div>
@@ -152,13 +152,13 @@
         <el-button @click="copySource" type="primary" size="small">
           <el-icon><Document /></el-icon> 复制原文
         </el-button>
-        <el-button @click="copyTranslation" type="primary" size="small" :disabled="!task.translation">
+        <el-button @click="copyTranslation" type="primary" size="small" :disabled="!taskData.translation">
           <el-icon><Document /></el-icon> 复制翻译
         </el-button>
-        <el-button @click="retryTask" type="warning" size="small" v-if="task.status === 'error'">
+        <el-button @click="retryTask" type="warning" size="small" v-if="taskData.status === 'error'">
           <el-icon><Refresh /></el-icon> 重新翻译
         </el-button>
-        <el-button @click="saveTask" type="success" size="small" v-if="task.status === 'completed'">
+        <el-button @click="saveTask" type="success" size="small" v-if="taskData.status === 'completed'">
           <el-icon><Download /></el-icon> 保存结果
         </el-button>
       </div>
@@ -183,18 +183,28 @@ import {
 } from '@element-plus/icons-vue'
 import type { Task } from '../types/task'
 import type { TaskStatus } from '../types/task'
+import { useLlmTranslateStore } from '../stores'
+import { computed } from 'vue'
 
 interface Props {
   task: Task
 }
 
 const props = defineProps<Props>()
+const store = useLlmTranslateStore()
+
+// 实时响应 Store 中的任务更新
+const taskData = computed(() => {
+  // 从 Store 中查找最新的任务数据
+  return store.taskList.find(t => t.id === props.task.id) || props.task
+})
 
 // 获取任务状态文本
 const getStatusText = (status: TaskStatus): string => {
   switch (status) {
     case 'unsent': return '未发送'
     case 'waiting': return '等待中'
+    case 'sending': return '发送中'
     case 'throttled': return '限流'
     case 'error': return '错误'
     case 'completed': return '已完成'
@@ -206,6 +216,7 @@ const getStatusText = (status: TaskStatus): string => {
 const getStatusTagType = (status: TaskStatus) => {
   switch (status) {
     case 'completed': return 'success'
+    case 'sending': return 'primary'
     case 'waiting': return 'primary'
     case 'throttled': return 'danger'
     case 'error': return 'warning'
@@ -216,17 +227,17 @@ const getStatusTagType = (status: TaskStatus) => {
 
 // 复制原文
 const copySource = () => {
-  navigator.clipboard.writeText(props.task.content)
+  navigator.clipboard.writeText(taskData.value.content)
   ElMessage({ message: '原文已复制', type: 'success' })
 }
 
 // 复制翻译
 const copyTranslation = () => {
-  if (!props.task.translation) {
+  if (!taskData.value.translation) {
     ElMessage({ message: '翻译结果尚未返回', type: 'warning' })
     return
   }
-  navigator.clipboard.writeText(props.task.translation)
+  navigator.clipboard.writeText(taskData.value.translation)
   ElMessage({ message: '翻译已复制', type: 'success' })
 }
 

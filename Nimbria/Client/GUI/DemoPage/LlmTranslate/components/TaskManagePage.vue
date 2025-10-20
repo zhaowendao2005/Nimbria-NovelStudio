@@ -521,6 +521,7 @@ const deleteSelected = async () => {
 
 // 页面加载
 onMounted(async () => {
+  // 事件监听已在 LlmTranslatePage 初始化，这里不需要重复调用
   if (!store.currentBatch && store.batchList.length > 0 && store.batchList[0]) {
     await switchToBatch(store.batchList[0].id)
   }
