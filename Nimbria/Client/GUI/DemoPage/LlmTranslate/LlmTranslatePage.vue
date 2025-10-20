@@ -1,10 +1,5 @@
 <template>
   <div class="llm-translate-page">
-    <div class="page-header">
-      <h1 class="page-title">LLM 批量翻译系统</h1>
-      <p class="page-subtitle">支持流式进度监控的批量翻译工具</p>
-    </div>
-
     <!-- 顶部导航 Tab -->
     <div class="page-navigation">
       <el-tabs v-model="activeTab" type="card">
