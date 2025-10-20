@@ -1,0 +1,286 @@
+/**
+ * NovelAgent 组件样式配置
+ * 所有颜色、尺寸、边距等配置集中管理
+ * 每个配置只有唯一的定义位置
+ */
+
+// ==================== 颜色配置 ====================
+// 直接使用 rgba 值，简单明了
+
+$container-border-color: #4A90E2;                  // 容器边框颜色 - 中蓝色
+$container-bg-color: var(--obsidian-background-primary);  // 容器背景色
+
+$node-border-color: #4A90E2;                       // 节点边框颜色 - 中蓝色
+$root-node-bg-color: rgba(74, 144, 226, 0.15);     // 根节点背景色 - 浅蓝色透明
+$root-node-text-color: #2C5282;                    // 根节点文字颜色 - 深蓝色
+
+$collapse-border-color: #4A90E2;                   // 折叠面板边框颜色 - 中蓝色
+$collapse-header-bg-color: rgba(74, 144, 226, 0.25); // 折叠面板头部背景色 - 中等透明度蓝色
+$collapse-content-bg-color: var(--obsidian-background-primary); // 折叠面板内容背景色
+
+$card-border-color: rgba(74, 144, 226, 0.3);       // 卡片边框颜色 - 浅蓝色透明
+$card-title-bg-color: rgba(74, 144, 226, 0.1);     // 卡片标题背景色 - 很浅的蓝色
+$card-content-bg-color: rgba(74, 144, 226, 0.05);  // 卡片内容背景色 - 最浅的蓝色
+
+$scrollbar-thumb-color: rgba(74, 144, 226, 0.2);   // 滚动条滑块颜色 - 浅蓝色透明
+$scrollbar-thumb-hover-color: rgba(74, 144, 226, 0.4); // 滚动条滑块悬停颜色 - 中等蓝色透明
+$scrollbar-track-bg-color: var(--obsidian-background-primary); // 滚动条轨道背景色
+
+$text-primary: var(--obsidian-text-primary);       // 主文本颜色
+$text-secondary: var(--obsidian-text-secondary);   // 次要文本颜色
+
+// ==================== 边框配置 ====================
+// 修改这些变量来改变边框样式
+
+$border-width-container: 0px;     // 容器边框宽度（改为 0 则无外边框）
+$border-width-node: 1px;          // 节点边框宽度
+$border-width-collapse: 0px;      // 折叠面板边框宽度（改为 0 则无边框）
+$border-width-separator: 0px;     // 分隔线边框宽度
+$border-radius-container: 4px;    // 容器圆角
+$border-radius-node: 3px;         // 节点圆角
+$border-radius-collapse: 4px;     // 折叠面板圆角
+$card-border-width: 1px;          // 卡片边框宽度
+
+// ==================== 尺寸配置 ====================
+// 修改这些变量来改变组件尺寸
+
+$collapse-header-height: 32px;    // 折叠项头部高度
+$node-padding-vertical: 4px;      // 节点垂直 padding
+$root-node-padding-v: 6px;        // 根节点垂直 padding
+$node-padding-h: 8px;             // 节点水平 padding
+$root-node-padding-h: 8px;        // 根节点水平 padding
+$scrollbar-width: 4px;            // 滚动条宽度（减小可让滚动条更细）
+$scrollbar-padding-right: 6px;    // 滚动条右内边距（为滚动条留出空间，防止内容被遮挡）
+
+// ==================== 间距配置 ====================
+// 修改这些变量来改变间距
+
+$tree-padding: 0px;               // Tree 组件 padding
+$separator-padding-v: 4px;        // 分隔面板垂直 padding
+$separator-margin-left: 0;        // 分隔面板左边距（设为 0 去掉缩进）
+$root-node-margin: 2px 0;         // 根节点 margin
+$collapse-item-padding: 4px;      // 折叠项 padding
+$collapse-header-padding: 0 8px;  // 折叠头 padding
+$collapse-header-line-height: 32px; // 折叠头行高
+$collapse-header-font-size: 12px; // 折叠头字体大小
+
+// ==================== 字体配置 ====================
+// 修改这些变量来改变字体样式
+
+$root-node-font-size: 13px;       // 根节点字体大小
+$root-node-font-weight: 600;      // 根节点字体粗度
+
+// 折叠面板头部文字配置
+$collapse-header-text-color: #7a3dc4;        // 折叠头文字颜色 - 白色（在蓝色背景上清晰）
+$collapse-header-text-size: 13px;            // 折叠头文字大小
+$collapse-header-text-weight: 500;           // 折叠头文字粗度
+$collapse-header-text-family: inherit;       // 折叠头字体族
+
+// ==================== 样式定义 ====================
+
+/* 主容器 */
+.novel-agent-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: $border-width-container solid $container-border-color;
+  border-radius: $border-radius-container;
+  overflow: hidden;
+  background: $container-bg-color;
+  // 说明：主容器占满父级高度，flex 布局，外边框可通过 $border-width-container 控制
+}
+
+/* Tree 组件样式 */
+.agent-tree {
+  flex: 1;
+  overflow-y: auto;
+  --el-tree-node-hover-bg-color: transparent;
+  --el-tree-text-color: $text-primary;
+  --el-tree-expand-icon-color: $text-secondary;
+  --el-tree-node-content-height: auto;
+  padding: $tree-padding;
+  // 说明：Tree 组件占据剩余空间，支持垂直滚动，节点高度自适应
+}
+
+/* 根节点样式 */
+.tree-node {
+  padding: $node-padding-vertical 0;
+  width: 100%;
+  // 说明：通用节点样式，上下内边距可通过 $node-padding-vertical 调整
+}
+
+.root-node {
+  font-weight: $root-node-font-weight;
+  color: $root-node-text-color;
+  font-size: $root-node-font-size;
+  padding: $root-node-padding-v $root-node-padding-h;
+  border: $border-width-node solid $node-border-color;
+  border-radius: $border-radius-node;
+  background: $root-node-bg-color;
+  margin: $root-node-margin;
+  width: 100%;
+  // 说明：根节点特殊样式，淡蓝色背景和边框，字体加粗
+}
+
+.root-node .node-label {
+  display: block;
+  // 说明：根节点标签独占一行
+}
+
+/* 分隔面板包装器 */
+.separator-panel-wrapper {
+  padding: $separator-padding-v 0;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-left: $separator-margin-left;
+  border-left: $border-width-separator solid $container-border-color;
+  // 说明：分隔面板居中对齐，左边距设为 0 去除缩进效果
+}
+
+/* 内嵌折叠面板样式 */
+.inner-collapse {
+  --el-collapse-border-color: $collapse-border-color;
+  --el-collapse-header-bg-color: $collapse-header-bg-color;
+  --el-collapse-header-text-color: $text-primary;
+  --el-collapse-content-bg-color: $collapse-content-bg-color;
+  width: 100%;
+  border-radius: $border-radius-collapse;
+  border: $border-width-collapse solid $collapse-border-color;
+  // 说明：折叠面板使用淡蓝色主题，边框可通过 $border-width-collapse 控制
+}
+
+/* ==================== Element Plus Tree 组件覆盖样式 ==================== */
+// 说明：以下样式用于移除 Tree 组件的默认缩进和展开图标
+
+:deep(.el-tree-node__content) {
+  height: auto;
+  padding: 0 !important;
+  margin: 0 !important;
+  // 说明：移除节点内容的内外边距，高度自适应
+}
+
+:deep(.el-tree-node) {
+  --el-tree-node-hover-bg-color: transparent;
+  // 说明：移除节点悬停时的背景色
+}
+
+:deep(.el-tree-node__children) {
+  background-color: transparent;
+  margin-left: 0 !important;
+  // 说明：移除子节点的左边距缩进，背景透明
+}
+
+:deep(.el-tree-node__expand-icon) {
+  width: 0 !important;
+  height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  display: none !important;
+  // 说明：完全隐藏展开/收起图标，实现无缩进效果
+}
+
+/* ==================== Element Plus Collapse 组件覆盖样式 ==================== */
+// 说明：以下样式用于定制折叠面板的外观和布局
+
+:deep(.el-collapse-item__header) {
+  font-size: $collapse-header-font-size;
+  height: $collapse-header-height;
+  line-height: $collapse-header-line-height;
+  padding: $collapse-header-padding;
+  // 说明：折叠项头部样式，高度和字体大小可配置
+}
+
+:deep(.el-collapse-item__header span) {
+  color: $collapse-header-text-color;
+  font-size: $collapse-header-text-size;
+  font-weight: $collapse-header-text-weight;
+  font-family: $collapse-header-text-family;
+  // 说明：折叠项头部文字样式，可调整颜色、大小、粗度、字体
+}
+
+:deep(.el-collapse-item__content) {
+  padding: $collapse-item-padding;
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  min-height: 0;
+  // 说明：折叠项内容使用 flex 布局，min-height: 0 允许内容缩放
+}
+
+/* ==================== 卡片组件样式 ==================== */
+// 说明：以下样式应用于所有卡片组件，确保统一的布局和滚动行为
+
+:deep(.console-panel),
+:deep(.config-init-panel),
+:deep(.config-live-panel),
+:deep(.progress-panel) {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  // 说明：所有面板占满父级，使用 flex 布局，隐藏溢出内容
+}
+
+:deep(.card) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  // 说明：卡片占据剩余空间，min-height: 0 允许 flex 子项正确缩放
+}
+
+:deep(.card-content) {
+  padding-right: $scrollbar-padding-right;
+  overflow-y: auto;
+  overflow-x: hidden;
+  // 说明：卡片内容支持垂直滚动，右侧留出空间防止内容被滚动条遮挡
+}
+
+/* ==================== Element Plus Slider 组件样式 ==================== */
+// 说明：以下样式确保 Slider 组件不被滚动条遮挡
+
+:deep(.el-slider) {
+  padding-right: $scrollbar-padding-right;
+  min-width: 0;
+  // 说明：Slider 右侧留出空间，防止拖动球被滚动条遮挡
+}
+
+:deep(.el-slider--small) {
+  padding-right: $scrollbar-padding-right;
+  min-width: 0;
+  // 说明：小尺寸 Slider 同样留出空间
+}
+
+:deep(.el-slider__runway) {
+  margin-right: $scrollbar-padding-right;
+  // 说明：滑轨右端往左缩，确保拖动球完全可见
+}
+
+/* ==================== 全局滚动条样式 ==================== */
+// 说明：以下样式统一定制所有滚动条的外观，使其更细更美观
+
+::-webkit-scrollbar {
+  width: $scrollbar-width;
+  // 说明：WebKit 内核浏览器（Chrome、Safari、Edge）滚动条宽度
+  // 修改 $scrollbar-width 可调整滚动条粗细（默认 4px）
+}
+
+::-webkit-scrollbar-track {
+  background: $scrollbar-track-bg-color;
+  // 说明：滚动条轨道背景色
+}
+
+::-webkit-scrollbar-thumb {
+  background: $scrollbar-thumb-color;
+  border-radius: 4px;
+  // 说明：滚动条滑块使用淡蓝色，圆角 4px
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: $scrollbar-thumb-hover-color;
+  // 说明：滚动条滑块悬停时颜色加深
+}
