@@ -1,0 +1,28 @@
+{
+  "name": "mc-recipe-translator",
+  "version": "1.0.0",
+  "description": "Minecraft配方解析与AI翻译工具",
+  "main": "scripts/run-all.js",
+  "scripts": {
+    "parse": "node scripts/1-parser.js",
+    "extract": "node scripts/2-extract-lang.js",
+    "translate": "node scripts/translate-with-ai.js",
+    "merge": "node scripts/3-merge-translation.js",
+    "index": "node scripts/4-generate-indexes.js",
+    "all": "node scripts/run-all.js",
+    "full-pipeline": "npm run parse && npm run extract && npm run translate && npm run merge && npm run index"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0",
+    "openai": "^4.77.0"
+  },
+  "keywords": [
+    "minecraft",
+    "recipe",
+    "translation",
+    "ai"
+  ],
+  "author": "",
+  "license": "MIT"
+}
+

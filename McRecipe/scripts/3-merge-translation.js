@@ -1,33 +1,50 @@
 #!/usr/bin/env node
 /**
- * 阶段3：合并翻译
- * 输入：recipes.raw.json + lang.cn.yaml
- * 输出：recipes.cn.json
+ * 阶段3：合并翻译结果
+ * 输入：recipes.raw.json（原始配方）
+ *       lang.cn.yaml（AI翻译后的中文）
+ *       lang.mapping.json（ID到英文名称的映射）
+ * 输出：recipes.cn.json（带有中文名称的配方）
  * 
- * 功能：将中文翻译映射到配方数据中
+ * 功能：
+ * 1. 加载翻译映射（英文名称 -> 中文名称）
+ * 2. 使用lang.mapping.json将原始ID映射到英文名称
+ * 3. 查找对应的中文翻译
+ * 4. 为每个ID添加对应的中文字段
  */
 
 const fs = require('fs');
 const path = require('path');
+const yaml = require('js-yaml');
 
 class TranslationMerger {
-  constructor(recipesPath, langPath, outputPath) {
+  constructor(recipesPath, translationPath, mappingPath, outputPath) {
     this.recipesPath = recipesPath;
-    this.langPath = langPath;
+    this.translationPath = translationPath;
+    this.mappingPath = mappingPath;
     this.outputPath = outputPath;
     
+    // 翻译映射：英文名称 -> 中文名称
     this.translations = {
+      platforms: new Map(),
       items: new Map(),
-      recipes: new Map(),
-      platforms: new Map()
+      recipes: new Map()
     };
     
+    // ID映射：原始ID -> 英文名称
+    this.idMapping = {
+      platforms: new Map(),
+      items: new Map(),
+      recipes: new Map()
+    };
+    
+    // 统计
     this.stats = {
       totalRecipes: 0,
+      translatedPlatforms: 0,
       translatedItems: 0,
       translatedRecipes: 0,
-      translatedPlatforms: 0,
-      untranslatedItems: 0
+      missingTranslations: []
     };
   }
 
@@ -35,179 +52,217 @@ class TranslationMerger {
    * 主合并方法
    */
   async merge() {
-    console.log('🔄 开始合并翻译...');
-    
+    console.log('🔀 开始合并翻译...');
     const startTime = Date.now();
 
-    // 1. 读取翻译文件
-    console.log('📖 读取翻译文件...');
-    this.loadTranslations();
-
-    // 2. 读取配方数据
-    console.log('📖 读取配方数据...');
-    const data = JSON.parse(fs.readFileSync(this.recipesPath, 'utf8'));
-    const recipes = data.recipes || [];
-
-    this.stats.totalRecipes = recipes.length;
-    console.log(`📦 加载了 ${recipes.length} 个配方`);
-
-    // 3. 合并翻译
-    console.log('🔄 正在合并翻译...');
-    const translatedRecipes = recipes.map((recipe, index) => {
-      if (index % 5000 === 0 && index > 0) {
-        process.stdout.write(`\r  处理进度: ${index}/${recipes.length}`);
-      }
-      return this.translateRecipe(recipe);
-    });
-    console.log(`\r✅ 处理完成: ${recipes.length}/${recipes.length}`);
-
-    // 4. 写入结果
-    await this.writeOutput(data, translatedRecipes);
-
-    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-    console.log(`⏱️  耗时: ${duration}秒`);
-    
-    this.printStatistics();
+    try {
+      // 1. 加载映射文件
+      console.log(`📋 加载映射文件...`);
+      this.loadMapping();
+      
+      // 2. 加载翻译文件
+      console.log(`📖 加载翻译文件...`);
+      this.loadTranslations();
+      
+      // 3. 加载原始配方
+      console.log(`📦 加载原始配方...`);
+      const recipes = this.loadRecipes();
+      
+      // 4. 合并翻译
+      console.log(`🔗 合并翻译结果...`);
+      const mergedRecipes = this.mergeTranslations(recipes);
+      
+      // 5. 保存输出
+      console.log(`💾 保存输出文件...`);
+      this.saveOutput(mergedRecipes);
+      
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+      console.log(`\n✅ 合并完成！耗时: ${duration}秒`);
+      
+      this.printStatistics();
+      
+    } catch (error) {
+      console.error(`\n❌ 合并失败: ${error.message}`);
+      throw error;
+    }
   }
 
   /**
-   * 加载YAML翻译文件
+   * 加载ID映射文件
    */
-  loadTranslations() {
-    if (!fs.existsSync(this.langPath)) {
-      console.warn(`⚠️  警告：找不到翻译文件 ${this.langPath}`);
-      console.warn(`将使用原始英文名称`);
+  loadMapping() {
+    if (!fs.existsSync(this.mappingPath)) {
+      console.warn(`⚠️  映射文件不存在: ${this.mappingPath}`);
+      console.warn(`请先运行 2-extract-lang.js`);
       return;
     }
 
-    const content = fs.readFileSync(this.langPath, 'utf8');
-    const lines = content.split('\n');
-    
-    let currentSection = null;
-    
-    for (const line of lines) {
-      // 跳过注释和空行
-      if (line.trim().startsWith('#') || line.trim() === '') continue;
-      
-      // 识别section
-      if (line.match(/^(platforms|items|recipes):$/)) {
-        currentSection = line.replace(':', '');
-        continue;
-      }
-      
-      // 解析键值对
-      const match = line.match(/^\s+(.+?):\s*"(.*)"\s*$/);
-      if (match && currentSection) {
-        const [, key, value] = match;
-        this.translations[currentSection].set(key.trim(), value);
-      }
-    }
+    const mapping = JSON.parse(fs.readFileSync(this.mappingPath, 'utf8'));
 
-    console.log(`✅ 加载翻译：`);
-    console.log(`   平台: ${this.translations.platforms.size}`);
-    console.log(`   物品: ${this.translations.items.size}`);
-    console.log(`   配方: ${this.translations.recipes.size}`);
+    this.idMapping.platforms = new Map(Object.entries(mapping.platforms || {}));
+    this.idMapping.items = new Map(Object.entries(mapping.items || {}));
+    this.idMapping.recipes = new Map(Object.entries(mapping.recipes || {}));
+
+    console.log(`  平台映射: ${this.idMapping.platforms.size}`);
+    console.log(`  物品映射: ${this.idMapping.items.size}`);
+    console.log(`  配方映射: ${this.idMapping.recipes.size}`);
   }
 
   /**
-   * 翻译单个配方
+   * 加载翻译文件（YAML）
    */
-  translateRecipe(recipe) {
-    if (!recipe) return recipe;
-
-    const translated = { ...recipe };
-
-    // 翻译配方标题
-    if (recipe.id && this.translations.recipes.has(recipe.id)) {
-      translated.titleZh = this.translations.recipes.get(recipe.id);
-      this.stats.translatedRecipes++;
+  loadTranslations() {
+    if (!fs.existsSync(this.translationPath)) {
+      console.warn(`⚠️  翻译文件不存在: ${this.translationPath}`);
+      console.warn(`请先运行 AI翻译脚本或手动创建 lang.cn.yaml`);
+      return;
     }
 
-    // 翻译平台
-    if (recipe.platform && this.translations.platforms.has(recipe.platform)) {
-      translated.platformZh = this.translations.platforms.get(recipe.platform);
-      this.stats.translatedPlatforms++;
+    const content = fs.readFileSync(this.translationPath, 'utf8');
+    const translated = yaml.load(content);
+
+    // 提取各section
+    if (translated.platforms) {
+      for (const [enName, cnName] of Object.entries(translated.platforms)) {
+        this.translations.platforms.set(enName, cnName);
+      }
     }
 
-    // 翻译输出物品
-    if (recipe.output) {
-      translated.output = this.translateItem(recipe.output);
+    if (translated.items) {
+      for (const [enName, cnName] of Object.entries(translated.items)) {
+        this.translations.items.set(enName, cnName);
+      }
     }
 
-    // 翻译输入物品
-    if (recipe.inputs) {
-      translated.inputs = this.translateInputs(recipe.inputs);
+    if (translated.recipes) {
+      for (const [enName, cnName] of Object.entries(translated.recipes)) {
+        this.translations.recipes.set(enName, cnName);
+      }
     }
 
-    return translated;
+    console.log(`  平台翻译: ${this.translations.platforms.size}`);
+    console.log(`  物品翻译: ${this.translations.items.size}`);
+    console.log(`  配方翻译: ${this.translations.recipes.size}`);
   }
 
   /**
-   * 翻译物品
+   * 加载原始配方文件
+   */
+  loadRecipes() {
+    if (!fs.existsSync(this.recipesPath)) {
+      throw new Error(`找不到配方文件: ${this.recipesPath}`);
+    }
+
+    const content = fs.readFileSync(this.recipesPath, 'utf8');
+    const data = JSON.parse(content);
+
+    this.stats.totalRecipes = data.recipes?.length || 0;
+    console.log(`  加载了 ${this.stats.totalRecipes.toLocaleString()} 个配方`);
+
+    return data;
+  }
+
+  /**
+   * 合并翻译到配方
+   */
+  mergeTranslations(data) {
+    const recipes = data.recipes || [];
+
+    for (const recipe of recipes) {
+      // 跳过删除标记
+      if (recipe.type === 'remove') continue;
+
+      // 翻译平台
+      if (recipe.platform) {
+        const enName = this.idMapping.platforms.get(recipe.platform);
+        if (enName && this.translations.platforms.has(enName)) {
+          recipe.platformCn = this.translations.platforms.get(enName);
+          this.stats.translatedPlatforms++;
+        } else {
+          this.recordMissing('platform', recipe.platform, enName);
+        }
+      }
+
+      // 翻译配方ID
+      if (recipe.id) {
+        const enName = this.idMapping.recipes.get(recipe.id);
+        if (enName && this.translations.recipes.has(enName)) {
+          recipe.idCn = this.translations.recipes.get(enName);
+          this.stats.translatedRecipes++;
+        }
+      }
+
+      // 翻译输出物品
+      if (recipe.output) {
+        this.translateItem(recipe.output);
+      }
+
+      // 翻译输入物品
+      if (recipe.inputs && Array.isArray(recipe.inputs)) {
+        this.translateItemsArray(recipe.inputs);
+      }
+    }
+
+    return data;
+  }
+
+  /**
+   * 翻译单个物品
    */
   translateItem(item) {
-    if (!item || !item.id) return item;
+    if (!item || !item.id) return;
 
-    const translated = { ...item };
-    
-    if (this.translations.items.has(item.id)) {
-      translated.nameZh = this.translations.items.get(item.id);
+    const enName = this.idMapping.items.get(item.id);
+    if (enName && this.translations.items.has(enName)) {
+      item.nameCn = this.translations.items.get(enName);
       this.stats.translatedItems++;
-    } else {
-      this.stats.untranslatedItems++;
+    } else if (enName) {
+      this.recordMissing('item', item.id, enName);
+    }
+  }
+
+  /**
+   * 递归翻译物品数组
+   */
+  translateItemsArray(arr) {
+    for (const element of arr) {
+      if (Array.isArray(element)) {
+        this.translateItemsArray(element);
+      } else if (element && typeof element === 'object') {
+        this.translateItem(element);
+      }
+    }
+  }
+
+  /**
+   * 记录缺失的翻译
+   */
+  recordMissing(type, id, enName) {
+    if (this.stats.missingTranslations.length < 100) {
+      this.stats.missingTranslations.push({
+        type,
+        id,
+        enName: enName || '(未找到映射)'
+      });
+    }
+  }
+
+  /**
+   * 保存输出文件
+   */
+  saveOutput(data) {
+    // 备份原文件
+    if (fs.existsSync(this.outputPath)) {
+      const backupPath = this.outputPath.replace('.json', `.backup.${Date.now()}.json`);
+      fs.copyFileSync(this.outputPath, backupPath);
+      console.log(`  备份: ${path.basename(backupPath)}`);
     }
 
-    return translated;
-  }
+    // 写入文件
+    const jsonStr = JSON.stringify(data, null, 2);
+    fs.writeFileSync(this.outputPath, jsonStr, 'utf8');
 
-  /**
-   * 递归翻译输入数组
-   */
-  translateInputs(inputs) {
-    if (!Array.isArray(inputs)) return inputs;
-
-    return inputs.map(element => {
-      if (Array.isArray(element)) {
-        return this.translateInputs(element);
-      } else if (element && typeof element === 'object' && element.id) {
-        return this.translateItem(element);
-      }
-      return element;
-    });
-  }
-
-  /**
-   * 写入输出文件
-   */
-  async writeOutput(originalData, translatedRecipes) {
-    console.log('\n💾 正在写入输出文件...');
-
-    const output = {
-      metadata: {
-        ...originalData.metadata,
-        translatedAt: new Date().toISOString(),
-        translationSource: path.basename(this.langPath),
-        merger: 'TranslationMerger v1.0'
-      },
-      statistics: {
-        ...originalData.statistics,
-        translation: {
-          translatedItems: this.stats.translatedItems,
-          translatedRecipes: this.stats.translatedRecipes,
-          translatedPlatforms: this.stats.translatedPlatforms,
-          untranslatedItems: this.stats.untranslatedItems
-        }
-      },
-      recipes: translatedRecipes
-    };
-
-    fs.writeFileSync(
-      this.outputPath,
-      JSON.stringify(output, null, 2),
-      'utf8'
-    );
-
-    console.log(`✅ 输出文件已保存: ${this.outputPath}`);
+    console.log(`✅ 输出文件: ${this.outputPath}`);
     console.log(`📦 文件大小: ${(fs.statSync(this.outputPath).size / 1024 / 1024).toFixed(2)} MB`);
   }
 
@@ -217,23 +272,20 @@ class TranslationMerger {
   printStatistics() {
     console.log('\n📊 合并统计：');
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-    console.log(`总配方数：     ${this.stats.totalRecipes.toLocaleString()}`);
-    console.log(`已翻译配方：   ${this.stats.translatedRecipes.toLocaleString()}`);
-    console.log(`已翻译物品：   ${this.stats.translatedItems.toLocaleString()}`);
-    console.log(`未翻译物品：   ${this.stats.untranslatedItems.toLocaleString()}`);
-    console.log(`已翻译平台：   ${this.stats.translatedPlatforms.toLocaleString()}`);
+    console.log(`总配方数：       ${this.stats.totalRecipes.toLocaleString()}`);
+    console.log(`已翻译平台：     ${this.stats.translatedPlatforms}`);
+    console.log(`已翻译物品：     ${this.stats.translatedItems.toLocaleString()}`);
+    console.log(`已翻译配方：     ${this.stats.translatedRecipes.toLocaleString()}`);
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-    
-    // 计算覆盖率
-    const totalItems = this.stats.translatedItems + this.stats.untranslatedItems;
-    const coverage = totalItems > 0 ? (this.stats.translatedItems / totalItems * 100).toFixed(1) : 0;
-    
-    console.log(`\n📈 翻译覆盖率：`);
-    console.log(`  物品覆盖率：  ${coverage}%`);
-    
-    if (this.stats.untranslatedItems > 0) {
-      console.log(`\n💡 提示：还有 ${this.stats.untranslatedItems} 个物品未翻译`);
-      console.log(`   建议完善 lang.cn.yaml 文件以提高覆盖率`);
+
+    if (this.stats.missingTranslations.length > 0) {
+      console.log(`\n⚠️  缺失的翻译（前100个）：`);
+      for (const missing of this.stats.missingTranslations.slice(0, 20)) {
+        console.log(`  [${missing.type}] ${missing.id} -> ${missing.enName}`);
+      }
+      if (this.stats.missingTranslations.length > 20) {
+        console.log(`  ... 还有 ${this.stats.missingTranslations.length - 20} 个缺失项`);
+      }
     }
   }
 }
@@ -241,17 +293,39 @@ class TranslationMerger {
 // 主入口
 async function main() {
   const recipesPath = path.join(__dirname, '../output/recipes.raw.json');
-  const langPath = path.join(__dirname, '../output/lang.cn.yaml');
+  const translationPath = path.join(__dirname, '../output/lang.cn.yaml');
+  const mappingPath = path.join(__dirname, '../output/lang.mapping.json');
   const outputPath = path.join(__dirname, '../output/recipes.cn.json');
 
-  // 检查输入文件
-  if (!fs.existsSync(recipesPath)) {
-    console.error(`❌ 错误：找不到配方文件 ${recipesPath}`);
-    console.error(`请先运行 1-parser.js`);
+  // 检查依赖
+  try {
+    require.resolve('js-yaml');
+  } catch (error) {
+    console.error(`❌ 缺少依赖: js-yaml`);
+    console.error('请运行: npm install js-yaml');
     process.exit(1);
   }
 
-  const merger = new TranslationMerger(recipesPath, langPath, outputPath);
+  // 检查必需文件
+  if (!fs.existsSync(recipesPath)) {
+    console.error(`❌ 错误：找不到 ${recipesPath}`);
+    console.error('请先运行 1-parser.js');
+    process.exit(1);
+  }
+
+  if (!fs.existsSync(mappingPath)) {
+    console.error(`❌ 错误：找不到 ${mappingPath}`);
+    console.error('请先运行 2-extract-lang.js');
+    process.exit(1);
+  }
+
+  if (!fs.existsSync(translationPath)) {
+    console.error(`❌ 错误：找不到 ${translationPath}`);
+    console.error('请先运行 AI翻译脚本或手动创建翻译文件');
+    process.exit(1);
+  }
+
+  const merger = new TranslationMerger(recipesPath, translationPath, mappingPath, outputPath);
   await merger.merge();
 }
 

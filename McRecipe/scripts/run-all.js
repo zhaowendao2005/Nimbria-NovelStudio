@@ -1,213 +1,248 @@
 #!/usr/bin/env node
 /**
- * 一键运行所有脚本
- * 按顺序执行：parser -> extract-lang -> merge-translation -> generate-indexes
+ * 完整运行脚本
+ * 按顺序执行所有处理阶段：
+ * 1. 解析日志 -> recipes.raw.json
+ * 2. 提取翻译键（去重） -> lang.yaml + lang.mapping.json
+ * 3. [可选] AI翻译 -> lang.cn.yaml
+ * 4. [可选] 合并翻译 -> recipes.cn.json
+ * 5. 生成优化索引 -> 各类JSON索引
  */
 
-const { spawn } = require('child_process');
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
+const { spawn } = require('child_process');
 
-const SCRIPTS = [
-  {
-    name: '阶段1：日志解析',
-    script: '1-parser.js',
-    required: true
-  },
-  {
-    name: '阶段2：提取翻译键',
-    script: '2-extract-lang.js',
-    required: true
-  },
-  {
-    name: '阶段3：合并翻译',
-    script: '3-merge-translation.js',
-    required: false,  // 可能没有翻译文件
-    skipMessage: '⚠️  跳过翻译合并（未找到 lang.cn.yaml）'
-  },
-  {
-    name: '阶段4：生成索引',
-    script: '4-generate-indexes.js',
-    required: true
-  }
-];
+const colors = {
+  reset: '\x1b[0m',
+  bright: '\x1b[1m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  red: '\x1b[31m',
+  cyan: '\x1b[36m',
+  blue: '\x1b[34m'
+};
 
-class PipelineRunner {
-  constructor() {
-    this.currentStep = 0;
-    this.results = [];
+class RecipeProcessor {
+  constructor(skipTranslation = false) {
+    this.skipTranslation = skipTranslation;
     this.startTime = Date.now();
+    this.stages = [];
+    this.completedStages = [];
   }
 
+  /**
+   * 主运行流程
+   */
   async run() {
-    console.log('🚀 开始运行MC配方转换流水线...\n');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    console.clear();
+    console.log(`${colors.bright}${colors.cyan}╔════════════════════════════════════════╗${colors.reset}`);
+    console.log(`${colors.bright}${colors.cyan}║  MC 配方翻译处理系统 v1.0            ║${colors.reset}`);
+    console.log(`${colors.bright}${colors.cyan}╚════════════════════════════════════════╝${colors.reset}\n`);
 
-    for (let i = 0; i < SCRIPTS.length; i++) {
-      this.currentStep = i + 1;
-      const config = SCRIPTS[i];
+    if (this.skipTranslation) {
+      console.log(`${colors.yellow}⚙️  工作模式: 跳过AI翻译阶段${colors.reset}\n`);
+      console.log(`📋 流程：\n`);
+      console.log(`  1️⃣  ${colors.blue}解析日志${colors.reset} → recipes.raw.json`);
+      console.log(`  2️⃣  ${colors.blue}提取翻译键${colors.reset} → lang.yaml + lang.mapping.json`);
+      console.log(`  3️⃣  ${colors.blue}生成索引${colors.reset} → 各类优化JSON\n`);
+    } else {
+      console.log(`${colors.green}✨ 工作模式: 完整翻译流程${colors.reset}\n`);
+      console.log(`📋 流程：\n`);
+      console.log(`  1️⃣  ${colors.blue}解析日志${colors.reset} → recipes.raw.json`);
+      console.log(`  2️⃣  ${colors.blue}提取翻译键${colors.reset} → lang.yaml + lang.mapping.json`);
+      console.log(`  3️⃣  ${colors.blue}AI翻译${colors.reset} → lang.cn.yaml（需要配置和手动运行）`);
+      console.log(`  4️⃣  ${colors.blue}合并翻译${colors.reset} → recipes.cn.json`);
+      console.log(`  5️⃣  ${colors.blue}生成索引${colors.reset} → 各类优化JSON\n`);
+    }
 
-      // 检查是否应该跳过
-      if (!config.required && this.shouldSkip(config)) {
-        console.log(`\n${config.skipMessage || `⏭️  跳过 ${config.name}`}\n`);
-        continue;
+    try {
+      // 1. 解析日志
+      console.log(`${colors.cyan}${'='.repeat(50)}${colors.reset}`);
+      console.log(`${colors.bright}🔍 阶段1: 解析日志文件${colors.reset}`);
+      console.log(`${colors.cyan}${'='.repeat(50)}${colors.reset}`);
+      await this.runStage('parser');
+
+      // 2. 提取翻译键
+      console.log(`\n${colors.cyan}${'='.repeat(50)}${colors.reset}`);
+      console.log(`${colors.bright}📝 阶段2: 提取翻译键（去重）${colors.reset}`);
+      console.log(`${colors.cyan}${'='.repeat(50)}${colors.reset}`);
+      await this.runStage('extract-lang');
+
+      // 3. AI翻译（可选）
+      if (!this.skipTranslation) {
+        console.log(`\n${colors.cyan}${'='.repeat(50)}${colors.reset}`);
+        console.log(`${colors.bright}🌐 阶段3: AI翻译${colors.reset}`);
+        console.log(`${colors.cyan}${'='.repeat(50)}${colors.reset}`);
+        
+        const hasTranslation = await this.checkTranslationFile();
+        if (!hasTranslation) {
+          console.log(`${colors.yellow}⚠️  未找到 lang.cn.yaml，跳过合并和索引生成${colors.reset}`);
+          console.log(`${colors.yellow}请按以下步骤完成翻译：${colors.reset}\n`);
+          console.log(`  1. 编辑 config.yaml，配置API密钥`);
+          console.log(`  2. 运行：${colors.green}node scripts/translate-with-ai.js${colors.reset}`);
+          console.log(`  3. 翻译完成后再运行本脚本\n`);
+          
+          console.log(`${colors.cyan}${'='.repeat(50)}${colors.reset}`);
+          console.log(`${colors.green}✅ 前置阶段完成！${colors.reset}`);
+          console.log(`${colors.cyan}${'='.repeat(50)}${colors.reset}\n`);
+          this.printSummary();
+          return;
+        }
+
+        // 4. 合并翻译
+        console.log(`\n${colors.cyan}${'='.repeat(50)}${colors.reset}`);
+        console.log(`${colors.bright}🔗 阶段4: 合并翻译${colors.reset}`);
+        console.log(`${colors.cyan}${'='.repeat(50)}${colors.reset}`);
+        await this.runStage('merge-translation');
       }
 
-      const success = await this.runScript(config);
+      // 5. 生成索引
+      console.log(`\n${colors.cyan}${'='.repeat(50)}${colors.reset}`);
+      console.log(`${colors.bright}📊 阶段5: 生成优化索引${colors.reset}`);
+      console.log(`${colors.cyan}${'='.repeat(50)}${colors.reset}`);
+      await this.runStage('generate-indexes');
+
+      // 成功完成
+      console.log(`\n${colors.cyan}${'='.repeat(50)}${colors.reset}`);
+      console.log(`${colors.green}${colors.bright}✅ 所有阶段完成！${colors.reset}`);
+      console.log(`${colors.cyan}${'='.repeat(50)}${colors.reset}\n`);
       
-      if (!success && config.required) {
-        console.error(`\n❌ 流水线失败于阶段${this.currentStep}：${config.name}`);
-        process.exit(1);
-      }
-    }
+      this.printSummary();
 
-    this.printSummary();
+    } catch (error) {
+      console.error(`\n${colors.red}${colors.bright}❌ 处理失败！${colors.reset}`);
+      console.error(`${colors.red}错误: ${error.message}${colors.reset}`);
+      process.exit(1);
+    }
   }
 
-  shouldSkip(config) {
-    // 检查翻译文件是否存在
-    if (config.script === '3-merge-translation.js') {
-      const langPath = path.join(__dirname, '../output/lang.cn.yaml');
-      return !fs.existsSync(langPath);
-    }
-    return false;
-  }
-
-  runScript(config) {
-    return new Promise((resolve) => {
-      console.log(`\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-      console.log(`┃ 阶段 ${this.currentStep}/${SCRIPTS.length}: ${config.name}`);
-      console.log(`┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
-
-      const scriptPath = path.join(__dirname, config.script);
-      const startTime = Date.now();
-
+  /**
+   * 运行单个阶段
+   */
+  async runStage(stageName) {
+    const scriptPath = path.join(__dirname, `${this.getScriptName(stageName)}.js`);
+    
+    return new Promise((resolve, reject) => {
       const child = spawn('node', [scriptPath], {
         stdio: 'inherit',
-        shell: true
+        cwd: path.dirname(scriptPath)
       });
 
       child.on('close', (code) => {
-        const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-        
         if (code === 0) {
-          console.log(`\n✅ 完成！耗时 ${duration}秒`);
-          this.results.push({
-            name: config.name,
-            success: true,
-            duration: parseFloat(duration)
-          });
-          resolve(true);
+          this.completedStages.push(stageName);
+          resolve();
         } else {
-          console.error(`\n❌ 失败！退出代码 ${code}`);
-          this.results.push({
-            name: config.name,
-            success: false,
-            duration: parseFloat(duration),
-            errorCode: code
-          });
-          resolve(false);
+          reject(new Error(`${stageName} 阶段失败，退出码: ${code}`));
         }
       });
 
-      child.on('error', (error) => {
-        console.error(`\n❌ 执行错误：${error.message}`);
-        this.results.push({
-          name: config.name,
-          success: false,
-          error: error.message
-        });
-        resolve(false);
+      child.on('error', (err) => {
+        reject(new Error(`${stageName} 阶段错误: ${err.message}`));
       });
     });
   }
 
+  /**
+   * 获取脚本名称
+   */
+  getScriptName(stageName) {
+    const mapping = {
+      'parser': '1-parser',
+      'extract-lang': '2-extract-lang',
+      'translate': 'translate-with-ai',
+      'merge-translation': '3-merge-translation',
+      'generate-indexes': '4-generate-indexes'
+    };
+    return mapping[stageName] || stageName;
+  }
+
+  /**
+   * 检查翻译文件是否存在
+   */
+  async checkTranslationFile() {
+    const translationPath = path.join(__dirname, '../output/lang.cn.yaml');
+    return fs.existsSync(translationPath);
+  }
+
+  /**
+   * 打印总结
+   */
   printSummary() {
-    const totalDuration = ((Date.now() - this.startTime) / 1000).toFixed(2);
-    const successCount = this.results.filter(r => r.success).length;
+    const duration = ((Date.now() - this.startTime) / 1000).toFixed(2);
 
-    console.log('\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('📊 流水线执行摘要');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-
-    this.results.forEach((result, i) => {
-      const icon = result.success ? '✅' : '❌';
-      const status = result.success ? '成功' : '失败';
-      const time = result.duration ? `${result.duration}秒` : 'N/A';
-      console.log(`${icon} 阶段${i + 1}: ${result.name} - ${status} (${time})`);
+    console.log(`${colors.blue}📊 执行总结：${colors.reset}`);
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log(`${colors.green}✓ 已完成的阶段：${colors.reset}`);
+    
+    this.completedStages.forEach((stage, index) => {
+      const names = {
+        'parser': '📄 日志解析',
+        'extract-lang': '📝 翻译键提取',
+        'merge-translation': '🔗 翻译合并',
+        'generate-indexes': '📊 索引生成'
+      };
+      console.log(`  ${index + 1}. ${names[stage] || stage}`);
     });
 
-    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log(`总计: ${successCount}/${this.results.length} 成功`);
-    console.log(`总耗时: ${totalDuration}秒`);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    console.log(`\n${colors.cyan}⏱️  总耗时：${colors.reset} ${duration}秒`);
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
 
-    if (successCount === this.results.length) {
-      console.log('🎉 所有阶段执行完成！\n');
-      this.printNextSteps();
-    } else {
-      console.log('⚠️  部分阶段执行失败，请查看上面的错误信息\n');
-    }
-  }
-
-  printNextSteps() {
-    console.log('📝 后续步骤：\n');
-    
-    const langPath = path.join(__dirname, '../output/lang.yaml');
-    if (fs.existsSync(langPath)) {
-      console.log('1. 翻译 lang.yaml 文件：');
-      console.log(`   - 使用AI翻译工具（推荐GPT-4o-mini）`);
-      console.log(`   - 保存为 lang.cn.yaml`);
-      console.log(`   - 重新运行: node 3-merge-translation.js\n`);
-    }
-
-    console.log('2. 查看生成的文件：');
+    // 输出文件位置
+    console.log(`\n${colors.blue}📁 生成文件位置：${colors.reset}`);
     const outputDir = path.join(__dirname, '../output');
-    if (fs.existsSync(outputDir)) {
-      const files = fs.readdirSync(outputDir);
-      files.forEach(file => {
-        if (file.endsWith('.json') || file.endsWith('.yaml')) {
-          console.log(`   - output/${file}`);
-        }
-      });
+    
+    const files = [
+      'recipes.raw.json - 解析后的原始配方',
+      'lang.yaml - 英文名称去重',
+      'lang.mapping.json - ID到英文名称的映射'
+    ];
+
+    if (this.completedStages.includes('merge-translation')) {
+      files.push('recipes.cn.json - 带中文翻译的配方');
+      files.push('lang.cn.yaml - 中文翻译');
     }
 
-    console.log('\n3. 使用索引文件：');
-    console.log(`   - items.index.json: 物品快速查询`);
-    console.log(`   - platforms.index.json: 按平台筛选`);
-    console.log(`   - recipe.graph.json: 喂给Sigma.js StarChart`);
-    console.log(`   - search.index.json: 全文搜索`);
-    console.log(`   - incremental/: 按需加载\n`);
+    if (this.completedStages.includes('generate-indexes')) {
+      files.push('items.index.json - 物品索引');
+      files.push('platforms.index.json - 平台索引');
+      files.push('recipe.graph.json - 配方图数据');
+      files.push('search.index.json - 搜索索引');
+      files.push('incremental/* - 平台增量数据');
+    }
+
+    files.forEach(file => {
+      console.log(`  📄 ${file}`);
+    });
+
+    console.log(`\n${colors.green}💡 下一步建议：${colors.reset}`);
+    
+    if (!this.completedStages.includes('merge-translation')) {
+      console.log(`  1. 配置 config.yaml 中的 API 密钥`);
+      console.log(`  2. 运行 ${colors.green}node scripts/translate-with-ai.js${colors.reset}`);
+      console.log(`  3. 翻译完成后再次运行本脚本完成后续流程\n`);
+    } else if (!this.completedStages.includes('generate-indexes')) {
+      console.log(`  运行完整流程来生成所有优化索引\n`);
+    } else {
+      console.log(`  所有阶段已完成！可以开始使用生成的数据文件\n`);
+    }
   }
 }
 
 // 主入口
 async function main() {
-  // 检查Node版本
-  const nodeVersion = process.version;
-  const majorVersion = parseInt(nodeVersion.slice(1).split('.')[0]);
-  
-  if (majorVersion < 14) {
-    console.error('❌ 错误：需要 Node.js 14.0.0 或更高版本');
-    console.error(`   当前版本：${nodeVersion}`);
-    process.exit(1);
-  }
+  // 检查命令行参数
+  const args = process.argv.slice(2);
+  const skipTranslation = args.includes('--skip-translation') || args.includes('-s');
 
-  // 检查输入文件
-  const logPath = path.join(__dirname, '../recipes.log');
-  if (!fs.existsSync(logPath)) {
-    console.error('❌ 错误：找不到 recipes.log 文件');
-    console.error(`   请将日志文件放在: ${logPath}`);
-    process.exit(1);
-  }
-
-  const runner = new PipelineRunner();
-  await runner.run();
+  const processor = new RecipeProcessor(skipTranslation);
+  await processor.run();
 }
 
 // 错误处理
 process.on('unhandledRejection', (error) => {
-  console.error('\n❌ 未处理的错误：', error);
+  console.error(`\n${colors.red}未处理的错误：${colors.reset}`, error);
   process.exit(1);
 });
 
@@ -216,5 +251,5 @@ if (require.main === module) {
   main().catch(console.error);
 }
 
-module.exports = PipelineRunner;
+module.exports = RecipeProcessor;
 

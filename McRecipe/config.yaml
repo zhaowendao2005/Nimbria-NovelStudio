@@ -1,0 +1,45 @@
+llm:
+  # API配置
+  api_key: "sk-7MpBtoN2qmCkBWR8oFEhT4QgLzdtnwGHlpkuMz7shvp3M8JY"
+  base_url: "https://openaihz.sharkmagic.com.cn/v1"
+  model: "gemini-2.5-flash-preview-04-17"
+  
+  # 并发和限流
+  max_concurrent: 20        # 最大并发请求数
+  requests_per_minute: 40   # 每分钟最大请求次数（超过时自动排队）
+  max_tokens_per_request: 100000  # ⭐ 单次最高token数（系统根据此自动切分YAML）
+  
+  # 重试
+  retry_times: 3
+  retry_delay: 5
+
+# 翻译配置
+translation:
+  system_prompt: |
+    你是一位专业的Minecraft模组翻译专家。你的任务是将游戏中的物品、配方和模组名称翻译成简体中文。
+    
+    翻译要求：
+    1. 保持游戏术语的准确性和一致性
+    2. ore: 前缀表示矿物词典（通用材料），翻译时注意标注
+    3. tool 开头的通常是工具类物品
+    4. meta_item 通常是特殊物品(主要为格雷科技的，根据你的知识库来判断是什么)
+    5. 保持简洁专业，符合Minecraft玩家习惯
+    6. 对于mod名称（如gregtech、minecraft等），保持原名或使用通用译名
+    
+    返回格式要求：
+    - 保持YAML格式
+    - 只翻译值（引号内的内容），不要修改键
+    - 保持原有的缩进和结构
+  
+  translate_recipe_ids: false
+  
+  output:
+    add_timestamp: true
+    backup_original: true
+    progress_file: "translation_progress.json"
+
+logging:
+  level: "info"
+  save_to_file: true
+  log_file: "translation.log"
+
