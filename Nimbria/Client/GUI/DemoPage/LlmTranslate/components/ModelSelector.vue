@@ -17,18 +17,9 @@
           :key="model.modelId"
           :label="model.modelName"
           :value="model.modelId"
-          :disabled="!model.isActive"
         >
           <div class="model-option">
             <span class="model-name">{{ model.modelName }}</span>
-            <el-tag
-              v-if="!model.isActive"
-              size="small"
-              type="info"
-              class="inactive-tag"
-            >
-              未激活
-            </el-tag>
           </div>
         </el-option>
       </el-option-group>
@@ -58,11 +49,11 @@ const providers = ref<any[]>([])
 // 加载提供商和模型列表
 const loadProviders = async () => {
   try {
-    // 调用 IPC 获取所有提供商配置
-    const result = await window.ipc.invoke('llm-config:get-all-providers')
+    // 调用 Nimbria API 获取所有提供商配置
+    const result = await (window as any).nimbria.llm.getProviders()
     
     if (result.success) {
-      providers.value = result.data || []
+      providers.value = result.providers || []
       console.log('✅ [ModelSelector] 加载了', providers.value.length, '个提供商')
     } else {
       throw new Error(result.error || '获取提供商失败')
@@ -78,23 +69,47 @@ const groupedModels = computed<ModelGroup[]>(() => {
   const groups: ModelGroup[] = []
   
   for (const provider of providers.value) {
-    if (!provider.models || provider.models.length === 0) {
+    // 检查是否有 supportedModels
+    if (!provider.supportedModels || provider.supportedModels.length === 0) {
       continue
     }
     
-    const models: ModelOption[] = provider.models.map((model: any) => ({
-      modelId: `${provider.id}.${model.name}`,
-      modelName: model.displayName || model.name,
-      providerId: provider.id,
-      providerName: provider.name,
-      isActive: model.isActive !== false && provider.isActive !== false
-    }))
+    const models: ModelOption[] = []
     
-    groups.push({
-      providerId: provider.id,
-      providerName: provider.name,
-      models
-    })
+    // 遍历所有模型类型组（LLM, TEXT_EMBEDDING 等）
+    for (const modelGroup of provider.supportedModels) {
+      // 只提取 LLM 类型的模型用于翻译
+      if (modelGroup.type !== 'LLM') {
+        continue
+      }
+      
+      // 遍历该类型下的所有模型
+      for (const model of modelGroup.models) {
+        // 检查模型是否已激活
+        const isModelActive = provider.activeModels?.LLM?.selectedModels?.includes(model.name) ?? false
+        const isProviderActive = provider.status === 'active'
+        
+        // 只添加已激活的模型
+        if (isModelActive && isProviderActive) {
+          models.push({
+            modelId: `${provider.id}.${model.name}`,
+            modelName: model.name, // 使用模型原始名称
+            providerId: provider.id,
+            providerName: provider.displayName || provider.name,
+            isActive: true // 已经过滤了，所以一定是激活的
+          })
+        }
+      }
+    }
+    
+    // 只有当提供商有可用的 LLM 模型时才添加到列表
+    if (models.length > 0) {
+      groups.push({
+        providerId: provider.id,
+        providerName: provider.displayName || provider.name,
+        models
+      })
+    }
   }
   
   return groups
@@ -148,11 +163,6 @@ defineExpose({
       font-size: 13px;
       color: #333;
     }
-
-    .inactive-tag {
-      margin-left: 8px;
-      font-size: 11px;
-    }
   }
 }
 
@@ -162,13 +172,6 @@ defineExpose({
   font-weight: bold;
   color: #409eff;
   padding-left: 12px;
-}
-
-:deep(.el-select-dropdown__item) {
-  &.is-disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
 }
 </style>
 

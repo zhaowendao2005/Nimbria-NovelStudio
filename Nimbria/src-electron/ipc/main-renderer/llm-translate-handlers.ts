@@ -327,9 +327,18 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
    */
   ipcMain.handle('llm-translate:retry-task', async (_event, args: { taskId: string }) => {
     try {
-      // TODO: 实现单个任务重试逻辑
       console.log(`🔄 [IPC] 重试任务 ${args.taskId}`)
-      return { success: true }
+      
+      // 获取任务信息
+      const task = await llmTranslateService.getTask(args.taskId)
+      if (!task) {
+        throw new Error(`Task ${args.taskId} not found`)
+      }
+      
+      // 将任务状态重置为 unsent 以便重新提交
+      const submissionId = await llmTranslateService.submitTasks(task.batchId, [args.taskId])
+      
+      return { success: true, data: { submissionId } }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       return { success: false, error: errorMessage }

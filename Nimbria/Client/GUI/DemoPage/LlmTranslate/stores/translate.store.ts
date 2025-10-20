@@ -34,7 +34,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     concurrency: 3,
     replyMode: 'predicted',
     predictedTokens: 2000,
-    modelId: 'gpt-4'
+    modelId: '' // 默认为空，由用户在ModelSelector中选择
   })
 
   /** 批次列表 */
@@ -354,23 +354,27 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
       throw new Error('没有选中任务')
     }
 
+    if (!currentBatch.value) {
+      throw new Error('未选择批次')
+    }
+
     loading.value = true
     error.value = null
 
     try {
       const taskIds = Array.from(selectedTaskIds.value)
-      await datasource.value.sendTasks(taskIds)
+      console.log('📤 [Store] 发送任务:', { batchId: currentBatch.value.id, taskIds })
+      await datasource.value.sendTasks(currentBatch.value.id, taskIds)
       
       // 重新加载任务列表
-      if (currentBatch.value) {
-        await fetchTaskList(currentBatch.value.id)
-      }
+      await fetchTaskList(currentBatch.value.id)
       
       // 清空选择
       selectedTaskIds.value.clear()
     } catch (err) {
       error.value = err instanceof Error ? err.message : '发送任务失败'
       console.error('Failed to send tasks:', err)
+      throw err
     } finally {
       loading.value = false
     }
@@ -541,10 +545,10 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
       error.value = `创建批次失败: ${data.error}`
     })
 
-    // TaskStateManager 事件监听器
+    // TaskStateManager 事件监听器（使用 window.nimbria.on 进行通用事件监听）
     
     // 任务状态变化
-    electronAPI.value.on('llm-translate:task-state-changed', (data: any) => {
+    ;(window as any).nimbria.on('llm-translate:task-state-changed', (data: any) => {
       console.log(`📊 [Store] 任务状态变化: ${data.taskId} ${data.previousState} → ${data.currentState}`)
       
       // 更新任务列表中的任务状态
@@ -556,7 +560,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     })
 
     // 任务进度更新
-    electronAPI.value.on('llm-translate:task-progress-updated', (data: any) => {
+    ;(window as any).nimbria.on('llm-translate:task-progress-updated', (data: any) => {
       // 更新任务列表中的任务进度
       const task = taskList.value.find(t => t.id === data.taskId)
       if (task) {
@@ -569,7 +573,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     })
 
     // 任务完成
-    electronAPI.value.on('llm-translate:task-completed', (data: any) => {
+    ;(window as any).nimbria.on('llm-translate:task-completed', (data: any) => {
       console.log(`✅ [Store] 任务完成: ${data.taskId}`)
       
       // 更新任务列表中的任务
@@ -591,7 +595,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     })
 
     // 任务错误
-    electronAPI.value.on('llm-translate:task-error-occurred', (data: any) => {
+    ;(window as any).nimbria.on('llm-translate:task-error-occurred', (data: any) => {
       console.error(`❌ [Store] 任务错误: ${data.taskId} - ${data.errorType}`)
       
       // 更新任务列表中的任务

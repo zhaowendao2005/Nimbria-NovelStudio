@@ -268,10 +268,16 @@
               v-if="task.status === 'error' || task.status === 'throttled'"
               size="small"
               type="warning"
+              @click="retrySingleTask(task.id)"
             >
               <el-icon><Refresh /></el-icon> 重试
             </el-button>
-            <el-button v-if="task.status === 'unsent'" size="small" type="primary">
+            <el-button 
+              v-if="task.status === 'unsent'" 
+              size="small" 
+              type="primary"
+              @click="sendSingleTask(task.id)"
+            >
               <el-icon><Upload /></el-icon> 发送
             </el-button>
           </div>
@@ -464,6 +470,43 @@ const sendSelected = async () => {
     await store.sendSelectedTasks()
   } catch (err) {
     console.error('发送任务失败:', err)
+  }
+}
+
+// 发送单个任务
+const sendSingleTask = async (taskId: string) => {
+  try {
+    console.log('🚀 [TaskManagePage] 发送单个任务:', taskId)
+    
+    // 临时选中该任务
+    const originalSelection = new Set(store.selectedTaskIds)
+    store.selectedTaskIds.clear()
+    store.selectedTaskIds.add(taskId)
+    
+    // 发送任务
+    await store.sendSelectedTasks()
+    
+    // 恢复原来的选择状态
+    store.selectedTaskIds = originalSelection
+    
+    ElMessage({ message: '任务已发送', type: 'success' })
+  } catch (err) {
+    console.error('❌ [TaskManagePage] 发送任务失败:', err)
+    const errorMsg = err instanceof Error ? err.message : '发送任务失败'
+    ElMessage({ message: errorMsg, type: 'error' })
+  }
+}
+
+// 重试单个任务
+const retrySingleTask = async (taskId: string) => {
+  try {
+    console.log('🔄 [TaskManagePage] 重试单个任务:', taskId)
+    await store.retryTask(taskId)
+    ElMessage({ message: '任务已重试', type: 'success' })
+  } catch (err) {
+    console.error('❌ [TaskManagePage] 重试任务失败:', err)
+    const errorMsg = err instanceof Error ? err.message : '重试任务失败'
+    ElMessage({ message: errorMsg, type: 'error' })
   }
 }
 

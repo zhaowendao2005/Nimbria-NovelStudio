@@ -34,7 +34,7 @@ export interface TranslateDatasource {
   retryFailedTasks(batchId: string): Promise<void>
   pauseBatch(batchId: string): Promise<void>
   resumeBatch(batchId: string): Promise<void>
-  sendTasks(taskIds: string[]): Promise<void>
+  sendTasks(batchId: string, taskIds: string[]): Promise<void>
   deleteTasks(taskIds: string[]): Promise<void>
   pauseTask(taskId: string): Promise<void>
   retryTask(taskId: string): Promise<void>

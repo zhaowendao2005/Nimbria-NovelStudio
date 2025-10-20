@@ -381,9 +381,9 @@ export class MockTranslateDatasource implements TranslateDatasource {
     await this.updateBatch(batchId, { status: 'running' })
   }
 
-  async sendTasks(taskIds: string[]): Promise<void> {
+  async sendTasks(batchId: string, taskIds: string[]): Promise<void> {
     await this.delay()
-    console.log(`Mock: Sending tasks`, taskIds)
+    console.log(`Mock: Sending tasks in batch ${batchId}`, taskIds)
   }
 
   async deleteTasks(taskIds: string[]): Promise<void> {

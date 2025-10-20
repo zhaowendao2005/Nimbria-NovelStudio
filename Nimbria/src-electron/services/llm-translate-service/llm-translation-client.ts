@@ -206,8 +206,15 @@ export class LlmTranslationClient extends EventEmitter {
       return this.activeClient
     }
 
+    console.log(`🔧 [TranslationClient] 初始化客户端，modelId: ${this.config.modelId}`)
+    
     // 从 LlmConfigManager 获取模型配置
     const modelConfig = await this.getModelConfig(this.config.modelId)
+    console.log(`🔧 [TranslationClient] 获取模型配置:`, {
+      modelName: modelConfig.modelName,
+      apiKey: modelConfig.apiKey?.substring(0, 10) + '***',
+      baseUrl: modelConfig.baseUrl
+    })
 
     // 动态导入 LangChainClient
     const { LangChainClient } = await import('../llm-chat-service/langchain-client')
@@ -222,30 +229,56 @@ export class LlmTranslationClient extends EventEmitter {
       maxRetries: this.config.maxRetries,
       useChat: true
     }
+    
+    console.log(`🔧 [TranslationClient] LangChainClient 配置:`, {
+      modelName: clientConfig.modelName,
+      temperature: clientConfig.temperature,
+      maxTokens: clientConfig.maxTokens
+    })
 
     this.activeClient = new LangChainClient(clientConfig)
     return this.activeClient
   }
-
+  
   /**
    * 获取模型配置
    */
   private async getModelConfig(modelId: string): Promise<ModelConfig> {
-    const [providerId, modelName] = modelId.split('.')
+    console.log(`🔍 [TranslationClient] 解析 modelId: ${modelId}`)
+    
+    // 按第一个点号分割，因为 modelName 可能包含点号
+    // 格式：providerId.modelName
+    const dotIndex = modelId.indexOf('.')
+    if (dotIndex === -1) {
+      throw new Error(`Invalid modelId format: ${modelId}. Expected format: providerId.modelName`)
+    }
+    
+    const providerId = modelId.substring(0, dotIndex)
+    const modelName = modelId.substring(dotIndex + 1)
+    
+    console.log(`🔍 [TranslationClient] 分割结果: providerId=${providerId}, modelName=${modelName}`)
     
     // 调用 LlmConfigManager 的方法获取提供商配置
     const provider = await this.llmConfigManager.getProvider(providerId)
+    console.log(`🔍 [TranslationClient] 获取提供商 ${providerId}:`, provider ? '成功' : '失败')
 
     if (!provider) {
       throw new Error(`Provider ${providerId} not found`)
     }
 
-    return {
+    const config = {
       modelName,
       apiKey: provider.apiKey,
       baseUrl: provider.baseUrl,
       ...provider.defaultConfig
     }
+    
+    console.log(`🔍 [TranslationClient] 最终模型配置:`, {
+      modelName: config.modelName,
+      baseUrl: config.baseUrl
+    })
+    
+    return config
   }
 
   /**

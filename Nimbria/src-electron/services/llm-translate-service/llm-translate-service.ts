@@ -602,11 +602,56 @@ export class LlmTranslateService extends EventEmitter {
 
   /**
    * 提交任务
+   * 立即返回 submissionId，异步启动任务执行
    */
   async submitTasks(batchId: string, taskIds: string[]): Promise<string> {
-    // TODO: 实现任务提交逻辑
     console.log(`📤 [LlmTranslateService] 提交任务 ${taskIds.join(', ')} 到批次 ${batchId}`)
-    return nanoid()
+    
+    // 1. 生成提交 ID
+    const submissionId = nanoid()
+    
+    // 2. 获取批次配置
+    const batch = await this.getBatch(batchId)
+    if (!batch) {
+      throw new Error(`Batch ${batchId} not found`)
+    }
+    
+    // 3. 解析批次配置
+    const config: TranslateConfig = typeof batch.configJson === 'string' 
+      ? JSON.parse(batch.configJson) 
+      : batch.configJson
+    
+    // 4. 使用 setImmediate 异步启动任务执行（不阻塞返回）
+    setImmediate(() => {
+      void this.executeTasksAsync(batchId, taskIds, config)
+    })
+    
+    return submissionId
+  }
+  
+  /**
+   * 异步执行任务（内部方法）
+   */
+  private async executeTasksAsync(
+    batchId: string, 
+    taskIds: string[], 
+    config: TranslateConfig
+  ): Promise<void> {
+    try {
+      console.log(`🎬 [LlmTranslateService] 开始执行批次 ${batchId}，任务数: ${taskIds.length}`)
+      
+      // 调用 TranslationExecutor 执行任务
+      await this.translationExecutor.executeTasks(
+        batchId,
+        taskIds,
+        config,
+        config.concurrency
+      )
+      
+      console.log(`✅ [LlmTranslateService] 批次 ${batchId} 执行完成`)
+    } catch (error) {
+      console.error(`❌ [LlmTranslateService] 批次 ${batchId} 执行失败:`, error)
+    }
   }
 
   /**

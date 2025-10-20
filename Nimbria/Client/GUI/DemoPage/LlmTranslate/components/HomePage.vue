@@ -216,6 +216,7 @@
       <div class="config-item">
         <div class="section-header">模型选择</div>
         <ModelSelector v-model="store.config.modelId" />
+      </div>
 
       <el-divider></el-divider>
 
@@ -349,7 +350,7 @@ const clearConfig = () => {
     concurrency: 3,
     replyMode: 'predicted',
     predictedTokens: 2000,
-    modelId: 'gpt-4'
+    modelId: '' // 清空模型选择
   }
   fileName.value = ''
   fileSize.value = ''

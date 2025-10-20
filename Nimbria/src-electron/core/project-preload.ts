@@ -481,6 +481,13 @@ contextBridge.exposeInMainWorld('nimbria', {
     deleteTasks: (args: { taskIds: string[] }) => 
       ipcRenderer.invoke('llm-translate:delete-tasks', args),
     
+    // ===== 单个任务操作 =====
+    pauseTask: (args: { taskId: string }) => 
+      ipcRenderer.invoke('llm-translate:pause-task', args),
+    
+    retryTask: (args: { taskId: string }) => 
+      ipcRenderer.invoke('llm-translate:retry-task', args),
+    
     // ===== 事件监听（IPC 事件流） =====
     onBatchCreateStart: (callback: (data: any) => void) => {
       ipcRenderer.on('llm-translate:batch-create-start', (_event, data) => callback(data))

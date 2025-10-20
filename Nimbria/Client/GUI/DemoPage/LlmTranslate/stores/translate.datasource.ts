@@ -92,9 +92,9 @@ class ElectronTranslateDatasource implements TranslateDatasource {
     }
   }
 
-  async sendTasks(taskIds: string[]): Promise<void> {
+  async sendTasks(batchId: string, taskIds: string[]): Promise<void> {
     const plainTaskIds = toPlainObject(taskIds)
-    const result = await this.electronAPI.sendTasks({ taskIds: plainTaskIds })
+    const result = await this.electronAPI.submitTasks({ batchId, taskIds: plainTaskIds })
     if (!result.success) {
       throw new Error(result.error || '发送任务失败')
     }
