@@ -12,7 +12,7 @@
         <h2>Demo页面管理</h2>
         <p class="demo-description">UI/UX 原型设计与测试页面</p>
         
-        <!-- 启动TestPage的按钮 -->
+        <!-- 快速启动按钮 -->
         <div class="demo-actions-header">
           <el-button 
             type="primary" 
@@ -20,6 +20,14 @@
             :icon="Document"
           >
             启动 TestPage
+          </el-button>
+          
+          <el-button 
+            type="success" 
+            @click="openLlmTranslatePage"
+            :icon="Promotion"
+          >
+            启动 LLM翻译
           </el-button>
         </div>
       </div>
@@ -54,7 +62,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Document, ArrowRight } from '@element-plus/icons-vue'
+import { Document, ArrowRight, Promotion } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { CustomPageAPI } from '../../../../../Service/CustomPageManager'
 import type { CustomPageConfig } from '../../../../../Service/CustomPageManager'
@@ -132,6 +140,43 @@ const openTestPage = async () => {
   }
 }
 
+// 直接启动LlmTranslatePage
+const openLlmTranslatePage = async () => {
+  console.log('[DemoPageDrawer] Opening LlmTranslatePage directly')
+  
+  try {
+    // 先确保页面已注册
+    console.log('[DemoPageDrawer] Ensuring pages are registered...')
+    const { ensureRegistration } = await import('@demo')
+    await ensureRegistration()
+    console.log('[DemoPageDrawer] Pages registered, now opening...')
+    
+    // 使用CustomPageAPI打开LlmTranslatePage
+    const instance = await CustomPageAPI.open('llm-translate-page')
+    
+    if (instance) {
+      ElMessage({
+        type: 'success',
+        message: '已在分屏中打开LLM批量翻译'
+      })
+      // 关闭抽屉
+      visible.value = false
+    } else {
+      ElMessage({
+        type: 'error',
+        message: '无法打开LLM批量翻译'
+      })
+    }
+  } catch (error) {
+    console.error('[DemoPageDrawer] Failed to open LlmTranslatePage:', error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    ElMessage({
+      type: 'error',
+      message: `打开LLM批量翻译失败：${errorMessage}`
+    })
+  }
+}
+
 // 打开Demo页面的处理函数
 const openDemoPage = async (page: CustomPageConfig) => {
   console.log('[DemoPageDrawer] Opening page:', page.id)
@@ -198,6 +243,8 @@ const openDemoPage = async (page: CustomPageConfig) => {
   .demo-actions-header {
     display: flex;
     justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
     
     .el-button {
       font-weight: 500;

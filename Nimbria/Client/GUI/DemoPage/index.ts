@@ -6,6 +6,9 @@
 // TestPage 导出
 export * from './TestPage'
 
+// LlmTranslate 导出
+export * from './LlmTranslate'
+
 // 页面注册Promise（用于等待注册完成）
 let registrationPromise: Promise<void> | null = null
 
@@ -31,6 +34,18 @@ export function registerDemoPages(): Promise<void> {
           component: () => import('./TestPage/TestPage.vue'),
           showInDrawer: true,
           tags: ['ui', 'test', 'component', 'demo']
+        },
+        {
+          id: 'llm-translate-page',
+          name: 'LLM批量翻译',
+          title: 'LLM Batch Translation',
+          description: '基于LLM的批量翻译工具，支持流式进度监控和批次管理',
+          category: 'demo',
+          icon: 'Promotion',
+          tabType: 'llmtranslate',
+          component: () => import('./LlmTranslate/LlmTranslatePage.vue'),
+          showInDrawer: true,
+          tags: ['llm', 'translate', 'batch', 'demo']
         }
         // 未来可以在这里添加更多Demo页面
       ])
