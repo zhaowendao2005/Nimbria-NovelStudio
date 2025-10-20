@@ -3,7 +3,7 @@
  */
 
 import { ref, watch } from 'vue'
-import { useLlmTranslateStore } from '../stores/LlmTranslate.store'
+import { useLlmTranslateStore } from '../stores'
 import { ElMessage } from 'element-plus'
 import type { TaskManagementOptions } from './types'
 
@@ -20,7 +20,7 @@ export function useTaskManagement(options: TaskManagementOptions = {}) {
     try {
       await store.fetchTaskList(batchId)
     } catch (_error) {
-      ElMessage.error('加载任务列表失败')
+      ElMessage({ message: '加载任务列表失败', type: 'error' })
     } finally {
       isLoading.value = false
     }
@@ -33,10 +33,10 @@ export function useTaskManagement(options: TaskManagementOptions = {}) {
     if (!store.currentBatch) return
 
     try {
-      await store.retryFailedTasks(store.currentBatch.id)
-      ElMessage.success('已重新发送失败的任务')
+      await store.retryFailedTasks()
+      ElMessage({ message: '已重新发送失败的任务', type: 'success' })
     } catch (_error) {
-      ElMessage.error('重试任务失败')
+      ElMessage({ message: '重试任务失败', type: 'error' })
     }
   }
 
@@ -46,7 +46,7 @@ export function useTaskManagement(options: TaskManagementOptions = {}) {
   const pauseAllTasks = () => {
     if (store.currentBatch) {
       store.currentBatch.status = 'paused'
-      ElMessage.info('已暂停所有任务')
+      ElMessage({ message: '已暂停所有任务', type: 'info' })
     }
   }
 
@@ -56,7 +56,7 @@ export function useTaskManagement(options: TaskManagementOptions = {}) {
   const resumeAllTasks = () => {
     if (store.currentBatch) {
       store.currentBatch.status = 'running'
-      ElMessage.success('已恢复任务执行')
+      ElMessage({ message: '已恢复任务执行', type: 'success' })
     }
   }
 
@@ -65,7 +65,7 @@ export function useTaskManagement(options: TaskManagementOptions = {}) {
    */
   const clearCompletedTasks = () => {
     store.taskList = store.taskList.filter(t => t.status !== 'completed')
-    ElMessage.success('已清空已完成的任务')
+    ElMessage({ message: '已清空已完成的任务', type: 'success' })
   }
 
   /**

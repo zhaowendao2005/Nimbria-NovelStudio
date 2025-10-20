@@ -4,7 +4,7 @@
 
 import { ref } from 'vue'
 import { h } from 'vue'
-import { useLlmTranslateStore } from '../stores/LlmTranslate.store'
+import { useLlmTranslateStore } from '../stores'
 import { ElMessage } from 'element-plus'
 import type { BatchManagementOptions } from './types'
 import type { Batch } from '../types/batch'
@@ -43,7 +43,7 @@ export function useBatchManagement(_options: BatchManagementOptions = {}) {
    */
   const switchToBatch = async (batchId: string) => {
     try {
-      await store.switchBatch(batchId)
+      await store.switchToBatch(batchId)
       // @ts-ignore - Element Plus message type compatibility
       ElMessage({
         message: h('p', `已切换到批次 ${batchId}`),

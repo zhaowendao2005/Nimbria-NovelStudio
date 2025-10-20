@@ -27,7 +27,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useLlmTranslateStore } from './stores/LlmTranslate.store'
+import { useLlmTranslateStore } from './stores'
 import HomePage from './components/HomePage.vue'
 import TaskManagePage from './components/TaskManagePage.vue'
 import ExportPage from './components/ExportPage.vue'
@@ -54,7 +54,7 @@ onMounted(async () => {
   flex-direction: column;
   overflow: hidden;
   background: var(--obsidian-bg-primary);
-  padding: 24px;
+  padding: 8px;
 }
 
 .page-header {

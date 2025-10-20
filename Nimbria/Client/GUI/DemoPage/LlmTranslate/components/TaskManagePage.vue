@@ -219,7 +219,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { Refresh, Search, VideoPause, VideoPlay, Check, Select, Upload, Delete } from '@element-plus/icons-vue'
-import { useLlmTranslateStore } from '../stores/LlmTranslate.store'
+import { useLlmTranslateStore } from '../stores'
 import { useTaskManagement } from '../composables/useTaskManagement'
 import { useBatchManagement } from '../composables/useBatchManagement'
 import ThreadDrawer from './ThreadDrawer.vue'
@@ -326,23 +326,21 @@ const testThrottle = () => {
 }
 
 // 发送选中任务
-const sendSelected = () => {
-  if (store.selectedTaskIds.size === 0) {
-    console.warn('没有选中任务')
-    return
+const sendSelected = async () => {
+  try {
+    await store.sendSelectedTasks()
+  } catch (err) {
+    console.error('发送任务失败:', err)
   }
-  console.log('发送选中任务:', Array.from(store.selectedTaskIds))
-  // TODO: 实现发送逻辑
 }
 
 // 删除选中任务
-const deleteSelected = () => {
-  if (store.selectedTaskIds.size === 0) {
-    console.warn('没有选中任务')
-    return
+const deleteSelected = async () => {
+  try {
+    await store.deleteSelectedTasks()
+  } catch (err) {
+    console.error('删除任务失败:', err)
   }
-  console.log('删除选中任务:', Array.from(store.selectedTaskIds))
-  // TODO: 实现删除逻辑
 }
 
 // 页面加载
@@ -441,17 +439,17 @@ onMounted(async () => {
     flex: 0 0 auto;
     background-color: white;
     border-bottom: 1px solid #e4e7eb;
-    padding: 12px 16px;
+    padding: 6px 8px;
     display: flex;
     flex-wrap: wrap;
-    gap: 24px;
+    gap: 12px;
     align-items: center;
 
     .stat-item {
       display: flex;
       align-items: center;
       gap: 6px;
-      font-size: 13px;
+      font-size: 10px;
 
       .stat-label {
         color: #909399;
@@ -561,10 +559,10 @@ onMounted(async () => {
       }
 
       &.status-unsent { border-left-color: #909399; }
-      &.status-queued { border-left-color: #909399; }
+      &.status-queued { border-left-color: #e3d217; }
       &.status-waiting { border-left-color: #409eff; }
-      &.status-throttled { border-left-color: #f56c6c; }
-      &.status-error { border-left-color: #e6a23c; }
+      &.status-throttled { border-left-color: #a02de2; }
+      &.status-error { border-left-color: #f56c6c; }
       &.status-completed { border-left-color: #67c23a; }
 
       .card-header {

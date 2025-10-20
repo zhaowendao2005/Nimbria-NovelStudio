@@ -38,7 +38,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useLlmTranslateStore } from '../stores/LlmTranslate.store'
+import { useLlmTranslateStore } from '../stores'
 import { useExportService } from '../composables/useExportService'
 
 const store = useLlmTranslateStore()

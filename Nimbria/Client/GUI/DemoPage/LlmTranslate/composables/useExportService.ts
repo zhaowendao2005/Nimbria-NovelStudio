@@ -3,7 +3,7 @@
  */
 
 import { ref, h } from 'vue'
-import { useLlmTranslateStore } from '../stores/LlmTranslate.store'
+import { useLlmTranslateStore } from '../stores'
 import { ElMessage } from 'element-plus'
 import type { ExportOptions } from './types'
 import type { Task } from '../types/task'

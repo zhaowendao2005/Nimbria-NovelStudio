@@ -1,8 +1,11 @@
 /**
- * LlmTranslate Mock 数据
+ * Translate 模块 Mock 数据和方法
  */
 
-import type { Batch, Task } from '../types'
+import type { Batch, Task, TranslateConfig } from '../../types'
+import type { TranslateDatasource } from '../translate.types'
+
+// ==================== Mock 数据 ====================
 
 export const mockBatchList: Batch[] = [
   {
@@ -164,6 +167,27 @@ export const mockTaskList: Task[] = [
   {
     id: '#1246',
     batchId: '#20250115-001',
+    status: 'queued',
+    content: 'Queued task waiting to be processed...',
+    translation: null,
+    inputTokens: 1300,
+    replyTokens: 0,
+    predictedTokens: 2000,
+    progress: 0,
+    sentTime: null,
+    replyTime: null,
+    durationMs: null,
+    errorMessage: null,
+    errorType: null,
+    retryCount: 0,
+    cost: 0,
+    metadataJson: null,
+    createdAt: '2025-01-15 14:28:20',
+    updatedAt: '2025-01-15 14:28:20'
+  },
+  {
+    id: '#1245',
+    batchId: '#20250115-001',
     status: 'unsent',
     content: 'Waiting to be sent for translation...',
     translation: null,
@@ -184,3 +208,105 @@ export const mockTaskList: Task[] = [
   }
 ]
 
+// ==================== Mock Datasource 实现 ====================
+
+export class MockTranslateDatasource implements TranslateDatasource {
+  private delay(ms: number = 300): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms))
+  }
+
+  async fetchBatchList(): Promise<Batch[]> {
+    await this.delay()
+    return [...mockBatchList]
+  }
+
+  async fetchTaskList(batchId: string): Promise<Task[]> {
+    await this.delay()
+    return mockTaskList.filter(task => task.batchId === batchId)
+  }
+
+  async createBatch(config: TranslateConfig): Promise<Batch> {
+    await this.delay(500)
+    
+    const newBatch: Batch = {
+      id: `#${Date.now().toString().slice(-8)}`,
+      status: 'running',
+      configJson: JSON.stringify(config),
+      totalTasks: 0,
+      completedTasks: 0,
+      failedTasks: 0,
+      throttledTasks: 0,
+      waitingTasks: 0,
+      unsentTasks: 0,
+      terminatedTasks: 0,
+      totalCost: 0,
+      totalInputTokens: 0,
+      totalOutputTokens: 0,
+      avgTimePerTask: 0,
+      fastestTaskTime: 0,
+      slowestTaskTime: 0,
+      estimatedCompletionTime: null,
+      createdAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+      startedAt: null,
+      completedAt: null,
+      updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 19)
+    }
+
+    // 模拟添加到列表
+    mockBatchList.unshift(newBatch)
+    return newBatch
+  }
+
+  async updateBatch(batchId: string, updates: Partial<Batch>): Promise<Batch> {
+    await this.delay()
+    
+    const batchIndex = mockBatchList.findIndex(b => b.id === batchId)
+    if (batchIndex === -1) {
+      throw new Error(`Batch ${batchId} not found`)
+    }
+
+    mockBatchList[batchIndex] = {
+      ...mockBatchList[batchIndex],
+      ...updates,
+      updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 19)
+    }
+
+    return mockBatchList[batchIndex]
+  }
+
+  async deleteBatch(batchId: string): Promise<void> {
+    await this.delay()
+    
+    const batchIndex = mockBatchList.findIndex(b => b.id === batchId)
+    if (batchIndex === -1) {
+      throw new Error(`Batch ${batchId} not found`)
+    }
+
+    mockBatchList.splice(batchIndex, 1)
+  }
+
+  async retryFailedTasks(batchId: string): Promise<void> {
+    await this.delay()
+    console.log(`Mock: Retrying failed tasks for batch ${batchId}`)
+  }
+
+  async pauseBatch(batchId: string): Promise<void> {
+    await this.delay()
+    await this.updateBatch(batchId, { status: 'paused' })
+  }
+
+  async resumeBatch(batchId: string): Promise<void> {
+    await this.delay()
+    await this.updateBatch(batchId, { status: 'running' })
+  }
+
+  async sendTasks(taskIds: string[]): Promise<void> {
+    await this.delay()
+    console.log(`Mock: Sending tasks`, taskIds)
+  }
+
+  async deleteTasks(taskIds: string[]): Promise<void> {
+    await this.delay()
+    console.log(`Mock: Deleting tasks`, taskIds)
+  }
+}

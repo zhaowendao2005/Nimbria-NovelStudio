@@ -253,7 +253,7 @@
 import { ref, computed } from 'vue'
 import { UploadFilled, FolderOpened } from '@element-plus/icons-vue'
 import { ElMessage, ElNotification } from 'element-plus'
-import { useLlmTranslateStore } from '../stores/LlmTranslate.store'
+import { useLlmTranslateStore } from '../stores'
 import { useBatchManagement } from '../composables/useBatchManagement'
 
 const store = useLlmTranslateStore()
@@ -365,8 +365,8 @@ const saveDraft = () => {
 
 <style scoped lang="scss">
 .home-page {
-  padding: 20px;
-  max-width: 900px;
+  padding: 8px;
+  max-width: 1200px;
   margin: 0 auto;
   overflow-y: auto;
 }

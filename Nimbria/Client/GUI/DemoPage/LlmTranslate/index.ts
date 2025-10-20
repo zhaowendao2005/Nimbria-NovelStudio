@@ -4,7 +4,7 @@
  */
 
 export { default as LlmTranslatePage } from './LlmTranslatePage.vue'
-export { useLlmTranslateStore } from './stores/LlmTranslate.store'
+export { useLlmTranslateStore } from './stores'
 export { useTaskManagement } from './composables/useTaskManagement'
 export { useBatchManagement } from './composables/useBatchManagement'
 export { useExportService } from './composables/useExportService'
