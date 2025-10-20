@@ -195,7 +195,8 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
       // 去除 Proxy，确保能通过 Electron IPC
       const plainConfig = JSON.parse(JSON.stringify(toRaw(configData)))
       const newBatch = await datasource.value.createBatch(plainConfig)
-      batchList.value.unshift(newBatch)
+      // 注意：不在这里添加到列表，等待 onBatchCreated 事件触发后通过 fetchBatchList() 更新
+      // 这样可以确保数据与数据库完全同步，避免重复添加
       return newBatch
     } catch (err) {
       error.value = err instanceof Error ? err.message : '创建批次失败'
