@@ -82,7 +82,16 @@ export class LlmTranslateService extends EventEmitter {
 
     // 先查询所有waiting的任务
     const waitingTasks = this.projectDatabase.query(
-      `SELECT * FROM Llmtranslate_tasks WHERE status = 'waiting'`
+      `SELECT 
+        id, batch_id AS batchId, status, content, translation,
+        input_tokens AS inputTokens, reply_tokens AS replyTokens, 
+        predicted_tokens AS predictedTokens, progress,
+        sent_time AS sentTime, reply_time AS replyTime, duration_ms AS durationMs,
+        error_message AS errorMessage, error_type AS errorType, retry_count AS retryCount,
+        cost, metadata_json AS metadataJson,
+        created_at AS createdAt, updated_at AS updatedAt
+      FROM Llmtranslate_tasks 
+      WHERE status = 'waiting'`
     ) as Task[]
 
     if (waitingTasks.length > 0) {
@@ -341,7 +350,20 @@ export class LlmTranslateService extends EventEmitter {
     if (!this.projectDatabase) return
 
     const batches = this.projectDatabase.query(
-      `SELECT * FROM Llmtranslate_batches ORDER BY created_at DESC`
+      `SELECT 
+        id, status, config_json AS configJson,
+        total_tasks AS totalTasks, completed_tasks AS completedTasks,
+        failed_tasks AS failedTasks, throttled_tasks AS throttledTasks,
+        waiting_tasks AS waitingTasks, unsent_tasks AS unsentTasks,
+        terminated_tasks AS terminatedTasks,
+        total_cost AS totalCost, total_input_tokens AS totalInputTokens,
+        total_output_tokens AS totalOutputTokens,
+        avg_time_per_task AS avgTimePerTask, fastest_task_time AS fastestTaskTime,
+        slowest_task_time AS slowestTaskTime, estimated_completion_time AS estimatedCompletionTime,
+        created_at AS createdAt, started_at AS startedAt,
+        completed_at AS completedAt, updated_at AS updatedAt
+      FROM Llmtranslate_batches 
+      ORDER BY created_at DESC`
     ) as Batch[]
 
     for (const batch of batches) {
@@ -368,7 +390,20 @@ export class LlmTranslateService extends EventEmitter {
     }
 
     const batches = this.projectDatabase.query(
-      `SELECT * FROM Llmtranslate_batches ORDER BY created_at DESC`
+      `SELECT 
+        id, status, config_json AS configJson,
+        total_tasks AS totalTasks, completed_tasks AS completedTasks,
+        failed_tasks AS failedTasks, throttled_tasks AS throttledTasks,
+        waiting_tasks AS waitingTasks, unsent_tasks AS unsentTasks,
+        terminated_tasks AS terminatedTasks,
+        total_cost AS totalCost, total_input_tokens AS totalInputTokens,
+        total_output_tokens AS totalOutputTokens,
+        avg_time_per_task AS avgTimePerTask, fastest_task_time AS fastestTaskTime,
+        slowest_task_time AS slowestTaskTime, estimated_completion_time AS estimatedCompletionTime,
+        created_at AS createdAt, started_at AS startedAt,
+        completed_at AS completedAt, updated_at AS updatedAt
+      FROM Llmtranslate_batches 
+      ORDER BY created_at DESC`
     ) as Batch[]
 
     return {
@@ -384,7 +419,20 @@ export class LlmTranslateService extends EventEmitter {
     if (!this.projectDatabase) return null
 
     const result = this.projectDatabase.queryOne(
-      `SELECT * FROM Llmtranslate_batches WHERE id = ?`,
+      `SELECT 
+        id, status, config_json AS configJson,
+        total_tasks AS totalTasks, completed_tasks AS completedTasks,
+        failed_tasks AS failedTasks, throttled_tasks AS throttledTasks,
+        waiting_tasks AS waitingTasks, unsent_tasks AS unsentTasks,
+        terminated_tasks AS terminatedTasks,
+        total_cost AS totalCost, total_input_tokens AS totalInputTokens,
+        total_output_tokens AS totalOutputTokens,
+        avg_time_per_task AS avgTimePerTask, fastest_task_time AS fastestTaskTime,
+        slowest_task_time AS slowestTaskTime, estimated_completion_time AS estimatedCompletionTime,
+        created_at AS createdAt, started_at AS startedAt,
+        completed_at AS completedAt, updated_at AS updatedAt
+      FROM Llmtranslate_batches 
+      WHERE id = ?`,
       [batchId]
     )
 
@@ -400,7 +448,17 @@ export class LlmTranslateService extends EventEmitter {
     }
 
     const tasks = this.projectDatabase.query(
-      `SELECT * FROM Llmtranslate_tasks WHERE batch_id = ? ORDER BY created_at ASC`,
+      `SELECT 
+        id, batch_id AS batchId, status, content, translation,
+        input_tokens AS inputTokens, reply_tokens AS replyTokens, 
+        predicted_tokens AS predictedTokens, progress,
+        sent_time AS sentTime, reply_time AS replyTime, duration_ms AS durationMs,
+        error_message AS errorMessage, error_type AS errorType, retry_count AS retryCount,
+        cost, metadata_json AS metadataJson,
+        created_at AS createdAt, updated_at AS updatedAt
+      FROM Llmtranslate_tasks 
+      WHERE batch_id = ? 
+      ORDER BY created_at ASC`,
       [batchId]
     ) as Task[]
 
@@ -417,7 +475,16 @@ export class LlmTranslateService extends EventEmitter {
     if (!this.projectDatabase) return null
 
     const result = this.projectDatabase.queryOne(
-      `SELECT * FROM Llmtranslate_tasks WHERE id = ?`,
+      `SELECT 
+        id, batch_id AS batchId, status, content, translation,
+        input_tokens AS inputTokens, reply_tokens AS replyTokens, 
+        predicted_tokens AS predictedTokens, progress,
+        sent_time AS sentTime, reply_time AS replyTime, duration_ms AS durationMs,
+        error_message AS errorMessage, error_type AS errorType, retry_count AS retryCount,
+        cost, metadata_json AS metadataJson,
+        created_at AS createdAt, updated_at AS updatedAt
+      FROM Llmtranslate_tasks 
+      WHERE id = ?`,
       [taskId]
     )
 
