@@ -17,6 +17,7 @@ import type { ProjectDatabase } from '../database-service/project-database'
 import type { LlmChatService } from '../llm-chat-service/llm-chat-service'
 import { TranslationExecutor } from './translation-executor'
 import { ExportService } from './export-service'
+import { TaskStateManager } from './task-state-manager'
 
 // 从新的类型系统导入
 import type {
@@ -46,14 +47,23 @@ import type {
 export class LlmTranslateService extends EventEmitter {
   private projectDatabase: ProjectDatabase | null = null
   private llmChatService: LlmChatService
+  private llmConfigManager: any
   private translationExecutor: TranslationExecutor
+  private taskStateManager: TaskStateManager
   private exportService: ExportService
   private activeBatches: Map<string, Batch> = new Map()
 
-  constructor(llmChatService: LlmChatService) {
+  constructor(llmChatService: LlmChatService, llmConfigManager: any) {
     super()
     this.llmChatService = llmChatService
-    this.translationExecutor = new TranslationExecutor(this, llmChatService)
+    this.llmConfigManager = llmConfigManager
+    
+    // 创建 TaskStateManager
+    this.taskStateManager = new TaskStateManager()
+    
+    // 创建 TranslationExecutor（传入 TaskStateManager）
+    this.translationExecutor = new TranslationExecutor(this, llmConfigManager, this.taskStateManager)
+    
     this.exportService = new ExportService(this)
   }
 
@@ -64,13 +74,50 @@ export class LlmTranslateService extends EventEmitter {
     console.log('🚀 [LlmTranslateService] 初始化服务...')
     this.projectDatabase = projectDatabase
     
+    // 设置 TaskStateManager 的数据库
+    this.taskStateManager.setProjectDatabase(projectDatabase)
+    
+    // 监听 TaskStateManager 的事件并转发
+    this.setupTaskStateListeners()
+    
     // 从数据库加载所有批次
     await this.loadBatches()
     
     // 检查程序中断的任务，标记为 terminated
     await this.handleTerminatedTasks()
     
+    // 检查异常任务并恢复（将 sending 状态的任务标记为 error）
+    await this.handleRecoveryTasks()
+    
     console.log('✅ [LlmTranslateService] 服务初始化完成')
+  }
+
+  /**
+   * 设置 TaskStateManager 的事件监听器
+   * 将 TaskStateManager 的事件转发给 IPC 层
+   */
+  private setupTaskStateListeners(): void {
+    // 任务状态变化事件
+    this.taskStateManager.on('state:change', (event) => {
+      this.emit('task:state-changed', event)
+    })
+
+    // 任务进度更新事件
+    this.taskStateManager.on('progress:update', (event) => {
+      this.emit('task:progress-updated', event)
+    })
+
+    // 任务完成事件
+    this.taskStateManager.on('task:complete', (event) => {
+      this.emit('task:completed', event)
+    })
+
+    // 任务错误事件
+    this.taskStateManager.on('task:error', (event) => {
+      this.emit('task:error-occurred', event)
+    })
+
+    console.log('✅ [LlmTranslateService] TaskStateManager 事件监听器已设置')
   }
 
   /**
@@ -109,6 +156,52 @@ export class LlmTranslateService extends EventEmitter {
       
       // 更新批次统计
       const batchIds = new Set(waitingTasks.map(t => t.batchId))
+      for (const batchId of batchIds) {
+        await this.updateBatchStats(batchId)
+      }
+    }
+  }
+
+  /**
+   * 处理异常任务恢复
+   * 将所有 status = 'sending' 的任务标记为 'error'
+   * 
+   * @description
+   * 应用启动时检查是否有异常终止的任务（sending 状态）
+   * 这些任务应该在应用崩溃时被中断，需要标记为 error
+   */
+  private async handleRecoveryTasks(): Promise<void> {
+    if (!this.projectDatabase) return
+
+    // 查询所有 sending 状态的任务
+    const sendingTasks = this.projectDatabase.query(
+      `SELECT 
+        id, batch_id AS batchId, status, content, translation,
+        input_tokens AS inputTokens, reply_tokens AS replyTokens, 
+        predicted_tokens AS predictedTokens, progress,
+        sent_time AS sentTime, reply_time AS replyTime, duration_ms AS durationMs,
+        error_message AS errorMessage, error_type AS errorType, retry_count AS retryCount,
+        cost, metadata_json AS metadataJson,
+        created_at AS createdAt, updated_at AS updatedAt
+      FROM Llmtranslate_tasks 
+      WHERE status = 'sending'`
+    ) as Task[]
+
+    if (sendingTasks.length > 0) {
+      console.log(`⚠️ [LlmTranslateService] 发现 ${sendingTasks.length} 个异常终止任务，标记为 error`)
+      
+      // 更新状态为 error
+      this.projectDatabase.execute(
+        `UPDATE Llmtranslate_tasks 
+         SET status = 'error', 
+             error_type = 'APP_CRASHED',
+             error_message = '应用崩溃导致任务中断',
+             updated_at = CURRENT_TIMESTAMP
+         WHERE status = 'sending'`
+      )
+      
+      // 更新批次统计
+      const batchIds = new Set(sendingTasks.map(t => t.batchId))
       for (const batchId of batchIds) {
         await this.updateBatchStats(batchId)
       }
@@ -374,9 +467,9 @@ export class LlmTranslateService extends EventEmitter {
   }
 
   /**
-   * 更新批次统计
+   * 更新批次统计（公共方法，供 TranslationExecutor 调用）
    */
-  private async updateBatchStats(batchId: string): Promise<void> {
+  async updateBatchStats(batchId: string): Promise<void> {
     // TODO: 实现批次统计更新逻辑
     console.log(`📊 [LlmTranslateService] 更新批次 ${batchId} 统计`)
   }
@@ -523,6 +616,29 @@ export class LlmTranslateService extends EventEmitter {
     // TODO: 实现重试逻辑
     console.log(`🔄 [LlmTranslateService] 重试批次 ${batchId} 的失败任务`)
     return nanoid()
+  }
+
+  /**
+   * 暂停任务
+   * 
+   * @description
+   * 将任务状态设置为 paused，并通过 TaskStateManager 记录错误信息
+   */
+  async pauseTask(taskId: string): Promise<void> {
+    if (!this.projectDatabase) {
+      throw new Error('Project database not initialized')
+    }
+
+    console.log(`⏸️ [LlmTranslateService] 暂停任务 ${taskId}`)
+    
+    // 调用 TaskStateManager 暂停任务
+    await this.taskStateManager.pauseTask(taskId)
+    
+    // 获取任务所属批次并更新统计
+    const task = await this.getTask(taskId)
+    if (task) {
+      await this.updateBatchStats(task.batchId)
+    }
   }
 
   /**
@@ -696,5 +812,28 @@ export class LlmTranslateService extends EventEmitter {
         error: errorMessage
       } as TaskDeleteErrorEvent)
     }
+  }
+
+  // ==================== 公共 Getter 方法 ====================
+
+  /**
+   * 获取项目数据库实例
+   */
+  getProjectDatabase(): ProjectDatabase | null {
+    return this.projectDatabase
+  }
+
+  /**
+   * 获取 TaskStateManager 实例
+   */
+  getTaskStateManager(): TaskStateManager {
+    return this.taskStateManager
+  }
+
+  /**
+   * 获取 ExportService 实例
+   */
+  getExportService(): ExportService {
+    return this.exportService
   }
 }

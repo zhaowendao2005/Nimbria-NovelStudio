@@ -107,6 +107,20 @@ class ElectronTranslateDatasource implements TranslateDatasource {
       throw new Error(result.error || '删除任务失败')
     }
   }
+
+  async pauseTask(taskId: string): Promise<void> {
+    const result = await this.electronAPI.pauseTask({ taskId })
+    if (!result.success) {
+      throw new Error(result.error || '暂停任务失败')
+    }
+  }
+
+  async retryTask(taskId: string): Promise<void> {
+    const result = await this.electronAPI.retryTask({ taskId })
+    if (!result.success) {
+      throw new Error(result.error || '重试任务失败')
+    }
+  }
 }
 
 // ==================== Datasource 工厂 ====================

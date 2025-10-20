@@ -156,6 +156,31 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
     })
   })
 
+  // TaskStateManager 事件监听
+  llmTranslateService.on('task:state-changed', (data) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:task-state-changed', data)
+    })
+  })
+
+  llmTranslateService.on('task:progress-updated', (data) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:task-progress-updated', data)
+    })
+  })
+
+  llmTranslateService.on('task:completed', (data) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:task-completed', data)
+    })
+  })
+
+  llmTranslateService.on('task:error-occurred', (data) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:task-error-occurred', data)
+    })
+  })
+
   // ========== IPC Handlers（纯调用） ==========
 
   /**
@@ -277,6 +302,33 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
   ipcMain.handle('llm-translate:resume-batch', async (_event, args: { batchId: string }) => {
     try {
       await llmTranslateService.resumeBatch(args.batchId)
+      return { success: true }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  /**
+   * 暂停任务
+   */
+  ipcMain.handle('llm-translate:pause-task', async (_event, args: { taskId: string }) => {
+    try {
+      await llmTranslateService.pauseTask(args.taskId)
+      return { success: true }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  /**
+   * 重试单个任务
+   */
+  ipcMain.handle('llm-translate:retry-task', async (_event, args: { taskId: string }) => {
+    try {
+      // TODO: 实现单个任务重试逻辑
+      console.log(`🔄 [IPC] 重试任务 ${args.taskId}`)
       return { success: true }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)

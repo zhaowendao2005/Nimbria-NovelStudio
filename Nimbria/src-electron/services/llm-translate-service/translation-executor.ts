@@ -4,7 +4,8 @@
  * 职责：
  * - 管理任务队列（FIFO）
  * - 并发控制（限制同时执行的任务数）
- * - 与 LlmChatService 交互调用本地LLM进行翻译
+ * - 集成 LlmTranslationClient 进行翻译
+ * - 集成 TaskStateManager 管理状态
  * - 监听流式响应并广播进度事件
  * - 错误捕获和重试逻辑
  * 
@@ -12,19 +13,33 @@
  */
 
 import type { LlmTranslateService } from './llm-translate-service'
-import type { LlmChatService } from '../llm-chat-service/llm-chat-service'
-import type { TranslateConfig, ErrorType, TaskSubmittedEvent, TaskProgressEvent, TaskCompleteEvent, TaskErrorEvent } from './types'
+import { LlmTranslationClient } from './llm-translation-client'
+import type { TaskStateManager } from './task-state-manager'
+import type { 
+  TranslationClientConfig,
+  TranslationRequest,
+  ErrorType
+} from '../../types/LlmTranslate/backend'
+import type { TranslateConfig } from '../../types/LlmTranslate'
 
 export class TranslationExecutor {
   private llmTranslateService: LlmTranslateService
-  private llmChatService: LlmChatService
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private llmConfigManager: any
+  private taskStateManager: TaskStateManager
   private taskQueues: Map<string, string[]> = new Map()  // batchId -> taskIds[]
   private pausedBatches: Set<string> = new Set()
   private activeTaskCount: Map<string, number> = new Map()  // batchId -> count
 
-  constructor(llmTranslateService: LlmTranslateService, llmChatService: LlmChatService) {
+  constructor(
+    llmTranslateService: LlmTranslateService,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    llmConfigManager: any,
+    taskStateManager: TaskStateManager
+  ) {
     this.llmTranslateService = llmTranslateService
-    this.llmChatService = llmChatService
+    this.llmConfigManager = llmConfigManager
+    this.taskStateManager = taskStateManager
   }
 
   /**
@@ -42,7 +57,7 @@ export class TranslationExecutor {
 
     console.log(`🎬 [TranslationExecutor] 开始执行批次 ${batchId}，共 ${taskIds.length} 个任务，并发: ${concurrency}`)
 
-    // 启动并发任务
+    // 启动并发 worker
     const workers: Promise<void>[] = []
     for (let i = 0; i < Math.min(concurrency, taskIds.length); i++) {
       workers.push(this.worker(batchId, config))
@@ -51,10 +66,13 @@ export class TranslationExecutor {
     await Promise.all(workers)
 
     console.log(`✅ [TranslationExecutor] 批次 ${batchId} 执行完成`)
+
+    // 清理批次状态
+    this.taskStateManager.cleanupBatch(batchId)
   }
 
   /**
-   * 工作线程：不断从队列取任务并执行
+   * Worker 线程：不断从队列取任务并执行
    */
   private async worker(batchId: string, config: TranslateConfig): Promise<void> {
     while (true) {
@@ -82,177 +100,95 @@ export class TranslationExecutor {
   }
 
   /**
-   * 执行单个任务
+   * 执行单个任务（新版本：集成 LlmTranslationClient 和 TaskStateManager）
    */
-  private async executeTask(batchId: string, taskId: string, config: TranslateConfig): Promise<void> {
+  private async executeTask(
+    batchId: string,
+    taskId: string,
+    config: TranslateConfig
+  ): Promise<void> {
     const projectDb = this.llmTranslateService.getProjectDatabase()
     if (!projectDb) return
 
     try {
-      // 1. 获取任务
-      const task = await this.llmTranslateService.getTask(taskId)
+      // 1. 获取任务信息
+      const { tasks } = await this.llmTranslateService.getTasks(batchId)
+      const task = tasks.find(t => t.id === taskId)
+      
       if (!task) {
         throw new Error(`Task ${taskId} not found`)
       }
 
-      // 2. 更新状态为 waiting
-      projectDb.execute(
-        `UPDATE Llmtranslate_tasks 
-         SET status = 'waiting', sent_time = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
-         WHERE id = ?`,
-        [taskId]
-      )
+      // 2. 初始化任务状态
+      this.taskStateManager.initializeTask(taskId, batchId, config.predictedTokens)
 
-      this.llmTranslateService.emit('task:submitted', {
-        batchId,
-        taskId,
-        sentTime: new Date().toISOString()
-      } as TaskSubmittedEvent)
+      // 3. 更新状态为 waiting
+      await this.taskStateManager.updateState(taskId, 'waiting')
 
-      // 3. 调用 LLM 进行翻译（使用 LlmChatService）
-      const startTime = Date.now()
-      let translationResult = ''
-      let replyTokens = 0
-
-      // 创建临时对话
-      const conversationId = await this.llmChatService.createConversation(config.modelId, {
+      // 4. 创建翻译客户端配置
+      const clientConfig: TranslationClientConfig = {
+        modelId: config.modelId,
+        systemPrompt: config.systemPrompt,
         temperature: 0.7,
-        maxTokens: config.predictedTokens
-      })
-
-      // 发送消息
-      const messageId = await this.llmChatService.sendMessage(conversationId, 
-        `${config.systemPrompt}\n\n${task.content}`
-      )
-
-      // 通过事件监听流式进度
-      const chunkHandler = (data: { messageId: string; chunk: string; conversationId: string }) => {
-        if (data.conversationId === conversationId && data.messageId === messageId) {
-          translationResult += data.chunk
-          replyTokens = this.estimateTokens(translationResult)
-          
-          const progress = Math.min((replyTokens / task.predictedTokens) * 100, 100)
-
-          // 发射进度事件
-          this.llmTranslateService.emit('task:progress', {
-            batchId,
-            taskId,
-            replyTokens,
-            progress,
-            chunk: data.chunk
-          } as TaskProgressEvent)
-
-          // 更新数据库进度
-          try {
-            projectDb.execute(
-              `UPDATE Llmtranslate_tasks 
-               SET reply_tokens = ?, progress = ?, updated_at = CURRENT_TIMESTAMP 
-               WHERE id = ?`,
-              [replyTokens, progress, taskId]
-            )
-          } catch (err) {
-            console.error('Failed to update task progress:', err)
-          }
-        }
+        maxTokens: config.predictedTokens,
+        timeout: 30000,
+        maxRetries: 3
       }
 
-      this.llmChatService.on('message:chunk', chunkHandler)
+      // 5. 创建翻译客户端
+      const client = new LlmTranslationClient(clientConfig, this.llmConfigManager)
 
-      // 等待响应完成
-      await new Promise<void>((resolve, reject) => {
-        const completeHandler = (data: { messageId: string; conversationId: string }) => {
-          if (data.conversationId === conversationId && data.messageId === messageId) {
-            this.llmChatService.off('message:chunk', chunkHandler)
-            this.llmChatService.off('message:complete', completeHandler)
-            this.llmChatService.off('message:error', errorHandler)
-            resolve()
-          }
+      // 6. 构建翻译请求
+      const request: TranslationRequest = {
+        taskId,
+        content: task.content,
+        estimatedTokens: config.predictedTokens
+      }
+
+      // 7. 更新状态为 sending
+      await this.taskStateManager.updateState(taskId, 'sending')
+
+      // 8. 执行翻译（流式）
+      const result = await client.translateStream(request, {
+        onStart: (id) => {
+          console.log(`🚀 [Executor] 任务 ${id} 开始翻译`)
+        },
+        onProgress: (id, chunk, tokens) => {
+          // 更新进度（TaskStateManager 会自动节流和持久化）
+          void this.taskStateManager.updateProgress(id, chunk, tokens)
+        },
+        onComplete: (id) => {
+          console.log(`✅ [Executor] 任务 ${id} 翻译完成`)
+        },
+        onError: (id, error) => {
+          console.error(`❌ [Executor] 任务 ${id} 翻译失败:`, error)
         }
-
-        const errorHandler = (data: { messageId: string; conversationId: string; error: string }) => {
-          if (data.conversationId === conversationId && data.messageId === messageId) {
-            this.llmChatService.off('message:chunk', chunkHandler)
-            this.llmChatService.off('message:complete', completeHandler)
-            this.llmChatService.off('message:error', errorHandler)
-            reject(new Error(data.error))
-          }
-        }
-
-        this.llmChatService.on('message:complete', completeHandler)
-        this.llmChatService.on('message:error', errorHandler)
       })
 
-      // 4. 任务完成
-      const durationMs = Date.now() - startTime
-      const cost = this.calculateCost(task.inputTokens, replyTokens)
+      // 9. 标记任务完成
+      await this.taskStateManager.markComplete(taskId, {
+        translation: result.translation,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+        cost: result.cost,
+        durationMs: result.durationMs
+      })
 
-      projectDb.execute(
-        `UPDATE Llmtranslate_tasks 
-         SET status = 'completed', 
-             translation = ?,
-             reply_tokens = ?,
-             progress = 100,
-             reply_time = CURRENT_TIMESTAMP,
-             duration_ms = ?,
-             cost = ?,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-        [translationResult, replyTokens, durationMs, cost, taskId]
-      )
-
-      // 5. 发射完成事件
-      this.llmTranslateService.emit('task:complete', {
-        batchId,
-        taskId,
-        translation: translationResult,
-        totalTokens: replyTokens,
-        durationMs,
-        cost
-      } as TaskCompleteEvent)
-
-      // 6. 更新批次统计
+      // 10. 更新批次统计
       await this.llmTranslateService.updateBatchStats(batchId)
 
-      // 7. 清理临时对话
-      await this.llmChatService.deleteConversation(conversationId)
-
     } catch (error) {
-      // 错误处理
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      let errorType: ErrorType = 'unknown'
+      const err = error as Error
+      console.error(`❌ [Executor] 任务 ${taskId} 执行失败:`, err)
 
-      if (errorMessage.includes('429') || errorMessage.includes('rate limit')) {
-        errorType = 'rate_limit'
-        projectDb.execute(
-          `UPDATE Llmtranslate_tasks 
-           SET status = 'throttled', error_type = ?, error_message = ?, updated_at = CURRENT_TIMESTAMP 
-           WHERE id = ?`,
-          [errorType, errorMessage, taskId]
-        )
-      } else if (errorMessage.includes('timeout')) {
-        errorType = 'timeout'
-        projectDb.execute(
-          `UPDATE Llmtranslate_tasks 
-           SET status = 'error', error_type = ?, error_message = ?, updated_at = CURRENT_TIMESTAMP 
-           WHERE id = ?`,
-          [errorType, errorMessage, taskId]
-        )
-      } else {
-        projectDb.execute(
-          `UPDATE Llmtranslate_tasks 
-           SET status = 'error', error_type = 'unknown', error_message = ?, updated_at = CURRENT_TIMESTAMP 
-           WHERE id = ?`,
-          [errorMessage, taskId]
-        )
-      }
-
-      // 发射错误事件
-      this.llmTranslateService.emit('task:error', {
-        batchId,
+      // 标记任务错误
+      const errorType = this.classifyError(err)
+      await this.taskStateManager.markError(
         taskId,
         errorType,
-        errorMessage
-      } as TaskErrorEvent)
+        err.message,
+        0
+      )
 
       // 更新批次统计
       await this.llmTranslateService.updateBatchStats(batchId)
@@ -264,7 +200,7 @@ export class TranslationExecutor {
    */
   pauseBatch(batchId: string): void {
     this.pausedBatches.add(batchId)
-    console.log(`⏸️ [TranslationExecutor] 批次 ${batchId} 已暂停`)
+    console.log(`⏸️ [TranslationExecutor] 暂停批次 ${batchId}`)
   }
 
   /**
@@ -272,34 +208,38 @@ export class TranslationExecutor {
    */
   resumeBatch(batchId: string): void {
     this.pausedBatches.delete(batchId)
-    console.log(`▶️ [TranslationExecutor] 批次 ${batchId} 已恢复`)
-    
-    // TODO: 重新启动工作线程
+    console.log(`▶️ [TranslationExecutor] 恢复批次 ${batchId}`)
   }
 
   /**
-   * 估算 Token 数
+   * 错误分类
    */
-  private estimateTokens(text: string): number {
-    return Math.ceil(text.length / 4)
-  }
-
-  /**
-   * 计算成本
-   */
-  private calculateCost(inputTokens: number, outputTokens: number): number {
-    // 示例价格（需要根据实际模型调整）
-    const INPUT_PRICE_PER_1K = 0.03  // $0.03 per 1K tokens
-    const OUTPUT_PRICE_PER_1K = 0.06 // $0.06 per 1K tokens
+  private classifyError(error: Error): ErrorType {
+    const message = error.message.toLowerCase()
     
-    return (inputTokens / 1000) * INPUT_PRICE_PER_1K + (outputTokens / 1000) * OUTPUT_PRICE_PER_1K
+    if (message.includes('429') || message.includes('rate limit')) {
+      return 'RATE_LIMIT'
+    }
+    if (message.includes('timeout')) {
+      return 'TIMEOUT'
+    }
+    if (message.includes('network') || message.includes('econnrefused')) {
+      return 'NETWORK'
+    }
+    if (message.includes('api key') || message.includes('unauthorized')) {
+      return 'INVALID_API_KEY'
+    }
+    if (message.includes('model')) {
+      return 'MODEL_ERROR'
+    }
+    
+    return 'UNKNOWN'
   }
 
   /**
-   * 延迟函数
+   * 延迟辅助函数
    */
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms))
   }
 }
-

@@ -125,7 +125,7 @@ export class AppManager {
     })
     
     // 初始化 LLM Translate 服务
-    this.llmTranslateService = new LlmTranslateService(this.llmChatService)
+    this.llmTranslateService = new LlmTranslateService(this.llmChatService, this.llmConfigManager)
     logger.info('LLM Translate service initialized')
     
     logger.info('File system, file watcher, project management, LLM config, LLM chat and LLM translate services initialized')

@@ -113,16 +113,29 @@
               {{ task.translation || '（翻译结果尚未返回）' }}
             </div>
 
-            <!-- 进度条（仅在等待中显示） -->
-            <div v-if="task.status === 'waiting'" class="stream-progress">
+            <!-- 进度条（waiting/sending 时显示） -->
+            <div v-if="task.status === 'waiting' || task.status === 'sending'" class="stream-progress">
               <el-progress
                 :percentage="task.progress"
                 :stroke-width="3"
-                color="#409eff"
+                :color="task.status === 'sending' ? '#409eff' : '#67c23a'"
               ></el-progress>
               <span class="progress-info">
                 {{ task.replyTokens }} / {{ task.predictedTokens }} tokens
                 ({{ task.progress.toFixed(0) }}%)
+              </span>
+            </div>
+            
+            <!-- 完成时显示最终结果 -->
+            <div v-else-if="task.status === 'completed'" class="stream-progress completed">
+              <el-progress
+                :percentage="100"
+                :stroke-width="3"
+                color="#67c23a"
+              ></el-progress>
+              <span class="progress-info success">
+                已完成：{{ task.replyTokens }} / {{ task.predictedTokens }} tokens (100%)
+                <span v-if="task.durationMs" class="duration"> · 耗时 {{ task.durationMs }}ms</span>
               </span>
             </div>
           </div>
@@ -409,6 +422,23 @@ const saveTask = () => {
             font-size: 12px;
             color: #909399;
             text-align: right;
+            
+            &.success {
+              color: #67c23a;
+              font-weight: 500;
+            }
+            
+            .duration {
+              color: #909399;
+              font-weight: normal;
+            }
+          }
+          
+          &.completed {
+            border-top-color: #67c23a;
+            background-color: #f0f9ff;
+            padding: 12px;
+            border-radius: 4px;
           }
         }
       }

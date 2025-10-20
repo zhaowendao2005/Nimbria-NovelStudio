@@ -36,6 +36,8 @@ export interface TranslateDatasource {
   resumeBatch(batchId: string): Promise<void>
   sendTasks(taskIds: string[]): Promise<void>
   deleteTasks(taskIds: string[]): Promise<void>
+  pauseTask(taskId: string): Promise<void>
+  retryTask(taskId: string): Promise<void>
 }
 
 // ==================== Datasource 上下文类型 ====================
@@ -53,6 +55,8 @@ export interface DatasourceContext {
     resumeBatch(params: { batchId: string }): Promise<{ success: boolean; error?: string }>
     sendTasks(params: { taskIds: string[] }): Promise<{ success: boolean; error?: string }>
     deleteTasks(params: { taskIds: string[] }): Promise<{ success: boolean; error?: string }>
+    pauseTask(params: { taskId: string }): Promise<{ success: boolean; error?: string }>
+    retryTask(params: { taskId: string }): Promise<{ success: boolean; error?: string }>
   }
 }
 

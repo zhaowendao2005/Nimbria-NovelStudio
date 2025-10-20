@@ -215,12 +215,7 @@
       <!-- 模型选择 -->
       <div class="config-item">
         <div class="section-header">模型选择</div>
-        <el-select v-model="store.config.modelId" placeholder="请选择要使用的 LLM 模型" class="model-select">
-          <el-option label="GPT-4" value="gpt-4"></el-option>
-          <el-option label="GPT-3.5-turbo" value="gpt-3.5-turbo"></el-option>
-          <el-option label="Claude-3" value="claude-3"></el-option>
-        </el-select>
-      </div>
+        <ModelSelector v-model="store.config.modelId" />
 
       <el-divider></el-divider>
 
@@ -245,6 +240,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import ModelSelector from './ModelSelector.vue'
 import { 
   UploadFilled, 
   FolderOpened, 

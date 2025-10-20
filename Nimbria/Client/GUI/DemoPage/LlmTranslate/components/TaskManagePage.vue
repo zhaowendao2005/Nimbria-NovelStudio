@@ -219,6 +219,22 @@
               <el-tag :type="getStatusTagType(task.status)" size="small">
                 {{ getStatusText(task.status) }}
               </el-tag>
+              
+              <!-- 错误代码显示 -->
+              <el-tag v-if="task.errorType" type="danger" size="small" class="error-code-tag">
+                {{ task.errorType }}
+              </el-tag>
+              
+              <!-- 暂停按钮（仅在 sending 状态） -->
+              <el-button
+                v-if="task.status === 'sending'"
+                type="warning"
+                size="small"
+                @click.stop="pauseTask(task.id)"
+                class="btn-pause"
+              >
+                <el-icon><VideoPause /></el-icon> 暂停
+              </el-button>
             </div>
           </div>
 
@@ -231,14 +247,16 @@
             </div>
           </div>
 
-          <!-- 进度条（仅在等待中显示） -->
-          <div v-if="task.status === 'waiting'" class="progress-bar-wrapper">
+          <!-- 进度条（waiting/sending 时显示） -->
+          <div v-if="task.status === 'sending' || task.status === 'waiting'" class="progress-section">
             <el-progress
               :percentage="task.progress"
-              :stroke-width="4"
-              :color="getProgressBarColor(task.status)"
+              :stroke-width="2"
+              :color="task.status === 'sending' ? '#409eff' : '#67c23a'"
             ></el-progress>
-            <span class="progress-text">{{ task.progress.toFixed(0) }}% ({{ task.replyTokens }}/{{ task.predictedTokens }})</span>
+            <div class="progress-info">
+              {{ task.replyTokens }} / {{ task.predictedTokens }} tokens ({{ task.progress.toFixed(0) }}%)
+            </div>
           </div>
 
           <!-- 卡片操作 -->
@@ -291,7 +309,7 @@ import {
   Timer, 
   Close, 
   Clock, 
-  Document 
+  Document
 } from '@element-plus/icons-vue'
 import { useLlmTranslateStore } from '../stores'
 import { useTaskManagement } from '../composables/useTaskManagement'
@@ -345,18 +363,6 @@ const getStatusTagType = (status: TaskStatus) => {
   }
 }
 
-// 获取进度条颜色
-const getProgressBarColor = (status: TaskStatus) => {
-  switch (status) {
-    case 'completed': return '#67C23A'
-    case 'queued': return '#909399'
-    case 'waiting': return '#409EFF'
-    case 'throttled': return '#F56C6C'
-    case 'error': return '#E6A23C'
-    default: return '#909399'
-  }
-}
-
 // 处理批次选择
 const handleBatchSelect = async (batchId: string) => {
   await switchToBatch(batchId)
@@ -407,6 +413,18 @@ const deleteSelectedBatches = async () => {
 const openThreadDrawer = (taskId: string) => {
   store.threadDrawer.currentTaskId = taskId
   store.threadDrawer.isOpen = true
+}
+
+// 暂停任务
+const pauseTask = async (taskId: string) => {
+  try {
+    await store.pauseTask(taskId)
+    ElMessage({ message: '任务已暂停', type: 'success' })
+  } catch (error) {
+    console.error('暂停任务失败:', error)
+    const errorMsg = error instanceof Error ? error.message : '暂停任务失败'
+    ElMessage({ message: errorMsg, type: 'error' })
+  }
 }
 
 // 切换单个任务选择状态
@@ -766,6 +784,7 @@ onMounted(async () => {
           display: flex;
           align-items: center;
           gap: 8px;
+          flex-wrap: wrap;
 
           .status-dot {
             display: inline-block;
@@ -776,8 +795,10 @@ onMounted(async () => {
             &.dot-unsent { background-color: #909399; }
             &.dot-queued { background-color: #909399; }
             &.dot-waiting { background-color: #409eff; animation: pulse 2s infinite; }
+            &.dot-sending { background-color: #409eff; animation: pulse 1s infinite; }
             &.dot-throttled { background-color: #f56c6c; }
             &.dot-error { background-color: #e6a23c; }
+            &.dot-paused { background-color: #e6a23c; }
             &.dot-completed { background-color: #67c23a; }
           }
 
@@ -785,6 +806,16 @@ onMounted(async () => {
             font-weight: bold;
             color: #333;
             font-size: 14px;
+          }
+
+          .error-code-tag {
+            margin-left: 4px;
+            font-size: 11px;
+          }
+
+          .btn-pause {
+            margin-left: auto;
+            font-size: 12px;
           }
         }
       }
@@ -807,22 +838,21 @@ onMounted(async () => {
         }
       }
 
-      .progress-bar-wrapper {
-        margin-bottom: 12px;
-        display: flex;
-        gap: 8px;
-        align-items: center;
+      .progress-section {
+        margin: 8px 0;
+        padding: 8px 0;
+        border-top: 1px solid #f0f0f0;
+        border-bottom: 1px solid #f0f0f0;
 
         :deep(.el-progress) {
-          flex: 1;
+          margin-bottom: 4px;
         }
 
-        .progress-text {
+        .progress-info {
           font-size: 12px;
           color: #909399;
-          white-space: nowrap;
-          min-width: 80px;
           text-align: right;
+          margin-top: 4px;
         }
       }
 

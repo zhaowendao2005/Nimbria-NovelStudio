@@ -296,6 +296,57 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
   }
 
   /**
+   * 暂停任务
+   */
+  const pauseTask = async (taskId: string) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      await datasource.value.pauseTask(taskId)
+      // 更新本地任务状态
+      const task = taskList.value.find(t => t.id === taskId)
+      if (task) {
+        task.status = 'paused'
+        task.errorType = 'USER_PAUSED'
+        task.errorMessage = '用户手动暂停任务'
+      }
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : '暂停任务失败'
+      console.error('Failed to pause task:', err)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
+   * 重试任务
+   */
+  const retryTask = async (taskId: string) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      await datasource.value.retryTask(taskId)
+      // 更新本地任务状态
+      const task = taskList.value.find(t => t.id === taskId)
+      if (task) {
+        task.status = 'waiting'
+        task.errorType = null
+        task.errorMessage = null
+        task.retryCount = (task.retryCount || 0) + 1
+      }
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : '重试任务失败'
+      console.error('Failed to retry task:', err)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
    * 发送选中任务
    */
   const sendSelectedTasks = async () => {
@@ -490,6 +541,69 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
       error.value = `创建批次失败: ${data.error}`
     })
 
+    // TaskStateManager 事件监听器
+    
+    // 任务状态变化
+    electronAPI.value.on('llm-translate:task-state-changed', (data: any) => {
+      console.log(`📊 [Store] 任务状态变化: ${data.taskId} ${data.previousState} → ${data.currentState}`)
+      
+      // 更新任务列表中的任务状态
+      const task = taskList.value.find(t => t.id === data.taskId)
+      if (task) {
+        task.status = data.currentState
+        task.updatedAt = data.timestamp
+      }
+    })
+
+    // 任务进度更新
+    electronAPI.value.on('llm-translate:task-progress-updated', (data: any) => {
+      // 更新任务列表中的任务进度
+      const task = taskList.value.find(t => t.id === data.taskId)
+      if (task) {
+        task.progress = data.progress
+        task.replyTokens = data.currentTokens
+        if (data.chunk) {
+          task.translation = (task.translation || '') + data.chunk
+        }
+      }
+    })
+
+    // 任务完成
+    electronAPI.value.on('llm-translate:task-completed', (data: any) => {
+      console.log(`✅ [Store] 任务完成: ${data.taskId}`)
+      
+      // 更新任务列表中的任务
+      const task = taskList.value.find(t => t.id === data.taskId)
+      if (task) {
+        task.status = 'completed'
+        task.translation = data.translation
+        task.inputTokens = data.inputTokens
+        task.replyTokens = data.outputTokens
+        task.cost = data.cost
+        task.durationMs = data.durationMs
+        task.progress = 100
+      }
+      
+      // 重新加载批次以更新统计
+      if (currentBatch.value) {
+        void fetchTaskList(currentBatch.value.id)
+      }
+    })
+
+    // 任务错误
+    electronAPI.value.on('llm-translate:task-error-occurred', (data: any) => {
+      console.error(`❌ [Store] 任务错误: ${data.taskId} - ${data.errorType}`)
+      
+      // 更新任务列表中的任务
+      const task = taskList.value.find(t => t.id === data.taskId)
+      if (task) {
+        task.status = data.errorType === 'RATE_LIMIT' ? 'throttled' : 'error'
+        task.errorType = data.errorType
+        task.errorMessage = data.errorMessage
+        task.retryCount = data.retryCount
+      }
+    })
+
     listenersSetup.value = true
     console.log('✅ [Store] LLM Translate 事件监听器已设置')
   }
@@ -535,6 +649,8 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     retryFailedTasks,
     pauseBatch,
     resumeBatch,
+    pauseTask,
+    retryTask,
     sendSelectedTasks,
     deleteSelectedTasks,
     toggleBatchSelection,
