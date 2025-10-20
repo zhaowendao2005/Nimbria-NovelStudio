@@ -13,8 +13,10 @@
 import { ipcMain, BrowserWindow, dialog } from 'electron'
 import type { LlmTranslateService } from '../../services/llm-translate-service/llm-translate-service'
 import type {
+  // 前端类型
   TranslateConfig,
-  ExportOptions,
+  ExportConfig,
+  // 后端事件类型
   BatchCreateStartEvent,
   BatchCreatedEvent,
   BatchCreateErrorEvent,
@@ -28,7 +30,7 @@ import type {
   ExportStartEvent,
   ExportCompleteEvent,
   ExportErrorEvent
-} from '../../services/llm-translate-service/types'
+} from '../../types/LlmTranslate'
 
 export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateService) {
   
@@ -122,42 +124,22 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
   }) => {
     try {
       // 从 config 中提取 content
-      const { content, ...configWithoutContent } = args.config
+      const { content } = args.config
       
       // createBatch 返回 batchId 后会异步创建批次并通过事件通知
       const batchId = await llmTranslateService.createBatch(args.config, content)
       
-      // 等待批次创建完成（通过事件或轮询）
-      // 我们这里采用简单的等待策略：监听一次 batch:created 事件
-      const batch = await new Promise<any>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          cleanup()
-          reject(new Error('批次创建超时'))
-        }, 30000) // 30秒超时
-        
-        const onCreated = (data: BatchCreatedEvent) => {
-          if (data.batchId === batchId) {
-            cleanup()
-            resolve(data.batch)
-          }
-        }
-        
-        const onError = (data: BatchCreateErrorEvent) => {
-          if (data.batchId === batchId) {
-            cleanup()
-            reject(new Error(data.error))
-          }
-        }
-        
-        const cleanup = () => {
-          clearTimeout(timeout)
-          llmTranslateService.off('batch:created', onCreated)
-          llmTranslateService.off('batch:create-error', onError)
-        }
-        
-        llmTranslateService.once('batch:created', onCreated)
-        llmTranslateService.once('batch:create-error', onError)
-      })
+      // 轮询等待批次创建完成（最多等待 5 秒）
+      let batch = null
+      for (let i = 0; i < 50; i++) {
+        await new Promise(resolve => setTimeout(resolve, 100)) // 等待 100ms
+        batch = await llmTranslateService.getBatch(batchId)
+        if (batch) break
+      }
+      
+      if (!batch) {
+        throw new Error('批次创建超时')
+      }
       
       return { success: true, data: { batch } }
     } catch (error) {
@@ -282,6 +264,9 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
       }
 
       const filePath = result.filePaths[0]
+      if (!filePath) {
+        return { success: false, error: '未选择文件' }
+      }
       
       // 读取文件内容
       const fs = await import('fs/promises')
@@ -332,7 +317,7 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
    */
   ipcMain.handle('llm-translate:export-batch', async (_event, args: {
     batchId: string
-    options: ExportOptions
+    options: ExportConfig
   }) => {
     try {
       const exportId = await llmTranslateService.exportBatch(args.batchId, args.options)

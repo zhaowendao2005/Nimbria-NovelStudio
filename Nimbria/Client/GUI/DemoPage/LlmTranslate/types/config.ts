@@ -1,25 +1,77 @@
 /**
- * 配置相关类型定义
+ * 翻译配置类型定义
+ * 基于 HomePage.vue 表单结构设计
  */
 
+// ==================== 枚举类型 ====================
+
+/** 输入源类型 */
 export type InputSource = 'file' | 'text'
+
+/** 分片策略 */
 export type ChunkStrategy = 'line' | 'token'
+
+/** 回复模式 */
 export type ReplyMode = 'predicted' | 'equivalent'
 
+// ==================== 配置接口 ====================
+
+/**
+ * 翻译任务配置
+ * 这是用户在 HomePage 填写的完整配置
+ */
 export interface TranslateConfig {
+  // ===== 输入源配置 =====
+  /** 输入源类型 */
   inputSource: InputSource
+  /** 待翻译的内容（文本模式直接输入，文件模式读取后填充） */
   content: string
+  /** 文件路径（仅文件模式有效） */
   filePath?: string
+
+  // ===== LLM 配置 =====
+  /** 系统提示词 */
   systemPrompt: string
+  /** 模型 ID */
+  modelId: string
+
+  // ===== 分片策略配置 =====
+  /** 分片策略类型 */
+  chunkStrategy: ChunkStrategy
+  /** 按行分片时的行数 */
+  chunkSizeByLine: number
+  /** 按 Token 分片时的 Token 数 */
+  chunkSizeByToken: number
+
+  // ===== 并发控制配置 =====
+  /** 每分钟最高并发数 */
+  concurrency: number
+
+  // ===== 回复模式配置 =====
+  /** 回复模式 */
+  replyMode: ReplyMode
+  /** 预测的输出 Token 数（用于进度估算） */
+  predictedTokens: number
+}
+
+/**
+ * 批次级别的配置
+ * 从 TranslateConfig 中提取，会存储到数据库的 config_json 字段
+ */
+export interface BatchConfig {
+  systemPrompt: string
+  modelId: string
   chunkStrategy: ChunkStrategy
   chunkSizeByLine: number
   chunkSizeByToken: number
   concurrency: number
   replyMode: ReplyMode
   predictedTokens: number
-  modelId: string
 }
 
+/**
+ * Token 估算结果
+ */
 export interface TokenEstimate {
   inputTokens: number
   systemPromptTokens: number
@@ -27,6 +79,9 @@ export interface TokenEstimate {
   estimatedCost: number
 }
 
+/**
+ * 导出配置
+ */
 export interface ExportConfig {
   format: 'parallel' | 'sequential' | 'json' | 'csv'
   includeOriginal: boolean
@@ -35,4 +90,3 @@ export interface ExportConfig {
   includeStatus: boolean
   onlyCompleted: boolean
 }
-

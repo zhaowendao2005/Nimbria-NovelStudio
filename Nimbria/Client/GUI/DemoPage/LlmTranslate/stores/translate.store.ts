@@ -156,9 +156,19 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     try {
       const tasks = await datasource.value.fetchTaskList(batchId)
       
-      // 计算进度
+      // 计算进度并解析元数据
       tasks.forEach(task => {
         task.progress = calculateProgress(task.replyTokens, task.predictedTokens)
+        
+        // 解析 metadataJson 为 metadata 对象
+        if (task.metadataJson && !task.metadata) {
+          try {
+            task.metadata = JSON.parse(task.metadataJson)
+          } catch (e) {
+            console.error('Failed to parse task metadata:', e)
+            task.metadata = undefined
+          }
+        }
       })
       
       taskList.value = tasks

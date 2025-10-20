@@ -26,7 +26,7 @@
     <el-divider></el-divider>
 
     <!-- 任务元数据 -->
-    <div class="drawer-section">
+    <div v-if="task.metadata" class="drawer-section">
       <div class="section-title"><el-icon><Setting /></el-icon> 任务配置</div>
       <div class="metadata-grid">
         <div class="metadata-item">
@@ -70,7 +70,7 @@
           <span class="value">¥{{ task.metadata.actualCost.toFixed(3) }}</span>
         </div>
       </div>
-      
+
       <!-- 系统提示词 -->
       <div class="system-prompt-section">
         <div class="prompt-label">系统提示词:</div>

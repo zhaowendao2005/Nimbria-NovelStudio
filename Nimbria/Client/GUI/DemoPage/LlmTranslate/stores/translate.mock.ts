@@ -85,14 +85,31 @@ export const mockTaskList: Task[] = [
     batchId: '#20250115-001',
     status: 'throttled',
     content: '这是一段需要翻译的文本，内容较长，用于测试翻译效果...',
-    translation: undefined,
+    translation: null,
+    inputTokens: 1500,
     replyTokens: 0,
     predictedTokens: 2000,
     progress: 0,
     sentTime: '2025-01-15 14:30:25',
-    replyTime: undefined,
+    replyTime: null,
+    durationMs: null,
     errorMessage: 'Rate limit exceeded (429)',
+    errorType: 'rate_limit',
     retryCount: 2,
+    cost: 0,
+    metadataJson: JSON.stringify({
+      systemPrompt: '你是一个专业的翻译助手，请将以下内容翻译成英文。',
+      chunkStrategy: 'line',
+      chunkSizeByLine: 50,
+      chunkSizeByToken: 2000,
+      concurrency: 3,
+      replyMode: 'predicted',
+      predictedTokens: 2000,
+      modelId: 'gpt-4',
+      estimatedInputTokens: 1500,
+      estimatedOutputTokens: 2000,
+      estimatedCost: 0.15
+    }),
     metadata: {
       systemPrompt: '你是一个专业的翻译助手，请将以下内容翻译成英文。',
       chunkStrategy: 'line',
@@ -100,26 +117,33 @@ export const mockTaskList: Task[] = [
       chunkSizeByToken: 2000,
       concurrency: 3,
       replyMode: 'predicted',
+      predictedTokens: 2000,
       modelId: 'gpt-4',
       estimatedInputTokens: 1500,
       estimatedOutputTokens: 2000,
       estimatedCost: 0.15
-    }
+    },
+    createdAt: '2025-01-15 14:30:20',
+    updatedAt: '2025-01-15 14:30:25'
   },
   {
     id: '#1249',
     batchId: '#20250115-001',
     status: 'waiting',
     content: 'Another text that needs translation for testing purposes...',
-    translation: undefined,
+    translation: null,
+    inputTokens: 1200,
     replyTokens: 500,
     predictedTokens: 2000,
     progress: 25,
     sentTime: '2025-01-15 14:30:18',
-    replyTime: undefined,
-    errorMessage: undefined,
+    replyTime: null,
+    durationMs: null,
+    errorMessage: null,
+    errorType: null,
     retryCount: 0,
-    metadata: {
+    cost: 0.05,
+    metadataJson: JSON.stringify({
       systemPrompt: '你是一个专业的翻译助手，请将以下内容翻译成英文。',
       chunkStrategy: 'line',
       chunkSizeByLine: 50,
@@ -130,7 +154,22 @@ export const mockTaskList: Task[] = [
       estimatedInputTokens: 1200,
       estimatedOutputTokens: 2000,
       estimatedCost: 0.12
-    }
+    }),
+    metadata: {
+      systemPrompt: '你是一个专业的翻译助手，请将以下内容翻译成英文。',
+      chunkStrategy: 'line',
+      chunkSizeByLine: 50,
+      chunkSizeByToken: 2000,
+      concurrency: 3,
+      replyMode: 'predicted',
+      predictedTokens: 2000,
+      modelId: 'gpt-4',
+      estimatedInputTokens: 1200,
+      estimatedOutputTokens: 2000,
+      estimatedCost: 0.12
+    },
+    createdAt: '2025-01-15 14:30:15',
+    updatedAt: '2025-01-15 14:30:18'
   },
   {
     id: '#1248',
@@ -138,14 +177,18 @@ export const mockTaskList: Task[] = [
     status: 'completed',
     content: 'Text completed successfully for translation demo.',
     translation: '文本翻译成功完成的演示。',
+    inputTokens: 1000,
     replyTokens: 2000,
     predictedTokens: 2000,
     progress: 100,
     sentTime: '2025-01-15 14:28:45',
     replyTime: '2025-01-15 14:28:47',
-    errorMessage: undefined,
+    durationMs: 2000,
+    errorMessage: null,
+    errorType: null,
     retryCount: 0,
-    metadata: {
+    cost: 0.15,
+    metadataJson: JSON.stringify({
       systemPrompt: '你是一个专业的翻译助手，请将以下内容翻译成英文。',
       chunkStrategy: 'line',
       chunkSizeByLine: 50,
@@ -159,7 +202,25 @@ export const mockTaskList: Task[] = [
       actualOutputTokens: 2000,
       estimatedCost: 0.10,
       actualCost: 0.15
-    }
+    }),
+    metadata: {
+      systemPrompt: '你是一个专业的翻译助手，请将以下内容翻译成英文。',
+      chunkStrategy: 'line',
+      chunkSizeByLine: 50,
+      chunkSizeByToken: 2000,
+      concurrency: 3,
+      replyMode: 'predicted',
+      predictedTokens: 2000,
+      modelId: 'gpt-4',
+      estimatedInputTokens: 1000,
+      estimatedOutputTokens: 2000,
+      actualInputTokens: 1000,
+      actualOutputTokens: 2000,
+      estimatedCost: 0.10,
+      actualCost: 0.15
+    },
+    createdAt: '2025-01-15 14:28:40',
+    updatedAt: '2025-01-15 14:28:47'
   },
   {
     id: '#1247',
@@ -178,7 +239,7 @@ export const mockTaskList: Task[] = [
     errorType: 'timeout',
     retryCount: 1,
     cost: 0,
-    metadataJson: null,
+    metadataJson: '{}',
     createdAt: '2025-01-15 14:28:25',
     updatedAt: '2025-01-15 14:28:30'
   },
@@ -199,7 +260,7 @@ export const mockTaskList: Task[] = [
     errorType: null,
     retryCount: 0,
     cost: 0,
-    metadataJson: null,
+    metadataJson: '{}',
     createdAt: '2025-01-15 14:28:20',
     updatedAt: '2025-01-15 14:28:20'
   },
@@ -220,7 +281,7 @@ export const mockTaskList: Task[] = [
     errorType: null,
     retryCount: 0,
     cost: 0,
-    metadataJson: null,
+    metadataJson: '{}',
     createdAt: '2025-01-15 14:28:20',
     updatedAt: '2025-01-15 14:28:20'
   }
@@ -283,13 +344,15 @@ export class MockTranslateDatasource implements TranslateDatasource {
       throw new Error(`Batch ${batchId} not found`)
     }
 
-    mockBatchList[batchIndex] = {
-      ...mockBatchList[batchIndex],
+    const updatedBatch: Batch = {
+      ...mockBatchList[batchIndex]!,
       ...updates,
       updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 19)
     }
+    
+    mockBatchList[batchIndex] = updatedBatch
 
-    return mockBatchList[batchIndex]
+    return updatedBatch
   }
 
   async deleteBatch(batchId: string): Promise<void> {

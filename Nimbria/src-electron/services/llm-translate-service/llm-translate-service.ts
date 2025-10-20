@@ -20,31 +20,29 @@ import { ExportService } from './export-service'
 
 // 从新的类型系统导入
 import type {
-  // 前端类型（通过别名导入）
+  // 前端类型（通过别名转发）
   TranslateConfig,
+  BatchConfig,
   ChunkStrategy,
-  ExportConfig,
-  // 后端类型
-  BackendBatch,
-  BackendTask,
-  BackendBatchStatus,
-  BackendTaskStatus,
-  BatchListResponse,
-  TaskListResponse,
+  Batch,
+  Task,
+  TaskMetadata,
+  ExportConfig
+} from '../../types/LlmTranslate'
+
+// 后端事件类型
+import type {
   BatchCreateStartEvent,
   BatchCreatedEvent,
-  BatchCreateErrorEvent,
-  TaskSubmitStartEvent,
-  BatchPauseEvent,
-  BatchResumeEvent
-} from '../../types/LlmTranslate'
+  BatchCreateErrorEvent
+} from '../../types/LlmTranslate/backend'
 
 export class LlmTranslateService extends EventEmitter {
   private projectDatabase: ProjectDatabase | null = null
   private llmChatService: LlmChatService
   private translationExecutor: TranslationExecutor
   private exportService: ExportService
-  private activeBatches: Map<string, BackendBatch> = new Map()
+  private activeBatches: Map<string, Batch> = new Map()
 
   constructor(llmChatService: LlmChatService) {
     super()
@@ -79,7 +77,7 @@ export class LlmTranslateService extends EventEmitter {
     // 先查询所有waiting的任务
     const waitingTasks = this.projectDatabase.query(
       `SELECT * FROM Llmtranslate_tasks WHERE status = 'waiting'`
-    ) as BackendTask[]
+    ) as Task[]
 
     if (waitingTasks.length > 0) {
       console.log(`⚠️ [LlmTranslateService] 发现 ${waitingTasks.length} 个中断任务，已标记为 terminated`)
@@ -116,7 +114,7 @@ export class LlmTranslateService extends EventEmitter {
     } as BatchCreateStartEvent)
     
     // ✅ 异步处理，不阻塞返回
-    this.createBatchAsync(batchId, config, content)
+    void this.createBatchAsync(batchId, config, content)
     
     return batchId
   }
@@ -134,17 +132,32 @@ export class LlmTranslateService extends EventEmitter {
         throw new Error('Project database not initialized')
       }
 
-      // 1. 根据分片策略分割内容（适配新的分片大小结构）
-      const chunks = this.chunkContent(content, config.chunkStrategy, config)
+      // 1. 提取批次配置（从 TranslateConfig 中提取，排除 content）
+      const batchConfig: BatchConfig = {
+        systemPrompt: config.systemPrompt,
+        modelId: config.modelId,
+        chunkStrategy: config.chunkStrategy,
+        chunkSizeByLine: config.chunkSizeByLine,
+        chunkSizeByToken: config.chunkSizeByToken,
+        concurrency: config.concurrency,
+        replyMode: config.replyMode,
+        predictedTokens: config.predictedTokens
+      }
+
+      // 2. 根据分片策略分割内容
+      const chunkSize = config.chunkStrategy === 'line' 
+        ? config.chunkSizeByLine 
+        : config.chunkSizeByToken
+      const chunks = this.chunkContent(content, config.chunkStrategy, chunkSize)
       const totalTasks = chunks.length
 
       console.log(`📦 [LlmTranslateService] 批次 ${batchId} - 分割为 ${totalTasks} 个任务`)
 
-      // 2. 创建批次记录
-      const batch: BackendBatch = {
+      // 3. 创建批次记录
+      const batch: Batch = {
         id: batchId,
         status: 'running',
-        configJson: JSON.stringify(config),
+        configJson: JSON.stringify(batchConfig),
         totalTasks,
         completedTasks: 0,
         failedTasks: 0,
@@ -172,18 +185,34 @@ export class LlmTranslateService extends EventEmitter {
         [batch.id, batch.status, batch.configJson, batch.totalTasks, batch.unsentTasks, batch.createdAt, batch.updatedAt]
       )
 
-      // 3. 创建任务记录
-      const tasks: BackendTask[] = []
+      // 4. 创建任务记录
+      const tasks: Task[] = []
       for (let i = 0; i < chunks.length; i++) {
         const taskId = `${batchId}-${(i + 1).toString().padStart(4, '0')}`
         const chunk = chunks[i] || ''
-        const task: BackendTask = {
+        
+        // 估算输入和输出 Token
+        const estimatedInputTokens = this.estimateTokens(chunk)
+        const estimatedOutputTokens = config.predictedTokens
+        const estimatedCost = ((estimatedInputTokens + estimatedOutputTokens) / 1000) * 0.002
+        
+        // 创建任务元数据
+        const taskMetadata: TaskMetadata = {
+          // 批次公共配置
+          ...batchConfig,
+          // 任务私有信息
+          estimatedInputTokens,
+          estimatedOutputTokens,
+          estimatedCost
+        }
+        
+        const task: Task = {
           id: taskId,
           batchId: batch.id,
           status: 'unsent',
           content: chunk,
           translation: null,
-          inputTokens: this.estimateTokens(chunk),
+          inputTokens: estimatedInputTokens,
           replyTokens: 0,
           predictedTokens: config.predictedTokens,
           progress: 0,
@@ -194,7 +223,7 @@ export class LlmTranslateService extends EventEmitter {
           errorType: null,
           retryCount: 0,
           cost: 0,
-          metadataJson: null,
+          metadataJson: JSON.stringify(taskMetadata),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         }
@@ -202,12 +231,12 @@ export class LlmTranslateService extends EventEmitter {
         this.projectDatabase.execute(
           `INSERT INTO Llmtranslate_tasks (
             id, batch_id, status, content, input_tokens, predicted_tokens, 
-            progress, retry_count, cost, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            progress, retry_count, cost, metadata_json, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             task.id, task.batchId, task.status, task.content, task.inputTokens,
             task.predictedTokens, task.progress, task.retryCount, task.cost,
-            task.createdAt, task.updatedAt
+            task.metadataJson, task.createdAt, task.updatedAt
           ]
         )
 
@@ -245,16 +274,15 @@ export class LlmTranslateService extends EventEmitter {
   }
 
   /**
-   * 分片内容 - 适配新的分片大小结构
+   * 分片内容
    * 按行完整分片，不在行中间截断
    */
-  private chunkContent(content: string, strategy: ChunkStrategy, config: TranslateConfig): string[] {
+  private chunkContent(content: string, strategy: ChunkStrategy, chunkSize: number): string[] {
     const lines = content.split('\n')
     const chunks: string[] = []
 
     if (strategy === 'line') {
-      // 使用 chunkSizeByLine
-      const chunkSize = config.chunkSizeByLine
+      // 按行数分片
       for (let i = 0; i < lines.length; i += chunkSize) {
         const chunk = lines.slice(i, i + chunkSize).join('\n')
         if (chunk.trim()) {
@@ -262,8 +290,7 @@ export class LlmTranslateService extends EventEmitter {
         }
       }
     } else if (strategy === 'token') {
-      // 使用 chunkSizeByToken
-      const chunkSize = config.chunkSizeByToken
+      // 按 Token 数分片
       let currentChunk: string[] = []
       let currentTokens = 0
 
@@ -309,7 +336,7 @@ export class LlmTranslateService extends EventEmitter {
 
     const batches = this.projectDatabase.query(
       `SELECT * FROM Llmtranslate_batches ORDER BY created_at DESC`
-    ) as BackendBatch[]
+    ) as Batch[]
 
     for (const batch of batches) {
       this.activeBatches.set(batch.id, batch)
@@ -329,14 +356,14 @@ export class LlmTranslateService extends EventEmitter {
   /**
    * 获取批次列表
    */
-  async getBatches(): Promise<BatchListResponse> {
+  async getBatches(): Promise<{ batches: Batch[], total: number }> {
     if (!this.projectDatabase) {
       throw new Error('Project database not initialized')
     }
 
     const batches = this.projectDatabase.query(
       `SELECT * FROM Llmtranslate_batches ORDER BY created_at DESC`
-    ) as BackendBatch[]
+    ) as Batch[]
 
     return {
       batches,
@@ -347,7 +374,7 @@ export class LlmTranslateService extends EventEmitter {
   /**
    * 获取单个批次
    */
-  async getBatch(batchId: string): Promise<BackendBatch | null> {
+  async getBatch(batchId: string): Promise<Batch | null> {
     if (!this.projectDatabase) return null
 
     const result = this.projectDatabase.queryOne(
@@ -355,13 +382,13 @@ export class LlmTranslateService extends EventEmitter {
       [batchId]
     )
 
-    return result as BackendBatch | null
+    return result as Batch | null
   }
 
   /**
    * 获取批次的任务列表
    */
-  async getTasks(batchId: string): Promise<TaskListResponse> {
+  async getTasks(batchId: string): Promise<{ tasks: Task[], total: number }> {
     if (!this.projectDatabase) {
       throw new Error('Project database not initialized')
     }
@@ -369,7 +396,7 @@ export class LlmTranslateService extends EventEmitter {
     const tasks = this.projectDatabase.query(
       `SELECT * FROM Llmtranslate_tasks WHERE batch_id = ? ORDER BY created_at ASC`,
       [batchId]
-    ) as BackendTask[]
+    ) as Task[]
 
     return {
       tasks,
@@ -380,7 +407,7 @@ export class LlmTranslateService extends EventEmitter {
   /**
    * 获取单个任务
    */
-  async getTask(taskId: string): Promise<BackendTask | null> {
+  async getTask(taskId: string): Promise<Task | null> {
     if (!this.projectDatabase) return null
 
     const result = this.projectDatabase.queryOne(
@@ -388,7 +415,7 @@ export class LlmTranslateService extends EventEmitter {
       [taskId]
     )
 
-    return result as BackendTask | null
+    return result as Task | null
   }
 
   /**
