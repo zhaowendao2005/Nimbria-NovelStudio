@@ -54,14 +54,8 @@
 
       <!-- 工具栏 -->
       <div class="toolbar">
-        <div class="toolbar-left">
-          <el-button size="small" @click="loadTasks" :icon="Refresh">刷新</el-button>
-          <el-button size="small" @click="retryFailedTasks" type="warning">🔄 重试失败</el-button>
-          <el-button size="small" @click="pauseBatch(store.currentBatch!.id)" type="info">⏸️ 暂停</el-button>
-          <el-button size="small" @click="resumeBatch(store.currentBatch!.id)" type="success">▶️ 恢复</el-button>
-        </div>
-
-        <div class="toolbar-right">
+        <!-- 第一行：搜索栏 + 留空区域 -->
+        <div class="toolbar-row toolbar-row-1">
           <el-input
             v-model="store.taskFilters.searchText"
             placeholder="搜索任务 ID 或内容..."
@@ -69,6 +63,76 @@
             class="search-input"
             clearable
           />
+          <div class="toolbar-spacer"></div>
+        </div>
+
+        <!-- 第二行：工具栏 -->
+        <div class="toolbar-row toolbar-row-2">
+          <div class="toolbar-tools">
+            <!-- 选择（切换选择状态） -->
+            <div 
+              class="tool-item" 
+              :class="{ 'tool-item--active': store.taskFilters.selectMode }"
+              @click="store.taskFilters.selectMode = !store.taskFilters.selectMode"
+              :title="`${store.taskFilters.selectMode ? '取消' : '启用'}选择模式`"
+            >
+              <el-icon><Check /></el-icon>
+            </div>
+
+            <!-- 全选 -->
+            <div 
+              class="tool-item" 
+              @click="selectAllTasks"
+              :title="`全选`"
+            >
+              <el-icon><Select /></el-icon>
+            </div>
+
+            <!-- 重试 -->
+            <div 
+              class="tool-item" 
+              @click="retryFailedTasks"
+              :title="`重试`"
+            >
+              <el-icon><Refresh /></el-icon>
+            </div>
+
+            <!-- 测试限流 -->
+            <div 
+              class="tool-item" 
+              @click="testThrottle"
+              :title="`测试限流`"
+            >
+              <el-icon><VideoPlay /></el-icon>
+            </div>
+
+            <!-- 暂停 -->
+            <div 
+              class="tool-item" 
+              @click="store.currentBatch?.id && pauseBatch(store.currentBatch.id)"
+              :title="`暂停`"
+            >
+              <el-icon><VideoPause /></el-icon>
+            </div>
+
+            <!-- 发送 -->
+            <div 
+              class="tool-item" 
+              @click="sendSelected"
+              :title="`发送`"
+            >
+              <el-icon><Upload /></el-icon>
+            </div>
+
+            <!-- 删除 -->
+            <div 
+              class="tool-item" 
+              @click="deleteSelected"
+              :title="`删除`"
+            >
+              <el-icon><Delete /></el-icon>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -86,6 +150,14 @@
         >
           <!-- 卡片头部 -->
           <div class="card-header">
+            <!-- 选择模式下的复选框 -->
+            <div v-if="store.taskFilters.selectMode" class="task-checkbox">
+              <el-checkbox 
+                :model-value="store.selectedTaskIds.has(task.id)"
+                @change="toggleTaskSelection(task.id)"
+              />
+            </div>
+            
             <div class="status-info">
               <span class="status-dot" :class="`dot-${task.status}`"></span>
               <span class="task-id">{{ task.id }}</span>
@@ -146,7 +218,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { Refresh, Search } from '@element-plus/icons-vue'
+import { Refresh, Search, VideoPause, VideoPlay, Check, Select, Upload, Delete } from '@element-plus/icons-vue'
 import { useLlmTranslateStore } from '../stores/LlmTranslate.store'
 import { useTaskManagement } from '../composables/useTaskManagement'
 import { useBatchManagement } from '../composables/useBatchManagement'
@@ -155,7 +227,7 @@ import type { TaskStatus } from '../types/task'
 
 const store = useLlmTranslateStore()
 const { loadTasks, retryFailedTasks } = useTaskManagement()
-const { switchToBatch, pauseBatch, resumeBatch } = useBatchManagement()
+const { switchToBatch, pauseBatch } = useBatchManagement()
 
 const currentTask = computed(() => {
   if (!store.threadDrawer.currentTaskId) return null
@@ -177,6 +249,7 @@ const getBatchStatusText = (status: string): string => {
 const getStatusText = (status: TaskStatus): string => {
   switch (status) {
     case 'unsent': return '未发送'
+    case 'queued': return '排队中'
     case 'waiting': return '等待中'
     case 'throttled': return '限流'
     case 'error': return '错误'
@@ -189,6 +262,7 @@ const getStatusText = (status: TaskStatus): string => {
 const getStatusTagType = (status: TaskStatus) => {
   switch (status) {
     case 'completed': return 'success'
+    case 'queued': return ''
     case 'waiting': return 'primary'
     case 'throttled': return 'danger'
     case 'error': return 'warning'
@@ -201,6 +275,7 @@ const getStatusTagType = (status: TaskStatus) => {
 const getProgressBarColor = (status: TaskStatus) => {
   switch (status) {
     case 'completed': return '#67C23A'
+    case 'queued': return '#909399'
     case 'waiting': return '#409EFF'
     case 'throttled': return '#F56C6C'
     case 'error': return '#E6A23C'
@@ -209,8 +284,8 @@ const getProgressBarColor = (status: TaskStatus) => {
 }
 
 // 处理批次选择
-const handleBatchSelect = (batchId: string) => {
-  switchToBatch(batchId)
+const handleBatchSelect = async (batchId: string) => {
+  await switchToBatch(batchId)
 }
 
 // 打开线程详情抽屉
@@ -219,13 +294,64 @@ const openThreadDrawer = (taskId: string) => {
   store.threadDrawer.isOpen = true
 }
 
-// 页面加载
-onMounted(() => {
-  if (!store.currentBatch && store.batchList.length > 0) {
-    switchToBatch(store.batchList[0].id)
+// 切换单个任务选择状态
+const toggleTaskSelection = (taskId: string) => {
+  if (store.selectedTaskIds.has(taskId)) {
+    store.selectedTaskIds.delete(taskId)
+  } else {
+    store.selectedTaskIds.add(taskId)
   }
-  if (store.currentBatch) {
-    loadTasks(store.currentBatch.id)
+}
+
+// 全选/全不选任务（智能切换）
+const selectAllTasks = () => {
+  if (!store.currentBatch) return
+  
+  const availableTaskIds = store.filteredTaskList.map(task => task.id)
+  const selectedCount = availableTaskIds.filter(id => store.selectedTaskIds.has(id)).length
+  
+  // 如果全部已选中，则全部取消选中
+  if (selectedCount === availableTaskIds.length && availableTaskIds.length > 0) {
+    store.selectedTaskIds = new Set()
+  } else {
+    // 否则全部选中
+    store.selectedTaskIds = new Set(availableTaskIds)
+  }
+}
+
+// 测试限流
+const testThrottle = () => {
+  console.log('测试限流功能')
+  // TODO: 实现测试限流的具体逻辑
+}
+
+// 发送选中任务
+const sendSelected = () => {
+  if (store.selectedTaskIds.size === 0) {
+    console.warn('没有选中任务')
+    return
+  }
+  console.log('发送选中任务:', Array.from(store.selectedTaskIds))
+  // TODO: 实现发送逻辑
+}
+
+// 删除选中任务
+const deleteSelected = () => {
+  if (store.selectedTaskIds.size === 0) {
+    console.warn('没有选中任务')
+    return
+  }
+  console.log('删除选中任务:', Array.from(store.selectedTaskIds))
+  // TODO: 实现删除逻辑
+}
+
+// 页面加载
+onMounted(async () => {
+  if (!store.currentBatch && store.batchList.length > 0 && store.batchList[0]) {
+    await switchToBatch(store.batchList[0].id)
+  }
+  if (store.currentBatch?.id) {
+    await loadTasks(store.currentBatch.id)
   }
 })
 </script>
@@ -344,18 +470,61 @@ onMounted(() => {
     border-bottom: 1px solid #e4e7eb;
     padding: 12px 16px;
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
     gap: 12px;
 
-    .toolbar-left {
+    .toolbar-row {
       display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
     }
 
-    .toolbar-right {
-      flex: 0 0 auto;
+    .toolbar-row-1 {
+      margin-bottom: 0;
+    }
+
+    .toolbar-spacer {
+      flex-grow: 1;
+    }
+
+    .toolbar-tools {
+      display: flex;
+      gap: 0;
+      align-items: flex-start;
+
+      .tool-item {
+        cursor: pointer;
+        width: 36px;
+        height: 36px;
+        border-radius: 0;
+        background-color: #f0f2f5;
+        border: 1px solid #d9d9d9;
+        border-right: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        font-size: 18px;
+
+        &:last-child {
+          border-right: 1px solid #d9d9d9;
+        }
+
+        &:hover {
+          background-color: #e6f7ff;
+          border-color: #409eff;
+        }
+
+        span {
+          font-size: 18px;
+        }
+
+        &.tool-item--active {
+          background-color: #409eff;
+          color: white;
+          border-color: #409eff;
+        }
+      }
     }
 
     .search-input {
@@ -392,6 +561,7 @@ onMounted(() => {
       }
 
       &.status-unsent { border-left-color: #909399; }
+      &.status-queued { border-left-color: #909399; }
       &.status-waiting { border-left-color: #409eff; }
       &.status-throttled { border-left-color: #f56c6c; }
       &.status-error { border-left-color: #e6a23c; }
@@ -402,6 +572,12 @@ onMounted(() => {
         justify-content: space-between;
         align-items: center;
         margin-bottom: 12px;
+
+        .task-checkbox {
+          margin-right: 12px;
+          display: flex;
+          align-items: center;
+        }
 
         .status-info {
           display: flex;
@@ -415,6 +591,7 @@ onMounted(() => {
             border-radius: 50%;
 
             &.dot-unsent { background-color: #909399; }
+            &.dot-queued { background-color: #909399; }
             &.dot-waiting { background-color: #409eff; animation: pulse 2s infinite; }
             &.dot-throttled { background-color: #f56c6c; }
             &.dot-error { background-color: #e6a23c; }

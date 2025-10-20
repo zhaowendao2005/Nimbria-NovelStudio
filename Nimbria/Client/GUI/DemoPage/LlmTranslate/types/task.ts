@@ -2,7 +2,7 @@
  * 任务相关类型定义
  */
 
-export type TaskStatus = 'unsent' | 'waiting' | 'throttled' | 'error' | 'completed'
+export type TaskStatus = 'unsent' | 'queued' | 'waiting' | 'throttled' | 'error' | 'completed'
 
 export interface Task {
   id: string
@@ -32,5 +32,6 @@ export interface TaskStats {
 export interface TaskFilter {
   status: TaskStatus[]
   searchText: string
+  selectMode: boolean
 }
 

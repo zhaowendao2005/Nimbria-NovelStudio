@@ -43,11 +43,15 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
 
   /** 选中的任务ID列表 */
   const selectedTasks = ref<string[]>([])
+  
+  /** 选中的任务ID集合 */
+  const selectedTaskIds = ref<Set<string>>(new Set())
 
   /** 任务过滤器 */
   const taskFilters = ref<TaskFilter>({
-    status: ['waiting', 'throttled', 'error', 'unsent'],
-    searchText: ''
+    status: ['queued', 'waiting', 'throttled', 'error', 'unsent'],
+    searchText: '',
+    selectMode: false
   })
 
   /** 线程详情抽屉 */
@@ -440,6 +444,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     currentBatch,
     taskList,
     selectedTasks,
+    selectedTaskIds,
     taskFilters,
     threadDrawer,
     loading,

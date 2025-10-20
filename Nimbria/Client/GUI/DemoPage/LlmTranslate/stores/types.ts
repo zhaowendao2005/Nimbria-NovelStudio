@@ -10,6 +10,7 @@ export interface LlmTranslateState {
   currentBatch: Batch | null
   taskList: Task[]
   selectedTasks: string[]
+  selectedTaskIds: Set<string>
   taskFilters: TaskFilter
   threadDrawer: {
     isOpen: boolean
