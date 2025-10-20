@@ -268,6 +268,17 @@ export class ProcessManager {
   private setupWindowLifecycle(process: WindowProcess): void {
     const { window, id } = process
 
+    // 🔥 添加F12键支持开发者工具 - 参考SatisfactoryBluePrint项目
+    window.webContents.on('before-input-event', (event, input) => {
+      if (input.key === 'F12') {
+        if (window.webContents.isDevToolsOpened()) {
+          window.webContents.closeDevTools()
+        } else {
+          window.webContents.openDevTools({ mode: 'detach' })
+        }
+      }
+    })
+
     window.on('focus', () => {
       process.lastActive = new Date()
       this.dependencies.lifecycleHooks?.onFocusChanged?.(id, true)

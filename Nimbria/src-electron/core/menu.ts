@@ -21,10 +21,14 @@ export function createApplicationMenu(isDebugMode: boolean) {
       submenu: [
         {
           label: '切换开发者工具',
-          accelerator: 'F12',
+          // 移除F12快捷键，避免与自定义F12处理冲突
           click: (_menuItem, browserWindow) => {
             if (browserWindow && !browserWindow.isDestroyed()) {
-              browserWindow.webContents.toggleDevTools()
+              if (browserWindow.webContents.isDevToolsOpened()) {
+                browserWindow.webContents.closeDevTools()
+              } else {
+                browserWindow.webContents.openDevTools({ mode: 'detach' })
+              }
               logger.info('DevTools toggled via menu')
             }
           }
