@@ -4,7 +4,7 @@
       <!-- 卡片标题 -->
       <template #header>
         <div class="card-header">
-          <span>📋 任务配置</span>
+          <span><el-icon><Document /></el-icon> 任务配置</span>
         </div>
       </template>
 
@@ -12,8 +12,8 @@
       <div class="input-section">
         <div class="section-header">输入源选择</div>
         <el-radio-group v-model="store.config.inputSource" class="input-tabs">
-          <el-radio-button label="file">📁 文件上传</el-radio-button>
-          <el-radio-button label="text">📝 文本输入</el-radio-button>
+          <el-radio-button label="file"><el-icon><Folder /></el-icon> 文件上传</el-radio-button>
+          <el-radio-button label="text"><el-icon><Edit /></el-icon> 文本输入</el-radio-button>
         </el-radio-group>
       </div>
 
@@ -41,13 +41,15 @@
         <!-- 文件信息 -->
         <div v-if="fileName" class="file-info">
           <el-alert
-            title="✅ 文件已选择"
+            title="文件已选择"
             :description="`${fileName} (${fileSize})`"
             type="success"
             :closable="false"
             class="mb-2"
           />
-          <el-button type="text" @click="removeFile" class="remove-btn">🗑️ 移除此文件</el-button>
+          <el-button type="text" @click="removeFile" class="remove-btn">
+            <el-icon><Delete /></el-icon> 移除此文件
+          </el-button>
         </div>
       </div>
 
@@ -79,7 +81,7 @@
           class="system-prompt"
         ></el-input>
         <el-button type="text" size="small" @click="useDefaultPrompt" class="mt-1">
-          🔄 使用默认提示词
+          <el-icon><Refresh /></el-icon> 使用默认提示词
         </el-button>
       </div>
 
@@ -103,7 +105,7 @@
               <span class="token-value">{{ tokenEstimate.totalTokens }} tokens</span>
             </div>
             <div class="token-row cost">
-              <span class="token-label">💰 费用预估:</span>
+              <span class="token-label"><el-icon><Money /></el-icon> 费用预估:</span>
               <span class="token-value">¥{{ tokenEstimate.estimatedCost.toFixed(2) }}</span>
             </div>
           </div>
@@ -142,7 +144,7 @@
           </div>
         </el-radio-group>
         <el-alert 
-          title="⚠️ 重要提示" 
+          title="重要提示" 
           description="选择分片策略后，系统会按行完整保存，不会在行中间截断"
           type="warning" 
           :closable="false"
@@ -169,7 +171,7 @@
         </div>
         <el-alert 
           v-if="store.config.concurrency > 5"
-          title="⚠️ 并发过高警告" 
+          title="并发过高警告" 
           description="当前并发设置较高，可能导致被API限流，建议降低至 ≤3"
           type="warning" 
           :closable="false"
@@ -200,7 +202,7 @@
           </div>
         </el-radio-group>
         <el-alert 
-          title="ℹ️ 用途说明" 
+          title="用途说明" 
           description="用于流式进度估算，任务卡片会根据实时回复 Token 显示动态进度条"
           type="info" 
           :closable="false"
@@ -240,10 +242,18 @@
 
       <!-- 底部操作栏 -->
       <div class="bottom-actions">
-        <el-button @click="previewConfig">👁️ 预览配置</el-button>
-        <el-button @click="clearConfig">🗑️ 清空所有</el-button>
-        <el-button @click="saveDraft" type="info">💾 保存草稿</el-button>
-        <el-button @click="handleStartTranslate" type="primary" size="large">▶️ 开始翻译</el-button>
+        <el-button @click="previewConfig">
+          <el-icon><View /></el-icon> 预览配置
+        </el-button>
+        <el-button @click="clearConfig">
+          <el-icon><Delete /></el-icon> 清空所有
+        </el-button>
+        <el-button @click="saveDraft" type="info">
+          <el-icon><Download /></el-icon> 保存草稿
+        </el-button>
+        <el-button @click="handleStartTranslate" type="primary" size="large">
+          <el-icon><VideoPlay /></el-icon> 开始翻译
+        </el-button>
       </div>
     </el-card>
   </div>
@@ -251,7 +261,22 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { UploadFilled, FolderOpened } from '@element-plus/icons-vue'
+import { 
+  UploadFilled, 
+  FolderOpened, 
+  Document, 
+  Folder, 
+  Edit, 
+  Check, 
+  Delete, 
+  Refresh, 
+  Warning, 
+  InfoFilled, 
+  Money, 
+  View, 
+  Download, 
+  VideoPlay 
+} from '@element-plus/icons-vue'
 import { ElMessage, ElNotification } from 'element-plus'
 import { useLlmTranslateStore } from '../stores'
 import { useBatchManagement } from '../composables/useBatchManagement'
@@ -276,7 +301,7 @@ const handleFileChange = (file: any) => {
   fileName.value = file.name
   fileSize.value = `${(file.size / 1024 / 1024).toFixed(2)} MB`
   store.config.content = '【示例文件内容】\n这是一段待翻译的示例文本...'
-  ElMessage.success(`文件 ${file.name} 已选择`)
+  ElMessage({ message: `文件 ${file.name} 已选择`, type: 'success' })
 }
 
 const removeFile = () => {
@@ -288,19 +313,19 @@ const removeFile = () => {
 // 使用默认提示词
 const useDefaultPrompt = () => {
   store.config.systemPrompt = '你是一个专业的翻译助手，请将以下内容翻译成英文。保持原文的风格和语气，对于专业术语请提供准确的翻译。'
-  ElMessage.success('已应用默认提示词')
+  ElMessage({ message: '已应用默认提示词', type: 'success' })
 }
 
 // 选择输出目录
 const selectOutputDir = () => {
   store.config.outputDir = 'D:\\output\\translate\\'
-  ElMessage.info('输出目录已选择')
+  ElMessage({ message: '输出目录已选择', type: 'info' })
 }
 
 // 预览配置
 const previewConfig = () => {
   ElNotification({
-    title: '⚙️ 配置预览',
+    title: '配置预览',
     message: `
       <p><strong>输入方式:</strong> ${store.config.inputSource === 'file' ? '文件上传' : '文本输入'}</p>
       <p><strong>内容量:</strong> ${tokenEstimate.value.inputTokens} tokens</p>
@@ -319,15 +344,15 @@ const previewConfig = () => {
 // 开始翻译
 const handleStartTranslate = async () => {
   if (!store.config.content) {
-    ElMessage.warning('请先输入或上传内容')
+    ElMessage({ message: '请先输入或上传内容', type: 'warning' })
     return
   }
   
   const newBatch = await createNewBatch()
   if (newBatch) {
-    ElMessage.success(`✅ 批次 ${newBatch.id} 已创建！`)
+    ElMessage({ message: `批次 ${newBatch.id} 已创建！`, type: 'success' })
     ElNotification({
-      title: '✅ 任务创建成功',
+      title: '任务创建成功',
       message: `批次 ${newBatch.id} 已创建，包含 ${newBatch.totalTasks} 个任务，预计耗时...`,
       type: 'success',
       duration: 3
@@ -353,13 +378,13 @@ const clearConfig = () => {
   }
   fileName.value = ''
   fileSize.value = ''
-  ElMessage.info('配置已清空')
+  ElMessage({ message: '配置已清空', type: 'info' })
 }
 
 // 保存草稿
 const saveDraft = () => {
   localStorage.setItem('llm-translate-draft', JSON.stringify(store.config))
-  ElMessage.success('✅ 配置已保存为草稿')
+  ElMessage({ message: '配置已保存为草稿', type: 'success' })
 }
 </script>
 

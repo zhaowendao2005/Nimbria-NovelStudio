@@ -23,7 +23,7 @@ export const LlmTranslatePageMeta = {
   title: 'LLM批量翻译系统',
   description: '基于LLM的批量翻译工具，支持流式进度监控和批次管理',
   category: 'demo',
-  icon: 'Translation',
+  icon: 'ChatDotRound',
   path: '/demo/llm-translate'
 }
 

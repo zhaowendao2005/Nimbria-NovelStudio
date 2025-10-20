@@ -2,7 +2,7 @@
   <div class="task-manage-page">
     <!-- 左侧：批次列表 -->
     <div class="sidebar">
-      <div class="sidebar-header">📚 批次列表</div>
+      <div class="sidebar-header"><el-icon><Collection /></el-icon> 批次列表</div>
       <div class="batch-list">
         <div
           v-for="batch in store.batchList"
@@ -16,7 +16,7 @@
             {{ getBatchStatusText(batch.status) }}
           </div>
           <div class="batch-stats">
-            {{ batch.totalTasks }} 任务 | ✅ {{ batch.completedTasks }}
+            {{ batch.totalTasks }} 任务 | <el-icon><Check /></el-icon> {{ batch.completedTasks }}
           </div>
         </div>
       </div>
@@ -35,15 +35,15 @@
           <span class="stat-value">{{ store.batchStats?.totalTasks }}</span>
         </div>
         <div class="stat-item">
-          <span class="stat-label">✅ 已完成:</span>
+          <span class="stat-label"><el-icon><Check /></el-icon> 已完成:</span>
           <span class="stat-value" style="color: #67c23a">{{ store.batchStats?.completedTasks }}</span>
         </div>
         <div class="stat-item">
-          <span class="stat-label">⏳ 进行中:</span>
+          <span class="stat-label"><el-icon><Timer /></el-icon> 进行中:</span>
           <span class="stat-value" style="color: #409eff">{{ store.currentBatch.totalTasks - store.batchStats!.completedTasks - store.batchStats!.failedTasks }}</span>
         </div>
         <div class="stat-item">
-          <span class="stat-label">❌ 失败:</span>
+          <span class="stat-label"><el-icon><Close /></el-icon> 失败:</span>
           <span class="stat-value" style="color: #f56c6c">{{ store.batchStats?.failedTasks }}</span>
         </div>
         <div class="stat-item">
@@ -171,8 +171,8 @@
           <div class="card-content">
             <div class="content-preview">{{ task.content.substring(0, 80) }}...</div>
             <div class="content-meta">
-              <span v-if="task.sentTime">⏱️ {{ task.sentTime }}</span>
-              <span v-if="task.status === 'completed'">✅ 已完成</span>
+              <span v-if="task.sentTime"><el-icon><Clock /></el-icon> {{ task.sentTime }}</span>
+              <span v-if="task.status === 'completed'"><el-icon><Check /></el-icon> 已完成</span>
             </div>
           </div>
 
@@ -188,15 +188,19 @@
 
           <!-- 卡片操作 -->
           <div class="card-actions">
-            <el-button size="small" @click="openThreadDrawer(task.id)">📋 详情</el-button>
+            <el-button size="small" @click="openThreadDrawer(task.id)">
+              <el-icon><Document /></el-icon> 详情
+            </el-button>
             <el-button
               v-if="task.status === 'error' || task.status === 'throttled'"
               size="small"
               type="warning"
             >
-              🔄 重试
+              <el-icon><Refresh /></el-icon> 重试
             </el-button>
-            <el-button v-if="task.status === 'unsent'" size="small" type="primary">📤 发送</el-button>
+            <el-button v-if="task.status === 'unsent'" size="small" type="primary">
+              <el-icon><Upload /></el-icon> 发送
+            </el-button>
           </div>
         </div>
       </div>
@@ -218,7 +222,21 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { Refresh, Search, VideoPause, VideoPlay, Check, Select, Upload, Delete } from '@element-plus/icons-vue'
+import { 
+  Refresh, 
+  Search, 
+  VideoPause, 
+  VideoPlay, 
+  Check, 
+  Select, 
+  Upload, 
+  Delete, 
+  Collection, 
+  Timer, 
+  Close, 
+  Clock, 
+  Document 
+} from '@element-plus/icons-vue'
 import { useLlmTranslateStore } from '../stores'
 import { useTaskManagement } from '../composables/useTaskManagement'
 import { useBatchManagement } from '../composables/useBatchManagement'
@@ -237,10 +255,10 @@ const currentTask = computed(() => {
 // 获取批次状态文本
 const getBatchStatusText = (status: string): string => {
   const statusMap: Record<string, string> = {
-    'running': '⏳ 进行中',
-    'paused': '⏸️ 已暂停',
-    'completed': '✅ 已完成',
-    'failed': '❌ 失败'
+    'running': '进行中',
+    'paused': '已暂停',
+    'completed': '已完成',
+    'failed': '失败'
   }
   return statusMap[status] || status
 }
