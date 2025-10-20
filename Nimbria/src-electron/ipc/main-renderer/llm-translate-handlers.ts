@@ -20,8 +20,14 @@ import type {
   BatchCreateStartEvent,
   BatchCreatedEvent,
   BatchCreateErrorEvent,
+  BatchDeleteStartEvent,
+  BatchDeletedEvent,
+  BatchDeleteErrorEvent,
   TaskSubmitStartEvent,
   TaskSubmittedEvent,
+  TaskDeleteStartEvent,
+  TaskDeletedEvent,
+  TaskDeleteErrorEvent,
   TaskProgressEvent,
   TaskCompleteEvent,
   TaskErrorEvent,
@@ -54,6 +60,24 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
     })
   })
 
+  llmTranslateService.on('batch:delete-start', (data: BatchDeleteStartEvent) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:batch-delete-start', data)
+    })
+  })
+
+  llmTranslateService.on('batch:deleted', (data: BatchDeletedEvent) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:batch-deleted', data)
+    })
+  })
+
+  llmTranslateService.on('batch:delete-error', (data: BatchDeleteErrorEvent) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:batch-delete-error', data)
+    })
+  })
+
   llmTranslateService.on('task:submit-start', (data: TaskSubmitStartEvent) => {
     BrowserWindow.getAllWindows().forEach(win => {
       win.webContents.send('llm-translate:task-submit-start', data)
@@ -81,6 +105,24 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
   llmTranslateService.on('task:error', (data: TaskErrorEvent) => {
     BrowserWindow.getAllWindows().forEach(win => {
       win.webContents.send('llm-translate:task-error', data)
+    })
+  })
+
+  llmTranslateService.on('task:delete-start', (data: TaskDeleteStartEvent) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:task-delete-start', data)
+    })
+  })
+
+  llmTranslateService.on('task:deleted', (data: TaskDeletedEvent) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:task-deleted', data)
+    })
+  })
+
+  llmTranslateService.on('task:delete-error', (data: TaskDeleteErrorEvent) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:task-delete-error', data)
     })
   })
 
@@ -315,13 +357,39 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
   /**
    * 导出批次
    */
-  ipcMain.handle('llm-translate:export-batch', async (_event, args: {
+  ipcMain.handle('llm-translate:export-batch', (_event, args: {
     batchId: string
     options: ExportConfig
   }) => {
     try {
-      const exportId = await llmTranslateService.exportBatch(args.batchId, args.options)
+      const exportId = llmTranslateService.exportBatch(args.batchId, args.options)
       return { success: true, data: { exportId } }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  /**
+   * 删除批次
+   */
+  ipcMain.handle('llm-translate:delete-batch', (_event, args: { batchId: string }) => {
+    try {
+      const operationId = llmTranslateService.deleteBatch(args.batchId)
+      return { success: true, data: { operationId } }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  /**
+   * 删除任务
+   */
+  ipcMain.handle('llm-translate:delete-tasks', async (_event, args: { taskIds: string[] }) => {
+    try {
+      const operationId = await llmTranslateService.deleteTasks(args.taskIds)
+      return { success: true, data: { operationId } }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       return { success: false, error: errorMessage }

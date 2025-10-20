@@ -59,6 +59,10 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     selectMode: false
   })
 
+  /** 批次选择相关状态 */
+  const selectedBatchIds = ref<Set<string>>(new Set())
+  const batchSelectMode = ref(false)
+
   /** 线程详情抽屉 */
   const threadDrawer = ref({
     isOpen: false,
@@ -166,7 +170,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
             task.metadata = JSON.parse(task.metadataJson)
           } catch (e) {
             console.error('Failed to parse task metadata:', e)
-            task.metadata = undefined
+            // metadata 是可选的，解析失败时不设置
           }
         }
       })
@@ -350,6 +354,145 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     }
   }
 
+  // ==================== 批次管理方法 ====================
+
+  /**
+   * 切换批次选择状态
+   */
+  const toggleBatchSelection = (batchId: string) => {
+    if (selectedBatchIds.value.has(batchId)) {
+      selectedBatchIds.value.delete(batchId)
+    } else {
+      selectedBatchIds.value.add(batchId)
+    }
+  }
+
+  /**
+   * 全选批次
+   */
+  const selectAllBatches = () => {
+    batchList.value.forEach(batch => {
+      selectedBatchIds.value.add(batch.id)
+    })
+  }
+
+  /**
+   * 清空批次选择
+   */
+  const clearBatchSelection = () => {
+    selectedBatchIds.value.clear()
+  }
+
+  /**
+   * 删除选中批次
+   */
+  const deleteSelectedBatches = async () => {
+    if (selectedBatchIds.value.size === 0) {
+      throw new Error('没有选中批次')
+    }
+
+    loading.value = true
+    error.value = null
+
+    try {
+      const batchIds = Array.from(selectedBatchIds.value)
+      
+      // 并行删除所有选中的批次
+      await Promise.all(
+        batchIds.map(batchId => datasource.value.deleteBatch(batchId))
+      )
+      
+      // 重新加载批次列表
+      await fetchBatchList()
+      
+      // 清空选择
+      selectedBatchIds.value.clear()
+      batchSelectMode.value = false
+      
+      console.log(`✅ 成功删除 ${batchIds.length} 个批次`)
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : '删除批次失败'
+      console.error('Failed to delete batches:', err)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // ==================== 事件监听器 ====================
+
+  /** 事件监听器设置状态 */
+  const listenersSetup = ref(false)
+
+  /** 获取 ElectronAPI 实例 */
+  const electronAPI = computed(() => {
+    return typeof window !== 'undefined' ? (window as any).nimbria?.llmTranslate : undefined
+  })
+
+  /**
+   * 设置事件监听器
+   */
+  const setupEventListeners = () => {
+    if (!electronAPI.value || listenersSetup.value) return
+
+    // 批次删除事件监听器
+    electronAPI.value.onBatchDeleted((data: any) => {
+      console.log('批次删除完成:', data.batchId)
+      // 从本地列表中移除
+      const index = batchList.value.findIndex(b => b.id === data.batchId)
+      if (index !== -1) {
+        batchList.value.splice(index, 1)
+      }
+      // 如果删除的是当前批次，清空当前状态
+      if (currentBatch.value?.id === data.batchId) {
+        currentBatch.value = null
+        taskList.value = []
+        selectedTaskIds.value.clear()
+      }
+    })
+
+    electronAPI.value.onBatchDeleteError((data: any) => {
+      console.error('批次删除失败:', data.error)
+      error.value = `删除批次失败: ${data.error}`
+    })
+
+    // 任务删除事件监听器
+    electronAPI.value.onTaskDeleted((data: any) => {
+      console.log('任务删除完成:', data.taskIds)
+      // 从本地任务列表中移除
+      data.taskIds.forEach((taskId: string) => {
+        const index = taskList.value.findIndex(t => t.id === taskId)
+        if (index !== -1) {
+          taskList.value.splice(index, 1)
+        }
+        selectedTaskIds.value.delete(taskId)
+      })
+      // 重新加载批次信息以更新统计
+      if (currentBatch.value) {
+        void fetchTaskList(currentBatch.value.id)
+      }
+    })
+
+    electronAPI.value.onTaskDeleteError((data: any) => {
+      console.error('任务删除失败:', data.error)
+      error.value = `删除任务失败: ${data.error}`
+    })
+
+    // 批次创建事件监听器
+    electronAPI.value.onBatchCreated((data: any) => {
+      console.log('批次创建完成:', data.batchId)
+      // 更新本地批次列表
+      void fetchBatchList()
+    })
+
+    electronAPI.value.onBatchCreateError((data: any) => {
+      console.error('批次创建失败:', data.error)
+      error.value = `创建批次失败: ${data.error}`
+    })
+
+    listenersSetup.value = true
+    console.log('✅ [Store] LLM Translate 事件监听器已设置')
+  }
+
   // ==================== 初始化 ====================
 
   /**
@@ -357,6 +500,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
    */
   const initialize = async () => {
     await fetchBatchList()
+    setupEventListeners()
   }
 
   // ==================== 返回 Store 接口 ====================
@@ -374,6 +518,8 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     loading,
     error,
     useMock,
+    selectedBatchIds,
+    batchSelectMode,
 
     // 计算属性
     batchStats,
@@ -390,6 +536,10 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     resumeBatch,
     sendSelectedTasks,
     deleteSelectedTasks,
+    toggleBatchSelection,
+    selectAllBatches,
+    clearBatchSelection,
+    deleteSelectedBatches,
     initialize
   }
 })

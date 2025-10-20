@@ -34,7 +34,13 @@ import type {
 import type {
   BatchCreateStartEvent,
   BatchCreatedEvent,
-  BatchCreateErrorEvent
+  BatchCreateErrorEvent,
+  BatchDeleteStartEvent,
+  BatchDeletedEvent,
+  BatchDeleteErrorEvent,
+  TaskDeleteStartEvent,
+  TaskDeletedEvent,
+  TaskDeleteErrorEvent
 } from '../../types/LlmTranslate/backend'
 
 export class LlmTranslateService extends EventEmitter {
@@ -455,9 +461,173 @@ export class LlmTranslateService extends EventEmitter {
   /**
    * 导出批次
    */
-  async exportBatch(batchId: string, options: ExportConfig): Promise<string> {
+  exportBatch(batchId: string, options: ExportConfig): string {
     // TODO: 实现导出逻辑
     console.log(`📁 [LlmTranslateService] 导出批次 ${batchId}，格式：${options.format}`)
     return nanoid()
+  }
+
+  /**
+   * 删除批次
+   * 立即返回操作ID，通过事件反馈删除进度
+   */
+  deleteBatch(batchId: string): string {
+    const operationId = `delete_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
+    
+    // ✅ 立即发射开始事件
+    this.emit('batch:delete-start', {
+      batchId
+    } as BatchDeleteStartEvent)
+    
+    // ✅ 异步处理，不阻塞返回
+    void this.deleteBatchAsync(batchId)
+    
+    return operationId
+  }
+
+  /**
+   * 异步删除批次
+   */
+  private async deleteBatchAsync(batchId: string): Promise<void> {
+    try {
+      if (!this.projectDatabase) {
+        throw new Error('Project database not initialized')
+      }
+
+      // 1. 统计要删除的任务数量
+      const taskCountResult = this.projectDatabase.queryOne(
+        `SELECT COUNT(*) as count FROM Llmtranslate_tasks WHERE batch_id = ?`,
+        [batchId]
+      ) as { count: number }
+      const deletedTaskCount = taskCountResult?.count || 0
+
+      // 2. 删除批次（CASCADE 会自动删除相关任务）
+      this.projectDatabase.execute(
+        `DELETE FROM Llmtranslate_batches WHERE id = ?`,
+        [batchId]
+      )
+
+      // 3. 删除统计记录
+      this.projectDatabase.execute(
+        `DELETE FROM Llmtranslate_stats WHERE batch_id = ?`,
+        [batchId]
+      )
+
+      // 4. 清理内存缓存
+      this.activeBatches.delete(batchId)
+
+      // ✅ 发射删除完成事件
+      this.emit('batch:deleted', {
+        batchId,
+        deletedTaskCount
+      } as BatchDeletedEvent)
+
+      console.log(`✅ [LlmTranslateService] 批次 ${batchId} 删除成功，删除了 ${deletedTaskCount} 个任务`)
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error(`❌ [LlmTranslateService] 删除批次 ${batchId} 失败:`, errorMessage)
+      
+      // ✅ 发射错误事件
+      this.emit('batch:delete-error', {
+        batchId,
+        error: errorMessage
+      } as BatchDeleteErrorEvent)
+    }
+  }
+
+  /**
+   * 删除任务
+   * 立即返回操作ID，通过事件反馈删除进度
+   */
+  async deleteTasks(taskIds: string[]): Promise<string> {
+    const operationId = `delete_tasks_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
+    
+    if (taskIds.length === 0) {
+      throw new Error('任务ID列表不能为空')
+    }
+
+    // 获取批次ID（假设同一批次的任务）
+    const firstTask = await this.getTask(taskIds[0]!)
+    if (!firstTask) {
+      throw new Error(`任务 ${taskIds[0]} 不存在`)
+    }
+    const batchId = firstTask.batchId
+
+    // ✅ 立即发射开始事件
+    this.emit('task:delete-start', {
+      taskIds,
+      batchId
+    } as TaskDeleteStartEvent)
+    
+    // ✅ 异步处理，不阻塞返回
+    void this.deleteTasksAsync(taskIds, batchId)
+    
+    return operationId
+  }
+
+  /**
+   * 异步删除任务
+   */
+  private async deleteTasksAsync(taskIds: string[], batchId: string): Promise<void> {
+    try {
+      if (!this.projectDatabase) {
+        throw new Error('Project database not initialized')
+      }
+
+      // 1. 删除任务
+      const placeholders = taskIds.map(() => '?').join(',')
+      this.projectDatabase.execute(
+        `DELETE FROM Llmtranslate_tasks WHERE id IN (${placeholders})`,
+        taskIds
+      )
+
+      // 2. 检查批次是否还有剩余任务
+      const remainingTasks = this.projectDatabase.queryOne(
+        `SELECT COUNT(*) as count FROM Llmtranslate_tasks WHERE batch_id = ?`,
+        [batchId]
+      ) as { count: number }
+
+      // 3. 如果没有剩余任务，自动删除批次
+      if (remainingTasks.count === 0) {
+        console.log(`🗑️ [LlmTranslateService] 批次 ${batchId} 已无任务，自动删除`)
+        
+        // 删除批次相关数据
+        this.projectDatabase.execute(`DELETE FROM Llmtranslate_batches WHERE id = ?`, [batchId])
+        this.projectDatabase.execute(`DELETE FROM Llmtranslate_stats WHERE batch_id = ?`, [batchId])
+        
+        // 清理内存缓存
+        this.activeBatches.delete(batchId)
+        
+        // 发射批次删除事件（自动删除）
+        this.emit('batch:deleted', {
+          batchId,
+          deletedTaskCount: taskIds.length
+        } as BatchDeletedEvent)
+      } else {
+        // 4. 如果还有任务，只更新批次统计
+        await this.updateBatchStats(batchId)
+        
+        // 发射任务删除完成事件
+        this.emit('task:deleted', {
+          taskIds,
+          batchId,
+          deletedCount: taskIds.length
+        } as TaskDeletedEvent)
+      }
+
+      console.log(`✅ [LlmTranslateService] 删除了 ${taskIds.length} 个任务`)
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error(`❌ [LlmTranslateService] 删除任务失败:`, errorMessage)
+      
+      // ✅ 发射错误事件
+      this.emit('task:delete-error', {
+        taskIds,
+        batchId,
+        error: errorMessage
+      } as TaskDeleteErrorEvent)
+    }
   }
 }

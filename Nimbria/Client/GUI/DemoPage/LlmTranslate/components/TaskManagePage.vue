@@ -2,21 +2,76 @@
   <div class="task-manage-page">
     <!-- 左侧：批次列表 -->
     <div class="sidebar">
-      <div class="sidebar-header"><el-icon><Collection /></el-icon> 批次列表</div>
+      <!-- 批次列表标题栏 + 工具栏 -->
+      <div class="sidebar-header">
+        <div class="header-content">
+          <el-icon><Collection /></el-icon> 
+          <span>批次列表</span>
+        </div>
+        
+        <!-- 批次管理工具栏 -->
+        <div class="batch-toolbar">
+          <!-- 选择模式切换 -->
+          <div 
+            class="batch-tool-item" 
+            :class="{ 'batch-tool-item--active': store.batchSelectMode }"
+            @click="store.batchSelectMode = !store.batchSelectMode"
+            :title="`${store.batchSelectMode ? '取消' : '启用'}批次选择模式`"
+          >
+            <el-icon><Check /></el-icon>
+          </div>
+
+          <!-- 全选批次 -->
+          <div 
+            v-show="store.batchSelectMode"
+            class="batch-tool-item" 
+            @click="selectAllBatches"
+            title="全选所有批次"
+          >
+            <el-icon><Select /></el-icon>
+          </div>
+
+          <!-- 删除选中批次 -->
+          <div 
+            v-show="store.batchSelectMode && store.selectedBatchIds.size > 0"
+            class="batch-tool-item batch-tool-item--danger" 
+            @click="deleteSelectedBatches"
+            :title="`删除选中的 ${store.selectedBatchIds.size} 个批次`"
+          >
+            <el-icon><Delete /></el-icon>
+          </div>
+        </div>
+      </div>
+
+      <!-- 批次列表 -->
       <div class="batch-list">
         <div
           v-for="batch in store.batchList"
           :key="batch.id"
           class="batch-item"
-          :class="{ active: store.currentBatch?.id === batch.id }"
-          @click="handleBatchSelect(batch.id)"
+          :class="{ 
+            active: store.currentBatch?.id === batch.id,
+            selected: store.selectedBatchIds.has(batch.id)
+          }"
+          @click="handleBatchClick(batch)"
         >
-          <div class="batch-id">{{ batch.id }}</div>
-          <div class="batch-status" :class="`status-${batch.status}`">
-            {{ getBatchStatusText(batch.status) }}
+          <!-- 选择模式下的复选框 -->
+          <div v-if="store.batchSelectMode" class="batch-checkbox">
+            <el-checkbox
+              :model-value="store.selectedBatchIds.has(batch.id)"
+              @change="store.toggleBatchSelection(batch.id)"
+              @click.stop
+            />
           </div>
-          <div class="batch-stats">
-            {{ batch.totalTasks }} 任务 | <el-icon><Check /></el-icon> {{ batch.completedTasks }}
+
+          <div class="batch-info">
+            <div class="batch-id">{{ batch.id }}</div>
+            <div class="batch-status" :class="`status-${batch.status}`">
+              {{ getBatchStatusText(batch.status) }}
+            </div>
+            <div class="batch-stats">
+              {{ batch.totalTasks }} 任务 | <el-icon><Check /></el-icon> {{ batch.completedTasks }}
+            </div>
           </div>
         </div>
       </div>
@@ -222,6 +277,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Refresh, 
   Search, 
@@ -304,6 +360,47 @@ const getProgressBarColor = (status: TaskStatus) => {
 // 处理批次选择
 const handleBatchSelect = async (batchId: string) => {
   await switchToBatch(batchId)
+}
+
+// 处理批次点击（区分选择模式和正常模式）
+const handleBatchClick = (batch: { id: string }) => {
+  if (store.batchSelectMode) {
+    // 选择模式下切换选择状态
+    store.toggleBatchSelection(batch.id)
+  } else {
+    // 正常模式下切换批次
+    void handleBatchSelect(batch.id)
+  }
+}
+
+// 全选批次
+const selectAllBatches = () => {
+  store.selectAllBatches()
+}
+
+// 删除选中批次
+const deleteSelectedBatches = async () => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${store.selectedBatchIds.size} 个批次吗？这将同时删除所有相关任务。`,
+      '删除批次',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    await store.deleteSelectedBatches()
+    
+    ElMessage({ message: '成功删除批次', type: 'success' })
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除批次失败:', error)
+      const errorMsg = error instanceof Error ? error.message : '删除批次失败'
+      ElMessage({ message: errorMsg, type: 'error' })
+    }
+  }
 }
 
 // 打开线程详情抽屉
@@ -390,12 +487,63 @@ onMounted(async () => {
   overflow: hidden;
 
   .sidebar-header {
-    font-size: 14px;
-    font-weight: bold;
-    color: #333;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     padding: 16px;
     background-color: #f5f7fa;
     border-bottom: 1px solid #e4e7eb;
+    
+    .header-content {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: bold;
+      color: #333;
+    }
+    
+    .batch-toolbar {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      
+      .batch-tool-item {
+        cursor: pointer;
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        border: 1px solid #dcdfe6;
+        background-color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        
+        &:hover {
+          border-color: #409eff;
+          background-color: #ecf5ff;
+        }
+        
+        &--active {
+          background-color: #409eff;
+          color: white;
+          border-color: #409eff;
+        }
+        
+        &--danger {
+          &:hover {
+            border-color: #f56c6c;
+            background-color: #fef0f0;
+            color: #f56c6c;
+          }
+        }
+        
+        .el-icon {
+          font-size: 14px;
+        }
+      }
+    }
   }
 
   .batch-list {
@@ -404,6 +552,9 @@ onMounted(async () => {
     padding: 8px;
 
     .batch-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
       padding: 12px;
       margin-bottom: 8px;
       background-color: #f9fafc;
@@ -420,6 +571,22 @@ onMounted(async () => {
       &.active {
         background-color: #e6f7ff;
         border-color: #409eff;
+      }
+
+      &.selected {
+        background-color: #e1f3ff;
+        border-color: #91d5ff;
+        box-shadow: 0 0 0 1px #91d5ff;
+      }
+
+      .batch-checkbox {
+        padding-top: 2px;
+        flex-shrink: 0;
+      }
+
+      .batch-info {
+        flex: 1;
+        min-width: 0;
       }
 
       .batch-id {

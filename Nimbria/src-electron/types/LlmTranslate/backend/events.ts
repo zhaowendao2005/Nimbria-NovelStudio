@@ -26,6 +26,23 @@ export interface BatchCreateErrorEvent {
   error: string
 }
 
+/** 批次删除开始事件 */
+export interface BatchDeleteStartEvent {
+  batchId: string
+}
+
+/** 批次删除完成事件 */
+export interface BatchDeletedEvent {
+  batchId: string
+  deletedTaskCount: number
+}
+
+/** 批次删除错误事件 */
+export interface BatchDeleteErrorEvent {
+  batchId: string
+  error: string
+}
+
 /** 批次暂停事件 */
 export interface BatchPauseEvent {
   batchId: string
@@ -48,6 +65,26 @@ export interface TaskSubmitStartEvent {
 export interface TaskSubmittedEvent {
   taskId: string
   batchId: string
+}
+
+/** 任务删除开始事件 */
+export interface TaskDeleteStartEvent {
+  taskIds: string[]
+  batchId: string
+}
+
+/** 任务删除完成事件 */
+export interface TaskDeletedEvent {
+  taskIds: string[]
+  batchId: string
+  deletedCount: number
+}
+
+/** 任务删除错误事件 */
+export interface TaskDeleteErrorEvent {
+  taskIds: string[]
+  batchId: string
+  error: string
 }
 
 /** 任务进度更新事件 */
@@ -99,4 +136,3 @@ export interface ExportErrorEvent {
   batchId: string
   error: string
 }
-

@@ -474,6 +474,13 @@ contextBridge.exposeInMainWorld('nimbria', {
     exportBatch: (args: { batchId: string; options: any }) => 
       ipcRenderer.invoke('llm-translate:export-batch', args),
     
+    // ===== 删除操作（异步IPC调用 + 事件反馈） =====
+    deleteBatch: (args: { batchId: string }) => 
+      ipcRenderer.invoke('llm-translate:delete-batch', args),
+    
+    deleteTasks: (args: { taskIds: string[] }) => 
+      ipcRenderer.invoke('llm-translate:delete-tasks', args),
+    
     // ===== 事件监听（IPC 事件流） =====
     onBatchCreateStart: (callback: (data: any) => void) => {
       ipcRenderer.on('llm-translate:batch-create-start', (_event, data) => callback(data))
@@ -525,6 +532,31 @@ contextBridge.exposeInMainWorld('nimbria', {
     
     onExportError: (callback: (data: any) => void) => {
       ipcRenderer.on('llm-translate:export-error', (_event, data) => callback(data))
+    },
+    
+    // ===== 删除事件监听 =====
+    onBatchDeleteStart: (callback: (data: any) => void) => {
+      ipcRenderer.on('llm-translate:batch-delete-start', (_event, data) => callback(data))
+    },
+    
+    onBatchDeleted: (callback: (data: any) => void) => {
+      ipcRenderer.on('llm-translate:batch-deleted', (_event, data) => callback(data))
+    },
+    
+    onBatchDeleteError: (callback: (data: any) => void) => {
+      ipcRenderer.on('llm-translate:batch-delete-error', (_event, data) => callback(data))
+    },
+    
+    onTaskDeleteStart: (callback: (data: any) => void) => {
+      ipcRenderer.on('llm-translate:task-delete-start', (_event, data) => callback(data))
+    },
+    
+    onTaskDeleted: (callback: (data: any) => void) => {
+      ipcRenderer.on('llm-translate:task-deleted', (_event, data) => callback(data))
+    },
+    
+    onTaskDeleteError: (callback: (data: any) => void) => {
+      ipcRenderer.on('llm-translate:task-delete-error', (_event, data) => callback(data))
     }
   },
 
