@@ -386,6 +386,20 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
   })
 
   /**
+   * 取消等待中的任务
+   */
+  ipcMain.handle('llm-translate:cancel-waiting-task', async (_event, args: { taskId: string }) => {
+    try {
+      console.log(`✂️ [IPC] 取消等待任务 ${args.taskId}`)
+      await llmTranslateService.cancelWaitingTask(args.taskId)
+      return { success: true }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  /**
    * 测试限流状态
    */
   ipcMain.handle('llm-translate:test-throttle', async (_event, args: { 

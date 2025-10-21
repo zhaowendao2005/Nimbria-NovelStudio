@@ -96,7 +96,9 @@ export class TranslationExecutor {
       await this.executeTask(batchId, taskId, config)
 
       // 等待间隔（防止限流）
-      await this.delay(1000 / config.concurrency * 60)  // 基于并发数计算间隔
+      // 注意：当使用BatchScheduler时，并发控制已在调度器层实现，此处delay可以很小
+      // 这里保留100ms作为防抖，避免过快的连续请求
+      await this.delay(100)
     }
   }
 

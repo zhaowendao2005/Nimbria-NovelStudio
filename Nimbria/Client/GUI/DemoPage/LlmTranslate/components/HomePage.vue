@@ -189,7 +189,7 @@
             <el-input-number
               v-model="store.config.predictedTokens"
               :min="100"
-              :max="4000"
+              :max="4000000"
               controls-position="right"
               class="token-input"
               size="small"
@@ -200,14 +200,24 @@
             <el-radio label="equivalent">等额回复模式</el-radio>
             <span class="description">自动检测等长内容</span>
           </div>
+          <div class="radio-group-item">
+            <el-radio label="regression">回归估计模式</el-radio>
+            <span class="description">基于历史样本自动学习（需≥3个完成任务）</span>
+          </div>
         </el-radio-group>
         <el-alert 
           title="用途说明" 
-          description="用于流式进度估算，任务卡片会根据实时回复 Token 显示动态进度条"
           type="info" 
           :closable="false"
           class="mt-2"
-        />
+        >
+          <div><strong>用于流式进度估算</strong>，任务卡片会根据实时回复 Token 显示动态进度条</div>
+          <div style="margin-top: 8px; font-size: 12px; opacity: 0.9;">
+            • <strong>预计回复</strong>：使用固定值 | 
+            <strong>等额回复</strong>：输出≈输入 | 
+            <strong>回归估计</strong>：基于历史样本自动学习（越用越准）
+          </div>
+        </el-alert>
       </div>
 
       <el-divider></el-divider>

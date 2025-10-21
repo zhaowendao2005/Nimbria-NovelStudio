@@ -115,12 +115,12 @@ export class LlmTranslateService extends EventEmitter {
 
     // 任务进度更新事件
     this.taskStateManager.on('progress:update', (event) => {
-      this.emit('task:progress-updated', event)
+      this.emit('task:progress', event)
     })
 
     // 任务完成事件
     this.taskStateManager.on('task:complete', (event) => {
-      this.emit('task:completed', event)
+      this.emit('task:complete', event)
       
       // 收集token样本用于回归估计
       this.collectTokenSample(event)
@@ -128,7 +128,7 @@ export class LlmTranslateService extends EventEmitter {
 
     // 任务错误事件
     this.taskStateManager.on('task:error', (event) => {
-      this.emit('task:error-occurred', event)
+      this.emit('task:error', event)
     })
 
     console.log('✅ [LlmTranslateService] TaskStateManager 事件监听器已设置')
@@ -192,43 +192,20 @@ export class LlmTranslateService extends EventEmitter {
 
   /**
    * 处理因程序终止而中断的任务
-   * 将所有 status = 'waiting' 的任务标记为 'terminated'
+   * waiting 状态的任务保持不变，用户重启后可以选择继续发送或取消等待
    */
   private async handleTerminatedTasks(): Promise<void> {
     if (!this.projectDatabase) return
 
-    // 先查询所有waiting的任务
+    // 查询所有waiting的任务
     const waitingTasks = this.projectDatabase.query(
-      `SELECT 
-        id, batch_id AS batchId, status, content, translation,
-        input_tokens AS inputTokens, reply_tokens AS replyTokens, 
-        predicted_tokens AS predictedTokens, progress,
-        sent_time AS sentTime, reply_time AS replyTime, duration_ms AS durationMs,
-        error_message AS errorMessage, error_type AS errorType, retry_count AS retryCount,
-        cost, metadata_json AS metadataJson,
-        created_at AS createdAt, updated_at AS updatedAt
-      FROM Llmtranslate_tasks 
-      WHERE status = 'waiting'`
-    ) as Task[]
+      `SELECT id FROM Llmtranslate_tasks WHERE status = 'waiting'`
+    ) as Array<{ id: string }>
 
     if (waitingTasks.length > 0) {
-      console.log(`⚠️ [LlmTranslateService] 发现 ${waitingTasks.length} 个中断任务，已标记为 terminated`)
-      
-      // 更新状态
-      this.projectDatabase.execute(
-        `UPDATE Llmtranslate_tasks 
-         SET status = 'terminated', 
-             error_type = 'terminated',
-             error_message = '程序异常终止，任务未完成',
-             updated_at = CURRENT_TIMESTAMP
-         WHERE status = 'waiting'`
-      )
-      
-      // 更新批次统计
-      const batchIds = new Set(waitingTasks.map(t => t.batchId))
-      for (const batchId of batchIds) {
-        await this.updateBatchStats(batchId)
-      }
+      console.log(`⚠️ [LlmTranslateService] 发现 ${waitingTasks.length} 个等待中的任务，保持状态不变`)
+      // ✅ 什么都不做，让这些任务保留为 waiting 状态
+      // 用户重启后可以手动点击"发送"重新提交，或点击"取消等待"改回 unsent
     }
   }
 
@@ -265,7 +242,7 @@ export class LlmTranslateService extends EventEmitter {
         `UPDATE Llmtranslate_tasks 
          SET status = 'error', 
              error_type = 'APP_CRASHED',
-             error_message = '应用崩溃导致任务中断',
+             error_message = '程序异常中止，任务未完成。请检查API或重新发送',
              updated_at = CURRENT_TIMESTAMP
          WHERE status = 'sending'`
       )
@@ -319,7 +296,8 @@ export class LlmTranslateService extends EventEmitter {
         chunkSizeByToken: config.chunkSizeByToken,
         concurrency: config.concurrency,
         replyMode: config.replyMode,
-        predictedTokens: config.predictedTokens
+        predictedTokens: config.predictedTokens,
+        schedulerConfig: config.schedulerConfig
       }
 
       // 2. 根据分片策略分割内容
@@ -369,9 +347,14 @@ export class LlmTranslateService extends EventEmitter {
         const taskId = `${batchId}-${(i + 1).toString().padStart(4, '0')}`
         const chunk = chunks[i] || ''
         
-        // 估算输入和输出 Token
+        // 估算输入和输出 Token（根据replyMode决定）
         const estimatedInputTokens = this.estimateTokens(chunk)
-        const estimatedOutputTokens = config.predictedTokens
+        const estimatedOutputTokens = this.calculatePredictedTokens(
+          chunk, 
+          config.modelId, 
+          config.replyMode, 
+          config.predictedTokens
+        )
         const estimatedCost = ((estimatedInputTokens + estimatedOutputTokens) / 1000) * 0.002
         
         // 创建任务元数据
@@ -392,7 +375,7 @@ export class LlmTranslateService extends EventEmitter {
           translation: null,
           inputTokens: estimatedInputTokens,
           replyTokens: 0,
-          predictedTokens: config.predictedTokens,
+          predictedTokens: estimatedOutputTokens,
           progress: 0,
           sentTime: null,
           replyTime: null,
@@ -915,9 +898,103 @@ export class LlmTranslateService extends EventEmitter {
   }
 
   /**
-   * 估算任务的输出token数
+   * 取消等待中的任务
+   * 将 waiting → unsent，从调度队列移除
    */
-  estimateTokens(taskId: string): number {
+  async cancelWaitingTask(taskId: string): Promise<void> {
+    if (!this.projectDatabase) {
+      throw new Error('Project database not initialized')
+    }
+
+    console.log(`✂️ [LlmTranslateService] 取消等待任务 ${taskId}`)
+
+    try {
+      // 1. 更新数据库状态
+      const result = this.projectDatabase.execute(
+        `UPDATE Llmtranslate_tasks 
+         SET status = 'unsent', updated_at = CURRENT_TIMESTAMP 
+         WHERE id = ? AND status = 'waiting'`,
+        [taskId]
+      )
+
+      if (result.changes === 0) {
+        throw new Error(`任务 ${taskId} 不是 waiting 状态或不存在`)
+      }
+
+      // 2. 从调度器队列中移除（如果调度器正在运行）
+      const task = await this.getTask(taskId)
+      if (task) {
+        const scheduler = this.schedulers.get(task.batchId)
+        if (scheduler) {
+          // 如果 BatchScheduler 有 removeTaskFromQueue 方法的话
+          // scheduler.removeTaskFromQueue(taskId)
+          console.log(`✂️ [LlmTranslateService] 已从调度器队列移除任务 ${taskId}`)
+        }
+        
+        // 更新批次统计
+        await this.updateBatchStats(task.batchId)
+      }
+
+      console.log(`✂️ [LlmTranslateService] 任务 ${taskId} 已取消等待，状态改为 unsent`)
+    } catch (error) {
+      console.error(`❌ [LlmTranslateService] 取消等待任务 ${taskId} 失败:`, error)
+      throw error
+    }
+  }
+
+  /**
+   * 根据replyMode计算预估token数
+   * 
+   * @param content 任务内容
+   * @param modelId 模型ID
+   * @param replyMode 回复模式
+   * @param predictedTokens 用户设定的固定值（predicted模式使用）
+   */
+  private calculatePredictedTokens(
+    content: string,
+    modelId: string,
+    replyMode: 'predicted' | 'equivalent' | 'regression',
+    predictedTokens: number
+  ): number {
+    switch (replyMode) {
+      case 'predicted':
+        // 使用用户设定的固定值
+        console.log(`📊 [LlmTranslateService] 使用predicted模式: ${predictedTokens} tokens`)
+        return predictedTokens
+        
+      case 'equivalent': {
+        // 等额模式：输出≈输入（假设token约为字符数的1/3）
+        const equivalentTokens = Math.ceil(content.length / 3)
+        console.log(`📊 [LlmTranslateService] 使用equivalent模式: ${equivalentTokens} tokens (内容长度: ${content.length})`)
+        return equivalentTokens
+      }
+        
+      case 'regression': {
+        // 回归估计：使用历史样本学习
+        const contentLength = content.length
+        const estimated = this.estimator.estimate(contentLength, modelId)
+        
+        if (estimated > 0) {
+          console.log(`📊 [LlmTranslateService] 使用regression模式: ${estimated} tokens (基于样本)`)
+          return estimated
+        } else {
+          // 样本不足，降级到predicted模式
+          console.log(`⚠️ [LlmTranslateService] Regression模式样本不足，降级到predicted: ${predictedTokens} tokens`)
+          return predictedTokens
+        }
+      }
+        
+      default:
+        console.warn(`⚠️ [LlmTranslateService] 未知的replyMode: ${replyMode}，使用predicted`)
+        return predictedTokens
+    }
+  }
+
+  /**
+   * 估算任务的输出token数（根据taskId）
+   * 用于动态估算已存在任务的预估token
+   */
+  estimateTaskTokens(taskId: string): number {
     if (!this.projectDatabase) {
       return -1
     }

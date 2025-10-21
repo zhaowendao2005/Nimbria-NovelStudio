@@ -6,17 +6,20 @@
 import { defineStore } from 'pinia'
 import { ref, computed, toRaw } from 'vue'
 import type { Batch, Task, TranslateConfig, TaskFilter } from '../types'
-import type { 
-  TranslateState, 
-  TranslateDatasource, 
-  BatchStats, 
-  TokenEstimate 
+import type {
+  TranslateDatasource,
+  BatchStats,
+  TokenEstimate,
+  TaskStateEvent,
+  StoreTaskProgressEvent,
+  StoreTaskCompleteEvent,
+  StoreTaskErrorEvent
 } from './translate.types'
-import { 
-  createTranslateDatasource, 
-  calculateProgress, 
-  estimateTokens, 
-  calculateCost 
+import {
+  createTranslateDatasource,
+  calculateProgress,
+  estimateTokens,
+  calculateCost
 } from './translate.datasource'
 
 export const useLlmTranslateStore = defineStore('llmTranslate', () => {
@@ -83,6 +86,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
   const datasource = computed<TranslateDatasource>(() => {
     return createTranslateDatasource({
       useMock: useMock.value,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       electronAPI: typeof window !== 'undefined' ? (window as any).nimbria?.llmTranslate : undefined
     })
   })
@@ -460,6 +464,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
 
   /** 获取 ElectronAPI 实例 */
   const electronAPI = computed(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return typeof window !== 'undefined' ? (window as any).nimbria?.llmTranslate : undefined
   })
 
@@ -470,7 +475,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     if (!electronAPI.value || listenersSetup.value) return
 
     // 批次删除事件监听器
-    electronAPI.value.onBatchDeleted((data: any) => {
+    electronAPI.value.onBatchDeleted((data: { batchId: string }) => {
       console.log('批次删除完成:', data.batchId)
       // 从本地列表中移除
       const index = batchList.value.findIndex(b => b.id === data.batchId)
@@ -485,13 +490,13 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
       }
     })
 
-    electronAPI.value.onBatchDeleteError((data: any) => {
+    electronAPI.value.onBatchDeleteError((data: { error: string }) => {
       console.error('批次删除失败:', data.error)
       error.value = `删除批次失败: ${data.error}`
     })
 
     // 任务删除事件监听器
-    electronAPI.value.onTaskDeleted((data: any) => {
+    electronAPI.value.onTaskDeleted((data: { taskIds: string[] }) => {
       console.log('任务删除完成:', data.taskIds)
       // 从本地任务列表中移除
       data.taskIds.forEach((taskId: string) => {
@@ -507,19 +512,19 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
       }
     })
 
-    electronAPI.value.onTaskDeleteError((data: any) => {
+    electronAPI.value.onTaskDeleteError((data: { error: string }) => {
       console.error('任务删除失败:', data.error)
       error.value = `删除任务失败: ${data.error}`
     })
 
     // 批次创建事件监听器
-    electronAPI.value.onBatchCreated((data: any) => {
+    electronAPI.value.onBatchCreated((data: { batchId: string }) => {
       console.log('批次创建完成:', data.batchId)
       // 更新本地批次列表
       void fetchBatchList()
     })
 
-    electronAPI.value.onBatchCreateError((data: any) => {
+    electronAPI.value.onBatchCreateError((data: { error: string }) => {
       console.error('批次创建失败:', data.error)
       error.value = `创建批次失败: ${data.error}`
     })
@@ -527,21 +532,18 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     // TaskStateManager 事件监听器（使用 window.nimbria.on 进行通用事件监听）
     
     // 任务状态变化
-    ;(window as any).nimbria.on('llm-translate:task-state-changed', (data: any) => {
+    electronAPI.value.onTaskStateChanged((data: TaskStateEvent) => {
       console.log(`📊 [Store] 任务状态变化: ${data.taskId} ${data.previousState} → ${data.currentState}`)
-      
-      // 更新任务列表中的任务状态
-      const task = taskList.value.find(t => t.id === data.taskId)
+
+      const task = taskList.value.find((item) => item.id === data.taskId)
       if (task) {
         task.status = data.currentState
         task.updatedAt = data.timestamp
       }
     })
 
-    // 任务进度更新
-    ;(window as any).nimbria.on('llm-translate:task-progress-updated', (data: any) => {
-      // 更新任务列表中的任务进度
-      const task = taskList.value.find(t => t.id === data.taskId)
+    electronAPI.value.onTaskProgress((data: StoreTaskProgressEvent) => {
+      const task = taskList.value.find((item) => item.id === data.taskId)
       if (task) {
         task.progress = data.progress
         task.replyTokens = data.currentTokens
@@ -551,12 +553,10 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
       }
     })
 
-    // 任务完成
-    ;(window as any).nimbria.on('llm-translate:task-complete', (data: any) => {
+    electronAPI.value.onTaskComplete((data: StoreTaskCompleteEvent) => {
       console.log(`✅ [Store] 任务完成: ${data.taskId}`)
-      
-      // 更新任务列表中的任务
-      const task = taskList.value.find(t => t.id === data.taskId)
+
+      const task = taskList.value.find((item) => item.id === data.taskId)
       if (task) {
         task.status = 'completed'
         task.translation = data.translation
@@ -566,19 +566,16 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
         task.durationMs = data.durationMs
         task.progress = 100
       }
-      
-      // 重新加载批次以更新统计
+
       if (currentBatch.value) {
         void fetchTaskList(currentBatch.value.id)
       }
     })
 
-    // 任务错误
-    ;(window as any).nimbria.on('llm-translate:task-error-occurred', (data: any) => {
+    electronAPI.value.onTaskError((data: StoreTaskErrorEvent) => {
       console.error(`❌ [Store] 任务错误: ${data.taskId} - ${data.errorType}`)
-      
-      // 更新任务列表中的任务
-      const task = taskList.value.find(t => t.id === data.taskId)
+
+      const task = taskList.value.find((item) => item.id === data.taskId)
       if (task) {
         task.status = data.errorType === 'RATE_LIMIT' ? 'throttled' : 'error'
         task.errorType = data.errorType

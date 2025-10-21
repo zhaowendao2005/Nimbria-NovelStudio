@@ -286,6 +286,16 @@
               <el-icon><Upload /></el-icon> 发送
             </el-button>
             
+            <!-- 取消等待按钮（waiting 状态） -->
+            <el-button
+              v-if="task.status === 'waiting'"
+              size="small"
+              type="warning"
+              @click="handleCancelWaiting(task.id)"
+            >
+              <el-icon><Close /></el-icon> 取消等待
+            </el-button>
+            
             <!-- 重试按钮（error 和 throttled 状态统一处理） -->
             <el-button
               v-if="task.status === 'error' || task.status === 'throttled'"
@@ -485,6 +495,24 @@ const cancelTask = async (taskId: string) => {
   } catch (error) {
     console.error('取消任务失败:', error)
     const errorMsg = error instanceof Error ? error.message : '取消任务失败'
+    ElMessage({ message: errorMsg, type: 'error' })
+  }
+}
+
+// 取消等待中的任务
+const handleCancelWaiting = async (taskId: string) => {
+  try {
+    await (window as any).nimbria.llmTranslate.cancelWaitingTask({ taskId })
+
+    const task = store.taskList.find((item) => item.id === taskId)
+    if (task) {
+      task.status = 'unsent'
+    }
+
+    ElMessage({ message: '已取消等待', type: 'success' })
+  } catch (error) {
+    console.error('取消等待失败:', error)
+    const errorMsg = error instanceof Error ? error.message : '取消等待失败'
     ElMessage({ message: errorMsg, type: 'error' })
   }
 }
@@ -882,7 +910,14 @@ onMounted(async () => {
       }
 
       &.status-unsent { border-left-color: #909399; }
-      &.status-waiting { border-left-color: #409eff; }
+      &.status-waiting { 
+        border-left-color: #fcd34d; 
+        background-color: #fef3c7;
+        
+        &:hover {
+          background-color: #fde68a;
+        }
+      }
       &.status-sending { border-left-color: #409eff; }
       &.status-throttled { border-left-color: #a02de2; }
       &.status-error { border-left-color: #f56c6c; }

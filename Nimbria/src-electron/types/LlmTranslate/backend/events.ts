@@ -4,6 +4,11 @@
  */
 
 import type { Batch, Task } from '../client'
+import type {
+  TaskProgressUpdateEvent,
+  TaskCompletionEvent,
+  TaskErrorEvent as TaskStateErrorEvent
+} from './task-state'
 
 // ==================== 批次事件 ====================
 
@@ -88,32 +93,13 @@ export interface TaskDeleteErrorEvent {
 }
 
 /** 任务进度更新事件 */
-export interface TaskProgressEvent {
-  taskId: string
-  batchId: string
-  replyTokens: number
-  progress: number
-  content: string
-}
+export type TaskProgressEvent = TaskProgressUpdateEvent
 
 /** 任务完成事件 */
-export interface TaskCompleteEvent {
-  taskId: string
-  batchId: string
-  translation: string
-  inputTokens: number
-  outputTokens: number
-  cost: number
-  durationMs: number
-}
+export type TaskCompleteEvent = TaskCompletionEvent
 
 /** 任务错误事件 */
-export interface TaskErrorEvent {
-  taskId: string
-  batchId: string
-  errorType: string
-  errorMessage: string
-}
+export type TaskErrorEvent = TaskStateErrorEvent
 
 // ==================== 导出事件 ====================
 

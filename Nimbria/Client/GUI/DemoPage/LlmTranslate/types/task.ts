@@ -3,7 +3,7 @@
  * 对应前端显示的任务数据结构
  */
 
-import type { BatchConfig } from './config'
+import type { BatchConfig, ChunkStrategy, ReplyMode } from './config'
 
 // ==================== 枚举类型 ====================
 
@@ -26,11 +26,11 @@ export interface TaskMetadata {
   // ===== 批次公共配置（来自 BatchConfig） =====
   systemPrompt: string
   modelId: string
-  chunkStrategy: 'line' | 'token'
+  chunkStrategy: ChunkStrategy
   chunkSizeByLine: number
   chunkSizeByToken: number
   concurrency: number
-  replyMode: 'predicted' | 'equivalent'
+  replyMode: ReplyMode
   predictedTokens: number
   
   // ===== 任务私有信息 =====

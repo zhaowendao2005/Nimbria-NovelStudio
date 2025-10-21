@@ -3,6 +3,12 @@
  */
 
 import type { Task, TaskFilter, Batch, TranslateConfig } from '../types'
+import type {
+  TaskStateChangeEvent,
+  TaskProgressEvent,
+  TaskCompleteEvent,
+  TaskErrorEvent
+} from '../../../../src-electron/types/LlmTranslate'
 
 // ==================== Store 状态类型 ====================
 
@@ -36,6 +42,7 @@ export interface TranslateDatasource {
   sendTasks(batchId: string, taskIds: string[]): Promise<void>
   deleteTasks(taskIds: string[]): Promise<void>
   retryTask(taskId: string): Promise<void>
+  cancelTask(taskId: string): Promise<void>
 }
 
 // ==================== Datasource 上下文类型 ====================
@@ -114,3 +121,10 @@ export interface TaskProgressInfo {
   replyTokens: number
   predictedTokens: number
 }
+
+// ==================== 事件类型包装 ====================
+
+export type TaskStateEvent = TaskStateChangeEvent
+export type StoreTaskProgressEvent = TaskProgressEvent
+export type StoreTaskCompleteEvent = TaskCompleteEvent
+export type StoreTaskErrorEvent = TaskErrorEvent

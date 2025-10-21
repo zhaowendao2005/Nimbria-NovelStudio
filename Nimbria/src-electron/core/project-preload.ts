@@ -490,6 +490,9 @@ contextBridge.exposeInMainWorld('nimbria', {
     
     cancelTask: (args: { taskId: string }) =>
       ipcRenderer.invoke('llm-translate:cancel-task', args),
+
+    cancelWaitingTask: (args: { taskId: string }) =>
+      ipcRenderer.invoke('llm-translate:cancel-waiting-task', args),
     
     // ===== 事件监听（IPC 事件流） =====
     onBatchCreateStart: (callback: (data: any) => void) => {
@@ -510,6 +513,10 @@ contextBridge.exposeInMainWorld('nimbria', {
     
     onTaskSubmitted: (callback: (data: any) => void) => {
       ipcRenderer.on('llm-translate:task-submitted', (_event, data) => callback(data))
+    },
+
+    onTaskStateChanged: (callback: (data: any) => void) => {
+      ipcRenderer.on('llm-translate:task-state-changed', (_event, data) => callback(data))
     },
     
     onTaskProgress: (callback: (data: any) => void) => {

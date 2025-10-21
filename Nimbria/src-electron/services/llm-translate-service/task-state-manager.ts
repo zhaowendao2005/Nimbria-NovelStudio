@@ -146,7 +146,8 @@ export class TaskStateManager extends EventEmitter {
       } as TaskProgressUpdateEvent)
 
       // 持久化进度到数据库（仅更新进度和 Token）
-      await this.persistProgress(taskId, progress, currentTokens, updated.translation || '')
+      // ✅ 优化：注释流式写入，减少数据库写入频次。最终结果在 markComplete() 时一次性写入
+      // await this.persistProgress(taskId, progress, currentTokens, updated.translation || '')
 
       // 记录最后发射时间
       this.progressUpdateThrottle.set(taskId, Date.now())

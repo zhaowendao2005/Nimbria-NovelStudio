@@ -14,7 +14,7 @@ export type InputSource = 'file' | 'text'
 export type ChunkStrategy = 'line' | 'token'
 
 /** 回复模式 */
-export type ReplyMode = 'predicted' | 'equivalent'
+export type ReplyMode = 'predicted' | 'equivalent' | 'regression'
 
 // ==================== 配置接口 ====================
 
@@ -73,6 +73,7 @@ export interface BatchConfig {
   concurrency: number
   replyMode: ReplyMode
   predictedTokens: number
+  schedulerConfig?: SchedulerConfig
 }
 
 /**

@@ -43,7 +43,7 @@
         </div>
         <div class="metadata-item">
           <span class="label">回复模式:</span>
-          <span class="value">{{ taskData.metadata.replyMode === 'predicted' ? '预测模式' : '等额模式' }}</span>
+          <span class="value">{{ getReplyModeText(taskData.metadata.replyMode) }}</span>
         </div>
         <div class="metadata-item">
           <span class="label">预估输入Token:</span>
@@ -222,6 +222,16 @@ const getStatusTagType = (status: TaskStatus) => {
     case 'error': return 'warning'
     case 'unsent': return 'info'
     default: return ''
+  }
+}
+
+// 获取回复模式文本
+const getReplyModeText = (replyMode: string): string => {
+  switch (replyMode) {
+    case 'predicted': return '预测模式'
+    case 'equivalent': return '等额模式'
+    case 'regression': return '回归估计模式'
+    default: return replyMode
   }
 }
 
