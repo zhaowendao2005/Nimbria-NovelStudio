@@ -161,15 +161,6 @@
               <el-icon><VideoPlay /></el-icon>
             </div>
 
-            <!-- 暂停 -->
-            <div 
-              class="tool-item" 
-              @click="store.currentBatch?.id && pauseBatch(store.currentBatch.id)"
-              :title="`暂停`"
-            >
-              <el-icon><VideoPause /></el-icon>
-            </div>
-
             <!-- 发送 -->
             <div 
               class="tool-item" 
@@ -220,20 +211,25 @@
                 {{ getStatusText(task.status) }}
               </el-tag>
               
-              <!-- 错误代码显示 -->
-              <el-tag v-if="task.errorType" type="danger" size="small" class="error-code-tag">
+              <!-- 错误类型标签（仅在 error/throttled 状态） -->
+              <el-tag 
+                v-if="(task.status === 'error' || task.status === 'throttled') && task.errorType" 
+                type="info" 
+                size="small" 
+                class="error-code-tag"
+              >
                 {{ task.errorType }}
               </el-tag>
               
-              <!-- 暂停按钮（仅在 sending 状态） -->
+              <!-- 取消按钮（仅在 sending 状态） -->
               <el-button
                 v-if="task.status === 'sending'"
-                type="warning"
+                type="danger"
                 size="small"
-                @click.stop="pauseTask(task.id)"
-                class="btn-pause"
+                @click.stop="cancelTask(task.id)"
+                class="btn-cancel"
               >
-                <el-icon><VideoPause /></el-icon> 暂停
+                <el-icon><Close /></el-icon> 取消
               </el-button>
             </div>
           </div>
@@ -244,6 +240,10 @@
             <div class="content-meta">
               <span v-if="task.sentTime"><el-icon><Clock /></el-icon> {{ task.sentTime }}</span>
               <span v-if="task.status === 'completed'"><el-icon><Check /></el-icon> 已完成</span>
+              <!-- 错误信息提示 -->
+              <span v-if="task.status === 'error' && task.errorMessage" class="error-message">
+                <el-icon><Warning /></el-icon> {{ task.errorMessage.substring(0, 50) }}
+              </span>
             </div>
           </div>
 
@@ -259,19 +259,14 @@
             </div>
           </div>
 
-          <!-- 卡片操作 -->
+          <!-- 卡片操作 - 根据状态显示不同的按钮 -->
           <div class="card-actions">
+            <!-- 详情按钮（所有状态都有） -->
             <el-button size="small" @click="openThreadDrawer(task.id)">
               <el-icon><Document /></el-icon> 详情
             </el-button>
-            <el-button
-              v-if="task.status === 'error' || task.status === 'throttled'"
-              size="small"
-              type="warning"
-              @click="retrySingleTask(task.id)"
-            >
-              <el-icon><Refresh /></el-icon> 重试
-            </el-button>
+            
+            <!-- 发送按钮（unsent 状态） -->
             <el-button 
               v-if="task.status === 'unsent'" 
               size="small" 
@@ -279,6 +274,16 @@
               @click="sendSingleTask(task.id)"
             >
               <el-icon><Upload /></el-icon> 发送
+            </el-button>
+            
+            <!-- 重试按钮（error 和 throttled 状态统一处理） -->
+            <el-button
+              v-if="task.status === 'error' || task.status === 'throttled'"
+              size="small"
+              type="danger"
+              @click="retrySingleTask(task.id)"
+            >
+              <el-icon><Refresh /></el-icon> 重试
             </el-button>
           </div>
         </div>
@@ -315,7 +320,8 @@ import {
   Timer, 
   Close, 
   Clock, 
-  Document
+  Document,
+  Warning
 } from '@element-plus/icons-vue'
 import { useLlmTranslateStore } from '../stores'
 import { useTaskManagement } from '../composables/useTaskManagement'
@@ -347,8 +353,8 @@ const getBatchStatusText = (status: string): string => {
 const getStatusText = (status: TaskStatus): string => {
   switch (status) {
     case 'unsent': return '未发送'
-    case 'queued': return '排队中'
     case 'waiting': return '等待中'
+    case 'sending': return '发送中'
     case 'throttled': return '限流'
     case 'error': return '错误'
     case 'completed': return '已完成'
@@ -360,7 +366,7 @@ const getStatusText = (status: TaskStatus): string => {
 const getStatusTagType = (status: TaskStatus) => {
   switch (status) {
     case 'completed': return 'success'
-    case 'queued': return ''
+    case 'sending': return 'primary'
     case 'waiting': return 'primary'
     case 'throttled': return 'danger'
     case 'error': return 'warning'
@@ -429,6 +435,18 @@ const pauseTask = async (taskId: string) => {
   } catch (error) {
     console.error('暂停任务失败:', error)
     const errorMsg = error instanceof Error ? error.message : '暂停任务失败'
+    ElMessage({ message: errorMsg, type: 'error' })
+  }
+}
+
+// 取消任务
+const cancelTask = async (taskId: string) => {
+  try {
+    await store.cancelTask(taskId)
+    ElMessage({ message: '任务已取消', type: 'success' })
+  } catch (error) {
+    console.error('取消任务失败:', error)
+    const errorMsg = error instanceof Error ? error.message : '取消任务失败'
     ElMessage({ message: errorMsg, type: 'error' })
   }
 }
@@ -806,8 +824,8 @@ onMounted(async () => {
       }
 
       &.status-unsent { border-left-color: #909399; }
-      &.status-queued { border-left-color: #e3d217; }
       &.status-waiting { border-left-color: #409eff; }
+      &.status-sending { border-left-color: #409eff; }
       &.status-throttled { border-left-color: #a02de2; }
       &.status-error { border-left-color: #f56c6c; }
       &.status-completed { border-left-color: #67c23a; }
@@ -837,12 +855,10 @@ onMounted(async () => {
             border-radius: 50%;
 
             &.dot-unsent { background-color: #909399; }
-            &.dot-queued { background-color: #909399; }
             &.dot-waiting { background-color: #409eff; animation: pulse 2s infinite; }
             &.dot-sending { background-color: #409eff; animation: pulse 1s infinite; }
             &.dot-throttled { background-color: #f56c6c; }
             &.dot-error { background-color: #e6a23c; }
-            &.dot-paused { background-color: #e6a23c; }
             &.dot-completed { background-color: #67c23a; }
           }
 
@@ -879,6 +895,15 @@ onMounted(async () => {
           color: #909399;
           display: flex;
           gap: 12px;
+        }
+
+        .error-message {
+          color: #f56c6c;
+          font-size: 12px;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          margin-top: 4px;
         }
       }
 

@@ -32,11 +32,9 @@ export interface TranslateDatasource {
   updateBatch(batchId: string, updates: Partial<Batch>): Promise<Batch>
   deleteBatch(batchId: string): Promise<void>
   retryFailedTasks(batchId: string): Promise<void>
-  pauseBatch(batchId: string): Promise<void>
   resumeBatch(batchId: string): Promise<void>
   sendTasks(batchId: string, taskIds: string[]): Promise<void>
   deleteTasks(taskIds: string[]): Promise<void>
-  pauseTask(taskId: string): Promise<void>
   retryTask(taskId: string): Promise<void>
 }
 
@@ -51,11 +49,9 @@ export interface DatasourceContext {
     updateBatch(params: { batchId: string; updates: Partial<Batch> }): Promise<{ success: boolean; data?: { batch: Batch }; error?: string }>
     deleteBatch(params: { batchId: string }): Promise<{ success: boolean; error?: string }>
     retryFailedTasks(params: { batchId: string }): Promise<{ success: boolean; error?: string }>
-    pauseBatch(params: { batchId: string }): Promise<{ success: boolean; error?: string }>
     resumeBatch(params: { batchId: string }): Promise<{ success: boolean; error?: string }>
     sendTasks(params: { taskIds: string[] }): Promise<{ success: boolean; error?: string }>
     deleteTasks(params: { taskIds: string[] }): Promise<{ success: boolean; error?: string }>
-    pauseTask(params: { taskId: string }): Promise<{ success: boolean; error?: string }>
     retryTask(params: { taskId: string }): Promise<{ success: boolean; error?: string }>
   }
 }

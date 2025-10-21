@@ -30,6 +30,7 @@ export class TranslationExecutor {
   private taskQueues: Map<string, string[]> = new Map()  // batchId -> taskIds[]
   private pausedBatches: Set<string> = new Set()
   private activeTaskCount: Map<string, number> = new Map()  // batchId -> count
+  private executingTasks: Map<string, LlmTranslationClient> = new Map()  // taskId -> client
 
   constructor(
     llmTranslateService: LlmTranslateService,
@@ -137,6 +138,9 @@ export class TranslationExecutor {
 
       // 5. 创建翻译客户端
       const client = new LlmTranslationClient(clientConfig, this.llmConfigManager)
+      
+      // 记录正在执行的任务（用于取消功能）
+      this.executingTasks.set(taskId, client)
 
       // 6. 构建翻译请求
       const request: TranslationRequest = {
@@ -192,6 +196,9 @@ export class TranslationExecutor {
 
       // 更新批次统计
       await this.llmTranslateService.updateBatchStats(batchId)
+    } finally {
+      // 清理正在执行的任务
+      this.executingTasks.delete(taskId)
     }
   }
 
@@ -212,25 +219,52 @@ export class TranslationExecutor {
   }
 
   /**
+   * 获取正在执行的任务的LLM客户端
+   */
+  getExecutingTask(taskId: string): LlmTranslationClient | undefined {
+    return this.executingTasks.get(taskId)
+  }
+
+  /**
+   * 取消正在执行的任务
+   */
+  cancelTask(taskId: string): void {
+    const client = this.executingTasks.get(taskId)
+    if (client) {
+      client.cancel()
+      console.log(`✂️ [TranslationExecutor] 已取消任务 ${taskId}`)
+    }
+  }
+
+  /**
    * 错误分类
    */
   private classifyError(error: Error): ErrorType {
     const message = error.message.toLowerCase()
+    const status = (error as any).status
     
-    if (message.includes('429') || message.includes('rate limit')) {
+    // 优先检查状态码
+    if (status === 429 || message.includes('429') || message.includes('rate limit')) {
       return 'RATE_LIMIT'
     }
-    if (message.includes('timeout')) {
+    if (status === 408 || status === 504 || message.includes('timeout') || message.includes('econnaborted')) {
       return 'TIMEOUT'
     }
-    if (message.includes('network') || message.includes('econnrefused')) {
-      return 'NETWORK'
-    }
-    if (message.includes('api key') || message.includes('unauthorized')) {
+    if (status === 401 || status === 403 || message.includes('api key') || 
+        message.includes('unauthorized') || message.includes('forbidden')) {
       return 'INVALID_API_KEY'
     }
-    if (message.includes('model')) {
+    if (message.includes('network') || message.includes('econnrefused') || message.includes('econnreset')) {
+      return 'NETWORK'
+    }
+    if (message.includes('model') || message.includes('invalid model') || message.includes('404')) {
       return 'MODEL_ERROR'
+    }
+    // 服务器错误（500、502、503等）
+    if (status >= 500 || message.includes('500') || message.includes('internal server error') || 
+        message.includes('bad gateway') || message.includes('service unavailable') ||
+        message.includes('malformed')) {
+      return 'SERVER_ERROR'
     }
     
     return 'UNKNOWN'

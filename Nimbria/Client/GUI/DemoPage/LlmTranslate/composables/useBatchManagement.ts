@@ -73,21 +73,6 @@ export function useBatchManagement(_options: BatchManagementOptions = {}) {
   }
 
   /**
-   * 暂停批次
-   */
-  const pauseBatch = (batchId: string) => {
-    const batch = store.batchList.find((b: Batch) => b.id === batchId)
-    if (batch) {
-      batch.status = 'paused'
-      // @ts-ignore - Element Plus message type compatibility
-      ElMessage({
-        message: h('p', `批次 ${batchId} 已暂停`),
-        type: 'info'
-      })
-    }
-  }
-
-  /**
    * 恢复批次
    */
   const resumeBatch = (batchId: string) => {
@@ -107,7 +92,6 @@ export function useBatchManagement(_options: BatchManagementOptions = {}) {
     createNewBatch,
     switchToBatch,
     deleteBatch,
-    pauseBatch,
     resumeBatch
   }
 }

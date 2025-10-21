@@ -78,13 +78,6 @@ class ElectronTranslateDatasource implements TranslateDatasource {
     }
   }
 
-  async pauseBatch(batchId: string): Promise<void> {
-    const result = await this.electronAPI.pauseBatch({ batchId })
-    if (!result.success) {
-      throw new Error(result.error || '暂停批次失败')
-    }
-  }
-
   async resumeBatch(batchId: string): Promise<void> {
     const result = await this.electronAPI.resumeBatch({ batchId })
     if (!result.success) {
@@ -108,17 +101,17 @@ class ElectronTranslateDatasource implements TranslateDatasource {
     }
   }
 
-  async pauseTask(taskId: string): Promise<void> {
-    const result = await this.electronAPI.pauseTask({ taskId })
-    if (!result.success) {
-      throw new Error(result.error || '暂停任务失败')
-    }
-  }
-
   async retryTask(taskId: string): Promise<void> {
     const result = await this.electronAPI.retryTask({ taskId })
     if (!result.success) {
       throw new Error(result.error || '重试任务失败')
+    }
+  }
+
+  async cancelTask(taskId: string): Promise<void> {
+    const result = await this.electronAPI.cancelTask({ taskId })
+    if (!result.success) {
+      throw new Error(result.error || '取消任务失败')
     }
   }
 }

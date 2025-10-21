@@ -10,14 +10,11 @@ import type { BatchConfig } from './config'
 /** 任务状态 */
 export type TaskStatus = 
   | 'unsent'      // 未发送
-  | 'queued'      // 排队中
   | 'waiting'     // 等待中
   | 'sending'     // 发送中（流式接收）
   | 'throttled'   // 被限流
   | 'error'       // 错误
   | 'completed'   // 已完成
-  | 'terminated'  // 程序中断
-  | 'paused'      // 用户暂停
 
 // ==================== 任务接口 ====================
 

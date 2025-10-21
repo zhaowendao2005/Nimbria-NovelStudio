@@ -26,11 +26,14 @@ import type {
   ErrorType,
   ModelConfig
 } from '../../types/LlmTranslate/backend'
+import { getErrorSimulator } from './error-simulator'
 
 export class LlmTranslationClient extends EventEmitter {
   private config: TranslationClientConfig
   private llmConfigManager: any
   private activeClient: LangChainClient | null = null
+  private abortController: AbortController | null = null
+  private cancelled: boolean = false
 
   constructor(config: TranslationClientConfig, llmConfigManager: any) {
     super()
@@ -48,6 +51,9 @@ export class LlmTranslationClient extends EventEmitter {
     const startTime = Date.now()
     let translation = ''
     let outputTokens = 0
+
+    // 创建可被取消的控制器
+    this.abortController = new AbortController()
 
     try {
       // 1. 初始化 LangChain 客户端
@@ -79,6 +85,12 @@ export class LlmTranslationClient extends EventEmitter {
       // 4. 流式调用 LLM
       await client.chatStream(messages, {
         onChunk: (chunk: string) => {
+          // 🔴 检查是否已被取消 - 如果是则立即返回，停止处理
+          if (this.cancelled) {
+            console.log(`✂️ [TranslationClient] 任务 ${request.taskId} 已被取消，停止处理流数据`)
+            return
+          }
+          
           translation += chunk
           outputTokens = this.estimateTokens(translation)
           
@@ -95,6 +107,11 @@ export class LlmTranslationClient extends EventEmitter {
           })
         },
         onComplete: () => {
+          // 🔴 检查是否已被取消
+          if (this.cancelled) {
+            console.log(`✂️ [TranslationClient] 任务被取消，跳过完成处理`)
+            return
+          }
           console.log(`✅ [TranslationClient] 任务 ${request.taskId} 流式传输完成`)
         },
         onError: (error: Error) => {
@@ -130,6 +147,21 @@ export class LlmTranslationClient extends EventEmitter {
 
     } catch (error) {
       const err = error as Error
+      
+      // 检查是否是用户取消的
+      if (err.name === 'AbortError' || err.message.includes('cancelled')) {
+        console.log(`✂️ [TranslationClient] 任务 ${request.taskId} 被用户取消`)
+        const cancelError = new Error('Task was cancelled by user')
+        callbacks.onError?.(request.taskId, cancelError)
+        this.emit('translation:error', {
+          taskId: request.taskId,
+          errorType: 'USER_CANCELLED',
+          errorMessage: cancelError.message
+        })
+        await this.cleanup()
+        throw cancelError
+      }
+      
       const errorType = this.classifyError(err)
 
       // 错误处理
@@ -207,6 +239,58 @@ export class LlmTranslationClient extends EventEmitter {
     }
 
     console.log(`🔧 [TranslationClient] 初始化客户端，modelId: ${this.config.modelId}`)
+    
+    // 🎲 【核心】掷骰子检查是否注入错误
+    const errorSimulator = getErrorSimulator()
+    const errorScenario = errorSimulator.rollDice()
+
+    if (errorScenario) {
+      console.error(
+        `❌ [TranslationClient] 🎲 掷骰子命中错误: ${errorScenario.name} ` +
+        `(概率: ${errorScenario.probability}%)`
+      )
+
+      // 根据错误类型处理
+      switch (errorScenario.errorType) {
+        case 'rate-limit': {
+          const error = new Error(errorScenario.errorMessage || 'Too Many Requests')
+          ;(error as any).status = 429
+          ;(error as any).code = 'RATE_LIMIT_EXCEEDED'
+          throw error
+        }
+
+        case 'timeout': {
+          // 模拟超时：等待指定时间后抛出 timeout 错误
+          if (errorScenario.delay) {
+            console.log(`⏳ [TranslationClient] 模拟延迟 ${errorScenario.delay}ms 后超时...`)
+            await new Promise((resolve) => setTimeout(resolve, errorScenario.delay))
+          }
+          const error = new Error(errorScenario.errorMessage || 'Request timeout')
+          ;(error as any).code = 'ECONNABORTED'
+          throw error
+        }
+
+        case 'malformed': {
+          const error = new Error(errorScenario.errorMessage || 'Malformed API response')
+          ;(error as any).status = 500
+          ;(error as any).code = 'INTERNAL_SERVER_ERROR'
+          throw error
+        }
+
+        case 'server-error': {
+          const error = new Error(errorScenario.errorMessage || 'Internal Server Error')
+          ;(error as any).status = 500
+          ;(error as any).code = 'SERVER_ERROR'
+          throw error
+        }
+
+        default:
+          throw new Error(`Unknown error type: ${errorScenario.errorType}`)
+      }
+    }
+
+    // ✅ 掷骰子通过，继续正常流程
+    console.log(`✅ [TranslationClient] 掷骰子通过，进行正常 API 调用`)
     
     // 从 LlmConfigManager 获取模型配置
     const modelConfig = await this.getModelConfig(this.config.modelId)
@@ -350,6 +434,21 @@ export class LlmTranslationClient extends EventEmitter {
   private async cleanup(): Promise<void> {
     this.activeClient = null
     this.removeAllListeners()
+  }
+
+  /**
+   * 取消当前翻译任务
+   * 中止与LLM提供商的连接并停止流处理
+   */
+  cancel(): void {
+    // 设置取消标志，让所有回调立即停止处理
+    this.cancelled = true
+    console.log(`✂️ [TranslationClient] 标记任务为已取消，停止流处理`)
+    
+    if (this.abortController) {
+      this.abortController.abort()
+      console.log(`✂️ [TranslationClient] 翻译任务连接已中止`)
+    }
   }
 }
 

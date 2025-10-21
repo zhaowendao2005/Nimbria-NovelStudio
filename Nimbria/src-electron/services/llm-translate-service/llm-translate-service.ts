@@ -687,6 +687,44 @@ export class LlmTranslateService extends EventEmitter {
   }
 
   /**
+   * 取消正在执行的任务
+   * 
+   * @description
+   * 1. 从 TranslationExecutor 获取正在执行的任务
+   * 2. 调用该任务的 cancel 方法来中止与LLM的连接
+   * 3. 标记任务为 error 状态
+   * 4. 数据库更新反映这个改变
+   */
+  async cancelTask(taskId: string): Promise<void> {
+    if (!this.projectDatabase) {
+      throw new Error('Project database not initialized')
+    }
+
+    console.log(`✂️ [LlmTranslateService] 取消任务 ${taskId}`)
+    
+    try {
+      // 从执行器中获取正在执行的任务并取消
+      const executingClient = this.translationExecutor.getExecutingTask(taskId)
+      if (executingClient) {
+        executingClient.cancel()
+        console.log(`✂️ [LlmTranslateService] 已中止任务 ${taskId} 的LLM连接`)
+      }
+      
+      // 标记任务为 error 状态
+      await this.taskStateManager.markError(
+        taskId,
+        'USER_CANCELLED',
+        '用户取消了任务'
+      )
+      
+      console.log(`✂️ [LlmTranslateService] 任务 ${taskId} 已标记为 error`)
+    } catch (error) {
+      console.error(`❌ [LlmTranslateService] 取消任务 ${taskId} 失败:`, error)
+      throw error
+    }
+  }
+
+  /**
    * 导出批次
    */
   exportBatch(batchId: string, options: ExportConfig): string {

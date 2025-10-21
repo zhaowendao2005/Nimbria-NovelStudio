@@ -346,6 +346,20 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
   })
 
   /**
+   * 取消正在执行的任务
+   */
+  ipcMain.handle('llm-translate:cancel-task', async (_event, args: { taskId: string }) => {
+    try {
+      console.log(`✂️ [IPC] 取消任务 ${args.taskId}`)
+      await llmTranslateService.cancelTask(args.taskId)
+      return { success: true }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  /**
    * 选择文件路径（文件上传）
    */
   ipcMain.handle('llm-translate:select-file', async (event) => {

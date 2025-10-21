@@ -65,8 +65,8 @@ const LLM_TRANSLATE_TABLES_V1_2_2: TableDefinition[] = [
       id TEXT PRIMARY KEY,
       batch_id TEXT NOT NULL,
       
-      -- 任务状态（增加 'sending' 状态支持）
-      status TEXT NOT NULL CHECK (status IN ('unsent', 'queued', 'waiting', 'sending', 'throttled', 'error', 'completed', 'terminated')),
+      -- 任务状态（仅支持：unsent, waiting, sending, throttled, error, completed）
+      status TEXT NOT NULL CHECK (status IN ('unsent', 'waiting', 'sending', 'throttled', 'error', 'completed')),
       
       -- 内容
       content TEXT NOT NULL,

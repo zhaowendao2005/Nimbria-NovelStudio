@@ -54,7 +54,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
 
   /** 任务过滤器 */
   const taskFilters = ref<TaskFilter>({
-    status: ['queued', 'waiting', 'sending', 'throttled', 'error', 'unsent', 'completed'],
+    status: ['waiting', 'sending', 'throttled', 'error', 'unsent', 'completed'],
     searchText: '',
     selectMode: false
   })
@@ -246,31 +246,6 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
   }
 
   /**
-   * 暂停批次
-   */
-  const pauseBatch = async (batchId: string) => {
-    loading.value = true
-    error.value = null
-
-    try {
-      await datasource.value.pauseBatch(batchId)
-      // 更新本地状态
-      const batch = batchList.value.find(b => b.id === batchId)
-      if (batch) {
-        batch.status = 'paused'
-      }
-      if (currentBatch.value?.id === batchId) {
-        currentBatch.value.status = 'paused'
-      }
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : '暂停批次失败'
-      console.error('Failed to pause batch:', err)
-    } finally {
-      loading.value = false
-    }
-  }
-
-  /**
    * 恢复批次
    */
   const resumeBatch = async (batchId: string) => {
@@ -296,31 +271,6 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
   }
 
   /**
-   * 暂停任务
-   */
-  const pauseTask = async (taskId: string) => {
-    loading.value = true
-    error.value = null
-
-    try {
-      await datasource.value.pauseTask(taskId)
-      // 更新本地任务状态
-      const task = taskList.value.find(t => t.id === taskId)
-      if (task) {
-        task.status = 'paused'
-        task.errorType = 'USER_PAUSED'
-        task.errorMessage = '用户手动暂停任务'
-      }
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : '暂停任务失败'
-      console.error('Failed to pause task:', err)
-      throw err
-    } finally {
-      loading.value = false
-    }
-  }
-
-  /**
    * 重试任务
    */
   const retryTask = async (taskId: string) => {
@@ -340,6 +290,35 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     } catch (err) {
       error.value = err instanceof Error ? err.message : '重试任务失败'
       console.error('Failed to retry task:', err)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
+   * 取消任务（真正终止后端LLM连接）
+   */
+  const cancelTask = async (taskId: string) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      // 调用后端取消任务（会终止与LLM的连接）
+      await datasource.value.cancelTask(taskId)
+      
+      // 更新本地任务状态为 error
+      const task = taskList.value.find(t => t.id === taskId)
+      if (task) {
+        task.status = 'error'
+        task.errorType = 'USER_CANCELLED'
+        task.errorMessage = '用户取消了任务'
+      }
+      
+      console.log(`✂️ [Store] 任务 ${taskId} 已取消`)
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : '取消任务失败'
+      console.error('Failed to cancel task:', err)
       throw err
     } finally {
       loading.value = false
@@ -651,10 +630,9 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     createBatch,
     switchToBatch,
     retryFailedTasks,
-    pauseBatch,
     resumeBatch,
-    pauseTask,
     retryTask,
+    cancelTask,
     sendSelectedTasks,
     deleteSelectedTasks,
     toggleBatchSelection,
