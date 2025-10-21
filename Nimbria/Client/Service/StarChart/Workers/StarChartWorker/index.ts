@@ -1,1 +1,5 @@
-// TODO: 导出 StarChart 主 Worker
+/**
+ * StarChartWorker - 主 Worker 模块导出
+ */
+
+export * from './starChart.worker'

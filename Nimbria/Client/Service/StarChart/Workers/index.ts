@@ -1,7 +1,7 @@
 /**
- * StarChart Workers Web Worker 导出
+ * StarChart Workers - Web Workers 导出
  */
 
-export {} from './StarChartWorker'
-export {} from './LayoutWorker'
-export {} from './SpatialWorker'
+export * from './StarChartWorker'
+export * from './LayoutWorker'
+export * from './SpatialWorker'

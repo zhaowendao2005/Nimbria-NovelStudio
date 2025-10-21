@@ -1,1 +1,5 @@
-// TODO: 导出布局计算 Worker
+/**
+ * LayoutWorker - 布局计算 Worker 模块导出
+ */
+
+export * from './layout.worker'
