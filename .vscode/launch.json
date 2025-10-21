@@ -82,6 +82,20 @@
         ],
         "type": "node",
         "console": "integratedTerminal" 
+    },
+    {
+        "name": "📝 创建新的总结文件",
+        "request": "launch",
+        "runtimeArgs": [
+            "run-script",
+            "create:summary"
+        ],
+        "runtimeExecutable": "npm",
+        "console": "integratedTerminal",
+        "skipFiles": [
+            "<node_internals>/**"
+        ],
+        "type": "node"
     }
     ]
 }

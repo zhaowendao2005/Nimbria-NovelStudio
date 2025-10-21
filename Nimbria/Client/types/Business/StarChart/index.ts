@@ -8,21 +8,39 @@
  * - Renderer: 渲染域类型（样式、配置等）
  */
 
-// ==================== Core 类型 ====================
+// ==================== Engine/Core 类型 ====================
 
 export type {
-  // 公开接口
-  StarChartCoreAPI,
+  // Engine API
+  StarChartEngineAPI,
   SigmaManagerAPI,
   SigmaOptions,
+  RefreshOptions,
+  NodeReducer,
+  EdgeReducer,
+  
+  // Data Manager
+  DataManagerAPI,
+  ChunkDescriptor,
+  ViewportBounds,
+  
+  // Async Task
   AsyncTaskManagerAPI,
+  
+  // Event Bus
   EventBusAPI,
   EventListener,
+  
+  // Render Scheduler
   RenderSchedulerAPI,
+  
+  // Viewport Manager
   ViewportManagerAPI,
   VisibleBoundsAPI,
-  LayerManagerAPI,
-  CustomLayer,
+  
+  // Spatial Index
+  SpatialIndexAPI,
+  
   // 数据类型
   GraphData,
   NodeData,
@@ -32,6 +50,7 @@ export type {
   DataTransformer,
   LayoutAlgorithm,
   LayoutOptions,
+  
   // 内部类型
   SigmaManagerState,
   AsyncTask,
@@ -42,7 +61,6 @@ export type {
   RenderState,
   ViewportState,
   VisibleBounds,
-  LayerManagerState,
   TaskEvent,
   TaskListener,
   TaskConfig,

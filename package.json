@@ -9,6 +9,7 @@
         "build:electron:debug": "cd Nimbria && npm run build:electron:debug",
         "build:electron:no-lint": "cd Nimbria && npm run build:electron:no-lint",
         "build:electron:debug:no-lint": "cd Nimbria && npm run build:electron:debug:no-lint",
-        "install": "cd Nimbria && npm install"
+        "install": "cd Nimbria && npm install",
+        "create:summary": "node Script/create-summary.js"
     }
 }

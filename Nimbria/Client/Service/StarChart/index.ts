@@ -1,28 +1,44 @@
 /**
- * StarChart Service 层统一导出
+ * StarChart 图数据可视化系统
  * 
- * 包含：
- * - Core: 核心服务（SigmaManager、AsyncTaskManager 等）
- * - PluginSystem: 插件系统（PluginRegistry、PluginLoader 等）
- * - Plugins: 具体插件实现
- * - Workers: Web Worker 任务处理
+ * 导出：
+ * - Engine: 渲染引擎核心
+ * - Graphs: 具体图实现
+ * - Workers: Web Worker 模块
  */
 
-// 核心服务
-export * from './Core'
+// Engine 核心导出
+export { EngineCore } from './Engine/EngineCore'
+export type { StarChartConfig } from './Engine/ConfigManager/ConfigManager'
+export type { ChunkLoaderFunction } from './Engine/DataManager/DataManager'
 
-// 插件系统
-export * from './PluginSystem'
+// Graphs 导出
+export { BaseGraph, type GraphConfig } from './Graphs/BaseGraph'
+export { RecipeGraph } from './Graphs/RecipeGraph/RecipeGraph'
 
-// 具体插件
-export * from './Plugins'
-
-// Workers
-export * from './Workers'
-
-// 服务层类型
-export type { StarChartServiceConfig } from './types'
-
-// 可视化服务
-export { VisualizationService } from './visualizationService'
-
+// 所有类型从统一位置导出
+export type {
+  // Engine API
+  StarChartEngineAPI,
+  SigmaManagerAPI,
+  DataManagerAPI,
+  RenderSchedulerAPI,
+  ViewportManagerAPI,
+  SpatialIndexAPI,
+  EventBusAPI,
+  
+  // 数据类型
+  GraphData,
+  NodeData,
+  EdgeData,
+  
+  // Reducer
+  NodeReducer,
+  EdgeReducer,
+  
+  // 配置
+  SigmaOptions,
+  RefreshOptions,
+  ChunkDescriptor,
+  ViewportBounds
+} from 'Business/StarChart'
