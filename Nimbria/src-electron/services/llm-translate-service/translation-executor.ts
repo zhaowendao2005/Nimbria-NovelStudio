@@ -68,8 +68,8 @@ export class TranslationExecutor {
 
     console.log(`✅ [TranslationExecutor] 批次 ${batchId} 执行完成`)
 
-    // 清理批次状态
-    this.taskStateManager.cleanupBatch(batchId)
+    // ❌ 已移除：不再在这里清理批次状态
+    // 批次状态由 BatchScheduler 在 scheduler:completed 时管理
   }
 
   /**

@@ -4,8 +4,8 @@
  */
 
 import { ChatOpenAI } from '@langchain/openai'
-import { HumanMessage, AIMessage, SystemMessage, BaseMessage } from '@langchain/core/messages'
-import { encoding_for_model, TiktokenModel } from 'tiktoken'
+import { HumanMessage, AIMessage, SystemMessage, type BaseMessage } from '@langchain/core/messages'
+import { encoding_for_model, type TiktokenModel } from 'tiktoken'
 import type { ChatMessage, LangChainClientConfig, StreamCallbacks } from './types'
 
 export class LangChainClient {
@@ -44,13 +44,10 @@ export class LangChainClient {
       // 流式调用
       const stream = await this.client.stream(langchainMessages)
 
-      let fullContent = ''
-
       // 处理流式响应
       for await (const chunk of stream) {
         const content = chunk.content as string
         if (content) {
-          fullContent += content
           callbacks.onChunk?.(content)
         }
       }
@@ -80,7 +77,7 @@ export class LangChainClient {
   /**
    * 计算 Token 数量
    */
-  async countTokens(messages: ChatMessage[]): Promise<number> {
+  countTokens(messages: ChatMessage[]): number {
     try {
       // 尝试获取模型的编码器
       let modelName = this.config.modelName as TiktokenModel
@@ -136,7 +133,7 @@ export class LangChainClient {
         case 'assistant':
           return new AIMessage(msg.content)
         default:
-          throw new Error(`Unknown message role: ${msg.role}`)
+          throw new Error(`Unknown message role: ${msg.role as string}`)
       }
     })
   }

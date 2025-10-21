@@ -130,6 +130,10 @@ export class BatchScheduler extends EventEmitter {
     if (this.waitingQueue.length === 0 && this.activeSet.size === 0) {
       console.log(`✅ [BatchScheduler] 所有任务已完成！`)
       this.isRunning = false
+      
+      // 清理批次的所有任务状态（由调度器负责管理）
+      this.stateManager.cleanupBatch(this.batchId)
+      
       this.emit('scheduler:completed', {
         batchId: this.batchId,
         completedCount: this.completedSet.size,

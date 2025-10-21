@@ -168,7 +168,10 @@ export class TaskStateManager extends EventEmitter {
     }
   ): Promise<void> {
     const current = this.stateCache.get(taskId)
-    if (!current) return
+    if (!current) {
+      console.warn(`⚠️ [TaskStateManager] 任务 ${taskId} 状态不存在（可能已被清理或未初始化），跳过标记完成`)
+      return
+    }
 
     // 更新为完成状态
     await this.updateState(taskId, 'completed', {
@@ -202,7 +205,10 @@ export class TaskStateManager extends EventEmitter {
     retryCount: number = 0
   ): Promise<void> {
     const current = this.stateCache.get(taskId)
-    if (!current) return
+    if (!current) {
+      console.warn(`⚠️ [TaskStateManager] 任务 ${taskId} 状态不存在（可能已被清理或未初始化），跳过标记错误`)
+      return
+    }
 
     // 根据错误类型确定任务状态
     const newStatus: TaskStatus = errorType === 'RATE_LIMIT' ? 'throttled' : 'error'

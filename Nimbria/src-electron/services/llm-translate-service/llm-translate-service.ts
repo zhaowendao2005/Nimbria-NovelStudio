@@ -23,6 +23,7 @@ import { ThrottleProbe } from './throttle-probe'
 import type { ThrottleProbeConfig, ThrottleProbeResult } from './throttle-probe'
 import { TokenRegressionEstimator } from './token-regression-estimator'
 import type { TokenSample } from './token-regression-estimator'
+import { initializeErrorSimulator } from './error-simulator'
 
 // 从新的类型系统导入
 import type {
@@ -85,8 +86,19 @@ export class LlmTranslateService extends EventEmitter {
     console.log('🚀 [LlmTranslateService] 初始化服务...')
     this.projectDatabase = projectDatabase
     
+    // 🎲 初始化错误模拟器（默认关闭，可通过环境变量开启）
+    const enableErrorMock = process.env.NIMBRIA_ENABLE_TRANSLATE_ERROR_SIM === 'true'
+    initializeErrorSimulator({
+      enabled: enableErrorMock,
+      debug: enableErrorMock && process.env.DEBUG_ERROR_SIMULATOR === 'true'
+    })
+    console.log(`🎲 [LlmTranslateService] 错误模拟器: ${enableErrorMock ? '已启用' : '已关闭'}`)
+    
     // 设置 TaskStateManager 的数据库
     this.taskStateManager.setProjectDatabase(projectDatabase)
+    
+    // 设置全局日志过滤器，过滤 LangChain 的重复 token 警告
+    this.setupGlobalLogFilter()
     
     // 监听 TaskStateManager 的事件并转发
     this.setupTaskStateListeners()
@@ -1265,5 +1277,34 @@ export class LlmTranslateService extends EventEmitter {
    */
   getExportService(): ExportService {
     return this.exportService
+  }
+
+  /**
+   * 设置全局日志过滤器，过滤 LangChain 的重复 token 警告
+   * 在应用启动时一次性配置，避免并发竞态条件
+   */
+  private setupGlobalLogFilter(): void {
+    const originalError = console.error
+    let totalFiltered = 0
+
+    console.error = (...args: unknown[]) => {
+      const message = args.join(' ')
+      
+      // 过滤 LangChain 的重复 token 警告
+      if (
+        message.includes('field[') &&
+        message.includes('] already exists in this message chunk') &&
+        message.includes('value has unsupported type') &&
+        (message.includes('completion_tokens') || message.includes('total_tokens'))
+      ) {
+        totalFiltered++
+        return
+      }
+      
+      // 其他错误正常输出
+      originalError.apply(console, args)
+    }
+
+    console.log(`🔇 [LlmTranslateService] 全局日志过滤器已启用，将过滤 LangChain 重复token警告`)
   }
 }
