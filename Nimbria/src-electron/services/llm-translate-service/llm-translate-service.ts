@@ -1309,6 +1309,120 @@ export class LlmTranslateService extends EventEmitter {
   }
 
   /**
+   * 重试任务（带提示词修改）
+   * @param taskId 任务 ID
+   * @param modifiedSystemPrompt 修改后的系统提示词（undefined 使用原提示词）
+   * @returns 提交 ID
+   */
+  async retryTaskWithPrompt(
+    taskId: string, 
+    modifiedSystemPrompt?: string
+  ): Promise<string> {
+    console.log(`🔄 [LlmTranslateService] 重试任务（带提示词修改）: ${taskId}`, {
+      hasModifiedPrompt: !!modifiedSystemPrompt
+    })
+    
+    // 1. 获取任务
+    const task = await this.getTask(taskId)
+    if (!task) {
+      throw new Error(`Task ${taskId} not found`)
+    }
+    
+    // 2. 获取批次配置
+    const batch = await this.getBatch(task.batchId)
+    if (!batch) {
+      throw new Error(`Batch ${task.batchId} not found`)
+    }
+    
+    // 3. 解析批次配置
+    const batchConfig: TranslateConfig = typeof batch.configJson === 'string' 
+      ? JSON.parse(batch.configJson) 
+      : batch.configJson
+    
+    // 3.5 如果批次配置中 modelId 为空，从任务的 metadata 中读取
+    // 这样可以确保即使批次创建时没有保存 modelId，重发时也能获得正确值
+    if (!batchConfig.modelId) {
+      const taskMetadata = typeof task.metadataJson === 'string'
+        ? JSON.parse(task.metadataJson)
+        : task.metadataJson || {}
+      
+      if (taskMetadata.modelId) {
+        console.log(`📝 [LlmTranslateService] 从任务 metadata 中读取 modelId: ${taskMetadata.modelId}`)
+        batchConfig.modelId = taskMetadata.modelId
+      } else {
+        console.warn(`⚠️ [LlmTranslateService] 警告：任务和批次中都没有找到 modelId，可能导致执行失败`)
+      }
+    }
+    
+    // 4. 如果提供了修改的提示词，则更新任务的 metadata
+    if (modifiedSystemPrompt !== undefined) {
+      console.log(`📝 [LlmTranslateService] 使用修改后的系统提示词（长度: ${modifiedSystemPrompt.length} 字符）`)
+      
+      // 解析现有的 metadata
+      const metadata = typeof task.metadataJson === 'string'
+        ? JSON.parse(task.metadataJson)
+        : task.metadataJson || {}
+      
+      // 更新 systemPrompt
+      metadata.systemPrompt = modifiedSystemPrompt
+      
+      // 更新数据库
+      if (this.projectDatabase) {
+        this.projectDatabase.execute(
+          `UPDATE Llmtranslate_tasks 
+           SET metadata_json = ?, 
+               status = 'unsent',
+               translation = NULL,
+               input_tokens = 0,
+               reply_tokens = 0,
+               progress = 0,
+               error_message = NULL,
+               error_type = NULL,
+               sent_time = NULL,
+               reply_time = NULL,
+               duration_ms = NULL,
+               cost = 0,
+               updated_at = CURRENT_TIMESTAMP 
+           WHERE id = ?`,
+          [JSON.stringify(metadata), taskId]
+        )
+        console.log(`✅ [LlmTranslateService] 任务 ${taskId} 的系统提示词已更新，状态重置为 unsent`)
+      }
+      
+      // 同时更新批次配置中的 systemPrompt
+      batchConfig.systemPrompt = modifiedSystemPrompt
+    } else {
+      // 使用原提示词，仅重置任务状态
+      if (this.projectDatabase) {
+        this.projectDatabase.execute(
+          `UPDATE Llmtranslate_tasks 
+           SET status = 'unsent',
+               translation = NULL,
+               input_tokens = 0,
+               reply_tokens = 0,
+               progress = 0,
+               error_message = NULL,
+               error_type = NULL,
+               sent_time = NULL,
+               reply_time = NULL,
+               duration_ms = NULL,
+               cost = 0,
+               updated_at = CURRENT_TIMESTAMP 
+           WHERE id = ?`,
+          [taskId]
+        )
+        console.log(`✅ [LlmTranslateService] 任务 ${taskId} 状态已重置为 unsent（使用原提示词）`)
+      }
+    }
+    
+    // 5. 提交任务（使用更新后的配置）
+    const submissionId = await this.submitTasks(task.batchId, [taskId], batchConfig)
+    
+    console.log(`✅ [LlmTranslateService] 任务 ${taskId} 已重新提交，提交 ID: ${submissionId}`)
+    return submissionId
+  }
+
+  /**
    * 设置全局日志过滤器，过滤 LangChain 的重复 token 警告
    * 在应用启动时一次性配置，避免并发竞态条件
    */

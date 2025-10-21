@@ -387,6 +387,13 @@ export class MockTranslateDatasource implements TranslateDatasource {
     console.log(`Mock: Retrying task ${taskId}`)
   }
 
+  async retryTaskWithPrompt(taskId: string, modifiedSystemPrompt?: string): Promise<void> {
+    await this.delay()
+    console.log(`Mock: Retrying task ${taskId} with prompt modification:`, {
+      hasModified: !!modifiedSystemPrompt
+    })
+  }
+
   async cancelTask(taskId: string): Promise<void> {
     await this.delay()
     console.log(`Mock: Canceling task ${taskId}`)

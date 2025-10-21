@@ -158,11 +158,43 @@
         <el-button @click="retryTask" type="warning" size="small" v-if="taskData.status === 'error'">
           <el-icon><Refresh /></el-icon> 重新翻译
         </el-button>
+
+        <!-- 已完成任务的重发操作 -->
+        <template v-if="taskData.status === 'completed'">
+          <div class="retry-completed-group">
+            <el-checkbox 
+              v-model="withPromptModification" 
+              size="small"
+            >
+              <el-tooltip 
+                content="勾选后可在重发时修改或追加系统提示词"
+                placement="top"
+              >
+                <span class="checkbox-label">修改提示词</span>
+              </el-tooltip>
+            </el-checkbox>
+            <el-button 
+              @click="handleRetryCompleted" 
+              type="success" 
+              size="small"
+            >
+              <el-icon><Refresh /></el-icon> 重发
+            </el-button>
+          </div>
+        </template>
+
         <el-button @click="saveTask" type="success" size="small" v-if="taskData.status === 'completed'">
           <el-icon><Download /></el-icon> 保存结果
         </el-button>
       </div>
     </div>
+
+    <!-- 任务提示词修正对话框 -->
+    <TaskRetryDialog
+      v-model:visible="retryDialogVisible"
+      :current-system-prompt="taskData.metadata?.systemPrompt || ''"
+      @confirm="handleRetryConfirm"
+    />
   </div>
 </template>
 
@@ -184,7 +216,8 @@ import {
 import type { Task } from '../types/task'
 import type { TaskStatus } from '../types/task'
 import { useLlmTranslateStore } from '../stores'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import TaskRetryDialog from './TaskRetryDialog.vue'
 
 interface Props {
   task: Task
@@ -198,6 +231,56 @@ const taskData = computed(() => {
   // 从 Store 中查找最新的任务数据
   return store.taskList.find(t => t.id === props.task.id) || props.task
 })
+
+// 重发相关状态
+const withPromptModification = ref(false)
+const retryDialogVisible = ref(false)
+
+// 处理已完成任务的重发
+const handleRetryCompleted = () => {
+  if (withPromptModification.value) {
+    // 打开对话框让用户修改提示词
+    retryDialogVisible.value = true
+  } else {
+    // 直接重发，不修改提示词
+    retryTaskWithPrompt('none')
+  }
+}
+
+// 处理对话框确认
+const handleRetryConfirm = async (data: {
+  type: 'replace' | 'append' | 'none'
+  content?: string
+}) => {
+  await retryTaskWithPrompt(data.type, data.content)
+  withPromptModification.value = false
+}
+
+// 执行重发任务
+const retryTaskWithPrompt = async (
+  type: 'replace' | 'append' | 'none',
+  content?: string
+) => {
+  try {
+    const currentTask = taskData.value
+    let modifiedSystemPrompt: string | undefined = undefined
+
+    if (type === 'replace' && content) {
+      // 替换系统提示词
+      modifiedSystemPrompt = content
+    } else if (type === 'append' && content) {
+      // 追加系统提示词
+      const original = currentTask.metadata?.systemPrompt || ''
+      modifiedSystemPrompt = original + '\n\n' + content
+    }
+    // type === 'none' 时 modifiedSystemPrompt 为 undefined，后端使用原提示词
+
+    // 调用 Store 的重试方法
+    await store.retryTaskWithPrompt(currentTask.id, modifiedSystemPrompt)
+  } catch (error) {
+    console.error('重发任务失败:', error)
+  }
+}
 
 // 获取任务状态文本
 const getStatusText = (status: TaskStatus): string => {
@@ -471,6 +554,22 @@ const saveTask = () => {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
+      align-items: center;
+    }
+
+    .retry-completed-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+
+      .checkbox-label {
+        font-size: 12px;
+        color: #606266;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        white-space: nowrap;
+      }
     }
   }
 }

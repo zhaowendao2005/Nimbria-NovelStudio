@@ -42,6 +42,7 @@ export interface TranslateDatasource {
   sendTasks(batchId: string, taskIds: string[], config: TranslateConfig): Promise<void>
   deleteTasks(taskIds: string[]): Promise<void>
   retryTask(taskId: string): Promise<void>
+  retryTaskWithPrompt(taskId: string, modifiedSystemPrompt?: string): Promise<void>
   cancelTask(taskId: string): Promise<void>
 }
 
@@ -60,6 +61,7 @@ export interface DatasourceContext {
     sendTasks(params: { batchId: string; taskIds: string[]; config: TranslateConfig }): Promise<{ success: boolean; error?: string }}
     deleteTasks(params: { taskIds: string[] }): Promise<{ success: boolean; error?: string }>
     retryTask(params: { taskId: string }): Promise<{ success: boolean; error?: string }>
+    retryTaskWithPrompt(params: { taskId: string; modifiedSystemPrompt?: string }): Promise<{ success: boolean; error?: string }>
   }
 }
 

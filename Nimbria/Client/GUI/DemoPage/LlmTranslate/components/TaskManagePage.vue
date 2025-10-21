@@ -271,6 +271,16 @@
 
           <!-- 卡片操作 - 根据状态显示不同的按钮 -->
           <div class="card-actions">
+            <!-- 重发按钮（已完成状态） -->
+            <el-button
+              v-if="task.status === 'completed'"
+              size="small"
+              type="success"
+              @click="openRetryWithPrompt(task.id)"
+            >
+              <el-icon><Refresh /></el-icon> 重发
+            </el-button>
+
             <!-- 详情按钮（所有状态都有） -->
             <el-button size="small" @click="openThreadDrawer(task.id)">
               <el-icon><Document /></el-icon> 详情
@@ -658,6 +668,13 @@ const retrySingleTask = async (taskId: string) => {
     const errorMsg = err instanceof Error ? err.message : '重试任务失败'
     ElMessage({ message: errorMsg, type: 'error' })
   }
+}
+
+// 打开重发对话框（已完成任务）
+const openRetryWithPrompt = (taskId: string) => {
+  // 先打开线程详情抽屉
+  store.threadDrawer.currentTaskId = taskId
+  store.threadDrawer.isOpen = true
 }
 
 // 删除选中任务

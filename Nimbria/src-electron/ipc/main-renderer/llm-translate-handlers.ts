@@ -356,14 +356,34 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
     try {
       console.log(`🔄 [IPC] 重试任务 ${args.taskId}`)
       
-      // 获取任务信息
-      const task = await llmTranslateService.getTask(args.taskId)
-      if (!task) {
-        throw new Error(`Task ${args.taskId} not found`)
-      }
+      // 使用新的 retryTaskWithPrompt 方法（不修改提示词）
+      // 这样可以自动处理 modelId 从 metadata 读取的逻辑
+      const submissionId = await llmTranslateService.retryTaskWithPrompt(args.taskId, undefined)
       
-      // 重试时不传递 config，使用数据库中的既有配置
-      const submissionId = await llmTranslateService.submitTasks(task.batchId, [args.taskId], {})
+      return { success: true, data: { submissionId } }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  /**
+   * 重试任务（带提示词修改）
+   */
+  ipcMain.handle('llm-translate:retry-task-with-prompt', async (_event, args: { 
+    taskId: string
+    modifiedSystemPrompt?: string 
+  }) => {
+    try {
+      console.log(`🔄 [IPC] 重发任务（带提示词修改） ${args.taskId}`, {
+        hasModifiedPrompt: !!args.modifiedSystemPrompt
+      })
+      
+      // 调用服务层的重试方法
+      const submissionId = await llmTranslateService.retryTaskWithPrompt(
+        args.taskId, 
+        args.modifiedSystemPrompt
+      )
       
       return { success: true, data: { submissionId } }
     } catch (error) {
