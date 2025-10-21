@@ -1,6 +1,7 @@
 <template>
   <el-drawer
-    v-model="visible"
+    :model-value="visible"
+    @update:model-value="(val) => $emit('update:visible', val)"
     title="调度器配置"
     direction="rtl"
     size="500px"
