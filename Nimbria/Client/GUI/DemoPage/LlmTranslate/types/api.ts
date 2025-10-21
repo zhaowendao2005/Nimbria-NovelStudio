@@ -50,6 +50,20 @@ export interface GetBatchResponse {
   batch: Batch
 }
 
+/**
+ * 删除批次请求
+ */
+export interface DeleteBatchRequest {
+  batchId: string
+}
+
+/**
+ * 删除批次响应
+ */
+export interface DeleteBatchResponse {
+  operationId: string
+}
+
 // ==================== 任务相关 ====================
 
 /**
@@ -108,6 +122,20 @@ export interface RetryFailedTasksRequest {
  */
 export interface RetryFailedTasksResponse {
   submissionId: string
+}
+
+/**
+ * 删除任务请求
+ */
+export interface DeleteTasksRequest {
+  taskIds: string[]
+}
+
+/**
+ * 删除任务响应
+ */
+export interface DeleteTasksResponse {
+  operationId: string
 }
 
 // ==================== 流式进度更新 ====================

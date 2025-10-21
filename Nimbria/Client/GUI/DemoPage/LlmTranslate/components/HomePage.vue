@@ -158,7 +158,7 @@
       <div class="config-item">
         <div class="section-header">并发控制</div>
         <div class="concurrency-control">
-          <span class="label">每分钟最高并发数:</span>
+          <span class="label">最高并发数:</span>
           <el-slider
             v-model="store.config.concurrency"
             :min="1"
@@ -189,7 +189,7 @@
             <el-input-number
               v-model="store.config.predictedTokens"
               :min="100"
-              :max="4000"
+              :max="4000000"
               controls-position="right"
               class="token-input"
               size="small"
@@ -200,14 +200,24 @@
             <el-radio label="equivalent">等额回复模式</el-radio>
             <span class="description">自动检测等长内容</span>
           </div>
+          <div class="radio-group-item">
+            <el-radio label="regression">回归估计模式</el-radio>
+            <span class="description">基于历史样本自动学习（需≥3个完成任务）</span>
+          </div>
         </el-radio-group>
         <el-alert 
           title="用途说明" 
-          description="用于流式进度估算，任务卡片会根据实时回复 Token 显示动态进度条"
           type="info" 
           :closable="false"
           class="mt-2"
-        />
+        >
+          <div><strong>用于流式进度估算</strong>，任务卡片会根据实时回复 Token 显示动态进度条</div>
+          <div style="margin-top: 8px; font-size: 12px; opacity: 0.9;">
+            • <strong>预计回复</strong>：使用固定值 | 
+            <strong>等额回复</strong>：输出≈输入 | 
+            <strong>回归估计</strong>：基于历史样本自动学习（越用越准）
+          </div>
+        </el-alert>
       </div>
 
       <el-divider></el-divider>
@@ -215,11 +225,7 @@
       <!-- 模型选择 -->
       <div class="config-item">
         <div class="section-header">模型选择</div>
-        <el-select v-model="store.config.modelId" placeholder="请选择要使用的 LLM 模型" class="model-select">
-          <el-option label="GPT-4" value="gpt-4"></el-option>
-          <el-option label="GPT-3.5-turbo" value="gpt-3.5-turbo"></el-option>
-          <el-option label="Claude-3" value="claude-3"></el-option>
-        </el-select>
+        <ModelSelector v-model="store.config.modelId" />
       </div>
 
       <el-divider></el-divider>
@@ -245,6 +251,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import ModelSelector from './ModelSelector.vue'
 import { 
   UploadFilled, 
   FolderOpened, 
@@ -353,7 +360,7 @@ const clearConfig = () => {
     concurrency: 3,
     replyMode: 'predicted',
     predictedTokens: 2000,
-    modelId: 'gpt-4'
+    modelId: '' // 清空模型选择
   }
   fileName.value = ''
   fileSize.value = ''

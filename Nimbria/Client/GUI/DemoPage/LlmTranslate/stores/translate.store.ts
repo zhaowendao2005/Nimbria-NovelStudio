@@ -6,17 +6,20 @@
 import { defineStore } from 'pinia'
 import { ref, computed, toRaw } from 'vue'
 import type { Batch, Task, TranslateConfig, TaskFilter } from '../types'
-import type { 
-  TranslateState, 
-  TranslateDatasource, 
-  BatchStats, 
-  TokenEstimate 
+import type {
+  TranslateDatasource,
+  BatchStats,
+  TokenEstimate,
+  TaskStateEvent,
+  StoreTaskProgressEvent,
+  StoreTaskCompleteEvent,
+  StoreTaskErrorEvent
 } from './translate.types'
-import { 
-  createTranslateDatasource, 
-  calculateProgress, 
-  estimateTokens, 
-  calculateCost 
+import {
+  createTranslateDatasource,
+  calculateProgress,
+  estimateTokens,
+  calculateCost
 } from './translate.datasource'
 
 export const useLlmTranslateStore = defineStore('llmTranslate', () => {
@@ -34,7 +37,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     concurrency: 3,
     replyMode: 'predicted',
     predictedTokens: 2000,
-    modelId: 'gpt-4'
+    modelId: '' // 默认为空，由用户在ModelSelector中选择
   })
 
   /** 批次列表 */
@@ -54,10 +57,14 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
 
   /** 任务过滤器 */
   const taskFilters = ref<TaskFilter>({
-    status: ['queued', 'waiting', 'throttled', 'error', 'unsent'],
+    status: ['waiting', 'sending', 'throttled', 'error', 'unsent', 'completed'],
     searchText: '',
     selectMode: false
   })
+
+  /** 批次选择相关状态 */
+  const selectedBatchIds = ref<Set<string>>(new Set())
+  const batchSelectMode = ref(false)
 
   /** 线程详情抽屉 */
   const threadDrawer = ref({
@@ -79,6 +86,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
   const datasource = computed<TranslateDatasource>(() => {
     return createTranslateDatasource({
       useMock: useMock.value,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       electronAPI: typeof window !== 'undefined' ? (window as any).nimbria?.llmTranslate : undefined
     })
   })
@@ -166,7 +174,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
             task.metadata = JSON.parse(task.metadataJson)
           } catch (e) {
             console.error('Failed to parse task metadata:', e)
-            task.metadata = undefined
+            // metadata 是可选的，解析失败时不设置
           }
         }
       })
@@ -191,7 +199,8 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
       // 去除 Proxy，确保能通过 Electron IPC
       const plainConfig = JSON.parse(JSON.stringify(toRaw(configData)))
       const newBatch = await datasource.value.createBatch(plainConfig)
-      batchList.value.unshift(newBatch)
+      // 注意：不在这里添加到列表，等待 onBatchCreated 事件触发后通过 fetchBatchList() 更新
+      // 这样可以确保数据与数据库完全同步，避免重复添加
       return newBatch
     } catch (err) {
       error.value = err instanceof Error ? err.message : '创建批次失败'
@@ -241,31 +250,6 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
   }
 
   /**
-   * 暂停批次
-   */
-  const pauseBatch = async (batchId: string) => {
-    loading.value = true
-    error.value = null
-
-    try {
-      await datasource.value.pauseBatch(batchId)
-      // 更新本地状态
-      const batch = batchList.value.find(b => b.id === batchId)
-      if (batch) {
-        batch.status = 'paused'
-      }
-      if (currentBatch.value?.id === batchId) {
-        currentBatch.value.status = 'paused'
-      }
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : '暂停批次失败'
-      console.error('Failed to pause batch:', err)
-    } finally {
-      loading.value = false
-    }
-  }
-
-  /**
    * 恢复批次
    */
   const resumeBatch = async (batchId: string) => {
@@ -291,6 +275,61 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
   }
 
   /**
+   * 重试任务
+   */
+  const retryTask = async (taskId: string) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      await datasource.value.retryTask(taskId)
+      // 更新本地任务状态
+      const task = taskList.value.find(t => t.id === taskId)
+      if (task) {
+        task.status = 'waiting'
+        task.errorType = null
+        task.errorMessage = null
+        task.retryCount = (task.retryCount || 0) + 1
+      }
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : '重试任务失败'
+      console.error('Failed to retry task:', err)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
+   * 取消任务（真正终止后端LLM连接）
+   */
+  const cancelTask = async (taskId: string) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      // 调用后端取消任务（会终止与LLM的连接）
+      await datasource.value.cancelTask(taskId)
+      
+      // 更新本地任务状态为 error
+      const task = taskList.value.find(t => t.id === taskId)
+      if (task) {
+        task.status = 'error'
+        task.errorType = 'USER_CANCELLED'
+        task.errorMessage = '用户取消了任务'
+      }
+      
+      console.log(`✂️ [Store] 任务 ${taskId} 已取消`)
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : '取消任务失败'
+      console.error('Failed to cancel task:', err)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
    * 发送选中任务
    */
   const sendSelectedTasks = async () => {
@@ -298,23 +337,27 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
       throw new Error('没有选中任务')
     }
 
+    if (!currentBatch.value) {
+      throw new Error('未选择批次')
+    }
+
     loading.value = true
     error.value = null
 
     try {
       const taskIds = Array.from(selectedTaskIds.value)
-      await datasource.value.sendTasks(taskIds)
+      console.log('📤 [Store] 发送任务:', { batchId: currentBatch.value.id, taskIds, config })
+      await datasource.value.sendTasks(currentBatch.value.id, taskIds, config.value)
       
       // 重新加载任务列表
-      if (currentBatch.value) {
-        await fetchTaskList(currentBatch.value.id)
-      }
+      await fetchTaskList(currentBatch.value.id)
       
       // 清空选择
       selectedTaskIds.value.clear()
     } catch (err) {
       error.value = err instanceof Error ? err.message : '发送任务失败'
       console.error('Failed to send tasks:', err)
+      throw err
     } finally {
       loading.value = false
     }
@@ -350,6 +393,201 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     }
   }
 
+  // ==================== 批次管理方法 ====================
+
+  /**
+   * 切换批次选择状态
+   */
+  const toggleBatchSelection = (batchId: string) => {
+    if (selectedBatchIds.value.has(batchId)) {
+      selectedBatchIds.value.delete(batchId)
+    } else {
+      selectedBatchIds.value.add(batchId)
+    }
+  }
+
+  /**
+   * 全选批次
+   */
+  const selectAllBatches = () => {
+    batchList.value.forEach(batch => {
+      selectedBatchIds.value.add(batch.id)
+    })
+  }
+
+  /**
+   * 清空批次选择
+   */
+  const clearBatchSelection = () => {
+    selectedBatchIds.value.clear()
+  }
+
+  /**
+   * 删除选中批次
+   */
+  const deleteSelectedBatches = async () => {
+    if (selectedBatchIds.value.size === 0) {
+      throw new Error('没有选中批次')
+    }
+
+    loading.value = true
+    error.value = null
+
+    try {
+      const batchIds = Array.from(selectedBatchIds.value)
+      
+      // 并行删除所有选中的批次
+      await Promise.all(
+        batchIds.map(batchId => datasource.value.deleteBatch(batchId))
+      )
+      
+      // 重新加载批次列表
+      await fetchBatchList()
+      
+      // 清空选择
+      selectedBatchIds.value.clear()
+      batchSelectMode.value = false
+      
+      console.log(`✅ 成功删除 ${batchIds.length} 个批次`)
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : '删除批次失败'
+      console.error('Failed to delete batches:', err)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // ==================== 事件监听器 ====================
+
+  /** 事件监听器设置状态 */
+  const listenersSetup = ref(false)
+
+  /** 获取 ElectronAPI 实例 */
+  const electronAPI = computed(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return typeof window !== 'undefined' ? (window as any).nimbria?.llmTranslate : undefined
+  })
+
+  /**
+   * 设置事件监听器
+   */
+  const setupEventListeners = () => {
+    if (!electronAPI.value || listenersSetup.value) return
+
+    // 批次删除事件监听器
+    electronAPI.value.onBatchDeleted((data: { batchId: string }) => {
+      console.log('批次删除完成:', data.batchId)
+      // 从本地列表中移除
+      const index = batchList.value.findIndex(b => b.id === data.batchId)
+      if (index !== -1) {
+        batchList.value.splice(index, 1)
+      }
+      // 如果删除的是当前批次，清空当前状态
+      if (currentBatch.value?.id === data.batchId) {
+        currentBatch.value = null
+        taskList.value = []
+        selectedTaskIds.value.clear()
+      }
+    })
+
+    electronAPI.value.onBatchDeleteError((data: { error: string }) => {
+      console.error('批次删除失败:', data.error)
+      error.value = `删除批次失败: ${data.error}`
+    })
+
+    // 任务删除事件监听器
+    electronAPI.value.onTaskDeleted((data: { taskIds: string[] }) => {
+      console.log('任务删除完成:', data.taskIds)
+      // 从本地任务列表中移除
+      data.taskIds.forEach((taskId: string) => {
+        const index = taskList.value.findIndex(t => t.id === taskId)
+        if (index !== -1) {
+          taskList.value.splice(index, 1)
+        }
+        selectedTaskIds.value.delete(taskId)
+      })
+      // 重新加载批次信息以更新统计
+      if (currentBatch.value) {
+        void fetchTaskList(currentBatch.value.id)
+      }
+    })
+
+    electronAPI.value.onTaskDeleteError((data: { error: string }) => {
+      console.error('任务删除失败:', data.error)
+      error.value = `删除任务失败: ${data.error}`
+    })
+
+    // 批次创建事件监听器
+    electronAPI.value.onBatchCreated((data: { batchId: string }) => {
+      console.log('批次创建完成:', data.batchId)
+      // 更新本地批次列表
+      void fetchBatchList()
+    })
+
+    electronAPI.value.onBatchCreateError((data: { error: string }) => {
+      console.error('批次创建失败:', data.error)
+      error.value = `创建批次失败: ${data.error}`
+    })
+
+    // TaskStateManager 事件监听器（使用 window.nimbria.on 进行通用事件监听）
+    
+    // 任务状态变化
+    electronAPI.value.onTaskStateChanged((data: TaskStateEvent) => {
+      console.log(`📊 [Store] 任务状态变化: ${data.taskId} ${data.previousState} → ${data.currentState}`)
+
+      const task = taskList.value.find((item) => item.id === data.taskId)
+      if (task) {
+        task.status = data.currentState
+        task.updatedAt = data.timestamp
+      }
+    })
+
+    electronAPI.value.onTaskProgress((data: StoreTaskProgressEvent) => {
+      const task = taskList.value.find((item) => item.id === data.taskId)
+      if (task) {
+        task.progress = data.progress
+        task.replyTokens = data.currentTokens
+        if (data.chunk) {
+          task.translation = (task.translation || '') + data.chunk
+        }
+      }
+    })
+
+    electronAPI.value.onTaskComplete((data: StoreTaskCompleteEvent) => {
+      console.log(`✅ [Store] 任务完成: ${data.taskId}`)
+
+      const task = taskList.value.find((item) => item.id === data.taskId)
+      if (task) {
+        task.status = 'completed'
+        task.translation = data.translation
+        task.inputTokens = data.inputTokens
+        task.replyTokens = data.outputTokens
+        task.cost = data.cost
+        task.durationMs = data.durationMs
+        task.progress = 100
+      }
+
+      if (currentBatch.value) {
+        void fetchTaskList(currentBatch.value.id)
+      }
+    })
+
+    electronAPI.value.onTaskError((data: StoreTaskErrorEvent) => {
+      console.error(`❌ [Store] 任务错误: ${data.taskId} - ${data.errorType}`)
+
+      const task = taskList.value.find((item) => item.id === data.taskId)
+      if (task) {
+        task.status = data.errorType === 'RATE_LIMIT' ? 'throttled' : 'error'
+        task.errorType = data.errorType
+        task.errorMessage = data.errorMessage
+        task.retryCount = data.retryCount
+      }
+    })
+
+    listenersSetup.value = true
+    console.log('✅ [Store] LLM Translate 事件监听器已设置')
+  }
+
   // ==================== 初始化 ====================
 
   /**
@@ -357,6 +595,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
    */
   const initialize = async () => {
     await fetchBatchList()
+    setupEventListeners()
   }
 
   // ==================== 返回 Store 接口 ====================
@@ -374,6 +613,8 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     loading,
     error,
     useMock,
+    selectedBatchIds,
+    batchSelectMode,
 
     // 计算属性
     batchStats,
@@ -386,10 +627,15 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     createBatch,
     switchToBatch,
     retryFailedTasks,
-    pauseBatch,
     resumeBatch,
+    retryTask,
+    cancelTask,
     sendSelectedTasks,
     deleteSelectedTasks,
+    toggleBatchSelection,
+    selectAllBatches,
+    clearBatchSelection,
+    deleteSelectedBatches,
     initialize
   }
 })

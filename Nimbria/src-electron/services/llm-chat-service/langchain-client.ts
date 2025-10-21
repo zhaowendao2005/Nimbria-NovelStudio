@@ -4,8 +4,8 @@
  */
 
 import { ChatOpenAI } from '@langchain/openai'
-import { HumanMessage, AIMessage, SystemMessage, BaseMessage } from '@langchain/core/messages'
-import { encoding_for_model, TiktokenModel } from 'tiktoken'
+import { HumanMessage, AIMessage, SystemMessage, type BaseMessage } from '@langchain/core/messages'
+import { encoding_for_model, type TiktokenModel } from 'tiktoken'
 import type { ChatMessage, LangChainClientConfig, StreamCallbacks } from './types'
 
 export class LangChainClient {
@@ -15,15 +15,19 @@ export class LangChainClient {
   constructor(config: LangChainClientConfig) {
     this.config = config
 
-    // 创建 ChatOpenAI 实例
+    // 创建 ChatOpenAI 实例（使用层叠配置）
     this.client = new ChatOpenAI({
       modelName: config.modelName,
       openAIApiKey: config.apiKey,
       configuration: {
         baseURL: config.baseUrl
       },
-      temperature: config.temperature,
-      maxTokens: config.maxTokens,
+      // 只传递已定义的可选参数
+      ...(config.temperature !== undefined && { temperature: config.temperature }),
+      ...(config.maxTokens !== undefined && { maxTokens: config.maxTokens }),
+      ...(config.topP !== undefined && { topP: config.topP }),
+      ...(config.frequencyPenalty !== undefined && { frequencyPenalty: config.frequencyPenalty }),
+      ...(config.presencePenalty !== undefined && { presencePenalty: config.presencePenalty }),
       timeout: config.timeout,
       maxRetries: config.maxRetries,
       streaming: true  // 启用流式响应
@@ -44,13 +48,10 @@ export class LangChainClient {
       // 流式调用
       const stream = await this.client.stream(langchainMessages)
 
-      let fullContent = ''
-
       // 处理流式响应
       for await (const chunk of stream) {
         const content = chunk.content as string
         if (content) {
-          fullContent += content
           callbacks.onChunk?.(content)
         }
       }
@@ -80,7 +81,7 @@ export class LangChainClient {
   /**
    * 计算 Token 数量
    */
-  async countTokens(messages: ChatMessage[]): Promise<number> {
+  countTokens(messages: ChatMessage[]): number {
     try {
       // 尝试获取模型的编码器
       let modelName = this.config.modelName as TiktokenModel
@@ -136,7 +137,7 @@ export class LangChainClient {
         case 'assistant':
           return new AIMessage(msg.content)
         default:
-          throw new Error(`Unknown message role: ${msg.role}`)
+          throw new Error(`Unknown message role: ${msg.role as string}`)
       }
     })
   }
@@ -147,15 +148,19 @@ export class LangChainClient {
   updateConfig(config: Partial<LangChainClientConfig>): void {
     this.config = { ...this.config, ...config }
     
-    // 重新创建客户端
+    // 重新创建客户端（使用层叠配置）
     this.client = new ChatOpenAI({
       modelName: this.config.modelName,
       openAIApiKey: this.config.apiKey,
       configuration: {
         baseURL: this.config.baseUrl
       },
-      temperature: this.config.temperature,
-      maxTokens: this.config.maxTokens,
+      // 只传递已定义的可选参数
+      ...(this.config.temperature !== undefined && { temperature: this.config.temperature }),
+      ...(this.config.maxTokens !== undefined && { maxTokens: this.config.maxTokens }),
+      ...(this.config.topP !== undefined && { topP: this.config.topP }),
+      ...(this.config.frequencyPenalty !== undefined && { frequencyPenalty: this.config.frequencyPenalty }),
+      ...(this.config.presencePenalty !== undefined && { presencePenalty: this.config.presencePenalty }),
       timeout: this.config.timeout,
       maxRetries: this.config.maxRetries,
       streaming: true

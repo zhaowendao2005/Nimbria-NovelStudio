@@ -6,4 +6,5 @@ export * from './config'
 export * from './batch'
 export * from './task'
 export * from './api'
+export * from './scheduler'
 

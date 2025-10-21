@@ -78,13 +78,6 @@ class ElectronTranslateDatasource implements TranslateDatasource {
     }
   }
 
-  async pauseBatch(batchId: string): Promise<void> {
-    const result = await this.electronAPI.pauseBatch({ batchId })
-    if (!result.success) {
-      throw new Error(result.error || '暂停批次失败')
-    }
-  }
-
   async resumeBatch(batchId: string): Promise<void> {
     const result = await this.electronAPI.resumeBatch({ batchId })
     if (!result.success) {
@@ -92,9 +85,10 @@ class ElectronTranslateDatasource implements TranslateDatasource {
     }
   }
 
-  async sendTasks(taskIds: string[]): Promise<void> {
+  async sendTasks(batchId: string, taskIds: string[], config: TranslateConfig): Promise<void> {
     const plainTaskIds = toPlainObject(taskIds)
-    const result = await this.electronAPI.sendTasks({ taskIds: plainTaskIds })
+    const plainConfig = toPlainObject(config)
+    const result = await this.electronAPI.submitTasks({ batchId, taskIds: plainTaskIds, config: plainConfig })
     if (!result.success) {
       throw new Error(result.error || '发送任务失败')
     }
@@ -105,6 +99,20 @@ class ElectronTranslateDatasource implements TranslateDatasource {
     const result = await this.electronAPI.deleteTasks({ taskIds: plainTaskIds })
     if (!result.success) {
       throw new Error(result.error || '删除任务失败')
+    }
+  }
+
+  async retryTask(taskId: string): Promise<void> {
+    const result = await this.electronAPI.retryTask({ taskId })
+    if (!result.success) {
+      throw new Error(result.error || '重试任务失败')
+    }
+  }
+
+  async cancelTask(taskId: string): Promise<void> {
+    const result = await this.electronAPI.cancelTask({ taskId })
+    if (!result.success) {
+      throw new Error(result.error || '取消任务失败')
     }
   }
 }

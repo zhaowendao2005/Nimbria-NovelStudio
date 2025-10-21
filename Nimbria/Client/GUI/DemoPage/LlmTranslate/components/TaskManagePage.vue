@@ -2,21 +2,76 @@
   <div class="task-manage-page">
     <!-- 左侧：批次列表 -->
     <div class="sidebar">
-      <div class="sidebar-header"><el-icon><Collection /></el-icon> 批次列表</div>
+      <!-- 批次列表标题栏 + 工具栏 -->
+      <div class="sidebar-header">
+        <div class="header-content">
+          <el-icon><Collection /></el-icon> 
+          <span>批次列表</span>
+        </div>
+        
+        <!-- 批次管理工具栏 -->
+        <div class="batch-toolbar">
+          <!-- 选择模式切换 -->
+          <div 
+            class="batch-tool-item" 
+            :class="{ 'batch-tool-item--active': store.batchSelectMode }"
+            @click="store.batchSelectMode = !store.batchSelectMode"
+            :title="`${store.batchSelectMode ? '取消' : '启用'}批次选择模式`"
+          >
+            <el-icon><Check /></el-icon>
+          </div>
+
+          <!-- 全选批次 -->
+          <div 
+            v-show="store.batchSelectMode"
+            class="batch-tool-item" 
+            @click="selectAllBatches"
+            title="全选所有批次"
+          >
+            <el-icon><Select /></el-icon>
+          </div>
+
+          <!-- 删除选中批次 -->
+          <div 
+            v-show="store.batchSelectMode && store.selectedBatchIds.size > 0"
+            class="batch-tool-item batch-tool-item--danger" 
+            @click="deleteSelectedBatches"
+            :title="`删除选中的 ${store.selectedBatchIds.size} 个批次`"
+          >
+            <el-icon><Delete /></el-icon>
+          </div>
+        </div>
+      </div>
+
+      <!-- 批次列表 -->
       <div class="batch-list">
         <div
           v-for="batch in store.batchList"
           :key="batch.id"
           class="batch-item"
-          :class="{ active: store.currentBatch?.id === batch.id }"
-          @click="handleBatchSelect(batch.id)"
+          :class="{ 
+            active: store.currentBatch?.id === batch.id,
+            selected: store.selectedBatchIds.has(batch.id)
+          }"
+          @click="handleBatchClick(batch)"
         >
-          <div class="batch-id">{{ batch.id }}</div>
-          <div class="batch-status" :class="`status-${batch.status}`">
-            {{ getBatchStatusText(batch.status) }}
+          <!-- 选择模式下的复选框 -->
+          <div v-if="store.batchSelectMode" class="batch-checkbox">
+            <el-checkbox
+              :model-value="store.selectedBatchIds.has(batch.id)"
+              @change="store.toggleBatchSelection(batch.id)"
+              @click.stop
+            />
           </div>
-          <div class="batch-stats">
-            {{ batch.totalTasks }} 任务 | <el-icon><Check /></el-icon> {{ batch.completedTasks }}
+
+          <div class="batch-info">
+            <div class="batch-id">{{ batch.id }}</div>
+            <div class="batch-status" :class="`status-${batch.status}`">
+              {{ getBatchStatusText(batch.status) }}
+            </div>
+            <div class="batch-stats">
+              {{ batch.totalTasks }} 任务 | <el-icon><Check /></el-icon> {{ batch.completedTasks }}
+            </div>
           </div>
         </div>
       </div>
@@ -106,15 +161,6 @@
               <el-icon><VideoPlay /></el-icon>
             </div>
 
-            <!-- 暂停 -->
-            <div 
-              class="tool-item" 
-              @click="store.currentBatch?.id && pauseBatch(store.currentBatch.id)"
-              :title="`暂停`"
-            >
-              <el-icon><VideoPause /></el-icon>
-            </div>
-
             <!-- 发送 -->
             <div 
               class="tool-item" 
@@ -132,6 +178,16 @@
             >
               <el-icon><Delete /></el-icon>
             </div>
+
+            <!-- 更多配置 -->
+            <div 
+              class="tool-item" 
+              @click="showSchedulerConfig"
+              :title="`调度器配置`"
+              style="margin-left: auto;"
+            >
+              <el-icon><Setting /></el-icon>
+            </div>
           </div>
         </div>
       </div>
@@ -143,7 +199,7 @@
         </div>
 
         <div
-          v-for="task in store.filteredTaskList"
+          v-for="task in sortedTaskList"
           :key="task.id"
           class="task-card"
           :class="`status-${task.status}`"
@@ -164,6 +220,27 @@
               <el-tag :type="getStatusTagType(task.status)" size="small">
                 {{ getStatusText(task.status) }}
               </el-tag>
+              
+              <!-- 错误类型标签（仅在 error/throttled 状态） -->
+              <el-tag 
+                v-if="(task.status === 'error' || task.status === 'throttled') && task.errorType" 
+                type="info" 
+                size="small" 
+                class="error-code-tag"
+              >
+                {{ task.errorType }}
+              </el-tag>
+              
+              <!-- 取消按钮（仅在 sending 状态） -->
+              <el-button
+                v-if="task.status === 'sending'"
+                type="danger"
+                size="small"
+                @click.stop="cancelTask(task.id)"
+                class="btn-cancel"
+              >
+                <el-icon><Close /></el-icon> 取消
+              </el-button>
             </div>
           </div>
 
@@ -173,33 +250,60 @@
             <div class="content-meta">
               <span v-if="task.sentTime"><el-icon><Clock /></el-icon> {{ task.sentTime }}</span>
               <span v-if="task.status === 'completed'"><el-icon><Check /></el-icon> 已完成</span>
+              <!-- 错误信息提示 -->
+              <span v-if="task.status === 'error' && task.errorMessage" class="error-message">
+                <el-icon><Warning /></el-icon> {{ task.errorMessage.substring(0, 50) }}
+              </span>
             </div>
           </div>
 
-          <!-- 进度条（仅在等待中显示） -->
-          <div v-if="task.status === 'waiting'" class="progress-bar-wrapper">
+          <!-- 进度条（waiting/sending 时显示） -->
+          <div v-if="task.status === 'sending' || task.status === 'waiting'" class="progress-section">
             <el-progress
               :percentage="task.progress"
-              :stroke-width="4"
-              :color="getProgressBarColor(task.status)"
+              :stroke-width="2"
+              :color="task.status === 'sending' ? '#409eff' : '#67c23a'"
             ></el-progress>
-            <span class="progress-text">{{ task.progress.toFixed(0) }}% ({{ task.replyTokens }}/{{ task.predictedTokens }})</span>
+            <div class="progress-info">
+              {{ task.replyTokens }} / {{ task.predictedTokens }} tokens ({{ task.progress.toFixed(0) }}%)
+            </div>
           </div>
 
-          <!-- 卡片操作 -->
+          <!-- 卡片操作 - 根据状态显示不同的按钮 -->
           <div class="card-actions">
+            <!-- 详情按钮（所有状态都有） -->
             <el-button size="small" @click="openThreadDrawer(task.id)">
               <el-icon><Document /></el-icon> 详情
             </el-button>
+            
+            <!-- 发送按钮（unsent 状态） -->
+            <el-button 
+              v-if="task.status === 'unsent'" 
+              size="small" 
+              type="primary"
+              @click="sendSingleTask(task.id)"
+            >
+              <el-icon><Upload /></el-icon> 发送
+            </el-button>
+            
+            <!-- 取消等待按钮（waiting 状态） -->
+            <el-button
+              v-if="task.status === 'waiting'"
+              size="small"
+              type="warning"
+              @click="handleCancelWaiting(task.id)"
+            >
+              <el-icon><Close /></el-icon> 取消等待
+            </el-button>
+            
+            <!-- 重试按钮（error 和 throttled 状态统一处理） -->
             <el-button
               v-if="task.status === 'error' || task.status === 'throttled'"
               size="small"
-              type="warning"
+              type="danger"
+              @click="retrySingleTask(task.id)"
             >
               <el-icon><Refresh /></el-icon> 重试
-            </el-button>
-            <el-button v-if="task.status === 'unsent'" size="small" type="primary">
-              <el-icon><Upload /></el-icon> 发送
             </el-button>
           </div>
         </div>
@@ -217,11 +321,21 @@
       <ThreadDrawer v-if="currentTask" :task="currentTask" />
       <el-empty v-else description="未找到任务详情"></el-empty>
     </el-drawer>
+
+    <!-- 调度器配置抽屉 -->
+    <SchedulerConfigDrawer
+      v-model:visible="configDrawerVisible"
+      :initial-config="currentSchedulerConfig"
+      :translate-config="store.config"
+      @save="handleConfigSave"
+      @save-model-params="handleModelParamsSave"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Refresh, 
   Search, 
@@ -235,17 +349,39 @@ import {
   Timer, 
   Close, 
   Clock, 
-  Document 
+  Document,
+  Warning,
+  Setting
 } from '@element-plus/icons-vue'
 import { useLlmTranslateStore } from '../stores'
 import { useTaskManagement } from '../composables/useTaskManagement'
 import { useBatchManagement } from '../composables/useBatchManagement'
 import ThreadDrawer from './ThreadDrawer.vue'
+import SchedulerConfigDrawer from './SchedulerConfigDrawer.vue'
 import type { TaskStatus } from '../types/task'
+import type { SchedulerConfig } from '../types/scheduler'
+import { DEFAULT_SCHEDULER_CONFIG } from '../types/scheduler'
+import { ref } from 'vue'
 
 const store = useLlmTranslateStore()
 const { loadTasks, retryFailedTasks } = useTaskManagement()
 const { switchToBatch, pauseBatch } = useBatchManagement()
+
+// 调度器配置抽屉相关
+const configDrawerVisible = ref(false)
+const currentSchedulerConfig = ref<SchedulerConfig>({ ...DEFAULT_SCHEDULER_CONFIG })
+
+// 任务状态排序优先级（sending最优先，然后是waiting、throttled等）
+const TASK_STATUS_ORDER: TaskStatus[] = ['sending', 'waiting', 'throttled', 'completed', 'error', 'unsent']
+
+// 排序后的任务列表（按状态优先级排序）
+const sortedTaskList = computed(() => {
+  return [...store.filteredTaskList].sort((a, b) => {
+    const orderA = TASK_STATUS_ORDER.indexOf(a.status)
+    const orderB = TASK_STATUS_ORDER.indexOf(b.status)
+    return orderA - orderB
+  })
+})
 
 const currentTask = computed(() => {
   if (!store.threadDrawer.currentTaskId) return null
@@ -267,8 +403,8 @@ const getBatchStatusText = (status: string): string => {
 const getStatusText = (status: TaskStatus): string => {
   switch (status) {
     case 'unsent': return '未发送'
-    case 'queued': return '排队中'
     case 'waiting': return '等待中'
+    case 'sending': return '发送中'
     case 'throttled': return '限流'
     case 'error': return '错误'
     case 'completed': return '已完成'
@@ -280,7 +416,7 @@ const getStatusText = (status: TaskStatus): string => {
 const getStatusTagType = (status: TaskStatus) => {
   switch (status) {
     case 'completed': return 'success'
-    case 'queued': return ''
+    case 'sending': return 'primary'
     case 'waiting': return 'primary'
     case 'throttled': return 'danger'
     case 'error': return 'warning'
@@ -289,27 +425,98 @@ const getStatusTagType = (status: TaskStatus) => {
   }
 }
 
-// 获取进度条颜色
-const getProgressBarColor = (status: TaskStatus) => {
-  switch (status) {
-    case 'completed': return '#67C23A'
-    case 'queued': return '#909399'
-    case 'waiting': return '#409EFF'
-    case 'throttled': return '#F56C6C'
-    case 'error': return '#E6A23C'
-    default: return '#909399'
-  }
-}
-
 // 处理批次选择
 const handleBatchSelect = async (batchId: string) => {
   await switchToBatch(batchId)
+}
+
+// 处理批次点击（区分选择模式和正常模式）
+const handleBatchClick = (batch: { id: string }) => {
+  if (store.batchSelectMode) {
+    // 选择模式下切换选择状态
+    store.toggleBatchSelection(batch.id)
+  } else {
+    // 正常模式下切换批次
+    void handleBatchSelect(batch.id)
+  }
+}
+
+// 全选批次
+const selectAllBatches = () => {
+  store.selectAllBatches()
+}
+
+// 删除选中批次
+const deleteSelectedBatches = async () => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${store.selectedBatchIds.size} 个批次吗？这将同时删除所有相关任务。`,
+      '删除批次',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    await store.deleteSelectedBatches()
+    
+    ElMessage({ message: '成功删除批次', type: 'success' })
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除批次失败:', error)
+      const errorMsg = error instanceof Error ? error.message : '删除批次失败'
+      ElMessage({ message: errorMsg, type: 'error' })
+    }
+  }
 }
 
 // 打开线程详情抽屉
 const openThreadDrawer = (taskId: string) => {
   store.threadDrawer.currentTaskId = taskId
   store.threadDrawer.isOpen = true
+}
+
+// 暂停任务
+const pauseTask = async (taskId: string) => {
+  try {
+    await store.pauseTask(taskId)
+    ElMessage({ message: '任务已暂停', type: 'success' })
+  } catch (error) {
+    console.error('暂停任务失败:', error)
+    const errorMsg = error instanceof Error ? error.message : '暂停任务失败'
+    ElMessage({ message: errorMsg, type: 'error' })
+  }
+}
+
+// 取消任务
+const cancelTask = async (taskId: string) => {
+  try {
+    await store.cancelTask(taskId)
+    ElMessage({ message: '任务已取消', type: 'success' })
+  } catch (error) {
+    console.error('取消任务失败:', error)
+    const errorMsg = error instanceof Error ? error.message : '取消任务失败'
+    ElMessage({ message: errorMsg, type: 'error' })
+  }
+}
+
+// 取消等待中的任务
+const handleCancelWaiting = async (taskId: string) => {
+  try {
+    await (window as any).nimbria.llmTranslate.cancelWaitingTask({ taskId })
+
+    const task = store.taskList.find((item) => item.id === taskId)
+    if (task) {
+      task.status = 'unsent'
+    }
+
+    ElMessage({ message: '已取消等待', type: 'success' })
+  } catch (error) {
+    console.error('取消等待失败:', error)
+    const errorMsg = error instanceof Error ? error.message : '取消等待失败'
+    ElMessage({ message: errorMsg, type: 'error' })
+  }
 }
 
 // 切换单个任务选择状态
@@ -343,12 +550,113 @@ const testThrottle = () => {
   // TODO: 实现测试限流的具体逻辑
 }
 
+// 显示调度器配置抽屉
+const showSchedulerConfig = () => {
+  // 加载当前配置（暂时使用默认配置，后续可以从store获取）
+  currentSchedulerConfig.value = { ...DEFAULT_SCHEDULER_CONFIG }
+  configDrawerVisible.value = true
+}
+
+// 保存调度器配置
+const handleConfigSave = (config: SchedulerConfig) => {
+  console.log('保存调度器配置:', config)
+  currentSchedulerConfig.value = { ...config }
+  // 更新 store 中的配置
+  store.config.schedulerConfig = { ...config }
+  ElMessage({ message: '调度器配置已保存', type: 'success' })
+}
+
+// 保存模型参数配置
+const handleModelParamsSave = (params: {
+  maxTokens?: number
+  temperature?: number
+  topP?: number
+  frequencyPenalty?: number
+  presencePenalty?: number
+}) => {
+  console.log('保存模型参数:', params)
+  // 更新 store 中的配置（只设置有值的参数，避免 undefined）
+  if (params.maxTokens !== undefined) {
+    store.config.maxTokens = params.maxTokens
+  } else {
+    delete store.config.maxTokens
+  }
+  
+  if (params.temperature !== undefined) {
+    store.config.temperature = params.temperature
+  } else {
+    delete store.config.temperature
+  }
+  
+  if (params.topP !== undefined) {
+    store.config.topP = params.topP
+  } else {
+    delete store.config.topP
+  }
+  
+  if (params.frequencyPenalty !== undefined) {
+    store.config.frequencyPenalty = params.frequencyPenalty
+  } else {
+    delete store.config.frequencyPenalty
+  }
+  
+  if (params.presencePenalty !== undefined) {
+    store.config.presencePenalty = params.presencePenalty
+  } else {
+    delete store.config.presencePenalty
+  }
+  
+  ElMessage({ message: '模型参数已保存', type: 'success' })
+}
+
+// 关闭配置抽屉
+const handleConfigClose = () => {
+  configDrawerVisible.value = false
+}
+
 // 发送选中任务
 const sendSelected = async () => {
   try {
     await store.sendSelectedTasks()
   } catch (err) {
     console.error('发送任务失败:', err)
+  }
+}
+
+// 发送单个任务
+const sendSingleTask = async (taskId: string) => {
+  try {
+    console.log('🚀 [TaskManagePage] 发送单个任务:', taskId)
+    
+    // 临时选中该任务
+    const originalSelection = new Set(store.selectedTaskIds)
+    store.selectedTaskIds.clear()
+    store.selectedTaskIds.add(taskId)
+    
+    // 发送任务
+    await store.sendSelectedTasks()
+    
+    // 恢复原来的选择状态
+    store.selectedTaskIds = originalSelection
+    
+    ElMessage({ message: '任务已发送', type: 'success' })
+  } catch (err) {
+    console.error('❌ [TaskManagePage] 发送任务失败:', err)
+    const errorMsg = err instanceof Error ? err.message : '发送任务失败'
+    ElMessage({ message: errorMsg, type: 'error' })
+  }
+}
+
+// 重试单个任务
+const retrySingleTask = async (taskId: string) => {
+  try {
+    console.log('🔄 [TaskManagePage] 重试单个任务:', taskId)
+    await store.retryTask(taskId)
+    ElMessage({ message: '任务已重试', type: 'success' })
+  } catch (err) {
+    console.error('❌ [TaskManagePage] 重试任务失败:', err)
+    const errorMsg = err instanceof Error ? err.message : '重试任务失败'
+    ElMessage({ message: errorMsg, type: 'error' })
   }
 }
 
@@ -363,6 +671,7 @@ const deleteSelected = async () => {
 
 // 页面加载
 onMounted(async () => {
+  // 事件监听已在 LlmTranslatePage 初始化，这里不需要重复调用
   if (!store.currentBatch && store.batchList.length > 0 && store.batchList[0]) {
     await switchToBatch(store.batchList[0].id)
   }
@@ -390,12 +699,63 @@ onMounted(async () => {
   overflow: hidden;
 
   .sidebar-header {
-    font-size: 14px;
-    font-weight: bold;
-    color: #333;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     padding: 16px;
     background-color: #f5f7fa;
     border-bottom: 1px solid #e4e7eb;
+    
+    .header-content {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: bold;
+      color: #333;
+    }
+    
+    .batch-toolbar {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      
+      .batch-tool-item {
+        cursor: pointer;
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        border: 1px solid #dcdfe6;
+        background-color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        
+        &:hover {
+          border-color: #409eff;
+          background-color: #ecf5ff;
+        }
+        
+        &--active {
+          background-color: #409eff;
+          color: white;
+          border-color: #409eff;
+        }
+        
+        &--danger {
+          &:hover {
+            border-color: #f56c6c;
+            background-color: #fef0f0;
+            color: #f56c6c;
+          }
+        }
+        
+        .el-icon {
+          font-size: 14px;
+        }
+      }
+    }
   }
 
   .batch-list {
@@ -404,6 +764,9 @@ onMounted(async () => {
     padding: 8px;
 
     .batch-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
       padding: 12px;
       margin-bottom: 8px;
       background-color: #f9fafc;
@@ -420,6 +783,22 @@ onMounted(async () => {
       &.active {
         background-color: #e6f7ff;
         border-color: #409eff;
+      }
+
+      &.selected {
+        background-color: #e1f3ff;
+        border-color: #91d5ff;
+        box-shadow: 0 0 0 1px #91d5ff;
+      }
+
+      .batch-checkbox {
+        padding-top: 2px;
+        flex-shrink: 0;
+      }
+
+      .batch-info {
+        flex: 1;
+        min-width: 0;
       }
 
       .batch-id {
@@ -577,8 +956,15 @@ onMounted(async () => {
       }
 
       &.status-unsent { border-left-color: #909399; }
-      &.status-queued { border-left-color: #e3d217; }
-      &.status-waiting { border-left-color: #409eff; }
+      &.status-waiting { 
+        border-left-color: #fcd34d; 
+        background-color: #fef3c7;
+        
+        &:hover {
+          background-color: #fde68a;
+        }
+      }
+      &.status-sending { border-left-color: #409eff; }
       &.status-throttled { border-left-color: #a02de2; }
       &.status-error { border-left-color: #f56c6c; }
       &.status-completed { border-left-color: #67c23a; }
@@ -599,6 +985,7 @@ onMounted(async () => {
           display: flex;
           align-items: center;
           gap: 8px;
+          flex-wrap: wrap;
 
           .status-dot {
             display: inline-block;
@@ -607,8 +994,8 @@ onMounted(async () => {
             border-radius: 50%;
 
             &.dot-unsent { background-color: #909399; }
-            &.dot-queued { background-color: #909399; }
             &.dot-waiting { background-color: #409eff; animation: pulse 2s infinite; }
+            &.dot-sending { background-color: #409eff; animation: pulse 1s infinite; }
             &.dot-throttled { background-color: #f56c6c; }
             &.dot-error { background-color: #e6a23c; }
             &.dot-completed { background-color: #67c23a; }
@@ -618,6 +1005,16 @@ onMounted(async () => {
             font-weight: bold;
             color: #333;
             font-size: 14px;
+          }
+
+          .error-code-tag {
+            margin-left: 4px;
+            font-size: 11px;
+          }
+
+          .btn-pause {
+            margin-left: auto;
+            font-size: 12px;
           }
         }
       }
@@ -638,24 +1035,32 @@ onMounted(async () => {
           display: flex;
           gap: 12px;
         }
+
+        .error-message {
+          color: #f56c6c;
+          font-size: 12px;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          margin-top: 4px;
+        }
       }
 
-      .progress-bar-wrapper {
-        margin-bottom: 12px;
-        display: flex;
-        gap: 8px;
-        align-items: center;
+      .progress-section {
+        margin: 8px 0;
+        padding: 8px 0;
+        border-top: 1px solid #f0f0f0;
+        border-bottom: 1px solid #f0f0f0;
 
         :deep(.el-progress) {
-          flex: 1;
+          margin-bottom: 4px;
         }
 
-        .progress-text {
+        .progress-info {
           font-size: 12px;
           color: #909399;
-          white-space: nowrap;
-          min-width: 80px;
           text-align: right;
+          margin-top: 4px;
         }
       }
 

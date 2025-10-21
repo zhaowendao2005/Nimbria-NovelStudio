@@ -18,7 +18,6 @@ export const mockBatchList: Batch[] = [
     throttledTasks: 5,
     waitingTasks: 45,
     unsentTasks: 90,
-    terminatedTasks: 0,
     totalCost: 12.50,
     totalInputTokens: 250000,
     totalOutputTokens: 200000,
@@ -41,7 +40,6 @@ export const mockBatchList: Batch[] = [
     throttledTasks: 0,
     waitingTasks: 0,
     unsentTasks: 0,
-    terminatedTasks: 0,
     totalCost: 8.50,
     totalInputTokens: 180000,
     totalOutputTokens: 150000,
@@ -64,7 +62,6 @@ export const mockBatchList: Batch[] = [
     throttledTasks: 0,
     waitingTasks: 0,
     unsentTasks: 0,
-    terminatedTasks: 0,
     totalCost: 5.20,
     totalInputTokens: 100000,
     totalOutputTokens: 95000,
@@ -246,8 +243,8 @@ export const mockTaskList: Task[] = [
   {
     id: '#1246',
     batchId: '#20250115-001',
-    status: 'queued',
-    content: 'Queued task waiting to be processed...',
+    status: 'waiting',
+    content: 'Waiting task to be processed...',
     translation: null,
     inputTokens: 1300,
     replyTokens: 0,
@@ -317,7 +314,6 @@ export class MockTranslateDatasource implements TranslateDatasource {
       throttledTasks: 0,
       waitingTasks: 0,
       unsentTasks: 0,
-      terminatedTasks: 0,
       totalCost: 0,
       totalInputTokens: 0,
       totalOutputTokens: 0,
@@ -371,23 +367,28 @@ export class MockTranslateDatasource implements TranslateDatasource {
     console.log(`Mock: Retrying failed tasks for batch ${batchId}`)
   }
 
-  async pauseBatch(batchId: string): Promise<void> {
-    await this.delay()
-    await this.updateBatch(batchId, { status: 'paused' })
-  }
-
   async resumeBatch(batchId: string): Promise<void> {
     await this.delay()
     await this.updateBatch(batchId, { status: 'running' })
   }
 
-  async sendTasks(taskIds: string[]): Promise<void> {
+  async sendTasks(batchId: string, taskIds: string[], config: TranslateConfig): Promise<void> {
     await this.delay()
-    console.log(`Mock: Sending tasks`, taskIds)
+    console.log(`Mock: Sending tasks in batch ${batchId}`, taskIds, 'with config', config)
   }
 
   async deleteTasks(taskIds: string[]): Promise<void> {
     await this.delay()
     console.log(`Mock: Deleting tasks`, taskIds)
+  }
+
+  async retryTask(taskId: string): Promise<void> {
+    await this.delay()
+    console.log(`Mock: Retrying task ${taskId}`)
+  }
+
+  async cancelTask(taskId: string): Promise<void> {
+    await this.delay()
+    console.log(`Mock: Canceling task ${taskId}`)
   }
 }

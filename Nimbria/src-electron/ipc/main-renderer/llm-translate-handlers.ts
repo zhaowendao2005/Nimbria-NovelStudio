@@ -20,8 +20,14 @@ import type {
   BatchCreateStartEvent,
   BatchCreatedEvent,
   BatchCreateErrorEvent,
+  BatchDeleteStartEvent,
+  BatchDeletedEvent,
+  BatchDeleteErrorEvent,
   TaskSubmitStartEvent,
   TaskSubmittedEvent,
+  TaskDeleteStartEvent,
+  TaskDeletedEvent,
+  TaskDeleteErrorEvent,
   TaskProgressEvent,
   TaskCompleteEvent,
   TaskErrorEvent,
@@ -51,6 +57,24 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
   llmTranslateService.on('batch:create-error', (data: BatchCreateErrorEvent) => {
     BrowserWindow.getAllWindows().forEach(win => {
       win.webContents.send('llm-translate:batch-create-error', data)
+    })
+  })
+
+  llmTranslateService.on('batch:delete-start', (data: BatchDeleteStartEvent) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:batch-delete-start', data)
+    })
+  })
+
+  llmTranslateService.on('batch:deleted', (data: BatchDeletedEvent) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:batch-deleted', data)
+    })
+  })
+
+  llmTranslateService.on('batch:delete-error', (data: BatchDeleteErrorEvent) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:batch-delete-error', data)
     })
   })
 
@@ -84,6 +108,24 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
     })
   })
 
+  llmTranslateService.on('task:delete-start', (data: TaskDeleteStartEvent) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:task-delete-start', data)
+    })
+  })
+
+  llmTranslateService.on('task:deleted', (data: TaskDeletedEvent) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:task-deleted', data)
+    })
+  })
+
+  llmTranslateService.on('task:delete-error', (data: TaskDeleteErrorEvent) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:task-delete-error', data)
+    })
+  })
+
   llmTranslateService.on('batch:paused', (data: BatchPauseEvent) => {
     BrowserWindow.getAllWindows().forEach(win => {
       win.webContents.send('llm-translate:batch-paused', data)
@@ -111,6 +153,57 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
   llmTranslateService.on('export:error', (data: ExportErrorEvent) => {
     BrowserWindow.getAllWindows().forEach(win => {
       win.webContents.send('llm-translate:export-error', data)
+    })
+  })
+
+  // TaskStateManager 事件监听
+  llmTranslateService.on('task:state-changed', (data) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:task-state-changed', data)
+    })
+  })
+
+  llmTranslateService.on('task:progress-updated', (data) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:task-progress-updated', data)
+    })
+  })
+
+  llmTranslateService.on('task:completed', (data) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:task-completed', data)
+    })
+  })
+
+  llmTranslateService.on('task:error-occurred', (data) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:task-error-occurred', data)
+    })
+  })
+
+  // ========== 调度器事件监听器 ==========
+  
+  llmTranslateService.on('scheduler:status-changed', (data) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:scheduler-status-changed', data)
+    })
+  })
+
+  llmTranslateService.on('scheduler:completed', (data) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:scheduler-completed', data)
+    })
+  })
+
+  llmTranslateService.on('scheduler:throttled', (data) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:scheduler-throttled', data)
+    })
+  })
+
+  llmTranslateService.on('scheduler:recovered', (data) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:scheduler-recovered', data)
     })
   })
 
@@ -193,9 +286,10 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
   ipcMain.handle('llm-translate:submit-tasks', async (_event, args: {
     batchId: string
     taskIds: string[]
+    config: TranslateConfig
   }) => {
     try {
-      const submissionId = await llmTranslateService.submitTasks(args.batchId, args.taskIds)
+      const submissionId = await llmTranslateService.submitTasks(args.batchId, args.taskIds, args.config)
       return { success: true, data: { submissionId } }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
@@ -236,6 +330,92 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
     try {
       await llmTranslateService.resumeBatch(args.batchId)
       return { success: true }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  /**
+   * 暂停任务
+   */
+  ipcMain.handle('llm-translate:pause-task', async (_event, args: { taskId: string }) => {
+    try {
+      await llmTranslateService.pauseTask(args.taskId)
+      return { success: true }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  /**
+   * 重试单个任务
+   */
+  ipcMain.handle('llm-translate:retry-task', async (_event, args: { taskId: string }) => {
+    try {
+      console.log(`🔄 [IPC] 重试任务 ${args.taskId}`)
+      
+      // 获取任务信息
+      const task = await llmTranslateService.getTask(args.taskId)
+      if (!task) {
+        throw new Error(`Task ${args.taskId} not found`)
+      }
+      
+      // 重试时不传递 config，使用数据库中的既有配置
+      const submissionId = await llmTranslateService.submitTasks(task.batchId, [args.taskId], {})
+      
+      return { success: true, data: { submissionId } }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  /**
+   * 取消正在执行的任务
+   */
+  ipcMain.handle('llm-translate:cancel-task', async (_event, args: { taskId: string }) => {
+    try {
+      console.log(`✂️ [IPC] 取消任务 ${args.taskId}`)
+      await llmTranslateService.cancelTask(args.taskId)
+      return { success: true }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  /**
+   * 取消等待中的任务
+   */
+  ipcMain.handle('llm-translate:cancel-waiting-task', async (_event, args: { taskId: string }) => {
+    try {
+      console.log(`✂️ [IPC] 取消等待任务 ${args.taskId}`)
+      await llmTranslateService.cancelWaitingTask(args.taskId)
+      return { success: true }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  /**
+   * 测试限流状态
+   */
+  ipcMain.handle('llm-translate:test-throttle', async (_event, args: { 
+    modelId: string
+    config: { intervalSeconds: number; type: 'quick' | 'api' }
+  }) => {
+    try {
+      console.log(`🔧 [IPC] 测试限流: modelId=${args.modelId}, type=${args.config.type}`)
+      const result = await llmTranslateService.testThrottle(args.modelId, args.config)
+      return { 
+        success: true, 
+        status: result.success ? 'ok' : 'throttled',
+        responseTime: result.responseTime,
+        error: result.error
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       return { success: false, error: errorMessage }
@@ -315,13 +495,39 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
   /**
    * 导出批次
    */
-  ipcMain.handle('llm-translate:export-batch', async (_event, args: {
+  ipcMain.handle('llm-translate:export-batch', (_event, args: {
     batchId: string
     options: ExportConfig
   }) => {
     try {
-      const exportId = await llmTranslateService.exportBatch(args.batchId, args.options)
+      const exportId = llmTranslateService.exportBatch(args.batchId, args.options)
       return { success: true, data: { exportId } }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  /**
+   * 删除批次
+   */
+  ipcMain.handle('llm-translate:delete-batch', (_event, args: { batchId: string }) => {
+    try {
+      const operationId = llmTranslateService.deleteBatch(args.batchId)
+      return { success: true, data: { operationId } }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  /**
+   * 删除任务
+   */
+  ipcMain.handle('llm-translate:delete-tasks', async (_event, args: { taskIds: string[] }) => {
+    try {
+      const operationId = await llmTranslateService.deleteTasks(args.taskIds)
+      return { success: true, data: { operationId } }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       return { success: false, error: errorMessage }

@@ -37,8 +37,6 @@ export interface Batch {
   waitingTasks: number
   /** 未发送任务数 */
   unsentTasks: number
-  /** 程序中断任务数 */
-  terminatedTasks: number
   
   // ===== 费用统计 =====
   /** 总费用 */

@@ -3,6 +3,12 @@
  */
 
 import type { Task, TaskFilter, Batch, TranslateConfig } from '../types'
+import type {
+  TaskStateChangeEvent,
+  TaskProgressEvent,
+  TaskCompleteEvent,
+  TaskErrorEvent
+} from '../../../../src-electron/types/LlmTranslate'
 
 // ==================== Store 状态类型 ====================
 
@@ -32,10 +38,11 @@ export interface TranslateDatasource {
   updateBatch(batchId: string, updates: Partial<Batch>): Promise<Batch>
   deleteBatch(batchId: string): Promise<void>
   retryFailedTasks(batchId: string): Promise<void>
-  pauseBatch(batchId: string): Promise<void>
   resumeBatch(batchId: string): Promise<void>
-  sendTasks(taskIds: string[]): Promise<void>
+  sendTasks(batchId: string, taskIds: string[], config: TranslateConfig): Promise<void>
   deleteTasks(taskIds: string[]): Promise<void>
+  retryTask(taskId: string): Promise<void>
+  cancelTask(taskId: string): Promise<void>
 }
 
 // ==================== Datasource 上下文类型 ====================
@@ -49,10 +56,10 @@ export interface DatasourceContext {
     updateBatch(params: { batchId: string; updates: Partial<Batch> }): Promise<{ success: boolean; data?: { batch: Batch }; error?: string }>
     deleteBatch(params: { batchId: string }): Promise<{ success: boolean; error?: string }>
     retryFailedTasks(params: { batchId: string }): Promise<{ success: boolean; error?: string }>
-    pauseBatch(params: { batchId: string }): Promise<{ success: boolean; error?: string }>
     resumeBatch(params: { batchId: string }): Promise<{ success: boolean; error?: string }>
-    sendTasks(params: { taskIds: string[] }): Promise<{ success: boolean; error?: string }>
+    sendTasks(params: { batchId: string; taskIds: string[]; config: TranslateConfig }): Promise<{ success: boolean; error?: string }}
     deleteTasks(params: { taskIds: string[] }): Promise<{ success: boolean; error?: string }>
+    retryTask(params: { taskId: string }): Promise<{ success: boolean; error?: string }>
   }
 }
 
@@ -114,3 +121,10 @@ export interface TaskProgressInfo {
   replyTokens: number
   predictedTokens: number
 }
+
+// ==================== 事件类型包装 ====================
+
+export type TaskStateEvent = TaskStateChangeEvent
+export type StoreTaskProgressEvent = TaskProgressEvent
+export type StoreTaskCompleteEvent = TaskCompleteEvent
+export type StoreTaskErrorEvent = TaskErrorEvent
