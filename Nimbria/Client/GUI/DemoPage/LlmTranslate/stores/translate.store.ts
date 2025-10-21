@@ -346,8 +346,8 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
 
     try {
       const taskIds = Array.from(selectedTaskIds.value)
-      console.log('📤 [Store] 发送任务:', { batchId: currentBatch.value.id, taskIds })
-      await datasource.value.sendTasks(currentBatch.value.id, taskIds)
+      console.log('📤 [Store] 发送任务:', { batchId: currentBatch.value.id, taskIds, config })
+      await datasource.value.sendTasks(currentBatch.value.id, taskIds, config.value)
       
       // 重新加载任务列表
       await fetchTaskList(currentBatch.value.id)

@@ -303,16 +303,19 @@ export class LlmTranslationClient extends EventEmitter {
     // 动态导入 LangChainClient
     const { LangChainClient } = await import('../llm-chat-service/langchain-client')
     
-    // 构建客户端配置（只传递已定义的参数）
+    // 构建客户端配置
+    // 注意：modelConfig 已经是三层级合并后的完整对象
+    // 包括：用户UI配置 > 模型自定义配置 > 提供商配置
     const clientConfig = {
       modelName: modelConfig.modelName,
       apiKey: modelConfig.apiKey,
       baseUrl: modelConfig.baseUrl,
-      ...(this.config.temperature !== undefined && { temperature: this.config.temperature }),
-      ...(this.config.maxTokens !== undefined && { maxTokens: this.config.maxTokens }),
-      ...(this.config.topP !== undefined && { topP: this.config.topP }),
-      ...(this.config.frequencyPenalty !== undefined && { frequencyPenalty: this.config.frequencyPenalty }),
-      ...(this.config.presencePenalty !== undefined && { presencePenalty: this.config.presencePenalty }),
+      // 直接从已合并的 modelConfig 中取值（已经过三层级合并）
+      ...(modelConfig.temperature !== undefined && { temperature: modelConfig.temperature }),
+      ...(modelConfig.maxTokens !== undefined && { maxTokens: modelConfig.maxTokens }),
+      ...(modelConfig.topP !== undefined && { topP: modelConfig.topP }),
+      ...(modelConfig.frequencyPenalty !== undefined && { frequencyPenalty: modelConfig.frequencyPenalty }),
+      ...(modelConfig.presencePenalty !== undefined && { presencePenalty: modelConfig.presencePenalty }),
       timeout: this.config.timeout,
       maxRetries: this.config.maxRetries,
       useChat: true
@@ -357,18 +360,36 @@ export class LlmTranslationClient extends EventEmitter {
       throw new Error(`Provider ${providerId} not found`)
     }
 
-    // ✅ 层叠配置：提供商默认配置 + 用户自定义配置
-    // 优先级：用户配置 > 提供商默认 > 模型默认
+    // 🔍 查找模型的自定义配置
+    let modelCustomConfig: Partial<ModelConfig> = {}
+    if (provider.supportedModels && Array.isArray(provider.supportedModels)) {
+      for (const modelGroup of provider.supportedModels) {
+        if (modelGroup.models && Array.isArray(modelGroup.models)) {
+          const foundModel = modelGroup.models.find((m: any) => m.name === modelName)
+          if (foundModel && foundModel.config) {
+            modelCustomConfig = foundModel.config
+            console.log(`🔍 [TranslationClient] 找到模型自定义配置: ${modelName}`, modelCustomConfig)
+            break
+          }
+        }
+      }
+    }
+
+    // ✅ 三层级级联配置
+    // 优先级：用户UI配置 > 模型自定义配置 > 提供商配置
     const config = {
-      // 1️⃣ 提供商默认配置（可能包含 maxTokens、temperature 等）
+      // 1️⃣ 提供商配置（最低优先级）
       ...provider.defaultConfig,
       
-      // 2️⃣ 基础配置（必需）
+      // 2️⃣ 模型自定义配置（中间优先级）
+      ...modelCustomConfig,
+      
+      // 3️⃣ 基础配置（必需）
       modelName,
       apiKey: provider.apiKey,
       baseUrl: provider.baseUrl,
       
-      // 3️⃣ 用户自定义配置（显式覆盖，只传有值的）
+      // 4️⃣ 用户UI配置（最高优先级，只有有值才覆盖）
       ...(this.config.temperature !== undefined && { temperature: this.config.temperature }),
       ...(this.config.maxTokens !== undefined && { maxTokens: this.config.maxTokens }),
       ...(this.config.topP !== undefined && { topP: this.config.topP }),
@@ -376,14 +397,15 @@ export class LlmTranslationClient extends EventEmitter {
       ...(this.config.presencePenalty !== undefined && { presencePenalty: this.config.presencePenalty })
     }
     
-    console.log(`🔍 [TranslationClient] 最终模型配置:`, {
+    console.log(`🔍 [TranslationClient] 最终模型配置（三层级级联）:`, {
       modelName: config.modelName,
       baseUrl: config.baseUrl,
       temperature: config.temperature,
       maxTokens: config.maxTokens,
       topP: config.topP,
       frequencyPenalty: config.frequencyPenalty,
-      presencePenalty: config.presencePenalty
+      presencePenalty: config.presencePenalty,
+      来源: '提供商配置 < 模型自定义配置 < 用户UI配置'
     })
     
     return config

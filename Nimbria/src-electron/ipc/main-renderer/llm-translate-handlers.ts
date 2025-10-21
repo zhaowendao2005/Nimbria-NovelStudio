@@ -286,9 +286,10 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
   ipcMain.handle('llm-translate:submit-tasks', async (_event, args: {
     batchId: string
     taskIds: string[]
+    config: TranslateConfig
   }) => {
     try {
-      const submissionId = await llmTranslateService.submitTasks(args.batchId, args.taskIds)
+      const submissionId = await llmTranslateService.submitTasks(args.batchId, args.taskIds, args.config)
       return { success: true, data: { submissionId } }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
@@ -361,8 +362,8 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
         throw new Error(`Task ${args.taskId} not found`)
       }
       
-      // 将任务状态重置为 unsent 以便重新提交
-      const submissionId = await llmTranslateService.submitTasks(task.batchId, [args.taskId])
+      // 重试时不传递 config，使用数据库中的既有配置
+      const submissionId = await llmTranslateService.submitTasks(task.batchId, [args.taskId], {})
       
       return { success: true, data: { submissionId } }
     } catch (error) {

@@ -675,7 +675,7 @@ export class LlmTranslateService extends EventEmitter {
    * 提交任务
    * 立即返回 submissionId，异步启动任务执行
    */
-  async submitTasks(batchId: string, taskIds: string[]): Promise<string> {
+  async submitTasks(batchId: string, taskIds: string[], newConfig: TranslateConfig): Promise<string> {
     console.log(`📤 [LlmTranslateService] 提交任务 ${taskIds.join(', ')} 到批次 ${batchId}`)
     
     // 1. 生成提交 ID
@@ -687,15 +687,39 @@ export class LlmTranslateService extends EventEmitter {
       throw new Error(`Batch ${batchId} not found`)
     }
     
-    // 3. 解析批次配置
-    const config: TranslateConfig = typeof batch.configJson === 'string' 
+    // 3. 合并配置：使用前端传来的最新 config（高优先级），覆盖数据库中的旧配置
+    const oldConfig: TranslateConfig = typeof batch.configJson === 'string' 
       ? JSON.parse(batch.configJson) 
       : batch.configJson
     
-    // 4. 提取调度器配置（如果有）
-    const maxConcurrency = config.schedulerConfig?.maxConcurrency || 3 // 默认并发数为3
+    // 只覆盖用户明确设置的参数（即 newConfig 中不为 undefined 的字段）
+    const mergedConfig: TranslateConfig = {
+      ...oldConfig,
+      ...newConfig
+    }
     
-    // 5. 将任务标记为 'waiting' 状态（写入数据库）
+    console.log(`🔄 [LlmTranslateService] 配置已合并：`, {
+      模型ID: mergedConfig.modelId,
+      最大输出Token: mergedConfig.maxTokens,
+      温度: mergedConfig.temperature,
+      topP: mergedConfig.topP,
+      frequencyPenalty: mergedConfig.frequencyPenalty,
+      presencePenalty: mergedConfig.presencePenalty
+    })
+    
+    // 4. 更新数据库中的配置
+    if (this.projectDatabase) {
+      this.projectDatabase.execute(
+        `UPDATE Llmtranslate_batches SET config_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [JSON.stringify(mergedConfig), batchId]
+      )
+      console.log(`✅ [LlmTranslateService] 批次 ${batchId} 配置已更新到数据库`)
+    }
+    
+    // 5. 提取调度器配置（如果有）
+    const maxConcurrency = mergedConfig.schedulerConfig?.maxConcurrency || 3 // 默认并发数为3
+    
+    // 6. 将任务标记为 'waiting' 状态（写入数据库）
     if (this.projectDatabase) {
       for (const taskId of taskIds) {
         this.projectDatabase.execute(
@@ -706,9 +730,9 @@ export class LlmTranslateService extends EventEmitter {
       console.log(`✅ [LlmTranslateService] ${taskIds.length} 个任务已标记为 waiting`)
     }
     
-    // 6. 创建并启动 BatchScheduler（异步，不阻塞）
+    // 7. 创建并启动 BatchScheduler（异步，不阻塞），传入合并后的 config
     setImmediate(() => {
-      void this.startBatchScheduler(batchId, taskIds, maxConcurrency)
+      void this.startBatchScheduler(batchId, taskIds, maxConcurrency, mergedConfig)
     })
     
     return submissionId
@@ -720,7 +744,8 @@ export class LlmTranslateService extends EventEmitter {
   private async startBatchScheduler(
     batchId: string,
     taskIds: string[],
-    maxConcurrency: number
+    maxConcurrency: number,
+    config: TranslateConfig
   ): Promise<void> {
     try {
       // 检查是否已有调度器在运行
@@ -728,7 +753,9 @@ export class LlmTranslateService extends EventEmitter {
         const existingScheduler = this.schedulers.get(batchId)!
         const status = existingScheduler.getStatus()
         if (status.state === 'running' || status.state === 'paused') {
-          console.warn(`⚠️ [LlmTranslateService] 批次 ${batchId} 已有调度器在运行`)
+          // ✨ 关键改动：调度器已在运行，将新任务添加到队列
+          console.log(`📌 [LlmTranslateService] 批次 ${batchId} 的调度器已在运行，添加 ${taskIds.length} 个新任务到队列`)
+          existingScheduler.addTasks(taskIds)
           return
         }
         // 如果之前的调度器已完成，先销毁
@@ -737,11 +764,7 @@ export class LlmTranslateService extends EventEmitter {
       
       // 获取批次配置以提取modelId
       const batch = await this.getBatch(batchId)
-      const config: TranslateConfig = typeof batch?.configJson === 'string' 
-        ? JSON.parse(batch.configJson) 
-        : batch?.configJson || {}
-      
-      const modelId = config.modelId || ''
+      const modelId = batch?.configJson ? JSON.parse(batch.configJson).modelId || '' : ''
       
       // 创建 ThrottleProbe（如果配置了探针）
       let probe: ThrottleProbe | undefined

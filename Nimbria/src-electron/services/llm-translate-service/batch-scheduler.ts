@@ -372,6 +372,23 @@ export class BatchScheduler extends EventEmitter {
   }
 
   /**
+   * 动态添加新任务到等待队列
+   * 用于在调度器运行时接收后续提交的任务
+   */
+  addTasks(newTaskIds: string[]): void {
+    if (!this.isRunning) {
+      console.warn(`⚠️ [BatchScheduler] 调度器未运行，无法添加任务`)
+      return
+    }
+
+    this.waitingQueue.push(...newTaskIds)
+    console.log(`➕ [BatchScheduler] 添加 ${newTaskIds.length} 个任务到等待队列，当前队列长度: ${this.waitingQueue.length}`)
+    
+    // 立即尝试处理新任务
+    void this.processQueue()
+  }
+
+  /**
    * 清理资源
    */
   destroy(): void {
