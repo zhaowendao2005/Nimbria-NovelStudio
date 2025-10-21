@@ -24,7 +24,10 @@
       "@shared-utils": ["Client/Utils/shared"],
       "@shared-stores": ["Client/stores"],
       "@demo": ["Client/GUI/DemoPage"],
-      "@demo/*": ["Client/GUI/DemoPage/*"]
+      "@demo/*": ["Client/GUI/DemoPage/*"],
+      "@types": ["Client/types"],
+      "@types/*": ["Client/types/*"],
+      "Business/StarChart": ["Client/types/Business/StarChart"]
     }
   }
 }

@@ -111,6 +111,7 @@ export default configure((/* ctx */) => {
           { find: '@stores', replacement: path.resolve(__dirname, 'Client/stores') },
           { find: '@utils', replacement: path.resolve(__dirname, 'Client/Utils') },
           { find: '@types', replacement: path.resolve(__dirname, 'Client/types') },
+          { find: /^@types\//, replacement: path.resolve(__dirname, 'Client/types/') },
           { find: '@gui', replacement: path.resolve(__dirname, 'Client/GUI') },
           
           // 系统入口别名
