@@ -50,8 +50,11 @@ export interface LangChainClientConfig {
   modelName: string
   apiKey: string
   baseUrl: string
-  temperature: number
-  maxTokens: number
+  temperature?: number          // 可选，不设置则使用提供商/模型默认
+  maxTokens?: number           // 可选，不设置则使用提供商/模型默认
+  topP?: number                // 可选
+  frequencyPenalty?: number    // 可选
+  presencePenalty?: number     // 可选
   timeout: number
   maxRetries: number
   useChat: boolean             // true: chat API, false: completion API

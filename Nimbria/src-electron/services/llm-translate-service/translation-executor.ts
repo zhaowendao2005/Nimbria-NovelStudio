@@ -132,8 +132,12 @@ export class TranslationExecutor {
       const clientConfig: TranslationClientConfig = {
         modelId: config.modelId,
         systemPrompt: config.systemPrompt,
-        temperature: 0.7,
-        maxTokens: config.predictedTokens,
+        // 使用用户配置的参数（可选），不设置则由层叠配置决定
+        temperature: config.temperature,
+        maxTokens: config.maxTokens,
+        topP: config.topP,
+        frequencyPenalty: config.frequencyPenalty,
+        presencePenalty: config.presencePenalty,
         timeout: 30000,
         maxRetries: 3
       }

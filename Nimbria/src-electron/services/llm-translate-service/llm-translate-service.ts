@@ -309,7 +309,13 @@ export class LlmTranslateService extends EventEmitter {
         concurrency: config.concurrency,
         replyMode: config.replyMode,
         predictedTokens: config.predictedTokens,
-        schedulerConfig: config.schedulerConfig
+        schedulerConfig: config.schedulerConfig,
+        // 高级模型参数（可选）
+        maxTokens: config.maxTokens,
+        temperature: config.temperature,
+        topP: config.topP,
+        frequencyPenalty: config.frequencyPenalty,
+        presencePenalty: config.presencePenalty
       }
 
       // 2. 根据分片策略分割内容

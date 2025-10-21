@@ -28,11 +28,20 @@ export interface TranslationClientConfig {
   /** 系统提示词 */
   systemPrompt: string
   
-  /** 温度参数 */
-  temperature: number
+  /** 温度参数（可选，不设置则使用模型/提供商默认） */
+  temperature?: number
   
-  /** 最大输出 Token */
-  maxTokens: number
+  /** 最大输出 Token（可选，不设置则使用模型/提供商默认） */
+  maxTokens?: number
+  
+  /** Top P 采样参数（可选） */
+  topP?: number
+  
+  /** Frequency Penalty（可选） */
+  frequencyPenalty?: number
+  
+  /** Presence Penalty（可选） */
+  presencePenalty?: number
   
   /** 超时时间（毫秒） */
   timeout: number

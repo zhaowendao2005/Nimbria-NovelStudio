@@ -326,7 +326,9 @@
     <SchedulerConfigDrawer
       v-model:visible="configDrawerVisible"
       :initial-config="currentSchedulerConfig"
+      :translate-config="store.config"
       @save="handleConfigSave"
+      @save-model-params="handleModelParamsSave"
     />
   </div>
 </template>
@@ -559,8 +561,52 @@ const showSchedulerConfig = () => {
 const handleConfigSave = (config: SchedulerConfig) => {
   console.log('保存调度器配置:', config)
   currentSchedulerConfig.value = { ...config }
-  // TODO: 调用 datasource 保存配置到后端
-  ElMessage({ message: '配置已保存', type: 'success' })
+  // 更新 store 中的配置
+  store.config.schedulerConfig = { ...config }
+  ElMessage({ message: '调度器配置已保存', type: 'success' })
+}
+
+// 保存模型参数配置
+const handleModelParamsSave = (params: {
+  maxTokens?: number
+  temperature?: number
+  topP?: number
+  frequencyPenalty?: number
+  presencePenalty?: number
+}) => {
+  console.log('保存模型参数:', params)
+  // 更新 store 中的配置（只设置有值的参数，避免 undefined）
+  if (params.maxTokens !== undefined) {
+    store.config.maxTokens = params.maxTokens
+  } else {
+    delete store.config.maxTokens
+  }
+  
+  if (params.temperature !== undefined) {
+    store.config.temperature = params.temperature
+  } else {
+    delete store.config.temperature
+  }
+  
+  if (params.topP !== undefined) {
+    store.config.topP = params.topP
+  } else {
+    delete store.config.topP
+  }
+  
+  if (params.frequencyPenalty !== undefined) {
+    store.config.frequencyPenalty = params.frequencyPenalty
+  } else {
+    delete store.config.frequencyPenalty
+  }
+  
+  if (params.presencePenalty !== undefined) {
+    store.config.presencePenalty = params.presencePenalty
+  } else {
+    delete store.config.presencePenalty
+  }
+  
+  ElMessage({ message: '模型参数已保存', type: 'success' })
 }
 
 // 关闭配置抽屉

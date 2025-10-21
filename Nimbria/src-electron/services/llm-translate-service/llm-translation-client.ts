@@ -303,12 +303,16 @@ export class LlmTranslationClient extends EventEmitter {
     // 动态导入 LangChainClient
     const { LangChainClient } = await import('../llm-chat-service/langchain-client')
     
+    // 构建客户端配置（只传递已定义的参数）
     const clientConfig = {
       modelName: modelConfig.modelName,
       apiKey: modelConfig.apiKey,
       baseUrl: modelConfig.baseUrl,
-      temperature: this.config.temperature,
-      maxTokens: this.config.maxTokens,
+      ...(this.config.temperature !== undefined && { temperature: this.config.temperature }),
+      ...(this.config.maxTokens !== undefined && { maxTokens: this.config.maxTokens }),
+      ...(this.config.topP !== undefined && { topP: this.config.topP }),
+      ...(this.config.frequencyPenalty !== undefined && { frequencyPenalty: this.config.frequencyPenalty }),
+      ...(this.config.presencePenalty !== undefined && { presencePenalty: this.config.presencePenalty }),
       timeout: this.config.timeout,
       maxRetries: this.config.maxRetries,
       useChat: true
@@ -317,7 +321,10 @@ export class LlmTranslationClient extends EventEmitter {
     console.log(`🔧 [TranslationClient] LangChainClient 配置:`, {
       modelName: clientConfig.modelName,
       temperature: clientConfig.temperature,
-      maxTokens: clientConfig.maxTokens
+      maxTokens: clientConfig.maxTokens,
+      topP: clientConfig.topP,
+      frequencyPenalty: clientConfig.frequencyPenalty,
+      presencePenalty: clientConfig.presencePenalty
     })
 
     this.activeClient = new LangChainClient(clientConfig)
@@ -350,16 +357,33 @@ export class LlmTranslationClient extends EventEmitter {
       throw new Error(`Provider ${providerId} not found`)
     }
 
+    // ✅ 层叠配置：提供商默认配置 + 用户自定义配置
+    // 优先级：用户配置 > 提供商默认 > 模型默认
     const config = {
+      // 1️⃣ 提供商默认配置（可能包含 maxTokens、temperature 等）
+      ...provider.defaultConfig,
+      
+      // 2️⃣ 基础配置（必需）
       modelName,
       apiKey: provider.apiKey,
       baseUrl: provider.baseUrl,
-      ...provider.defaultConfig
+      
+      // 3️⃣ 用户自定义配置（显式覆盖，只传有值的）
+      ...(this.config.temperature !== undefined && { temperature: this.config.temperature }),
+      ...(this.config.maxTokens !== undefined && { maxTokens: this.config.maxTokens }),
+      ...(this.config.topP !== undefined && { topP: this.config.topP }),
+      ...(this.config.frequencyPenalty !== undefined && { frequencyPenalty: this.config.frequencyPenalty }),
+      ...(this.config.presencePenalty !== undefined && { presencePenalty: this.config.presencePenalty })
     }
     
     console.log(`🔍 [TranslationClient] 最终模型配置:`, {
       modelName: config.modelName,
-      baseUrl: config.baseUrl
+      baseUrl: config.baseUrl,
+      temperature: config.temperature,
+      maxTokens: config.maxTokens,
+      topP: config.topP,
+      frequencyPenalty: config.frequencyPenalty,
+      presencePenalty: config.presencePenalty
     })
     
     return config

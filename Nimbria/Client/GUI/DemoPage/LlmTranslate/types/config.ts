@@ -55,6 +55,18 @@ export interface TranslateConfig {
   /** 预测的输出 Token 数（用于进度估算） */
   predictedTokens: number
   
+  // ===== 高级模型参数配置（可选，不设置则使用模型/提供商默认值）=====
+  /** 最大输出token数（可选，不设置则使用模型默认） */
+  maxTokens?: number
+  /** 温度参数 0-2（可选，不设置则使用模型默认） */
+  temperature?: number
+  /** Top P 采样参数 0-1（可选） */
+  topP?: number
+  /** Frequency Penalty -2.0-2.0（可选） */
+  frequencyPenalty?: number
+  /** Presence Penalty -2.0-2.0（可选） */
+  presencePenalty?: number
+  
   // ===== 调度器配置 =====
   /** 调度器配置（可选，默认使用系统默认值） */
   schedulerConfig?: SchedulerConfig
@@ -74,6 +86,13 @@ export interface BatchConfig {
   replyMode: ReplyMode
   predictedTokens: number
   schedulerConfig?: SchedulerConfig
+  
+  // 高级模型参数（可选）
+  maxTokens?: number
+  temperature?: number
+  topP?: number
+  frequencyPenalty?: number
+  presencePenalty?: number
 }
 
 /**

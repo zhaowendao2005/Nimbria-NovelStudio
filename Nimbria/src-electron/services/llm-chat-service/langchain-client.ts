@@ -15,15 +15,19 @@ export class LangChainClient {
   constructor(config: LangChainClientConfig) {
     this.config = config
 
-    // 创建 ChatOpenAI 实例
+    // 创建 ChatOpenAI 实例（使用层叠配置）
     this.client = new ChatOpenAI({
       modelName: config.modelName,
       openAIApiKey: config.apiKey,
       configuration: {
         baseURL: config.baseUrl
       },
-      temperature: config.temperature,
-      maxTokens: config.maxTokens,
+      // 只传递已定义的可选参数
+      ...(config.temperature !== undefined && { temperature: config.temperature }),
+      ...(config.maxTokens !== undefined && { maxTokens: config.maxTokens }),
+      ...(config.topP !== undefined && { topP: config.topP }),
+      ...(config.frequencyPenalty !== undefined && { frequencyPenalty: config.frequencyPenalty }),
+      ...(config.presencePenalty !== undefined && { presencePenalty: config.presencePenalty }),
       timeout: config.timeout,
       maxRetries: config.maxRetries,
       streaming: true  // 启用流式响应
@@ -144,15 +148,19 @@ export class LangChainClient {
   updateConfig(config: Partial<LangChainClientConfig>): void {
     this.config = { ...this.config, ...config }
     
-    // 重新创建客户端
+    // 重新创建客户端（使用层叠配置）
     this.client = new ChatOpenAI({
       modelName: this.config.modelName,
       openAIApiKey: this.config.apiKey,
       configuration: {
         baseURL: this.config.baseUrl
       },
-      temperature: this.config.temperature,
-      maxTokens: this.config.maxTokens,
+      // 只传递已定义的可选参数
+      ...(this.config.temperature !== undefined && { temperature: this.config.temperature }),
+      ...(this.config.maxTokens !== undefined && { maxTokens: this.config.maxTokens }),
+      ...(this.config.topP !== undefined && { topP: this.config.topP }),
+      ...(this.config.frequencyPenalty !== undefined && { frequencyPenalty: this.config.frequencyPenalty }),
+      ...(this.config.presencePenalty !== undefined && { presencePenalty: this.config.presencePenalty }),
       timeout: this.config.timeout,
       maxRetries: this.config.maxRetries,
       streaming: true

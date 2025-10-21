@@ -1,7 +1,7 @@
 <template>
   <el-drawer
     :model-value="visible"
-    @update:model-value="(val) => $emit('update:visible', val)"
+    @update:model-value="(val: boolean) => $emit('update:visible', val)"
     title="调度器配置"
     direction="rtl"
     size="500px"
@@ -117,7 +117,202 @@
           </div>
         </el-tab-pane>
 
-        <!-- Tab 3: 高级选项 -->
+        <!-- Tab 3: 模型参数 -->
+        <el-tab-pane label="模型参数" name="model">
+          <div class="config-section">
+            <el-alert
+              title="层叠配置说明"
+              type="info"
+              :closable="false"
+              class="config-alert mb-3"
+            >
+              <div>这些参数为<strong>可选配置</strong>，不设置则自动使用模型或提供商的默认值</div>
+              <div>优先级：用户配置 > 提供商默认 > 模型默认</div>
+            </el-alert>
+
+            <!-- 最大输出Token数 -->
+            <div class="config-item">
+              <div class="config-label">
+                <span>最大输出Token数</span>
+                <el-tooltip content="限制模型生成的最大token数。不设置则使用模型默认值（通常为4096-128000）" placement="top">
+                  <el-icon class="info-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
+              <div class="param-control">
+                <el-input-number
+                  v-model="modelParamsForm.maxTokens"
+                  :min="100"
+                  :max="200000"
+                  :step="1000"
+                  placeholder="使用默认"
+                  size="small"
+                  class="flex-1"
+                />
+                <el-button 
+                  v-if="modelParamsForm.maxTokens !== undefined"
+                  type="danger" 
+                  size="small"
+                  text
+                  @click="delete modelParamsForm.maxTokens"
+                >
+                  清除
+                </el-button>
+              </div>
+              <div v-if="modelParamsForm.maxTokens !== undefined" class="param-value">
+                当前值: {{ modelParamsForm.maxTokens }}
+              </div>
+              <div v-else class="param-value placeholder">
+                未设置（使用默认值）
+              </div>
+            </div>
+
+            <!-- 温度参数 -->
+            <div class="config-item">
+              <div class="config-label">
+                <span>温度 (Temperature)</span>
+                <el-tooltip content="控制输出的随机性。0=确定性，2=极度随机。推荐翻译任务使用0.3-0.7" placement="top">
+                  <el-icon class="info-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
+              <div class="param-control">
+                <el-slider
+                  v-model="modelParamsForm.temperature"
+                  :min="0"
+                  :max="2"
+                  :step="0.1"
+                  :show-input="true"
+                  :show-input-controls="false"
+                  class="flex-1"
+                />
+                <el-button 
+                  v-if="modelParamsForm.temperature !== undefined"
+                  type="danger" 
+                  size="small"
+                  text
+                  @click="delete modelParamsForm.temperature"
+                >
+                  清除
+                </el-button>
+              </div>
+              <div v-if="modelParamsForm.temperature !== undefined" class="param-value">
+                当前值: {{ modelParamsForm.temperature }}
+              </div>
+              <div v-else class="param-value placeholder">
+                未设置（使用默认值）
+              </div>
+            </div>
+
+            <!-- Top P -->
+            <div class="config-item">
+              <div class="config-label">
+                <span>Top P</span>
+                <el-tooltip content="核采样参数。0.1表示仅考虑前10%的概率分布。推荐0.9-0.95" placement="top">
+                  <el-icon class="info-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
+              <div class="param-control">
+                <el-slider
+                  v-model="modelParamsForm.topP"
+                  :min="0"
+                  :max="1"
+                  :step="0.05"
+                  :show-input="true"
+                  :show-input-controls="false"
+                  class="flex-1"
+                />
+                <el-button 
+                  v-if="modelParamsForm.topP !== undefined"
+                  type="danger" 
+                  size="small"
+                  text
+                  @click="delete modelParamsForm.topP"
+                >
+                  清除
+                </el-button>
+              </div>
+              <div v-if="modelParamsForm.topP !== undefined" class="param-value">
+                当前值: {{ modelParamsForm.topP }}
+              </div>
+              <div v-else class="param-value placeholder">
+                未设置（使用默认值）
+              </div>
+            </div>
+
+            <!-- Frequency Penalty -->
+            <div class="config-item">
+              <div class="config-label">
+                <span>Frequency Penalty</span>
+                <el-tooltip content="降低重复词汇的概率。-2.0到2.0，正值减少重复" placement="top">
+                  <el-icon class="info-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
+              <div class="param-control">
+                <el-slider
+                  v-model="modelParamsForm.frequencyPenalty"
+                  :min="-2"
+                  :max="2"
+                  :step="0.1"
+                  :show-input="true"
+                  :show-input-controls="false"
+                  class="flex-1"
+                />
+                <el-button 
+                  v-if="modelParamsForm.frequencyPenalty !== undefined"
+                  type="danger" 
+                  size="small"
+                  text
+                  @click="delete modelParamsForm.frequencyPenalty"
+                >
+                  清除
+                </el-button>
+              </div>
+              <div v-if="modelParamsForm.frequencyPenalty !== undefined" class="param-value">
+                当前值: {{ modelParamsForm.frequencyPenalty }}
+              </div>
+              <div v-else class="param-value placeholder">
+                未设置（使用默认值）
+              </div>
+            </div>
+
+            <!-- Presence Penalty -->
+            <div class="config-item">
+              <div class="config-label">
+                <span>Presence Penalty</span>
+                <el-tooltip content="增加话题多样性。-2.0到2.0，正值鼓励新话题" placement="top">
+                  <el-icon class="info-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
+              <div class="param-control">
+                <el-slider
+                  v-model="modelParamsForm.presencePenalty"
+                  :min="-2"
+                  :max="2"
+                  :step="0.1"
+                  :show-input="true"
+                  :show-input-controls="false"
+                  class="flex-1"
+                />
+                <el-button 
+                  v-if="modelParamsForm.presencePenalty !== undefined"
+                  type="danger" 
+                  size="small"
+                  text
+                  @click="delete modelParamsForm.presencePenalty"
+                >
+                  清除
+                </el-button>
+              </div>
+              <div v-if="modelParamsForm.presencePenalty !== undefined" class="param-value">
+                当前值: {{ modelParamsForm.presencePenalty }}
+              </div>
+              <div v-else class="param-value placeholder">
+                未设置（使用默认值）
+              </div>
+            </div>
+          </div>
+        </el-tab-pane>
+
+        <!-- Tab 4: 高级选项 -->
         <el-tab-pane label="高级选项" name="advanced">
           <div class="config-section">
             <!-- 调度策略 -->
@@ -160,16 +355,25 @@
 import { ref, watch } from 'vue'
 import { QuestionFilled } from '@element-plus/icons-vue'
 import type { SchedulerConfig } from '../types/scheduler'
+import type { TranslateConfig } from '../types/config'
 import { DEFAULT_SCHEDULER_CONFIG } from '../types/scheduler'
 
 interface Props {
   visible: boolean
   initialConfig?: SchedulerConfig
+  translateConfig?: TranslateConfig
 }
 
 interface Emits {
   (e: 'update:visible', value: boolean): void
   (e: 'save', config: SchedulerConfig): void
+  (e: 'save-model-params', params: {
+    maxTokens?: number
+    temperature?: number
+    topP?: number
+    frequencyPenalty?: number
+    presencePenalty?: number
+  }): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -182,8 +386,19 @@ const emit = defineEmits<Emits>()
 // 当前激活的Tab
 const activeTab = ref<string>('basic')
 
-// 表单数据
+// 表单数据（调度器配置）
 const form = ref<SchedulerConfig>({ ...DEFAULT_SCHEDULER_CONFIG })
+
+// 模型参数表单（从 translateConfig 中提取）
+interface ModelParamsForm {
+  maxTokens?: number
+  temperature?: number
+  topP?: number
+  frequencyPenalty?: number
+  presencePenalty?: number
+}
+
+const modelParamsForm = ref<ModelParamsForm>({})
 
 // 监听初始配置变化
 watch(() => props.initialConfig, (newConfig) => {
@@ -192,10 +407,34 @@ watch(() => props.initialConfig, (newConfig) => {
   }
 }, { immediate: true })
 
+// 监听 translateConfig 变化（加载模型参数）
+watch(() => props.translateConfig, (newConfig) => {
+  if (newConfig) {
+    const params: ModelParamsForm = {}
+    if (newConfig.maxTokens !== undefined) params.maxTokens = newConfig.maxTokens
+    if (newConfig.temperature !== undefined) params.temperature = newConfig.temperature
+    if (newConfig.topP !== undefined) params.topP = newConfig.topP
+    if (newConfig.frequencyPenalty !== undefined) params.frequencyPenalty = newConfig.frequencyPenalty
+    if (newConfig.presencePenalty !== undefined) params.presencePenalty = newConfig.presencePenalty
+    modelParamsForm.value = params
+  }
+}, { immediate: true })
+
 // 监听visible变化
 watch(() => props.visible, (newVisible) => {
-  if (newVisible && props.initialConfig) {
-    form.value = { ...props.initialConfig }
+  if (newVisible) {
+    if (props.initialConfig) {
+      form.value = { ...props.initialConfig }
+    }
+    if (props.translateConfig) {
+      const params: ModelParamsForm = {}
+      if (props.translateConfig.maxTokens !== undefined) params.maxTokens = props.translateConfig.maxTokens
+      if (props.translateConfig.temperature !== undefined) params.temperature = props.translateConfig.temperature
+      if (props.translateConfig.topP !== undefined) params.topP = props.translateConfig.topP
+      if (props.translateConfig.frequencyPenalty !== undefined) params.frequencyPenalty = props.translateConfig.frequencyPenalty
+      if (props.translateConfig.presencePenalty !== undefined) params.presencePenalty = props.translateConfig.presencePenalty
+      modelParamsForm.value = params
+    }
     activeTab.value = 'basic'
   }
 })
@@ -207,7 +446,12 @@ const handleSave = () => {
     return
   }
   
+  // 保存调度器配置
   emit('save', { ...form.value })
+  
+  // 保存模型参数
+  emit('save-model-params', { ...modelParamsForm.value })
+  
   emit('update:visible', false)
 }
 
@@ -301,6 +545,31 @@ const validateForm = (): boolean => {
       div {
         margin-bottom: 4px;
       }
+    }
+    
+    &.mb-3 {
+      margin-bottom: 16px;
+    }
+  }
+
+  .param-control {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    
+    .flex-1 {
+      flex: 1;
+    }
+  }
+
+  .param-value {
+    font-size: 12px;
+    color: #409eff;
+    margin-top: 4px;
+    
+    &.placeholder {
+      color: #909399;
+      font-style: italic;
     }
   }
 
