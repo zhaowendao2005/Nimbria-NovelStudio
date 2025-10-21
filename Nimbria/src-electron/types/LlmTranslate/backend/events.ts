@@ -136,3 +136,46 @@ export interface ExportErrorEvent {
   batchId: string
   error: string
 }
+
+// ==================== 调度器事件 ====================
+
+/** 调度器状态变化事件 */
+export interface SchedulerStatusChangedEvent {
+  batchId: string
+  status: {
+    state: 'idle' | 'running' | 'paused' | 'throttled' | 'completed'
+    waitingCount: number
+    activeCount: number
+    completedCount: number
+    errorCount: number
+    throttledUntil: number | undefined
+  }
+}
+
+/** 调度器完成事件 */
+export interface SchedulerCompletedEvent {
+  batchId: string
+  completedCount: number
+  errorCount: number
+}
+
+/** 调度器限流事件 */
+export interface SchedulerThrottledEvent {
+  batchId: string
+  throttledUntil: number
+}
+
+/** 调度器从限流恢复事件 */
+export interface ThrottleRecoveredEvent {
+  batchId: string
+}
+
+/** 限流测试结果事件 */
+export interface ThrottleTestResultEvent {
+  modelId: string
+  result: {
+    success: boolean
+    responseTime: number
+    error?: string
+  }
+}

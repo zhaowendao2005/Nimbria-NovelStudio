@@ -158,7 +158,7 @@
       <div class="config-item">
         <div class="section-header">并发控制</div>
         <div class="concurrency-control">
-          <span class="label">每分钟最高并发数:</span>
+          <span class="label">最高并发数:</span>
           <el-slider
             v-model="store.config.concurrency"
             :min="1"

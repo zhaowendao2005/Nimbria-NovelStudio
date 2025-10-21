@@ -181,6 +181,32 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
     })
   })
 
+  // ========== 调度器事件监听器 ==========
+  
+  llmTranslateService.on('scheduler:status-changed', (data) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:scheduler-status-changed', data)
+    })
+  })
+
+  llmTranslateService.on('scheduler:completed', (data) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:scheduler-completed', data)
+    })
+  })
+
+  llmTranslateService.on('scheduler:throttled', (data) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:scheduler-throttled', data)
+    })
+  })
+
+  llmTranslateService.on('scheduler:recovered', (data) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('llm-translate:scheduler-recovered', data)
+    })
+  })
+
   // ========== IPC Handlers（纯调用） ==========
 
   /**
@@ -353,6 +379,28 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
       console.log(`✂️ [IPC] 取消任务 ${args.taskId}`)
       await llmTranslateService.cancelTask(args.taskId)
       return { success: true }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  /**
+   * 测试限流状态
+   */
+  ipcMain.handle('llm-translate:test-throttle', async (_event, args: { 
+    modelId: string
+    config: { intervalSeconds: number; type: 'quick' | 'api' }
+  }) => {
+    try {
+      console.log(`🔧 [IPC] 测试限流: modelId=${args.modelId}, type=${args.config.type}`)
+      const result = await llmTranslateService.testThrottle(args.modelId, args.config)
+      return { 
+        success: true, 
+        status: result.success ? 'ok' : 'throttled',
+        responseTime: result.responseTime,
+        error: result.error
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       return { success: false, error: errorMessage }

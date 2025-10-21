@@ -3,6 +3,8 @@
  * 基于 HomePage.vue 表单结构设计
  */
 
+import type { SchedulerConfig } from './scheduler'
+
 // ==================== 枚举类型 ====================
 
 /** 输入源类型 */
@@ -52,6 +54,10 @@ export interface TranslateConfig {
   replyMode: ReplyMode
   /** 预测的输出 Token 数（用于进度估算） */
   predictedTokens: number
+  
+  // ===== 调度器配置 =====
+  /** 调度器配置（可选，默认使用系统默认值） */
+  schedulerConfig?: SchedulerConfig
 }
 
 /**

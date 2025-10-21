@@ -27,6 +27,12 @@ export type {
   TaskStats,
   TaskFilter,
   
+  // 调度器相关
+  SchedulerConfig,
+  SchedulerStatus,
+  ThrottleProbeMode,
+  SchedulingStrategy,
+  
   // API 相关
   ApiResponse,
   CreateBatchRequest,

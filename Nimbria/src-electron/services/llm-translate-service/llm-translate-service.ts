@@ -18,6 +18,11 @@ import type { LlmChatService } from '../llm-chat-service/llm-chat-service'
 import { TranslationExecutor } from './translation-executor'
 import { ExportService } from './export-service'
 import { TaskStateManager } from './task-state-manager'
+import { BatchScheduler } from './batch-scheduler'
+import { ThrottleProbe } from './throttle-probe'
+import type { ThrottleProbeConfig, ThrottleProbeResult } from './throttle-probe'
+import { TokenRegressionEstimator } from './token-regression-estimator'
+import type { TokenSample } from './token-regression-estimator'
 
 // 从新的类型系统导入
 import type {
@@ -52,6 +57,9 @@ export class LlmTranslateService extends EventEmitter {
   private taskStateManager: TaskStateManager
   private exportService: ExportService
   private activeBatches: Map<string, Batch> = new Map()
+  private schedulers: Map<string, BatchScheduler> = new Map()
+  private probes: Map<string, ThrottleProbe> = new Map()
+  private estimator: TokenRegressionEstimator
 
   constructor(llmChatService: LlmChatService, llmConfigManager: any) {
     super()
@@ -65,6 +73,9 @@ export class LlmTranslateService extends EventEmitter {
     this.translationExecutor = new TranslationExecutor(this, llmConfigManager, this.taskStateManager)
     
     this.exportService = new ExportService(this)
+    
+    // 创建 TokenRegressionEstimator
+    this.estimator = new TokenRegressionEstimator()
   }
 
   /**
@@ -110,6 +121,9 @@ export class LlmTranslateService extends EventEmitter {
     // 任务完成事件
     this.taskStateManager.on('task:complete', (event) => {
       this.emit('task:completed', event)
+      
+      // 收集token样本用于回归估计
+      this.collectTokenSample(event)
     })
 
     // 任务错误事件
@@ -118,6 +132,62 @@ export class LlmTranslateService extends EventEmitter {
     })
 
     console.log('✅ [LlmTranslateService] TaskStateManager 事件监听器已设置')
+  }
+  
+  /**
+   * 收集token样本（用于回归估计）
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private collectTokenSample(event: any): void {
+    try {
+      const { taskId, inputTokens, replyTokens } = event
+      
+      if (!taskId || !this.projectDatabase) {
+        return
+      }
+      
+      // 从数据库获取任务详情
+      const task = this.projectDatabase.query(
+        `SELECT content, metadata_json AS metadataJson FROM Llmtranslate_tasks WHERE id = ?`,
+        [taskId]
+      )[0]
+      
+      if (!task) {
+        return
+      }
+      
+      // 提取modelId
+      let modelId = ''
+      try {
+        const metadata = typeof task.metadataJson === 'string' 
+          ? JSON.parse(task.metadataJson) 
+          : task.metadataJson
+        modelId = metadata?.modelId || ''
+      } catch {
+        return
+      }
+      
+      if (!modelId || !replyTokens) {
+        return
+      }
+      
+      // 构建样本
+      const sample: TokenSample = {
+        modelId,
+        inputLength: task.content?.length || 0,
+        inputTokens: inputTokens || 0,
+        outputTokens: replyTokens,
+        timestamp: Date.now()
+      }
+      
+      // 添加到estimator
+      this.estimator.addSample(sample)
+      
+      console.log(`📊 [LlmTranslateService] 收集样本: modelId=${modelId}, input=${sample.inputLength}, output=${sample.outputTokens}`)
+      
+    } catch (error) {
+      console.error(`❌ [LlmTranslateService] 收集样本失败:`, error)
+    }
   }
 
   /**
@@ -621,12 +691,132 @@ export class LlmTranslateService extends EventEmitter {
       ? JSON.parse(batch.configJson) 
       : batch.configJson
     
-    // 4. 使用 setImmediate 异步启动任务执行（不阻塞返回）
+    // 4. 提取调度器配置（如果有）
+    const maxConcurrency = config.schedulerConfig?.maxConcurrency || 3 // 默认并发数为3
+    
+    // 5. 将任务标记为 'waiting' 状态（写入数据库）
+    if (this.projectDatabase) {
+      for (const taskId of taskIds) {
+        this.projectDatabase.execute(
+          `UPDATE Llmtranslate_tasks SET status = 'waiting', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+          [taskId]
+        )
+      }
+      console.log(`✅ [LlmTranslateService] ${taskIds.length} 个任务已标记为 waiting`)
+    }
+    
+    // 6. 创建并启动 BatchScheduler（异步，不阻塞）
     setImmediate(() => {
-      void this.executeTasksAsync(batchId, taskIds, config)
+      void this.startBatchScheduler(batchId, taskIds, maxConcurrency)
     })
     
     return submissionId
+  }
+  
+  /**
+   * 启动批次调度器
+   */
+  private async startBatchScheduler(
+    batchId: string,
+    taskIds: string[],
+    maxConcurrency: number
+  ): Promise<void> {
+    try {
+      // 检查是否已有调度器在运行
+      if (this.schedulers.has(batchId)) {
+        const existingScheduler = this.schedulers.get(batchId)!
+        const status = existingScheduler.getStatus()
+        if (status.state === 'running' || status.state === 'paused') {
+          console.warn(`⚠️ [LlmTranslateService] 批次 ${batchId} 已有调度器在运行`)
+          return
+        }
+        // 如果之前的调度器已完成，先销毁
+        existingScheduler.destroy()
+      }
+      
+      // 获取批次配置以提取modelId
+      const batch = await this.getBatch(batchId)
+      const config: TranslateConfig = typeof batch?.configJson === 'string' 
+        ? JSON.parse(batch.configJson) 
+        : batch?.configJson || {}
+      
+      const modelId = config.modelId || ''
+      
+      // 创建 ThrottleProbe（如果配置了探针）
+      let probe: ThrottleProbe | undefined
+      if (modelId && config.schedulerConfig) {
+        const probeConfig: ThrottleProbeConfig = {
+          intervalSeconds: config.schedulerConfig.throttleProbeIntervalSeconds || 10,
+          type: config.schedulerConfig.throttleProbeType || 'quick',
+          maxRetries: 20 // 最多探测20次（约3-5分钟）
+        }
+        
+        probe = new ThrottleProbe(modelId, probeConfig, this.llmConfigManager)
+        this.probes.set(modelId, probe)
+        
+        // 监听probe事件
+        probe.on('test-result', (result) => {
+          this.emit('throttle:test-result', { modelId, result })
+        })
+      }
+      
+      // 创建新的调度器
+      const scheduler = new BatchScheduler({
+        batchId,
+        taskIds,
+        maxConcurrency,
+        config,
+        executor: this.translationExecutor,
+        stateManager: this.taskStateManager,
+        probe
+      })
+      
+      // 设置调度器事件监听
+      this.setupSchedulerListeners(scheduler, batchId)
+      
+      // 保存调度器引用
+      this.schedulers.set(batchId, scheduler)
+      
+      // 启动调度器
+      scheduler.start()
+      
+    } catch (error) {
+      console.error(`❌ [LlmTranslateService] 启动调度器失败:`, error)
+      throw error
+    }
+  }
+  
+  /**
+   * 设置调度器事件监听
+   */
+  private setupSchedulerListeners(scheduler: BatchScheduler, batchId: string): void {
+    // 调度器状态变化
+    scheduler.on('scheduler:status-changed', (status) => {
+      console.log(`📊 [LlmTranslateService] 调度器状态变化:`, status)
+      this.emit('scheduler:status-changed', { batchId, status })
+    })
+    
+    // 调度器完成
+    scheduler.on('scheduler:completed', (data) => {
+      console.log(`✅ [LlmTranslateService] 调度器完成:`, data)
+      this.emit('scheduler:completed', data)
+      
+      // 清理调度器
+      this.schedulers.delete(batchId)
+      scheduler.destroy()
+    })
+    
+    // 调度器限流
+    scheduler.on('scheduler:throttled', (data) => {
+      console.log(`🚨 [LlmTranslateService] 调度器限流:`, data)
+      this.emit('scheduler:throttled', data)
+    })
+    
+    // 调度器恢复
+    scheduler.on('scheduler:recovered', (data) => {
+      console.log(`🔄 [LlmTranslateService] 调度器恢复:`, data)
+      this.emit('scheduler:recovered', data)
+    })
   }
   
   /**
@@ -720,6 +910,86 @@ export class LlmTranslateService extends EventEmitter {
       console.log(`✂️ [LlmTranslateService] 任务 ${taskId} 已标记为 error`)
     } catch (error) {
       console.error(`❌ [LlmTranslateService] 取消任务 ${taskId} 失败:`, error)
+      throw error
+    }
+  }
+
+  /**
+   * 估算任务的输出token数
+   */
+  estimateTokens(taskId: string): number {
+    if (!this.projectDatabase) {
+      return -1
+    }
+    
+    try {
+      // 从数据库获取任务
+      const task = this.projectDatabase.query(
+        `SELECT content, metadata_json AS metadataJson FROM Llmtranslate_tasks WHERE id = ?`,
+        [taskId]
+      )[0]
+      
+      if (!task) {
+        return -1
+      }
+      
+      // 提取modelId
+      let modelId = ''
+      try {
+        const metadata = typeof task.metadataJson === 'string' 
+          ? JSON.parse(task.metadataJson) 
+          : task.metadataJson
+        modelId = metadata?.modelId || ''
+      } catch {
+        return -1
+      }
+      
+      if (!modelId) {
+        return -1
+      }
+      
+      // 使用estimator估算
+      const contentLength = task.content?.length || 0
+      const estimated = this.estimator.estimate(contentLength, modelId)
+      
+      console.log(`📊 [LlmTranslateService] Token估算: taskId=${taskId}, modelId=${modelId}, length=${contentLength} → ${estimated}`)
+      
+      return estimated
+      
+    } catch (error) {
+      console.error(`❌ [LlmTranslateService] Token估算失败:`, error)
+      return -1
+    }
+  }
+
+  /**
+   * 测试限流状态
+   * 手动发送一次探针测试
+   */
+  async testThrottle(modelId: string, config: ThrottleProbeConfig): Promise<ThrottleProbeResult> {
+    console.log(`🔧 [LlmTranslateService] 测试限流: modelId=${modelId}, type=${config.type}`)
+    
+    try {
+      // 创建或获取probe
+      let probe = this.probes.get(modelId)
+      if (!probe) {
+        probe = new ThrottleProbe(modelId, config, this.llmConfigManager)
+        this.probes.set(modelId, probe)
+      }
+      
+      // 执行一次测试
+      const result = await probe.test()
+      
+      // 发射测试结果事件
+      this.emit('throttle:test-result', {
+        modelId,
+        result
+      })
+      
+      return result
+      
+    } catch (error) {
+      console.error(`❌ [LlmTranslateService] 测试限流失败:`, error)
       throw error
     }
   }

@@ -178,6 +178,16 @@
             >
               <el-icon><Delete /></el-icon>
             </div>
+
+            <!-- 更多配置 -->
+            <div 
+              class="tool-item" 
+              @click="showSchedulerConfig"
+              :title="`调度器配置`"
+              style="margin-left: auto;"
+            >
+              <el-icon><Setting /></el-icon>
+            </div>
           </div>
         </div>
       </div>
@@ -189,7 +199,7 @@
         </div>
 
         <div
-          v-for="task in store.filteredTaskList"
+          v-for="task in sortedTaskList"
           :key="task.id"
           class="task-card"
           :class="`status-${task.status}`"
@@ -301,6 +311,13 @@
       <ThreadDrawer v-if="currentTask" :task="currentTask" />
       <el-empty v-else description="未找到任务详情"></el-empty>
     </el-drawer>
+
+    <!-- 调度器配置抽屉 -->
+    <SchedulerConfigDrawer
+      v-model:visible="configDrawerVisible"
+      :initial-config="currentSchedulerConfig"
+      @save="handleConfigSave"
+    />
   </div>
 </template>
 
@@ -321,17 +338,38 @@ import {
   Close, 
   Clock, 
   Document,
-  Warning
+  Warning,
+  Setting
 } from '@element-plus/icons-vue'
 import { useLlmTranslateStore } from '../stores'
 import { useTaskManagement } from '../composables/useTaskManagement'
 import { useBatchManagement } from '../composables/useBatchManagement'
 import ThreadDrawer from './ThreadDrawer.vue'
+import SchedulerConfigDrawer from './SchedulerConfigDrawer.vue'
 import type { TaskStatus } from '../types/task'
+import type { SchedulerConfig } from '../types/scheduler'
+import { DEFAULT_SCHEDULER_CONFIG } from '../types/scheduler'
+import { ref } from 'vue'
 
 const store = useLlmTranslateStore()
 const { loadTasks, retryFailedTasks } = useTaskManagement()
 const { switchToBatch, pauseBatch } = useBatchManagement()
+
+// 调度器配置抽屉相关
+const configDrawerVisible = ref(false)
+const currentSchedulerConfig = ref<SchedulerConfig>({ ...DEFAULT_SCHEDULER_CONFIG })
+
+// 任务状态排序优先级（sending最优先，然后是waiting、throttled等）
+const TASK_STATUS_ORDER: TaskStatus[] = ['sending', 'waiting', 'throttled', 'completed', 'error', 'unsent']
+
+// 排序后的任务列表（按状态优先级排序）
+const sortedTaskList = computed(() => {
+  return [...store.filteredTaskList].sort((a, b) => {
+    const orderA = TASK_STATUS_ORDER.indexOf(a.status)
+    const orderB = TASK_STATUS_ORDER.indexOf(b.status)
+    return orderA - orderB
+  })
+})
 
 const currentTask = computed(() => {
   if (!store.threadDrawer.currentTaskId) return null
@@ -480,6 +518,26 @@ const selectAllTasks = () => {
 const testThrottle = () => {
   console.log('测试限流功能')
   // TODO: 实现测试限流的具体逻辑
+}
+
+// 显示调度器配置抽屉
+const showSchedulerConfig = () => {
+  // 加载当前配置（暂时使用默认配置，后续可以从store获取）
+  currentSchedulerConfig.value = { ...DEFAULT_SCHEDULER_CONFIG }
+  configDrawerVisible.value = true
+}
+
+// 保存调度器配置
+const handleConfigSave = (config: SchedulerConfig) => {
+  console.log('保存调度器配置:', config)
+  currentSchedulerConfig.value = { ...config }
+  // TODO: 调用 datasource 保存配置到后端
+  ElMessage({ message: '配置已保存', type: 'success' })
+}
+
+// 关闭配置抽屉
+const handleConfigClose = () => {
+  configDrawerVisible.value = false
 }
 
 // 发送选中任务
