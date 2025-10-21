@@ -21,6 +21,7 @@ import {
   estimateTokens,
   calculateCost
 } from './translate.datasource'
+import { ElMessage } from 'element-plus'
 
 export const useLlmTranslateStore = defineStore('llmTranslate', () => {
   // ==================== 状态定义 ====================
@@ -294,6 +295,41 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     } catch (err) {
       error.value = err instanceof Error ? err.message : '重试任务失败'
       console.error('Failed to retry task:', err)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
+   * 重试任务（带提示词修改）
+   * @param taskId 任务 ID
+   * @param modifiedSystemPrompt 修改后的系统提示词（undefined 表示使用原提示词）
+   */
+  const retryTaskWithPrompt = async (taskId: string, modifiedSystemPrompt?: string) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      console.log(`🔄 [Store] 重发任务: ${taskId}`, {
+        hasModifiedPrompt: !!modifiedSystemPrompt
+      })
+
+      await datasource.value.retryTaskWithPrompt(taskId, modifiedSystemPrompt)
+      
+      // 重新加载任务列表以获取最新状态
+      if (currentBatch.value) {
+        await fetchTaskList(currentBatch.value.id)
+      }
+      
+      ElMessage.success('任务已重新发送')
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : '重发任务失败'
+      console.error('Failed to retry task with prompt:', err)
+      ElMessage.error({
+        message: error.value,
+        type: 'error'
+      })
       throw err
     } finally {
       loading.value = false
@@ -629,6 +665,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     retryFailedTasks,
     resumeBatch,
     retryTask,
+    retryTaskWithPrompt,
     cancelTask,
     sendSelectedTasks,
     deleteSelectedTasks,

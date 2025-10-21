@@ -109,6 +109,16 @@ class ElectronTranslateDatasource implements TranslateDatasource {
     }
   }
 
+  async retryTaskWithPrompt(taskId: string, modifiedSystemPrompt?: string): Promise<void> {
+    const result = await this.electronAPI.retryTaskWithPrompt({ 
+      taskId, 
+      modifiedSystemPrompt 
+    })
+    if (!result.success) {
+      throw new Error(result.error || '重发任务失败')
+    }
+  }
+
   async cancelTask(taskId: string): Promise<void> {
     const result = await this.electronAPI.cancelTask({ taskId })
     if (!result.success) {

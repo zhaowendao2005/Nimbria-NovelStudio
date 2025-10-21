@@ -488,6 +488,9 @@ contextBridge.exposeInMainWorld('nimbria', {
     retryTask: (args: { taskId: string }) => 
       ipcRenderer.invoke('llm-translate:retry-task', args),
     
+    retryTaskWithPrompt: (args: { taskId: string; modifiedSystemPrompt?: string }) =>
+      ipcRenderer.invoke('llm-translate:retry-task-with-prompt', args),
+    
     cancelTask: (args: { taskId: string }) =>
       ipcRenderer.invoke('llm-translate:cancel-task', args),
 
