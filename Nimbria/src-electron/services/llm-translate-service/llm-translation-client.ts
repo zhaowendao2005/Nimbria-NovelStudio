@@ -85,10 +85,10 @@ export class LlmTranslationClient extends EventEmitter {
       // 4. 流式调用 LLM
       await client.chatStream(messages, {
         onChunk: (chunk: string) => {
-          // 🔴 检查是否已被取消 - 如果是则立即返回，停止处理
+          // 🔴 检查是否已被取消 - 抛出错误强制中断流
           if (this.cancelled) {
-            console.log(`✂️ [TranslationClient] 任务 ${request.taskId} 已被取消，停止处理流数据`)
-            return
+            console.log(`✂️ [TranslationClient] 任务 ${request.taskId} 已被取消，抛出错误终止流`)
+            throw new Error('Task cancelled by user')
           }
           
           translation += chunk
@@ -441,14 +441,18 @@ export class LlmTranslationClient extends EventEmitter {
    * 中止与LLM提供商的连接并停止流处理
    */
   cancel(): void {
-    // 设置取消标志，让所有回调立即停止处理
+    // 设置取消标志，让所有回调立即停止处理（会在onChunk中抛出错误）
     this.cancelled = true
     console.log(`✂️ [TranslationClient] 标记任务为已取消，停止流处理`)
     
+    // 中止HTTP连接
     if (this.abortController) {
       this.abortController.abort()
       console.log(`✂️ [TranslationClient] 翻译任务连接已中止`)
     }
+    
+    // 立即清理客户端，防止进一步使用
+    this.activeClient = null
   }
 }
 
