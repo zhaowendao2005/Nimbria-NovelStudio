@@ -44,6 +44,7 @@ export interface TranslateDatasource {
   retryTask(taskId: string): Promise<void>
   retryTaskWithPrompt(taskId: string, modifiedSystemPrompt?: string): Promise<void>
   cancelTask(taskId: string): Promise<void>
+  updateBatchConfig(batchId: string, updates: Partial<TranslateConfig>): Promise<void>
 }
 
 // ==================== Datasource 上下文类型 ====================
@@ -62,6 +63,8 @@ export interface DatasourceContext {
     deleteTasks(params: { taskIds: string[] }): Promise<{ success: boolean; error?: string }>
     retryTask(params: { taskId: string }): Promise<{ success: boolean; error?: string }>
     retryTaskWithPrompt(params: { taskId: string; modifiedSystemPrompt?: string }): Promise<{ success: boolean; error?: string }>
+    cancelTask(params: { taskId: string }): Promise<{ success: boolean; error?: string }>
+    updateBatchConfig(params: { batchId: string; updates: Partial<TranslateConfig> }): Promise<{ success: boolean; error?: string }>
   }
 }
 

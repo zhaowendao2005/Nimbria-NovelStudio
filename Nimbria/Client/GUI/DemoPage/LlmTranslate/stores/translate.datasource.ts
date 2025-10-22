@@ -125,6 +125,18 @@ class ElectronTranslateDatasource implements TranslateDatasource {
       throw new Error(result.error || '取消任务失败')
     }
   }
+
+  async updateBatchConfig(batchId: string, updates: Partial<TranslateConfig>): Promise<void> {
+    const plainUpdates = toPlainObject(updates)
+    console.log(`📡 [Datasource] 调用后端更新批次配置:`, { batchId, updates: plainUpdates })
+    
+    const result = await this.electronAPI.updateBatchConfig({ batchId, updates: plainUpdates })
+    if (!result.success) {
+      throw new Error(result.error || '更新批次配置失败')
+    }
+    
+    console.log(`✅ [Datasource] 批次配置已成功更新`)
+  }
 }
 
 // ==================== Datasource 工厂 ====================

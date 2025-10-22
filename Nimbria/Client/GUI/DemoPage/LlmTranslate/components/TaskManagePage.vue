@@ -339,6 +339,8 @@
       :translate-config="store.config"
       @save="handleConfigSave"
       @save-model-params="handleModelParamsSave"
+      @save-model-config="handleModelConfigSave"
+      @save-request-control="handleRequestControlSave"
     />
   </div>
 </template>
@@ -567,56 +569,160 @@ const showSchedulerConfig = () => {
   configDrawerVisible.value = true
 }
 
-// 保存调度器配置
-const handleConfigSave = (config: SchedulerConfig) => {
-  console.log('保存调度器配置:', config)
-  currentSchedulerConfig.value = { ...config }
-  // 更新 store 中的配置
-  store.config.schedulerConfig = { ...config }
-  ElMessage({ message: '调度器配置已保存', type: 'success' })
+// 保存调度器配置（立即持久化到数据库）
+const handleConfigSave = async (config: SchedulerConfig) => {
+  if (!store.currentBatch) {
+    ElMessage({ message: '未选择批次', type: 'error' })
+    return
+  }
+
+  try {
+    console.log('💾 [TaskManagePage] 保存调度器配置:', config)
+    
+    // 1. 更新本地状态
+    currentSchedulerConfig.value = { ...config }
+    store.config.schedulerConfig = { ...config }
+    
+    // 2. 立即持久化到数据库
+    await store.updateBatchConfig(store.currentBatch.id, {
+      schedulerConfig: config
+    })
+    
+    ElMessage({ message: '调度器配置已保存并更新到数据库', type: 'success' })
+  } catch (error) {
+    console.error('保存调度器配置失败:', error)
+    const errorMsg = error instanceof Error ? error.message : '保存调度器配置失败'
+    ElMessage({ message: errorMsg, type: 'error' })
+  }
 }
 
-// 保存模型参数配置
-const handleModelParamsSave = (params: {
+// 保存模型配置（立即持久化到数据库）
+const handleModelConfigSave = async (config: {
+  modelId: string
+  systemPrompt: string
+}) => {
+  if (!store.currentBatch) {
+    ElMessage({ message: '未选择批次', type: 'error' })
+    return
+  }
+
+  try {
+    console.log('💾 [TaskManagePage] 保存模型配置:', config)
+    
+    // 1. 更新 store 中的配置（状态层）
+    store.config.modelId = config.modelId
+    store.config.systemPrompt = config.systemPrompt
+    
+    // 2. 立即调用后端API更新批次配置（持久化到数据库）
+    await store.updateBatchConfig(store.currentBatch.id, {
+      modelId: config.modelId,
+      systemPrompt: config.systemPrompt
+    })
+    
+    ElMessage({ message: '模型配置已保存并更新到数据库', type: 'success' })
+  } catch (error) {
+    console.error('保存模型配置失败:', error)
+    const errorMsg = error instanceof Error ? error.message : '保存模型配置失败'
+    ElMessage({ message: errorMsg, type: 'error' })
+  }
+}
+
+// 保存模型参数配置（立即持久化到数据库）
+const handleModelParamsSave = async (params: {
   maxTokens?: number
   temperature?: number
   topP?: number
   frequencyPenalty?: number
   presencePenalty?: number
 }) => {
-  console.log('保存模型参数:', params)
-  // 更新 store 中的配置（只设置有值的参数，避免 undefined）
-  if (params.maxTokens !== undefined) {
-    store.config.maxTokens = params.maxTokens
-  } else {
-    delete store.config.maxTokens
+  if (!store.currentBatch) {
+    ElMessage({ message: '未选择批次', type: 'error' })
+    return
   }
-  
-  if (params.temperature !== undefined) {
-    store.config.temperature = params.temperature
-  } else {
-    delete store.config.temperature
+
+  try {
+    console.log('💾 [TaskManagePage] 保存模型参数:', params)
+    
+    // 1. 更新 store 中的配置（只设置有值的参数，避免 undefined）
+    if (params.maxTokens !== undefined) {
+      store.config.maxTokens = params.maxTokens
+    } else {
+      delete store.config.maxTokens
+    }
+    
+    if (params.temperature !== undefined) {
+      store.config.temperature = params.temperature
+    } else {
+      delete store.config.temperature
+    }
+    
+    if (params.topP !== undefined) {
+      store.config.topP = params.topP
+    } else {
+      delete store.config.topP
+    }
+    
+    if (params.frequencyPenalty !== undefined) {
+      store.config.frequencyPenalty = params.frequencyPenalty
+    } else {
+      delete store.config.frequencyPenalty
+    }
+    
+    if (params.presencePenalty !== undefined) {
+      store.config.presencePenalty = params.presencePenalty
+    } else {
+      delete store.config.presencePenalty
+    }
+    
+    // 2. 立即调用后端API更新批次配置（持久化到数据库）
+    await store.updateBatchConfig(store.currentBatch.id, params)
+    
+    ElMessage({ message: '模型参数已保存并更新到数据库', type: 'success' })
+  } catch (error) {
+    console.error('保存模型参数失败:', error)
+    const errorMsg = error instanceof Error ? error.message : '保存模型参数失败'
+    ElMessage({ message: errorMsg, type: 'error' })
   }
-  
-  if (params.topP !== undefined) {
-    store.config.topP = params.topP
-  } else {
-    delete store.config.topP
+}
+
+// 保存请求控制配置（立即持久化到数据库）
+const handleRequestControlSave = async (config: {
+  httpTimeout?: number
+  maxRetries?: number
+  enableStreaming?: boolean
+  streamIdleTimeout?: number
+}) => {
+  if (!store.currentBatch) {
+    ElMessage({ message: '未选择批次', type: 'error' })
+    return
   }
-  
-  if (params.frequencyPenalty !== undefined) {
-    store.config.frequencyPenalty = params.frequencyPenalty
-  } else {
-    delete store.config.frequencyPenalty
+
+  try {
+    console.log('💾 [TaskManagePage] 保存请求控制配置:', config)
+    
+    // 更新 store 配置
+    if (config.httpTimeout !== undefined) {
+      store.config.httpTimeout = config.httpTimeout
+    }
+    if (config.maxRetries !== undefined) {
+      store.config.maxRetries = config.maxRetries
+    }
+    if (config.enableStreaming !== undefined) {
+      store.config.enableStreaming = config.enableStreaming
+    }
+    if (config.streamIdleTimeout !== undefined) {
+      store.config.streamIdleTimeout = config.streamIdleTimeout
+    }
+    
+    // 持久化到数据库
+    await store.updateBatchConfig(store.currentBatch.id, config)
+    
+    ElMessage({ message: '请求控制配置已保存并更新到数据库', type: 'success' })
+  } catch (error) {
+    console.error('保存请求控制配置失败:', error)
+    const errorMsg = error instanceof Error ? error.message : '保存请求控制配置失败'
+    ElMessage({ message: errorMsg, type: 'error' })
   }
-  
-  if (params.presencePenalty !== undefined) {
-    store.config.presencePenalty = params.presencePenalty
-  } else {
-    delete store.config.presencePenalty
-  }
-  
-  ElMessage({ message: '模型参数已保存', type: 'success' })
 }
 
 // 关闭配置抽屉

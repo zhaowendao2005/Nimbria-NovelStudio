@@ -18,6 +18,7 @@ import type { TaskStateManager } from './task-state-manager'
 import type { 
   TranslationClientConfig,
   TranslationRequest,
+  TranslationResult,
   ErrorType
 } from '../../types/LlmTranslate/backend'
 import type { TranslateConfig } from '../../types/LlmTranslate'
@@ -56,7 +57,15 @@ export class TranslationExecutor {
     this.taskQueues.set(batchId, [...taskIds])
     this.activeTaskCount.set(batchId, 0)
 
+    // 生成系统提示词摘要（前50个字符）
+    const systemPromptSummary = config.systemPrompt 
+      ? (config.systemPrompt.length > 50 
+          ? config.systemPrompt.substring(0, 50) + '...' 
+          : config.systemPrompt)
+      : '(无系统提示词)'
+
     console.log(`🎬 [TranslationExecutor] 开始执行批次 ${batchId}，共 ${taskIds.length} 个任务，并发: ${concurrency}`)
+    console.log(`   📝 系统提示词: ${systemPromptSummary}`)
 
     // 启动并发 worker
     const workers: Promise<void>[] = []
@@ -133,13 +142,36 @@ export class TranslationExecutor {
         modelId: config.modelId,
         systemPrompt: config.systemPrompt,
         // 使用用户配置的参数（可选），不设置则由层叠配置决定
-        temperature: config.temperature,
-        maxTokens: config.maxTokens,
-        topP: config.topP,
-        frequencyPenalty: config.frequencyPenalty,
-        presencePenalty: config.presencePenalty,
-        timeout: 30000,
-        maxRetries: 3
+        ...(config.temperature !== undefined && { temperature: config.temperature }),
+        ...(config.maxTokens !== undefined && { maxTokens: config.maxTokens }),
+        ...(config.topP !== undefined && { topP: config.topP }),
+        ...(config.frequencyPenalty !== undefined && { frequencyPenalty: config.frequencyPenalty }),
+        ...(config.presencePenalty !== undefined && { presencePenalty: config.presencePenalty }),
+        // 🆕 使用用户配置的超时和重试次数，如果没有则使用默认值
+        timeout: config.httpTimeout || 120000,  // 默认 2 分钟
+        maxRetries: config.maxRetries ?? 3,
+        ...(config.enableStreaming !== undefined && { enableStreaming: config.enableStreaming }),
+        ...(config.streamIdleTimeout !== undefined && { streamIdleTimeout: config.streamIdleTimeout })
+      }
+
+      // 生成系统提示词摘要用于日志
+      const promptSummary = config.systemPrompt 
+        ? (config.systemPrompt.length > 50 
+            ? config.systemPrompt.substring(0, 50) + '...' 
+            : config.systemPrompt)
+        : '(无系统提示词)'
+      
+      const enableStreaming = clientConfig.enableStreaming ?? true
+      const streamIdleTimeout = clientConfig.streamIdleTimeout || 60000
+      
+      console.log(`🚀 [TranslationExecutor] 执行任务 ${taskId}`)
+      console.log(`   📝 系统提示词: ${promptSummary}`)
+      console.log(`   🤖 模型: ${config.modelId}`)
+      console.log(`   ⏱️  HTTP 超时: ${clientConfig.timeout}ms (${(clientConfig.timeout / 1000).toFixed(0)}秒)`)
+      console.log(`   🔄 最大重试: ${clientConfig.maxRetries}次`)
+      console.log(`   📡 流式响应: ${enableStreaming ? '开启' : '关闭'}`)
+      if (enableStreaming) {
+        console.log(`   ⏳ 空闲超时: ${streamIdleTimeout}ms (${(streamIdleTimeout / 1000).toFixed(0)}秒)`)
       }
 
       // 5. 创建翻译客户端
@@ -158,22 +190,32 @@ export class TranslationExecutor {
       // 7. 更新状态为 sending
       await this.taskStateManager.updateState(taskId, 'sending')
 
-      // 8. 执行翻译（流式）
-      const result = await client.translateStream(request, {
-        onStart: (id) => {
-          console.log(`🚀 [Executor] 任务 ${id} 开始翻译`)
-        },
-        onProgress: (id, chunk, tokens) => {
-          // 更新进度（TaskStateManager 会自动节流和持久化）
-          void this.taskStateManager.updateProgress(id, chunk, tokens)
-        },
-        onComplete: (id) => {
-          console.log(`✅ [Executor] 任务 ${id} 翻译完成`)
-        },
-        onError: (id, error) => {
-          console.error(`❌ [Executor] 任务 ${id} 翻译失败:`, error)
-        }
-      })
+      // 8. 执行翻译（根据 enableStreaming 选择流式或非流式）
+      let result: TranslationResult
+      
+      if (enableStreaming) {
+        // 流式模式
+        result = await client.translateStream(request, {
+          onStart: (id) => {
+            console.log(`🚀 [Executor] 任务 ${id} 开始翻译（流式）`)
+          },
+          onProgress: (id, chunk, tokens) => {
+            // 更新进度（TaskStateManager 会自动节流和持久化）
+            void this.taskStateManager.updateProgress(id, chunk, tokens)
+          },
+          onComplete: (id) => {
+            console.log(`✅ [Executor] 任务 ${id} 翻译完成`)
+          },
+          onError: (id, error) => {
+            console.error(`❌ [Executor] 任务 ${id} 翻译失败:`, error)
+          }
+        })
+      } else {
+        // 非流式模式
+        console.log(`🚀 [Executor] 任务 ${taskId} 开始翻译（非流式）`)
+        result = await client.translate(request)
+        console.log(`✅ [Executor] 任务 ${taskId} 翻译完成`)
+      }
 
       // 9. 标记任务完成
       await this.taskStateManager.markComplete(taskId, {
@@ -247,7 +289,7 @@ export class TranslationExecutor {
    */
   private classifyError(error: Error): ErrorType {
     const message = error.message.toLowerCase()
-    const status = (error as any).status
+    const status = 'status' in error ? (error as { status: number }).status : undefined
     
     // 优先检查状态码
     if (status === 429 || message.includes('429') || message.includes('rate limit')) {
@@ -267,10 +309,10 @@ export class TranslationExecutor {
       return 'MODEL_ERROR'
     }
     // 服务器错误（500、502、503等）
-    if (status >= 500 || message.includes('500') || message.includes('internal server error') || 
+    if ((status !== undefined && status >= 500) || message.includes('500') || message.includes('internal server error') || 
         message.includes('bad gateway') || message.includes('service unavailable') ||
         message.includes('malformed')) {
-      return 'SERVER_ERROR'
+      return 'MODEL_ERROR'
     }
     
     return 'UNKNOWN'

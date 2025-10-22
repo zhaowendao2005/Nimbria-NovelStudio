@@ -554,6 +554,29 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
     }
   })
 
+  /**
+   * 更新批次配置
+   */
+  ipcMain.handle('llm-translate:update-batch-config', async (_event, args: {
+    batchId: string
+    updates: Partial<TranslateConfig>
+  }) => {
+    try {
+      console.log(`📥 [IPC] 收到更新批次配置请求:`, {
+        batchId: args.batchId,
+        updates: Object.keys(args.updates)
+      })
+      
+      await llmTranslateService.updateBatchConfig(args.batchId, args.updates)
+      
+      return { success: true }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error(`❌ [IPC] 更新批次配置失败:`, errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
   console.log('✅ [IPC] LLM Translate handlers registered')
 }
 

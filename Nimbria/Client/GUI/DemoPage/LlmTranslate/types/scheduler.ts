@@ -12,10 +12,10 @@ export interface SchedulerConfig {
   /** 最大并发数（1-10） */
   maxConcurrency: number
   
-  /** 任务超时时间（秒，5-120） */
+  /** 任务总超时时间（秒，10-300），包括排队、执行、重试等所有时间 */
   taskTimeoutSeconds: number
   
-  /** 流式无数据超时（秒，10-60） */
+  /** 调度器监控超时（秒，30-180），调度器层面的健康检测 */
   streamNoDataTimeoutSeconds: number
   
   /** 限流探针间隔（秒，5-30） */
@@ -23,9 +23,6 @@ export interface SchedulerConfig {
   
   /** 探针类型 */
   throttleProbeType: 'quick' | 'api'
-  
-  /** 限流后自动重试 */
-  autoRetryThrottled: boolean
   
   /** 调度策略 */
   schedulingStrategy: 'timed' | 'event'
@@ -51,11 +48,10 @@ export type SchedulingStrategy = 'timed' | 'event'
  */
 export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
   maxConcurrency: 3,
-  taskTimeoutSeconds: 30,
-  streamNoDataTimeoutSeconds: 30,
+  taskTimeoutSeconds: 120,  // 调整为 2 分钟（任务总超时）
+  streamNoDataTimeoutSeconds: 60,  // 调整为 1 分钟（调度器监控超时）
   throttleProbeIntervalSeconds: 10,
   throttleProbeType: 'quick',
-  autoRetryThrottled: true,
   schedulingStrategy: 'event'
 }
 

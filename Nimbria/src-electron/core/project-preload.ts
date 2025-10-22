@@ -439,6 +439,10 @@ contextBridge.exposeInMainWorld('nimbria', {
     deleteTasks: (args: { taskIds: string[] }) => 
       ipcRenderer.invoke('llm-translate:delete-tasks', args),
     
+    // ===== 批次配置更新 =====
+    updateBatchConfig: (args: { batchId: string; updates: any }) => 
+      ipcRenderer.invoke('llm-translate:update-batch-config', args),
+    
     // ===== 单个任务操作 =====
     pauseTask: (args: { taskId: string }) => 
       ipcRenderer.invoke('llm-translate:pause-task', args),

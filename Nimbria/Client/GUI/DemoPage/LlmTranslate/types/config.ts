@@ -67,6 +67,16 @@ export interface TranslateConfig {
   /** Presence Penalty -2.0-2.0（可选） */
   presencePenalty?: number
   
+  // ===== 请求控制配置（底层 LLM 客户端配置）=====
+  /** HTTP 请求超时时间（毫秒），默认 120000 (2分钟) */
+  httpTimeout?: number
+  /** 最大重试次数，默认 3 */
+  maxRetries?: number
+  /** 是否启用流式响应，默认 true */
+  enableStreaming?: boolean
+  /** 流式空闲超时（毫秒），默认 60000 (1分钟)，仅当 enableStreaming=true 时生效 */
+  streamIdleTimeout?: number
+  
   // ===== 调度器配置 =====
   /** 调度器配置（可选，默认使用系统默认值） */
   schedulerConfig?: SchedulerConfig
@@ -93,6 +103,12 @@ export interface BatchConfig {
   topP?: number
   frequencyPenalty?: number
   presencePenalty?: number
+  
+  // 请求控制配置（可选）
+  httpTimeout?: number
+  maxRetries?: number
+  enableStreaming?: boolean
+  streamIdleTimeout?: number
 }
 
 /**

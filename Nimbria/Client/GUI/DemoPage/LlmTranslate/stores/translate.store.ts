@@ -38,7 +38,12 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     concurrency: 3,
     replyMode: 'predicted',
     predictedTokens: 2000,
-    modelId: '' // 默认为空，由用户在ModelSelector中选择
+    modelId: '', // 默认为空，由用户在ModelSelector中选择
+    // 请求控制配置（默认值）
+    httpTimeout: 120000, // 默认 2 分钟
+    maxRetries: 3,
+    enableStreaming: true,
+    streamIdleTimeout: 60000 // 默认 1 分钟
   })
 
   /** 批次列表 */
@@ -223,6 +228,25 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
 
     currentBatch.value = batch
     await fetchTaskList(batchId)
+    
+    // 加载批次的配置到 store.config
+    if (batch.configJson) {
+      try {
+        const batchConfig: TranslateConfig = typeof batch.configJson === 'string'
+          ? JSON.parse(batch.configJson)
+          : batch.configJson
+        
+        // 更新 config，保留默认值作为回退
+        config.value = {
+          ...config.value, // 保留默认值
+          ...batchConfig    // 覆盖为批次配置
+        }
+        
+        console.log(`📋 [Store] 已加载批次 ${batchId} 的配置`)
+      } catch (err) {
+        console.error('解析批次配置失败:', err)
+      }
+    }
     
     // 清空选择状态
     selectedTaskIds.value.clear()
@@ -493,6 +517,38 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     }
   }
 
+  /**
+   * 更新批次配置（立即持久化到数据库）
+   * @param batchId 批次ID
+   * @param updates 要更新的配置字段
+   */
+  const updateBatchConfig = async (batchId: string, updates: Partial<TranslateConfig>) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      console.log(`💾 [Store] 更新批次 ${batchId} 配置:`, updates)
+      
+      await datasource.value.updateBatchConfig(batchId, updates)
+      
+      // 重新加载批次信息以同步最新配置
+      await fetchBatchList()
+      
+      // 如果是当前批次，重新加载任务列表
+      if (currentBatch.value?.id === batchId) {
+        await fetchTaskList(batchId)
+      }
+      
+      console.log(`✅ [Store] 批次 ${batchId} 配置已更新`)
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : '更新批次配置失败'
+      console.error('Failed to update batch config:', err)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   // ==================== 事件监听器 ====================
 
   /** 事件监听器设置状态 */
@@ -673,6 +729,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     selectAllBatches,
     clearBatchSelection,
     deleteSelectedBatches,
+    updateBatchConfig,
     initialize
   }
 })

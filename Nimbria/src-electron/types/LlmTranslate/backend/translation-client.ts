@@ -43,11 +43,17 @@ export interface TranslationClientConfig {
   /** Presence Penalty（可选） */
   presencePenalty?: number
   
-  /** 超时时间（毫秒） */
+  /** HTTP 请求超时时间（毫秒） */
   timeout: number
   
   /** 最大重试次数 */
   maxRetries: number
+  
+  /** 是否启用流式响应（可选，默认true） */
+  enableStreaming?: boolean
+  
+  /** 流式空闲超时（毫秒，可选）两次数据块之间的最大间隔 */
+  streamIdleTimeout?: number
 }
 
 /**

@@ -309,13 +309,18 @@ export class LlmTranslateService extends EventEmitter {
         concurrency: config.concurrency,
         replyMode: config.replyMode,
         predictedTokens: config.predictedTokens,
-        schedulerConfig: config.schedulerConfig,
+        ...(config.schedulerConfig && { schedulerConfig: config.schedulerConfig }),
         // 高级模型参数（可选）
-        maxTokens: config.maxTokens,
-        temperature: config.temperature,
-        topP: config.topP,
-        frequencyPenalty: config.frequencyPenalty,
-        presencePenalty: config.presencePenalty
+        ...(config.maxTokens !== undefined && { maxTokens: config.maxTokens }),
+        ...(config.temperature !== undefined && { temperature: config.temperature }),
+        ...(config.topP !== undefined && { topP: config.topP }),
+        ...(config.frequencyPenalty !== undefined && { frequencyPenalty: config.frequencyPenalty }),
+        ...(config.presencePenalty !== undefined && { presencePenalty: config.presencePenalty }),
+        // 请求控制配置（可选）
+        ...(config.httpTimeout !== undefined && { httpTimeout: config.httpTimeout }),
+        ...(config.maxRetries !== undefined && { maxRetries: config.maxRetries }),
+        ...(config.enableStreaming !== undefined && { enableStreaming: config.enableStreaming }),
+        ...(config.streamIdleTimeout !== undefined && { streamIdleTimeout: config.streamIdleTimeout })
       }
 
       // 2. 根据分片策略分割内容
@@ -672,6 +677,89 @@ export class LlmTranslateService extends EventEmitter {
   }
 
   /**
+   * 更新批次配置（立即持久化到数据库）
+   * @param batchId 批次ID
+   * @param updates 要更新的配置字段（部分更新）
+   */
+  async updateBatchConfig(batchId: string, updates: Partial<TranslateConfig>): Promise<void> {
+    console.log(`🔧 [LlmTranslateService] ========== 开始更新批次配置 ==========`)
+    console.log(`🔧 [LlmTranslateService] 批次ID: ${batchId}`)
+    console.log(`🔧 [LlmTranslateService] 更新字段:`, JSON.stringify(updates, null, 2))
+    
+    if (!this.projectDatabase) {
+      throw new Error('Project database not initialized')
+    }
+
+    // 1. 获取当前批次配置
+    const batch = await this.getBatch(batchId)
+    if (!batch) {
+      console.error(`❌ [LlmTranslateService] 批次 ${batchId} 不存在`)
+      throw new Error(`Batch ${batchId} not found`)
+    }
+
+    console.log(`📖 [LlmTranslateService] 读取到原批次配置:`)
+    const oldConfig: TranslateConfig = typeof batch.configJson === 'string' 
+      ? JSON.parse(batch.configJson) 
+      : batch.configJson
+    console.log(`   - 原模型ID: ${oldConfig.modelId}`)
+    console.log(`   - 原提示词: ${oldConfig.systemPrompt?.substring(0, 50)}...`)
+
+    // 2. 合并配置（只覆盖提供的字段）
+    const mergedConfig: TranslateConfig = {
+      ...oldConfig,
+      ...updates
+    }
+
+    console.log(`🔀 [LlmTranslateService] 合并后的新配置:`)
+    console.log(`   - 新模型ID: ${mergedConfig.modelId}`)
+    console.log(`   - 新提示词: ${mergedConfig.systemPrompt?.substring(0, 50)}...`)
+    if (updates.maxTokens !== undefined) {
+      console.log(`   - maxTokens: ${oldConfig.maxTokens} → ${mergedConfig.maxTokens}`)
+    }
+    if (updates.temperature !== undefined) {
+      console.log(`   - temperature: ${oldConfig.temperature} → ${mergedConfig.temperature}`)
+    }
+    if (updates.topP !== undefined) {
+      console.log(`   - topP: ${oldConfig.topP} → ${mergedConfig.topP}`)
+    }
+    if (updates.frequencyPenalty !== undefined) {
+      console.log(`   - frequencyPenalty: ${oldConfig.frequencyPenalty} → ${mergedConfig.frequencyPenalty}`)
+    }
+    if (updates.presencePenalty !== undefined) {
+      console.log(`   - presencePenalty: ${oldConfig.presencePenalty} → ${mergedConfig.presencePenalty}`)
+    }
+    // 请求控制配置
+    if (updates.httpTimeout !== undefined) {
+      console.log(`   - httpTimeout: ${oldConfig.httpTimeout}ms → ${mergedConfig.httpTimeout}ms`)
+    }
+    if (updates.maxRetries !== undefined) {
+      console.log(`   - maxRetries: ${oldConfig.maxRetries} → ${mergedConfig.maxRetries}`)
+    }
+    if (updates.enableStreaming !== undefined) {
+      console.log(`   - enableStreaming: ${oldConfig.enableStreaming} → ${mergedConfig.enableStreaming}`)
+    }
+    if (updates.streamIdleTimeout !== undefined) {
+      console.log(`   - streamIdleTimeout: ${oldConfig.streamIdleTimeout}ms → ${mergedConfig.streamIdleTimeout}ms`)
+    }
+    // 调度器配置
+    if (updates.schedulerConfig !== undefined) {
+      console.log(`   - schedulerConfig:`)
+      console.log(`     原配置: ${JSON.stringify(oldConfig.schedulerConfig)}`)
+      console.log(`     新配置: ${JSON.stringify(mergedConfig.schedulerConfig)}`)
+    }
+
+    // 3. 更新数据库
+    const configJson = JSON.stringify(mergedConfig)
+    this.projectDatabase.execute(
+      `UPDATE Llmtranslate_batches SET config_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [configJson, batchId]
+    )
+
+    console.log(`💾 [LlmTranslateService] 批次配置已写入数据库`)
+    console.log(`✅ [LlmTranslateService] ========== 批次配置更新完成 ==========`)
+  }
+
+  /**
    * 提交任务
    * 立即返回 submissionId，异步启动任务执行
    */
@@ -698,8 +786,16 @@ export class LlmTranslateService extends EventEmitter {
       ...newConfig
     }
     
+    // 生成系统提示词摘要（前50个字符）
+    const systemPromptSummary = mergedConfig.systemPrompt 
+      ? (mergedConfig.systemPrompt.length > 50 
+          ? mergedConfig.systemPrompt.substring(0, 50) + '...' 
+          : mergedConfig.systemPrompt)
+      : '(无系统提示词)'
+    
     console.log(`🔄 [LlmTranslateService] 配置已合并：`, {
       模型ID: mergedConfig.modelId,
+      系统提示词: systemPromptSummary,
       最大输出Token: mergedConfig.maxTokens,
       温度: mergedConfig.temperature,
       topP: mergedConfig.topP,
