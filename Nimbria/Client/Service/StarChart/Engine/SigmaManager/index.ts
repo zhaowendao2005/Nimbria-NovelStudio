@@ -1,1 +1,0 @@
-export { SigmaManager } from './SigmaManager'
