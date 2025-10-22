@@ -70,6 +70,7 @@
     "fast-glob": "^3.3.2",
     "fs-extra": "^11.2.0",
     "graphology": "^0.25.4",
+    "graphology-layout-forceatlas2": "^0.6.1",
     "graphology-types": "^0.24.7",
     "gun": "^0.2020.1240",
     "js-yaml": "^4.1.0",
