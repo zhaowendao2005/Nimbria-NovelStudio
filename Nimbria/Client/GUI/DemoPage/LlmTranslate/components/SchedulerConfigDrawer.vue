@@ -142,7 +142,7 @@
                 <el-input-number
                   v-model="modelParamsForm.maxTokens"
                   :min="100"
-                  :max="200000"
+                  :max="2000000"
                   :step="1000"
                   placeholder="使用默认"
                   size="small"

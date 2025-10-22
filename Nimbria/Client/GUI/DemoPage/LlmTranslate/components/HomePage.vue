@@ -123,7 +123,7 @@
             <el-input-number
               v-model="store.config.chunkSizeByLine"
               :min="1"
-              :max="1000"
+              :max="1000000"
               controls-position="right"
               class="chunk-input"
               size="small"
@@ -135,7 +135,7 @@
             <el-input-number
               v-model="store.config.chunkSizeByToken"
               :min="100"
-              :max="4000"
+              :max="40000000"
               controls-position="right"
               class="chunk-input"
               size="small"
