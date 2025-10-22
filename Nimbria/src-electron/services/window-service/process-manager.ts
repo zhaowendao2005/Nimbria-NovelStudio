@@ -16,11 +16,13 @@ import type {
   WindowMetrics
 } from '../../types/process'
 import type { CreateWindowConfig, WindowTemplate } from '../../types/window'
+import { WindowBoundsStore } from '../../store/window-bounds-store'
 
 interface ProcessManagerDependencies {
   defaultTemplates: Record<WindowType, WindowTemplate>
   lifecycleHooks?: WindowLifecycleHooks
   persistenceAdapter?: ProcessPersistenceAdapter
+  boundsStore?: WindowBoundsStore
 }
 
 export interface ProcessPersistenceAdapter {
@@ -45,7 +47,8 @@ export class ProcessManager {
     const window = this.createBrowserWindow({
       type: 'main',
       templateId: template.id,
-      overrides: {}
+      overrides: {},
+      windowId: processId
     })
 
     const { port1, port2 } = new MessageChannelMain()
@@ -68,6 +71,11 @@ export class ProcessManager {
     this.registerProcess(process, template)
     this.setupWindowLifecycle(process)
 
+    // 恢复主窗口的最大化状态
+    if (this.dependencies.boundsStore?.shouldMaximize(processId)) {
+      window.maximize()
+    }
+
     return process
   }
 
@@ -87,7 +95,8 @@ export class ProcessManager {
       type: 'project',
       templateId: template.id,
       projectPath,
-      overrides: options?.configOverrides
+      overrides: options?.configOverrides,
+      windowId: projectPath
     })
 
     const { port1, port2 } = new MessageChannelMain()
@@ -114,6 +123,11 @@ export class ProcessManager {
     this.registerProcess(process, template)
     this.projectPathIndex.set(projectPath, processId)
     this.setupWindowLifecycle(process)
+
+    // 恢复项目窗口的最大化状态
+    if (this.dependencies.boundsStore?.shouldMaximize(projectPath)) {
+      window.maximize()
+    }
 
     return process
   }
@@ -187,7 +201,7 @@ export class ProcessManager {
     return process && process.type === 'main' ? process : null
   }
 
-  private createBrowserWindow(config: CreateWindowConfig): BrowserWindow {
+  private createBrowserWindow(config: CreateWindowConfig & { windowId?: string }): BrowserWindow {
     const template = this.dependencies.defaultTemplates[config.type]
     const baseOptions = template.options
     const overrides = config.overrides ?? {}
@@ -197,10 +211,16 @@ export class ProcessManager {
     const isDev = !!process.env.DEV || !!process.env.DEBUGGING
     const isDebugMode = !!process.env.ELECTRON_DEBUG
 
+    // 💾 从WindowBoundsStore中获取保存的窗口位置
+    let savedBounds: Partial<{ x: number; y: number; width: number; height: number }> | null = null
+    if (config.windowId && this.dependencies.boundsStore) {
+      savedBounds = this.dependencies.boundsStore.getApplicableBounds(config.windowId)
+    }
+
     const options: WindowProcessConfig = {
       type: config.type,
-      width: baseOptions.width ?? 1024,
-      height: baseOptions.height ?? 720,
+      width: savedBounds?.width ?? baseOptions.width ?? 1024,
+      height: savedBounds?.height ?? baseOptions.height ?? 720,
       minWidth: baseOptions.minWidth,
       minHeight: baseOptions.minHeight,
       maxWidth: baseOptions.maxWidth,
@@ -222,6 +242,8 @@ export class ProcessManager {
     }
 
     const window = new BrowserWindow({
+      ...(savedBounds?.x !== undefined && { x: savedBounds.x }),
+      ...(savedBounds?.y !== undefined && { y: savedBounds.y }),
       width: options.width,
       height: options.height,
       minWidth: options.minWidth,
@@ -286,6 +308,32 @@ export class ProcessManager {
 
     window.on('blur', () => {
       this.dependencies.lifecycleHooks?.onFocusChanged?.(id, false)
+    })
+
+    // 💾 在窗口关闭前保存窗口位置
+    window.on('close', async () => {
+      const windowId = process.type === 'project' ? process.projectPath : 'main'
+      
+      if (this.dependencies.boundsStore) {
+        try {
+          const bounds = window.getBounds()
+          const isMaximized = window.isMaximized()
+          
+          await this.dependencies.boundsStore.saveBounds(
+            windowId,
+            {
+              x: bounds.x,
+              y: bounds.y,
+              width: bounds.width,
+              height: bounds.height
+            },
+            isMaximized,
+            process.type === 'project' ? process.projectPath : undefined
+          )
+        } catch (error) {
+          console.error('Failed to save window bounds:', error)
+        }
+      }
     })
 
     window.on('closed', () => {

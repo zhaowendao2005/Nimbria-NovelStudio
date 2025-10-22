@@ -13,6 +13,7 @@ import type { WindowProcess, ProjectWindowProcess, MainWindowProcess } from '../
 import type { IPCRequest, IPCResponse, WindowOperationResult } from '../types/ipc'
 
 import { WindowManager } from '../services/window-service/window-manager'
+import { WindowBoundsStore } from '../store/window-bounds-store'
 import { ProjectFileSystem } from '../services/file-service/project-fs'
 import { FileWatcherService } from '../services/file-service/file-watcher'
 import { ProjectManager } from '../services/project-service/project-manager'
@@ -48,6 +49,7 @@ export class AppManager {
   private llmTranslateService!: LlmTranslateService
   private databaseService!: DatabaseService
   private starChartService!: StarChartService
+  private windowBoundsStore!: WindowBoundsStore
   private transferMap?: Map<string, { sourceWebContentsId: number; tabId: string }>
 
   async boot() {
@@ -63,6 +65,7 @@ export class AppManager {
     logger.info('Log file:', getLogFilePath())
     logger.info('='.repeat(80))
     
+    await this.initializeWindowBoundsStore()
     await this.initializeDatabase()
     await this.initializeStarChart()
     this.initializeFileSystem()
@@ -100,6 +103,22 @@ export class AppManager {
     
     // 🔥 关闭日志系统
     closeLogSystem()
+  }
+
+  /**
+   * 初始化窗口位置存储
+   */
+  private async initializeWindowBoundsStore() {
+    logger.info('Initializing window bounds store...')
+    try {
+      this.windowBoundsStore = new WindowBoundsStore()
+      await this.windowBoundsStore.initialize()
+      logger.info('Window bounds store initialized successfully')
+      logger.info('Storage path:', this.windowBoundsStore.getStoragePath())
+    } catch (error) {
+      logger.error('Failed to initialize window bounds store:', error)
+      // 即使失败也继续启动，只是不会记忆窗口位置
+    }
   }
 
   private initializeFileSystem() {
@@ -236,6 +255,7 @@ export class AppManager {
 
     this.windowManager = new WindowManager({
       templates,
+      boundsStore: this.windowBoundsStore,
       lifecycleHooks: {
         onReady: (windowProcess) => {
           if (windowProcess.type === 'main') {

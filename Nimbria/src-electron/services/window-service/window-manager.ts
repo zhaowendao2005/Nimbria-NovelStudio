@@ -4,11 +4,13 @@ import type { WindowTemplate } from '../../types/window'
 
 import { MessageRouter } from './message-router'
 import { ProcessManager, type ProcessPersistenceAdapter } from './process-manager'
+import { WindowBoundsStore } from '../../store/window-bounds-store'
 
 interface WindowManagerOptions {
   templates: Record<WindowType, WindowTemplate>
   lifecycleHooks?: WindowLifecycleHooks
   persistenceAdapter?: ProcessPersistenceAdapter
+  boundsStore?: WindowBoundsStore
 }
 
 export class WindowManager {
@@ -19,7 +21,8 @@ export class WindowManager {
     const pmDeps = {
       defaultTemplates: options.templates,
       ...(options.lifecycleHooks && { lifecycleHooks: options.lifecycleHooks }),
-      ...(options.persistenceAdapter && { persistenceAdapter: options.persistenceAdapter })
+      ...(options.persistenceAdapter && { persistenceAdapter: options.persistenceAdapter }),
+      ...(options.boundsStore && { boundsStore: options.boundsStore })
     }
     
     this.processManager = new ProcessManager(pmDeps)
