@@ -165,6 +165,41 @@ const handleClick = async (type: string) => {
     return
   }
   
+  // 搜索面板 - 特殊处理，在主内容区创建panel
+  if (type === 'search') {
+    console.log('[ProjectNavbar] 打开Search标签页')
+    
+    // 1. 打开Search标签页
+    const tab = markdownStore.openSearch()
+    
+    if (!tab) {
+      console.error('[ProjectNavbar] Failed to create Search tab')
+      return
+    }
+    
+    // 2. 🔥 如果没有面板，先创建默认面板
+    if (!paneLayoutStore.focusedPane) {
+      console.log('[ProjectNavbar] No pane exists, creating default layout')
+      paneLayoutStore.resetToDefaultLayout()
+    }
+    
+    // 3. 在焦点面板中显示该 tab
+    if (paneLayoutStore.focusedPane) {
+      paneLayoutStore.openTabInPane(paneLayoutStore.focusedPane.id, tab.id)
+      console.log('[ProjectNavbar] Opened Search in focused pane:', {
+        paneId: paneLayoutStore.focusedPane.id,
+        tabId: tab.id
+      })
+      
+      // 更新 leftSidebarStore 的当前视图
+      leftSidebarStore.setView('search')
+    } else {
+      console.error('[ProjectNavbar] Failed to open Search: no focused pane available')
+    }
+    
+    return
+  }
+  
   // 其他导航项 - 触发左侧内容区切换
   emit('navClick', type)
 }

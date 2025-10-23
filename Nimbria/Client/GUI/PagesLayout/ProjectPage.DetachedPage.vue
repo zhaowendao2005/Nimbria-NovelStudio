@@ -5,8 +5,8 @@
     
     <!-- 只渲染MainPanel，无左栏、无右栏 -->
     <div class="full-content">
-      <!-- 🔥 自动保存指示器 -->
-      <AutoSaveIndicator v-if="markdownStore.openTabs.length > 0" />
+      <!-- 🔥 自动保存指示器 - 仅在 markdown 模式下显示 -->
+      <AutoSaveIndicator v-if="isMarkdownMode" />
       
       <!-- 🔥 分屏系统（有面板时显示） -->
       <div v-if="paneLayoutStore.hasPanes" class="pane-system-container">
@@ -25,7 +25,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useMarkdownStore } from '@stores/projectPage/Markdown'
 import { usePaneLayoutStore } from '@stores/projectPage/paneLayout'
@@ -51,6 +51,15 @@ const paneLayoutStore = usePaneLayoutStore()
 const transferId = ref<string>('')
 const projectPath = ref<string>('')
 const windowTitle = ref<string>('Nimbria - Detached Window')
+
+// 判断是否为 markdown 模式（仅在 markdown 类型的标签页激活时显示自动保存指示器）
+const isMarkdownMode = computed(() => {
+  const activeTab = markdownStore.activeTab
+  if (!activeTab) return false
+  
+  // 如果没有设置 type 或者 type 为 'markdown'，则显示自动保存指示器
+  return !activeTab.type || activeTab.type === 'markdown'
+})
 
 onMounted(async () => {
   console.log('🚀 [DetachedPage] Initializing detached window...')

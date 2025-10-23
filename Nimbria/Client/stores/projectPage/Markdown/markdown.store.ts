@@ -408,6 +408,34 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     return newTab
   }
   
+  // 打开Search标签页
+  const openSearch = () => {
+    // 检查是否已存在
+    const existingTab = openTabs.value.find(tab => tab.type === 'search')
+    if (existingTab) {
+      activeTabId.value = existingTab.id
+      console.log('[Markdown] Search tab already exists, switching to it')
+      return existingTab
+    }
+    
+    // 创建新标签页
+    const newTab: MarkdownTab = {
+      id: `search-${Date.now()}`,
+      type: 'search',
+      filePath: '',
+      fileName: '搜索',
+      content: '',
+      mode: 'edit',
+      isDirty: false
+    }
+    
+    openTabs.value.push(newTab)
+    activeTabId.value = newTab.id
+    
+    console.log('[Markdown] Search tab created:', newTab.id)
+    return newTab
+  }
+  
   // 关闭标签页
   const closeTab = (tabId: string) => {
     const index = openTabs.value.findIndex(tab => tab.id === tabId)
@@ -997,6 +1025,7 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     openFile,
     openDocParser,
     openStarChart,
+    openSearch,
     closeTab,
     switchTab,
     updateTabContent,

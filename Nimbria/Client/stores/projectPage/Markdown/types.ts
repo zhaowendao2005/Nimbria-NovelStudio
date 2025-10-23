@@ -23,7 +23,7 @@ export interface MarkdownFile {
 
 export interface MarkdownTab {
   id: string
-  type?: 'markdown' | 'docparser' | 'starchart' // 标签页类型，默认为markdown
+  type?: 'markdown' | 'docparser' | 'starchart' | 'search' // 标签页类型，默认为markdown
   filePath: string
   fileName: string
   content: string

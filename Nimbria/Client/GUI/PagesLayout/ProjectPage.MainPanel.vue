@@ -1,7 +1,7 @@
 <template>
   <div class="project-page-main-panel">
-    <!-- 自动保存指示器 -->
-    <AutoSaveIndicator v-if="markdownStore.openTabs.length > 0" />
+    <!-- 自动保存指示器 - 仅在 markdown 模式下显示 -->
+    <AutoSaveIndicator v-if="isMarkdownMode" />
     
     <!-- 🔥 分屏系统（有面板时显示） -->
     <div 
@@ -30,7 +30,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, computed } from 'vue'
 import PaneContainer from '@components/ProjectPage.MainPanel/PaneSystem/PaneContainer.vue'
 import AutoSaveIndicator from '@components/ProjectPage.MainPanel/AutoSave/AutoSaveIndicator.vue'
 import { useMarkdownStore } from '@stores/projectPage'
@@ -44,6 +44,15 @@ import { usePaneLayoutStore } from '@stores/projectPage/paneLayout'
 
 const markdownStore = useMarkdownStore()
 const paneLayoutStore = usePaneLayoutStore()
+
+// 判断是否为 markdown 模式（仅在 markdown 类型的标签页激活时显示自动保存指示器）
+const isMarkdownMode = computed(() => {
+  const activeTab = markdownStore.activeTab
+  if (!activeTab) return false
+  
+  // 如果没有设置 type 或者 type 为 'markdown'，则显示自动保存指示器
+  return !activeTab.type || activeTab.type === 'markdown'
+})
 
 // 初始化文件树
 onMounted(async () => {
