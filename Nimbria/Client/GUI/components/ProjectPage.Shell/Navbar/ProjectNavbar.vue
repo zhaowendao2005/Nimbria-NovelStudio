@@ -155,9 +155,6 @@ const handleClick = async (type: string) => {
         paneId: paneLayoutStore.focusedPane.id,
         tabId: tab.id
       })
-      
-      // 更新 leftSidebarStore 的当前视图
-      leftSidebarStore.setView('docparser')
     } else {
       console.error('[ProjectNavbar] Failed to open DocParser: no focused pane available')
     }
@@ -190,9 +187,6 @@ const handleClick = async (type: string) => {
         paneId: paneLayoutStore.focusedPane.id,
         tabId: tab.id
       })
-      
-      // 更新 leftSidebarStore 的当前视图
-      leftSidebarStore.setView('search')
     } else {
       console.error('[ProjectNavbar] Failed to open Search: no focused pane available')
     }

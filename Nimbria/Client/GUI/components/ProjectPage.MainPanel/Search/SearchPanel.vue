@@ -1,11 +1,13 @@
 <template>
   <div class="search-panel">
-    <div class="panel-content">
-      <h2>Search Panel</h2>
-      <p>标签页 ID: {{ tabId }}</p>
-      <p v-if="instanceState">实例状态已初始化</p>
-      <p v-else>实例状态未初始化</p>
-    </div>
+    <el-splitter style="height: 100%;">
+      <el-splitter-panel size="30%">
+        <div class="left-panel"></div>
+      </el-splitter-panel>
+      <el-splitter-panel>
+        <div class="right-panel"></div>
+      </el-splitter-panel>
+    </el-splitter>
   </div>
 </template>
 
@@ -42,14 +44,19 @@ onUnmounted(() => {
 <style scoped lang="scss">
 .search-panel {
   display: flex;
-  flex-direction: column;
   height: 100%;
+  width: 100%;
   background: var(--el-bg-color-page);
 }
 
-.panel-content {
-  flex: 1;
-  padding: 20px;
+.left-panel {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.right-panel {
+  height: 100%;
+  overflow-y: auto;
 }
 </style>
 
