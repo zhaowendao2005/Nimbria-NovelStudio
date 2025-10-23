@@ -13,8 +13,8 @@ export type InputSource = 'file' | 'text'
 /** 分片策略 */
 export type ChunkStrategy = 'line' | 'token'
 
-/** 回复模式 */
-export type ReplyMode = 'predicted' | 'equivalent' | 'regression'
+/** 回复模式（仅保留 predicted 和 equivalent，regression 已废弃） */
+export type ReplyMode = 'predicted' | 'equivalent'
 
 // ==================== 配置接口 ====================
 
@@ -67,15 +67,46 @@ export interface TranslateConfig {
   /** Presence Penalty -2.0-2.0（可选） */
   presencePenalty?: number
   
-  // ===== 请求控制配置（底层 LLM 客户端配置）=====
-  /** HTTP 请求超时时间（毫秒），默认 120000 (2分钟) */
+  // ===== 三层超时控制架构 =====
+  /**
+   * Layer 3: 任务总超时（兜底机制，毫秒）
+   * 包括排队、执行、重试的全部时间，默认 600000 (10分钟)
+   * 超时后标记为error，可手动重试
+   */
+  taskTotalTimeout?: number
+  
+  /**
+   * Layer 2a: HTTP超时（非流式，毫秒）
+   * 整个HTTP请求的最长等待时间，默认 120000 (2分钟)
+   * 超时后主动关闭连接，标记为error，可重试
+   */
   httpTimeout?: number
+  
+  /**
+   * Layer 2b: 流式首字超时（毫秒）
+   * 等待首个token的最长时间，默认 60000 (1分钟)
+   * 仅在 enableStreaming=true 时生效
+   * 超时后主动关闭连接，标记为error，可重试
+   */
+  streamFirstTokenTimeout?: number
+  
+  /**
+   * Layer 2b: 流式空闲超时（毫秒）
+   * 后续token之间的最长间隔，默认 60000 (1分钟)
+   * 仅在 enableStreaming=true 时生效
+   * 超时后主动关闭连接，标记为error，可重试
+   */
+  streamIdleTimeout?: number
+  
+  // ===== 请求控制配置（底层 LLM 客户端配置）=====
   /** 最大重试次数，默认 3 */
   maxRetries?: number
   /** 是否启用流式响应，默认 true */
   enableStreaming?: boolean
-  /** 流式空闲超时（毫秒），默认 60000 (1分钟)，仅当 enableStreaming=true 时生效 */
-  streamIdleTimeout?: number
+  
+  // ===== Token 估算配置 =====
+  /** Token换算配置ID（用于进度条预估和成本计算） */
+  tokenConversionConfigId?: string
   
   // ===== 调度器配置 =====
   /** 调度器配置（可选，默认使用系统默认值） */
@@ -104,11 +135,18 @@ export interface BatchConfig {
   frequencyPenalty?: number
   presencePenalty?: number
   
-  // 请求控制配置（可选）
+  // 三层超时控制（可选）
+  taskTotalTimeout?: number
   httpTimeout?: number
+  streamFirstTokenTimeout?: number
+  streamIdleTimeout?: number
+  
+  // 请求控制配置（可选）
   maxRetries?: number
   enableStreaming?: boolean
-  streamIdleTimeout?: number
+  
+  // Token 估算配置（可选）
+  tokenConversionConfigId?: string
 }
 
 /**

@@ -443,6 +443,16 @@ contextBridge.exposeInMainWorld('nimbria', {
     updateBatchConfig: (args: { batchId: string; updates: any }) => 
       ipcRenderer.invoke('llm-translate:update-batch-config', args),
     
+    // ===== Token换算配置管理 =====
+    createTokenConfig: (args: { config: { name: string; chineseRatio: number; asciiRatio: number; description?: string } }) =>
+      ipcRenderer.invoke('llm-translate:create-token-config', args),
+    
+    getTokenConfigs: () =>
+      ipcRenderer.invoke('llm-translate:get-token-configs'),
+    
+    deleteTokenConfig: (args: { id: string }) =>
+      ipcRenderer.invoke('llm-translate:delete-token-config', args),
+    
     // ===== 单个任务操作 =====
     pauseTask: (args: { taskId: string }) => 
       ipcRenderer.invoke('llm-translate:pause-task', args),

@@ -39,12 +39,21 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     replyMode: 'predicted',
     predictedTokens: 2000,
     modelId: '', // 默认为空，由用户在ModelSelector中选择
-    // 请求控制配置（默认值）
-    httpTimeout: 120000, // 默认 2 分钟
+    // 三层超时控制（默认值）
+    taskTotalTimeout: 600000,       // 默认10分钟（兜底）
+    httpTimeout: 120000,             // 默认2分钟（非流式）
+    streamFirstTokenTimeout: 60000,  // 默认1分钟（流式首字）
+    streamIdleTimeout: 60000,        // 默认1分钟（流式空闲）
+    // 请求控制配置
     maxRetries: 3,
     enableStreaming: true,
-    streamIdleTimeout: 60000 // 默认 1 分钟
+    // Token估算配置
+    tokenConversionConfigId: 'default-balanced'  // 默认使用通用配置
   })
+
+  /** Token换算配置列表 */
+  const tokenConversionConfigs = ref<any[]>([])
+
 
   /** 批次列表 */
   const batchList = ref<Batch[]>([])
@@ -687,10 +696,46 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
    */
   const initialize = async () => {
     await fetchBatchList()
+    await fetchTokenConfigs()
     setupEventListeners()
   }
 
   // ==================== 返回 Store 接口 ====================
+
+  // ========== Token换算配置管理 ==========
+
+  const fetchTokenConfigs = async () => {
+    try {
+      const configs = await datasource.value.getTokenConfigs()
+      tokenConversionConfigs.value = configs
+      console.log(`✅ [Store] 已加载 ${configs.length} 个Token换算配置`)
+    } catch (err) {
+      console.error('获取Token配置失败:', err)
+    }
+  }
+
+  const createTokenConfig = async (config: { name: string; chineseRatio: number; asciiRatio: number; description?: string }) => {
+    try {
+      const newConfig = await datasource.value.createTokenConfig(config)
+      await fetchTokenConfigs()
+      console.log(`✅ [Store] 已创建Token配置:`, newConfig.name)
+      return newConfig
+    } catch (err) {
+      console.error('创建Token配置失败:', err)
+      throw err
+    }
+  }
+
+  const deleteTokenConfig = async (id: string) => {
+    try {
+      await datasource.value.deleteTokenConfig(id)
+      await fetchTokenConfigs()
+      console.log(`✅ [Store] 已删除Token配置:`, id)
+    } catch (err) {
+      console.error('删除Token配置失败:', err)
+      throw err
+    }
+  }
 
   return {
     // 状态
@@ -707,6 +752,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     useMock,
     selectedBatchIds,
     batchSelectMode,
+    tokenConversionConfigs,
 
     // 计算属性
     batchStats,
@@ -730,6 +776,10 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     clearBatchSelection,
     deleteSelectedBatches,
     updateBatchConfig,
-    initialize
+    initialize,
+    // Token换算配置
+    fetchTokenConfigs,
+    createTokenConfig,
+    deleteTokenConfig
   }
 })

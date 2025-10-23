@@ -137,6 +137,31 @@ class ElectronTranslateDatasource implements TranslateDatasource {
     
     console.log(`✅ [Datasource] 批次配置已成功更新`)
   }
+
+  // ===== Token换算配置管理 =====
+
+  async createTokenConfig(config: { name: string; chineseRatio: number; asciiRatio: number; description?: string }): Promise<any> {
+    const result = await this.electronAPI.createTokenConfig({ config })
+    if (!result.success) {
+      throw new Error(result.error || '创建配置失败')
+    }
+    return result.data
+  }
+
+  async getTokenConfigs(): Promise<any[]> {
+    const result = await this.electronAPI.getTokenConfigs()
+    if (!result.success) {
+      throw new Error(result.error || '获取配置失败')
+    }
+    return result.data
+  }
+
+  async deleteTokenConfig(id: string): Promise<void> {
+    const result = await this.electronAPI.deleteTokenConfig({ id })
+    if (!result.success) {
+      throw new Error(result.error || '删除配置失败')
+    }
+  }
 }
 
 // ==================== Datasource 工厂 ====================

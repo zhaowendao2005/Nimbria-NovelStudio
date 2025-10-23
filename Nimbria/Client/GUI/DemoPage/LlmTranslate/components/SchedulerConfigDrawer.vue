@@ -76,61 +76,6 @@
               />
             </div>
 
-            <!-- 任务总超时时间 -->
-            <div class="config-item">
-              <div class="config-label">
-                <span>任务总超时时间（秒）</span>
-                <el-tooltip placement="top">
-                  <template #content>
-                    <div><strong>【顶层】单个任务的最大生命周期</strong></div>
-                    <div>• 作用范围：从任务开始到完成的总时长</div>
-                    <div>• 包括：排队 + 执行 + 重试 + 其他开销</div>
-                    <div>• 适用场景：防止任务无限挂起</div>
-                    <div>• 建议值：是"HTTP 请求超时"的 1.5-2 倍</div>
-                    <div>• 注意：此值应 > HTTP 请求超时 + 重试时间</div>
-                  </template>
-                  <el-icon class="info-icon"><QuestionFilled /></el-icon>
-                </el-tooltip>
-              </div>
-              <el-input-number
-                v-model="form.taskTimeoutSeconds"
-                :min="10"
-                :max="300"
-                :step="10"
-                size="small"
-              />
-              <div class="param-value">
-                {{ form.taskTimeoutSeconds }}秒 ({{ (form.taskTimeoutSeconds / 60).toFixed(1) }}分钟)
-              </div>
-            </div>
-
-            <!-- 调度器监控超时 -->
-            <div class="config-item">
-              <div class="config-label">
-                <span>调度器监控超时（秒）</span>
-                <el-tooltip placement="top">
-                  <template #content>
-                    <div><strong>【顶层】调度器层面的健康检测</strong></div>
-                    <div>• 作用范围：调度器监控任务是否"卡住"</div>
-                    <div>• 检测对象：任务状态、进度更新</div>
-                    <div>• 适用场景：发现并清理僵尸任务</div>
-                    <div>• 建议值：60-180秒</div>
-                    <div>• 注意：这是调度器的监控超时，不影响底层 API</div>
-                  </template>
-                  <el-icon class="info-icon"><QuestionFilled /></el-icon>
-                </el-tooltip>
-              </div>
-              <el-input-number
-                v-model="form.streamNoDataTimeoutSeconds"
-                :min="30"
-                :max="180"
-                :step="10"
-                size="small"
-              />
-              <div class="param-value">
-                {{ form.streamNoDataTimeoutSeconds }}秒 ({{ (form.streamNoDataTimeoutSeconds / 60).toFixed(1) }}分钟)
-              </div>
-            </div>
           </div>
         </el-tab-pane>
 
@@ -477,21 +422,169 @@
           </div>
         </el-tab-pane>
 
-        <!-- Tab 5: 调度策略 -->
-        <el-tab-pane label="调度策略" name="advanced">
+        <!-- Tab 5: 超时控制 -->
+        <el-tab-pane label="超时控制" name="timeout">
+          <div class="config-section">
+            <el-alert
+              title="三层超时架构说明"
+              type="info"
+              :closable="false"
+              class="config-alert mb-3"
+            >
+              <div><strong>Layer 3（兜底）：</strong>任务总超时 - 包括排队+执行+重试的全部时间</div>
+              <div><strong>Layer 2a（HTTP）：</strong>非流式模式的HTTP请求超时</div>
+              <div><strong>Layer 2b（流式）：</strong>首字超时 + 空闲超时</div>
+            </el-alert>
+
+            <!-- 任务总超时 -->
+            <div class="config-item">
+              <div class="config-label">
+                <span>任务总超时（秒）</span>
+                <el-tooltip placement="top">
+                  <template #content>
+                    <div><strong>Layer 3：任务生命周期兜底</strong></div>
+                    <div>• 包括：排队 + 执行 + 重试的全部时间</div>
+                    <div>• 超时后标记为error，可手动重试</div>
+                    <div>• 建议值：600秒（10分钟）</div>
+                  </template>
+                  <el-icon class="info-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
+              <el-input-number
+                v-model="timeoutForm.taskTotalTimeoutSeconds"
+                :min="60"
+                :max="3600"
+                :step="60"
+                size="small"
+              />
+              <div class="param-value">
+                {{ timeoutForm.taskTotalTimeoutSeconds }}秒 ({{ (timeoutForm.taskTotalTimeoutSeconds / 60).toFixed(1) }}分钟)
+              </div>
+            </div>
+
+            <!-- HTTP超时 -->
+            <div class="config-item">
+              <div class="config-label">
+                <span>HTTP超时（秒）</span>
+                <el-tooltip placement="top">
+                  <template #content>
+                    <div><strong>Layer 2a：非流式HTTP请求超时</strong></div>
+                    <div>• 整个HTTP请求的最长等待时间</div>
+                    <div>• 超时后主动关闭连接，可重试</div>
+                    <div>• 建议值：120秒（2分钟）</div>
+                  </template>
+                  <el-icon class="info-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
+              <el-input-number
+                v-model="timeoutForm.httpTimeoutSeconds"
+                :min="30"
+                :max="600"
+                :step="10"
+                size="small"
+              />
+              <div class="param-value">
+                {{ timeoutForm.httpTimeoutSeconds }}秒 ({{ (timeoutForm.httpTimeoutSeconds / 60).toFixed(1) }}分钟)
+              </div>
+            </div>
+
+            <!-- 流式首字超时 -->
+            <div class="config-item">
+              <div class="config-label">
+                <span>流式首字超时（秒）</span>
+                <el-tooltip placement="top">
+                  <template #content>
+                    <div><strong>Layer 2b：等待首个token的最长时间</strong></div>
+                    <div>• 仅在流式模式下生效</div>
+                    <div>• 超时后主动关闭连接，可重试</div>
+                    <div>• 建议值：60秒（1分钟）</div>
+                  </template>
+                  <el-icon class="info-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
+              <el-input-number
+                v-model="timeoutForm.streamFirstTokenTimeoutSeconds"
+                :min="10"
+                :max="300"
+                :step="10"
+                size="small"
+              />
+              <div class="param-value">
+                {{ timeoutForm.streamFirstTokenTimeoutSeconds }}秒
+              </div>
+            </div>
+
+            <!-- 流式空闲超时 -->
+            <div class="config-item">
+              <div class="config-label">
+                <span>流式空闲超时（秒）</span>
+                <el-tooltip placement="top">
+                  <template #content>
+                    <div><strong>Layer 2b：后续token之间的最大间隔</strong></div>
+                    <div>• 仅在流式模式下生效</div>
+                    <div>• 超时后主动关闭连接，可重试</div>
+                    <div>• 建议值：60秒（1分钟）</div>
+                  </template>
+                  <el-icon class="info-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
+              <el-input-number
+                v-model="timeoutForm.streamIdleTimeoutSeconds"
+                :min="10"
+                :max="300"
+                :step="10"
+                size="small"
+              />
+              <div class="param-value">
+                {{ timeoutForm.streamIdleTimeoutSeconds }}秒
+              </div>
+            </div>
+          </div>
+        </el-tab-pane>
+
+        <!-- Tab 6: 调度策略 -->
+        <el-tab-pane label="调度策略" name="strategy">
           <div class="config-section">
             <!-- 调度策略 -->
             <div class="config-item">
               <div class="config-label">
                 <span>调度策略</span>
-                <el-tooltip content="事件驱动性能更好，定时轮询更稳定" placement="top">
+                <el-tooltip placement="top">
+                  <template #content>
+                    <div><strong>event（事件驱动）：</strong>任务完成立即发送下一个</div>
+                    <div>• 适用于：成熟、高并发、稳定的提供商</div>
+                    <div>• 优势：响应快，效率高</div>
+                    <div style="margin-top: 8px;"><strong>timed（定时调度）：</strong>固定间隔发送任务</div>
+                    <div>• 适用于：低并发、不稳定的提供商</div>
+                    <div>• 优势：更稳定，避免过载</div>
+                  </template>
                   <el-icon class="info-icon"><QuestionFilled /></el-icon>
                 </el-tooltip>
               </div>
-              <el-radio-group v-model="form.schedulingStrategy" size="small">
+              <el-radio-group v-model="strategyForm.schedulingStrategy" size="small">
                 <el-radio value="event">事件驱动</el-radio>
-                <el-radio value="timed">定时轮询</el-radio>
+                <el-radio value="timed">定时调度</el-radio>
               </el-radio-group>
+            </div>
+
+            <!-- 定时间隔 -->
+            <div v-if="strategyForm.schedulingStrategy === 'timed'" class="config-item">
+              <div class="config-label">
+                <span>定时间隔（秒）</span>
+                <el-tooltip content="每隔多少秒发送一批任务（受并发数限制）" placement="top">
+                  <el-icon class="info-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
+              <el-input-number
+                v-model="strategyForm.timedInterval"
+                :min="1"
+                :max="10"
+                :step="1"
+                size="small"
+              />
+              <div class="param-value">
+                每 {{ strategyForm.timedInterval }} 秒发送一批
+              </div>
             </div>
 
             <el-alert
@@ -505,7 +598,76 @@
             </el-alert>
           </div>
         </el-tab-pane>
+
+        <!-- Tab 7: Token估算 -->
+        <el-tab-pane label="Token估算" name="token">
+          <div class="config-section">
+            <el-alert
+              title="Token估算说明"
+              type="info"
+              :closable="false"
+              class="config-alert mb-3"
+            >
+              <div>用于进度条预估和成本计算</div>
+              <div>不同模型的tokenizer不同，需要配置相应的换算比例</div>
+            </el-alert>
+
+            <!-- 选择配置 -->
+            <div class="config-item">
+              <div class="config-label">
+                <span>估算配置</span>
+                <el-tooltip content="选择Token换算配置" placement="top">
+                  <el-icon class="info-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
+              <el-select v-model="tokenForm.tokenConversionConfigId" size="small" class="w-full">
+                <el-option
+                  v-for="config in tokenConversionConfigs"
+                  :key="config.id"
+                  :label="`${config.name} (中文:${config.chineseRatio} ASCII:${config.asciiRatio})`"
+                  :value="config.id"
+                />
+              </el-select>
+            </div>
+
+            <el-divider>配置管理</el-divider>
+
+            <!-- 配置列表 -->
+            <el-table :data="customTokenConfigs" size="small" style="width: 100%">
+              <el-table-column prop="name" label="名称" />
+              <el-table-column prop="chineseRatio" label="中文比例" width="80" />
+              <el-table-column prop="asciiRatio" label="ASCII比例" width="90" />
+              <el-table-column label="操作" width="80">
+                <template #default="scope">
+                  <el-button
+                    size="small"
+                    type="danger"
+                    text
+                    @click="handleDeleteTokenConfig(scope.row.id)"
+                  >
+                    删除
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+
+            <el-button
+              type="primary"
+              size="small"
+              class="mt-3"
+              @click="showTokenConfigDialog = true"
+            >
+              创建新配置
+            </el-button>
+          </div>
+        </el-tab-pane>
       </el-tabs>
+
+      <!-- Token配置对话框 -->
+      <TokenConfigDialog
+        v-model="showTokenConfigDialog"
+        @confirm="handleCreateTokenConfig"
+      />
 
       <!-- 底部按钮 -->
       <div class="drawer-footer">
@@ -517,13 +679,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { QuestionFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import ModelSelector from './ModelSelector.vue'
+import TokenConfigDialog from './TokenConfigDialog.vue'
 import type { SchedulerConfig } from '../types/scheduler'
 import type { TranslateConfig } from '../types/config'
 import { DEFAULT_SCHEDULER_CONFIG } from '../types/scheduler'
+import { useLlmTranslateStore } from '../stores/translate.store'
 
 interface Props {
   visible: boolean
@@ -545,6 +709,19 @@ interface Emits {
     modelId: string
     systemPrompt: string
   }): void
+  (e: 'save-timeout', config: {
+    taskTotalTimeout?: number
+    httpTimeout?: number
+    streamFirstTokenTimeout?: number
+    streamIdleTimeout?: number
+  }): void
+  (e: 'save-strategy', config: {
+    schedulingStrategy: 'timed' | 'event'
+    timedInterval?: number
+  }): void
+  (e: 'save-token', config: {
+    tokenConversionConfigId?: string
+  }): void
   (e: 'save-request-control', config: {
     httpTimeout?: number
     maxRetries?: number
@@ -560,11 +737,56 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 
+// Store
+const store = useLlmTranslateStore()
+
 // 当前激活的Tab
 const activeTab = ref<string>('model-config')
 
 // 表单数据（调度器配置）
 const form = ref<SchedulerConfig>({ ...DEFAULT_SCHEDULER_CONFIG })
+
+// 超时控制表单
+const timeoutForm = ref<{
+  taskTotalTimeoutSeconds: number
+  httpTimeoutSeconds: number
+  streamFirstTokenTimeoutSeconds: number
+  streamIdleTimeoutSeconds: number
+}>({
+  taskTotalTimeoutSeconds: 600,   // 10分钟
+  httpTimeoutSeconds: 120,         // 2分钟
+  streamFirstTokenTimeoutSeconds: 60,  // 1分钟
+  streamIdleTimeoutSeconds: 60     // 1分钟
+})
+
+// 调度策略表单
+const strategyForm = ref<{
+  schedulingStrategy: 'timed' | 'event'
+  timedInterval: number
+}>({
+  schedulingStrategy: 'event',
+  timedInterval: 2
+})
+
+// Token估算表单
+const tokenForm = ref<{
+  tokenConversionConfigId: string
+}>({
+  tokenConversionConfigId: 'default-balanced'
+})
+
+// Token配置对话框
+const showTokenConfigDialog = ref(false)
+
+// Token配置列表
+const tokenConversionConfigs = computed(() => store.tokenConversionConfigs)
+
+// 自定义Token配置（排除默认配置）
+const customTokenConfigs = computed(() => {
+  return tokenConversionConfigs.value.filter(config => 
+    !config.id.startsWith('default-')
+  )
+})
 
 // 模型配置表单
 const modelConfigForm = ref<{
@@ -627,6 +849,21 @@ watch(() => props.translateConfig, (newConfig) => {
     requestControlForm.value.httpTimeoutSeconds = newConfig.httpTimeout ? Math.round(newConfig.httpTimeout / 1000) : 120
     requestControlForm.value.streamIdleTimeoutSeconds = newConfig.streamIdleTimeout ? Math.round(newConfig.streamIdleTimeout / 1000) : 60
     requestControlForm.value.maxRetries = newConfig.maxRetries ?? 3
+
+    // 加载超时控制配置（转换为秒）
+    timeoutForm.value.taskTotalTimeoutSeconds = newConfig.taskTotalTimeout ? Math.round(newConfig.taskTotalTimeout / 1000) : 600
+    timeoutForm.value.httpTimeoutSeconds = newConfig.httpTimeout ? Math.round(newConfig.httpTimeout / 1000) : 120
+    timeoutForm.value.streamFirstTokenTimeoutSeconds = newConfig.streamFirstTokenTimeout ? Math.round(newConfig.streamFirstTokenTimeout / 1000) : 60
+    timeoutForm.value.streamIdleTimeoutSeconds = newConfig.streamIdleTimeout ? Math.round(newConfig.streamIdleTimeout / 1000) : 60
+
+    // 加载调度策略配置
+    if (newConfig.schedulerConfig) {
+      strategyForm.value.schedulingStrategy = newConfig.schedulerConfig.schedulingStrategy ?? 'event'
+      strategyForm.value.timedInterval = newConfig.schedulerConfig.timedInterval ?? 2
+    }
+
+    // 加载Token估算配置
+    tokenForm.value.tokenConversionConfigId = newConfig.tokenConversionConfigId ?? 'default-balanced'
   }
 }, { immediate: true })
 
@@ -681,11 +918,30 @@ const handleSave = () => {
     })
   }
   
-  // 保存调度器配置
+  // 保存调度器基础配置
   emit('save', { ...form.value })
   
   // 保存模型参数
   emit('save-model-params', { ...modelParamsForm.value })
+  
+  // 保存超时控制配置（转换为毫秒）
+  emit('save-timeout', {
+    taskTotalTimeout: timeoutForm.value.taskTotalTimeoutSeconds * 1000,
+    httpTimeout: timeoutForm.value.httpTimeoutSeconds * 1000,
+    streamFirstTokenTimeout: timeoutForm.value.streamFirstTokenTimeoutSeconds * 1000,
+    streamIdleTimeout: timeoutForm.value.streamIdleTimeoutSeconds * 1000
+  })
+  
+  // 保存调度策略配置
+  emit('save-strategy', {
+    schedulingStrategy: strategyForm.value.schedulingStrategy,
+    timedInterval: strategyForm.value.timedInterval
+  })
+  
+  // 保存Token估算配置
+  emit('save-token', {
+    tokenConversionConfigId: tokenForm.value.tokenConversionConfigId
+  })
   
   // 保存请求控制配置（转换为毫秒）
   emit('save-request-control', {
@@ -708,6 +964,28 @@ const handleClose = () => {
   emit('update:visible', false)
 }
 
+// 创建Token配置
+const handleCreateTokenConfig = async (config: { name: string; chineseRatio: number; asciiRatio: number; description?: string }) => {
+  try {
+    await store.createTokenConfig(config)
+    ElMessage({ message: 'Token配置已创建', type: 'success' })
+  } catch (error) {
+    ElMessage({ message: '创建Token配置失败', type: 'error' })
+    console.error(error)
+  }
+}
+
+// 删除Token配置
+const handleDeleteTokenConfig = async (id: string) => {
+  try {
+    await store.deleteTokenConfig(id)
+    ElMessage({ message: 'Token配置已删除', type: 'success' })
+  } catch (error) {
+    ElMessage({ message: '删除Token配置失败', type: 'error' })
+    console.error(error)
+  }
+}
+
 // 验证表单
 const validateForm = (): boolean => {
   // 验证模型ID
@@ -722,12 +1000,20 @@ const validateForm = (): boolean => {
     return false
   }
   
-  // 验证超时时间（调整范围）
-  if (form.value.taskTimeoutSeconds < 10 || form.value.taskTimeoutSeconds > 300) {
+  // 验证超时配置
+  if (timeoutForm.value.taskTotalTimeoutSeconds < 60 || timeoutForm.value.taskTotalTimeoutSeconds > 3600) {
     return false
   }
   
-  if (form.value.streamNoDataTimeoutSeconds < 30 || form.value.streamNoDataTimeoutSeconds > 180) {
+  if (timeoutForm.value.httpTimeoutSeconds < 30 || timeoutForm.value.httpTimeoutSeconds > 600) {
+    return false
+  }
+  
+  if (timeoutForm.value.streamFirstTokenTimeoutSeconds < 10 || timeoutForm.value.streamFirstTokenTimeoutSeconds > 300) {
+    return false
+  }
+  
+  if (timeoutForm.value.streamIdleTimeoutSeconds < 10 || timeoutForm.value.streamIdleTimeoutSeconds > 300) {
     return false
   }
   
@@ -829,6 +1115,14 @@ const validateForm = (): boolean => {
     display: flex;
     justify-content: flex-end;
     gap: 12px;
+  }
+
+  .mt-3 {
+    margin-top: 16px;
+  }
+
+  .w-full {
+    width: 100%;
   }
 }
 </style>

@@ -42,7 +42,7 @@ export class LlmTranslationClient extends EventEmitter {
   }
 
   /**
-   * 执行单次翻译（流式）
+   * 执行单次翻译（流式 + Layer 2b 超时检测）
    */
   async translateStream(
     request: TranslationRequest,
@@ -54,6 +54,16 @@ export class LlmTranslationClient extends EventEmitter {
 
     // 创建可被取消的控制器
     this.abortController = new AbortController()
+    
+    // Layer 2b 超时控制
+    const firstTokenTimeout = this.config.streamFirstTokenTimeout ?? 60000  // 默认60秒
+    const idleTimeout = this.config.streamIdleTimeout ?? 60000              // 默认60秒
+    
+    let firstTokenTimer: NodeJS.Timeout | null = null
+    let idleTimer: NodeJS.Timeout | null = null
+    let hasReceivedFirstToken = false
+    // 超时标志，用于在超时时记录错误信息（移到try外部以便catch块访问）
+    let timeoutError: Error | null = null
 
     try {
       // 1. 初始化 LangChain 客户端
@@ -82,7 +92,19 @@ export class LlmTranslationClient extends EventEmitter {
         }
       ]
 
-      // 4. 流式调用 LLM
+      console.log(`⏱️  [TranslationClient] Layer 2b 超时配置: 首字${firstTokenTimeout}ms, 空闲${idleTimeout}ms`)
+
+      // 4. 启动首字超时计时器
+      firstTokenTimer = setTimeout(() => {
+        console.error(`⏱️❌ [TranslationClient] 任务 ${request.taskId} 等待首个token超时`)
+        timeoutError = new Error('TIMEOUT: 等待首个token超时（主动关闭连接）')
+        // 使用 AbortController 中止流式调用
+        if (this.abortController) {
+          this.abortController.abort()
+        }
+      }, firstTokenTimeout)
+
+      // 5. 流式调用 LLM
       await client.chatStream(messages, {
         onChunk: (chunk: string) => {
           // 🔴 检查是否已被取消 - 抛出错误强制中断流
@@ -90,6 +112,29 @@ export class LlmTranslationClient extends EventEmitter {
             console.log(`✂️ [TranslationClient] 任务 ${request.taskId} 已被取消，抛出错误终止流`)
             throw new Error('Task cancelled by user')
           }
+          
+          // 🆕 收到首个 token，清除首字超时，启动空闲超时
+          if (!hasReceivedFirstToken) {
+            hasReceivedFirstToken = true
+            if (firstTokenTimer) {
+              clearTimeout(firstTokenTimer)
+              firstTokenTimer = null
+            }
+            console.log(`✅ [TranslationClient] 任务 ${request.taskId} 收到首个token`)
+          }
+          
+          // 🆕 清除并重启空闲超时计时器
+          if (idleTimer) {
+            clearTimeout(idleTimer)
+          }
+          idleTimer = setTimeout(() => {
+            console.error(`⏱️❌ [TranslationClient] 任务 ${request.taskId} 流式响应空闲超时`)
+            timeoutError = new Error('TIMEOUT: 流式响应空闲超时（主动关闭连接）')
+            // 使用 AbortController 中止流式调用
+            if (this.abortController) {
+              this.abortController.abort()
+            }
+          }, idleTimeout)
           
           translation += chunk
           outputTokens = this.estimateTokens(translation)
@@ -107,6 +152,16 @@ export class LlmTranslationClient extends EventEmitter {
           })
         },
         onComplete: () => {
+          // 🆕 清除所有超时计时器
+          if (firstTokenTimer) {
+            clearTimeout(firstTokenTimer)
+            firstTokenTimer = null
+          }
+          if (idleTimer) {
+            clearTimeout(idleTimer)
+            idleTimer = null
+          }
+          
           // 🔴 检查是否已被取消
           if (this.cancelled) {
             console.log(`✂️ [TranslationClient] 任务被取消，跳过完成处理`)
@@ -115,6 +170,15 @@ export class LlmTranslationClient extends EventEmitter {
           console.log(`✅ [TranslationClient] 任务 ${request.taskId} 流式传输完成`)
         },
         onError: (error: Error) => {
+          // 🆕 清除所有超时计时器
+          if (firstTokenTimer) {
+            clearTimeout(firstTokenTimer)
+            firstTokenTimer = null
+          }
+          if (idleTimer) {
+            clearTimeout(idleTimer)
+            idleTimer = null
+          }
           throw error
         }
       })
@@ -148,6 +212,29 @@ export class LlmTranslationClient extends EventEmitter {
     } catch (error) {
       const err = error as Error
       
+      // 🆕 确保清除所有超时计时器
+      if (firstTokenTimer) {
+        clearTimeout(firstTokenTimer)
+        firstTokenTimer = null
+      }
+      if (idleTimer) {
+        clearTimeout(idleTimer)
+        idleTimer = null
+      }
+      
+      // 🆕 如果是超时导致的abort，抛出超时错误
+      if (timeoutError && (err.name === 'AbortError' || (this.abortController && this.abortController.signal.aborted))) {
+        console.log(`⏱️ [TranslationClient] 任务 ${request.taskId} 超时，抛出超时错误`)
+        callbacks.onError?.(request.taskId, timeoutError)
+        this.emit('translation:error', {
+          taskId: request.taskId,
+          errorType: this.classifyError(timeoutError),
+          errorMessage: timeoutError.message
+        })
+        await this.cleanup()
+        throw timeoutError
+      }
+      
       // 检查是否是用户取消的
       if (err.name === 'AbortError' || err.message.includes('cancelled')) {
         console.log(`✂️ [TranslationClient] 任务 ${request.taskId} 被用户取消`)
@@ -155,7 +242,7 @@ export class LlmTranslationClient extends EventEmitter {
         callbacks.onError?.(request.taskId, cancelError)
         this.emit('translation:error', {
           taskId: request.taskId,
-          errorType: 'USER_CANCELLED',
+          errorType: 'USER_PAUSED',
           errorMessage: cancelError.message
         })
         await this.cleanup()
@@ -184,6 +271,10 @@ export class LlmTranslationClient extends EventEmitter {
    */
   async translate(request: TranslationRequest): Promise<TranslationResult> {
     const startTime = Date.now()
+    
+    // Layer 2a HTTP超时配置
+    const httpTimeout = this.config.timeout ?? 120000  // 默认2分钟
+    let httpTimer: NodeJS.Timeout | null = null
 
     try {
       const client = await this.initClient()
@@ -203,8 +294,25 @@ export class LlmTranslationClient extends EventEmitter {
         }
       ]
 
-      // 非流式调用
-      const translation = await client.chat(messages)
+      console.log(`⏱️  [TranslationClient] Layer 2a HTTP超时配置: ${httpTimeout}ms (${(httpTimeout / 1000).toFixed(0)}秒)`)
+
+      // Layer 2a: HTTP超时控制（使用Promise.race）
+      const httpTimeoutPromise = new Promise<never>((_, reject) => {
+        httpTimer = setTimeout(() => {
+          console.error(`⏱️❌ [TranslationClient] 任务 ${request.taskId} HTTP请求超时`)
+          reject(new Error('TIMEOUT: HTTP请求超时（主动关闭连接）'))
+        }, httpTimeout)
+      })
+
+      // 非流式调用（与超时Promise竞速）
+      const translationPromise = client.chat(messages)
+      const translation = await Promise.race([translationPromise, httpTimeoutPromise])
+      
+      // 清除超时计时器
+      if (httpTimer) {
+        clearTimeout(httpTimer)
+        httpTimer = null
+      }
 
       // 计算 Token
       const inputTokens = await client.countTokens(messages)
@@ -225,6 +333,12 @@ export class LlmTranslationClient extends EventEmitter {
       return result
 
     } catch (error) {
+      // 确保清除HTTP超时计时器
+      if (httpTimer) {
+        clearTimeout(httpTimer)
+        httpTimer = null
+      }
+      
       await this.cleanup()
       throw error
     }

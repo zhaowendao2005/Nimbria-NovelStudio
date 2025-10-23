@@ -577,6 +577,46 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
     }
   })
 
+  // ========== 🆕 Token换算配置管理 ==========
+
+  ipcMain.handle('llm-translate:create-token-config', async (_event, args: {
+    config: { name: string; chineseRatio: number; asciiRatio: number; description?: string }
+  }) => {
+    try {
+      console.log(`📥 [IPC] 创建Token换算配置:`, args.config.name)
+      const result = await llmTranslateService.createTokenConfig(args.config)
+      return { success: true, data: result }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error(`❌ [IPC] 创建Token配置失败:`, errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  ipcMain.handle('llm-translate:get-token-configs', async () => {
+    try {
+      console.log(`📥 [IPC] 获取所有Token换算配置`)
+      const result = await llmTranslateService.getAllTokenConfigs()
+      return { success: true, data: result }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error(`❌ [IPC] 获取Token配置失败:`, errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  ipcMain.handle('llm-translate:delete-token-config', async (_event, args: { id: string }) => {
+    try {
+      console.log(`📥 [IPC] 删除Token换算配置:`, args.id)
+      await llmTranslateService.deleteTokenConfig(args.id)
+      return { success: true }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error(`❌ [IPC] 删除Token配置失败:`, errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
   console.log('✅ [IPC] LLM Translate handlers registered')
 }
 

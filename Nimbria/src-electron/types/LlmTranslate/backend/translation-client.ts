@@ -7,16 +7,28 @@
 
 /**
  * 错误类型枚举
+ * 
+ * 三层超时架构：
+ * - TIMEOUT_TOTAL: Layer 3 兜底机制
+ * - TIMEOUT_HTTP: Layer 2a 非流式HTTP超时
+ * - TIMEOUT_FIRST_TOKEN: Layer 2b 流式首字超时
+ * - TIMEOUT_IDLE: Layer 2b 流式空闲超时
  */
 export type ErrorType = 
-  | 'RATE_LIMIT'      // 限流（429）
-  | 'TIMEOUT'         // 超时
-  | 'NETWORK'         // 网络错误
-  | 'INVALID_API_KEY' // API 密钥无效
-  | 'MODEL_ERROR'     // 模型错误
-  | 'USER_PAUSED'     // 用户暂停
-  | 'APP_CRASHED'     // 应用崩溃
-  | 'UNKNOWN'         // 未知错误
+  | 'RATE_LIMIT'           // 限流（429），特殊处理（限流探针）
+  | 'API_ERROR'            // API错误（非429），显示详细信息
+  | 'TIMEOUT_TOTAL'        // 任务总超时（兜底），可手动重试
+  | 'TIMEOUT_HTTP'         // HTTP请求超时（主动关闭），可重试
+  | 'TIMEOUT_FIRST_TOKEN'  // 首个token超时（主动关闭），可重试
+  | 'TIMEOUT_IDLE'         // 流式响应空闲超时（主动关闭），可重试
+  | 'TIMEOUT'              // 通用超时（向后兼容）
+  | 'CONNECTION_CLOSED'    // 服务器主动关闭连接，可重试
+  | 'NETWORK'              // 网络错误
+  | 'INVALID_API_KEY'      // API 密钥无效
+  | 'MODEL_ERROR'          // 模型错误
+  | 'USER_PAUSED'          // 用户暂停
+  | 'APP_CRASHED'          // 应用崩溃
+  | 'UNKNOWN'              // 未知错误
 
 /**
  * 翻译客户端配置
@@ -43,7 +55,10 @@ export interface TranslationClientConfig {
   /** Presence Penalty（可选） */
   presencePenalty?: number
   
-  /** HTTP 请求超时时间（毫秒） */
+  /** 
+   * HTTP 请求超时时间（毫秒）
+   * Layer 2a: 非流式模式下整个HTTP请求的最长等待时间
+   */
   timeout: number
   
   /** 最大重试次数 */
@@ -52,7 +67,18 @@ export interface TranslationClientConfig {
   /** 是否启用流式响应（可选，默认true） */
   enableStreaming?: boolean
   
-  /** 流式空闲超时（毫秒，可选）两次数据块之间的最大间隔 */
+  /** 
+   * 流式首字超时（毫秒，可选）
+   * Layer 2b: 等待首个token的最长时间
+   * 仅在 enableStreaming=true 时生效
+   */
+  streamFirstTokenTimeout?: number
+  
+  /** 
+   * 流式空闲超时（毫秒，可选）
+   * Layer 2b: 后续token之间的最大间隔
+   * 仅在 enableStreaming=true 时生效
+   */
   streamIdleTimeout?: number
 }
 

@@ -137,7 +137,22 @@ export class TranslationExecutor {
       // 3. 更新状态为 waiting
       await this.taskStateManager.updateState(taskId, 'waiting')
 
-      // 4. 创建翻译客户端配置
+      // 4. 三层超时控制配置
+      /**
+       * 三层超时架构：
+       * Layer 3: taskTotalTimeout - 兜底机制，包括排队、执行、重试的全部时间
+       * Layer 2a: httpTimeout - 非流式模式的HTTP请求最长等待时间
+       * Layer 2b: streamFirstTokenTimeout + streamIdleTimeout - 流式模式的超时控制
+       * 
+       * 优先级: 服务器返回 > 我们的超时控制
+       */
+      const taskTotalTimeout = config.taskTotalTimeout ?? 600000       // 默认10分钟（兜底）
+      const httpTimeout = config.httpTimeout ?? 120000                  // 默认2分钟（非流式）
+      const streamFirstTokenTimeout = config.streamFirstTokenTimeout ?? 60000  // 默认1分钟
+      const streamIdleTimeout = config.streamIdleTimeout ?? 60000       // 默认1分钟
+      const enableStreaming = config.enableStreaming ?? true
+
+      // 创建翻译客户端配置
       const clientConfig: TranslationClientConfig = {
         modelId: config.modelId,
         systemPrompt: config.systemPrompt,
@@ -147,11 +162,12 @@ export class TranslationExecutor {
         ...(config.topP !== undefined && { topP: config.topP }),
         ...(config.frequencyPenalty !== undefined && { frequencyPenalty: config.frequencyPenalty }),
         ...(config.presencePenalty !== undefined && { presencePenalty: config.presencePenalty }),
-        // 🆕 使用用户配置的超时和重试次数，如果没有则使用默认值
-        timeout: config.httpTimeout || 120000,  // 默认 2 分钟
+        // Layer 2a/2b 超时配置
+        timeout: httpTimeout,
         maxRetries: config.maxRetries ?? 3,
-        ...(config.enableStreaming !== undefined && { enableStreaming: config.enableStreaming }),
-        ...(config.streamIdleTimeout !== undefined && { streamIdleTimeout: config.streamIdleTimeout })
+        enableStreaming,
+        streamFirstTokenTimeout,
+        streamIdleTimeout
       }
 
       // 生成系统提示词摘要用于日志
@@ -161,18 +177,16 @@ export class TranslationExecutor {
             : config.systemPrompt)
         : '(无系统提示词)'
       
-      const enableStreaming = clientConfig.enableStreaming ?? true
-      const streamIdleTimeout = clientConfig.streamIdleTimeout || 60000
-      
       console.log(`🚀 [TranslationExecutor] 执行任务 ${taskId}`)
       console.log(`   📝 系统提示词: ${promptSummary}`)
       console.log(`   🤖 模型: ${config.modelId}`)
-      console.log(`   ⏱️  HTTP 超时: ${clientConfig.timeout}ms (${(clientConfig.timeout / 1000).toFixed(0)}秒)`)
+      console.log(`\n   ⏱️  三层超时配置:`)
+      console.log(`   ┌─ Layer 3 (兜底): ${taskTotalTimeout}ms (${(taskTotalTimeout / 1000).toFixed(0)}秒)`)
+      console.log(`   ├─ Layer 2a (HTTP): ${httpTimeout}ms (${(httpTimeout / 1000).toFixed(0)}秒) - 非流式专用`)
+      console.log(`   ├─ Layer 2b (首字): ${streamFirstTokenTimeout}ms (${(streamFirstTokenTimeout / 1000).toFixed(0)}秒) - 流式专用`)
+      console.log(`   └─ Layer 2b (空闲): ${streamIdleTimeout}ms (${(streamIdleTimeout / 1000).toFixed(0)}秒) - 流式专用`)
       console.log(`   🔄 最大重试: ${clientConfig.maxRetries}次`)
       console.log(`   📡 流式响应: ${enableStreaming ? '开启' : '关闭'}`)
-      if (enableStreaming) {
-        console.log(`   ⏳ 空闲超时: ${streamIdleTimeout}ms (${(streamIdleTimeout / 1000).toFixed(0)}秒)`)
-      }
 
       // 5. 创建翻译客户端
       const client = new LlmTranslationClient(clientConfig, this.llmConfigManager)
@@ -180,44 +194,82 @@ export class TranslationExecutor {
       // 记录正在执行的任务（用于取消功能）
       this.executingTasks.set(taskId, client)
 
-      // 6. 构建翻译请求
+      // 6. Token估算（优先使用配置的tokenConversionConfigId）
+      let estimatedTokens = config.predictedTokens ?? 2000 // 默认值
+      
+      if (config.tokenConversionConfigId) {
+        try {
+          // 使用公有方法 estimateTokens（LlmTranslateService对外暴露）
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const tokenService = this.llmTranslateService as any
+          if (tokenService.estimateTokens && typeof tokenService.estimateTokens === 'function') {
+            estimatedTokens = tokenService.estimateTokens(
+              task.content,
+              config.tokenConversionConfigId
+            ) as number
+            console.log(`🔢 [Executor] 使用Token换算配置 ${config.tokenConversionConfigId}: ${estimatedTokens} tokens`)
+          } else {
+            console.warn(`⚠️ [Executor] Token估算服务不可用，使用预设值`)
+            estimatedTokens = config.predictedTokens ?? 2000
+          }
+        } catch (error) {
+          console.warn(`⚠️ [Executor] Token估算失败，使用预设值: ${error instanceof Error ? error.message : String(error)}`)
+          estimatedTokens = config.predictedTokens ?? 2000
+        }
+      } else if (config.predictedTokens) {
+        estimatedTokens = config.predictedTokens
+      }
+
+      // 7. 构建翻译请求
       const request: TranslationRequest = {
         taskId,
         content: task.content,
-        estimatedTokens: config.predictedTokens
+        estimatedTokens
       }
 
-      // 7. 更新状态为 sending
+      // 8. 更新状态为 sending
       await this.taskStateManager.updateState(taskId, 'sending')
 
-      // 8. 执行翻译（根据 enableStreaming 选择流式或非流式）
-      let result: TranslationResult
-      
-      if (enableStreaming) {
-        // 流式模式
-        result = await client.translateStream(request, {
-          onStart: (id) => {
-            console.log(`🚀 [Executor] 任务 ${id} 开始翻译（流式）`)
-          },
-          onProgress: (id, chunk, tokens) => {
-            // 更新进度（TaskStateManager 会自动节流和持久化）
-            void this.taskStateManager.updateProgress(id, chunk, tokens)
-          },
-          onComplete: (id) => {
-            console.log(`✅ [Executor] 任务 ${id} 翻译完成`)
-          },
-          onError: (id, error) => {
-            console.error(`❌ [Executor] 任务 ${id} 翻译失败:`, error)
-          }
-        })
-      } else {
-        // 非流式模式
-        console.log(`🚀 [Executor] 任务 ${taskId} 开始翻译（非流式）`)
-        result = await client.translate(request)
-        console.log(`✅ [Executor] 任务 ${taskId} 翻译完成`)
-      }
+      // 9. 执行翻译（Layer 3 任务总超时 + Layer 2 具体超时）
+      // Layer 3: 任务总超时（兜底机制，与翻译过程竞速）
+      const taskTimeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('TIMEOUT: 任务总超时（兜底）'))
+        }, taskTotalTimeout)
+      })
 
-      // 9. 标记任务完成
+      // 翻译执行 Promise（根据 enableStreaming 选择流式或非流式）
+      const translationPromise = (async (): Promise<TranslationResult> => {
+        if (enableStreaming) {
+          // 流式模式（Layer 2b 超时已传递给 client）
+          return await client.translateStream(request, {
+            onStart: (id) => {
+              console.log(`🚀 [Executor] 任务 ${id} 开始翻译（流式）`)
+            },
+            onProgress: (id, chunk, tokens) => {
+              // 更新进度（TaskStateManager 会自动节流和持久化）
+              void this.taskStateManager.updateProgress(id, chunk, tokens)
+            },
+            onComplete: (id) => {
+              console.log(`✅ [Executor] 任务 ${id} 翻译完成`)
+            },
+            onError: (id, error) => {
+              console.error(`❌ [Executor] 任务 ${id} 翻译失败:`, error)
+            }
+          })
+        } else {
+          // 非流式模式（Layer 2a 超时已配置在 client.timeout）
+          console.log(`🚀 [Executor] 任务 ${taskId} 开始翻译（非流式）`)
+          const res = await client.translate(request)
+          console.log(`✅ [Executor] 任务 ${taskId} 翻译完成`)
+          return res
+        }
+      })()
+
+      // 竞速执行：翻译 vs 任务总超时
+      const result = await Promise.race([translationPromise, taskTimeoutPromise])
+
+      // 10. 标记任务完成
       await this.taskStateManager.markComplete(taskId, {
         translation: result.translation,
         inputTokens: result.inputTokens,
@@ -226,7 +278,7 @@ export class TranslationExecutor {
         durationMs: result.durationMs
       })
 
-      // 10. 更新批次统计
+      // 11. 更新批次统计
       await this.llmTranslateService.updateBatchStats(batchId)
 
     } catch (error) {
@@ -285,36 +337,76 @@ export class TranslationExecutor {
   }
 
   /**
-   * 错误分类
+   * 错误分类（扩展版 - 支持三层超时架构）
+   * 
+   * 优先级: 精确匹配的超时类型 > 状态码 > 关键词
    */
   private classifyError(error: Error): ErrorType {
-    const message = error.message.toLowerCase()
+    const message = error.message
+    const messageLower = message.toLowerCase()
     const status = 'status' in error ? (error as { status: number }).status : undefined
     
-    // 优先检查状态码
-    if (status === 429 || message.includes('429') || message.includes('rate limit')) {
+    // 1. 优先识别三层超时架构的错误（精确匹配错误消息）
+    if (message.includes('TIMEOUT:')) {
+      if (message.includes('任务总超时（兜底）')) {
+        return 'TIMEOUT_TOTAL'
+      }
+      if (message.includes('HTTP请求超时（主动关闭）')) {
+        return 'TIMEOUT_HTTP'
+      }
+      if (message.includes('首个token超时（主动关闭）') || message.includes('等待首个token超时')) {
+        return 'TIMEOUT_FIRST_TOKEN'
+      }
+      if (message.includes('空闲超时（主动关闭）') || message.includes('流式响应空闲超时')) {
+        return 'TIMEOUT_IDLE'
+      }
+    }
+    
+    // 2. 服务器连接关闭
+    if (message.includes('CONNECTION:') && message.includes('服务器关闭连接')) {
+      return 'CONNECTION_CLOSED'
+    }
+    
+    // 3. 限流错误（429）- 特殊处理
+    if (status === 429 || messageLower.includes('429') || messageLower.includes('rate limit')) {
       return 'RATE_LIMIT'
     }
-    if (status === 408 || status === 504 || message.includes('timeout') || message.includes('econnaborted')) {
+    
+    // 4. API错误（非429的其他HTTP错误）
+    if (message.includes('API_ERROR:') || (status !== undefined && status >= 400 && status !== 429)) {
+      return 'API_ERROR'
+    }
+    
+    // 5. 通用超时（向后兼容）
+    if (status === 408 || status === 504 || messageLower.includes('timeout') || messageLower.includes('econnaborted')) {
       return 'TIMEOUT'
     }
-    if (status === 401 || status === 403 || message.includes('api key') || 
-        message.includes('unauthorized') || message.includes('forbidden')) {
+    
+    // 6. 认证错误
+    if (status === 401 || status === 403 || messageLower.includes('api key') || 
+        messageLower.includes('unauthorized') || messageLower.includes('forbidden')) {
       return 'INVALID_API_KEY'
     }
-    if (message.includes('network') || message.includes('econnrefused') || message.includes('econnreset')) {
+    
+    // 7. 网络错误
+    if (messageLower.includes('network') || messageLower.includes('econnrefused') || 
+        messageLower.includes('econnreset') || messageLower.includes('etimedout')) {
       return 'NETWORK'
     }
-    if (message.includes('model') || message.includes('invalid model') || message.includes('404')) {
-      return 'MODEL_ERROR'
-    }
-    // 服务器错误（500、502、503等）
-    if ((status !== undefined && status >= 500) || message.includes('500') || message.includes('internal server error') || 
-        message.includes('bad gateway') || message.includes('service unavailable') ||
-        message.includes('malformed')) {
+    
+    // 8. 模型错误
+    if (messageLower.includes('model') || messageLower.includes('invalid model') || status === 404) {
       return 'MODEL_ERROR'
     }
     
+    // 9. 服务器错误（500、502、503等）
+    if ((status !== undefined && status >= 500) || messageLower.includes('500') || 
+        messageLower.includes('internal server error') || messageLower.includes('bad gateway') || 
+        messageLower.includes('service unavailable') || messageLower.includes('malformed')) {
+      return 'MODEL_ERROR'
+    }
+    
+    // 10. 未知错误
     return 'UNKNOWN'
   }
 

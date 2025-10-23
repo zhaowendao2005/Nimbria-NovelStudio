@@ -56,6 +56,11 @@ export class BatchScheduler extends EventEmitter {
   private stateManager: TaskStateManager
   private probe?: ThrottleProbe
   
+  // 🆕 调度策略相关
+  private schedulingStrategy: 'timed' | 'event'
+  private timedInterval?: number
+  private timedIntervalTimer?: NodeJS.Timeout
+  
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private taskCompleteListener?: (...args: any[]) => void
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -74,10 +79,17 @@ export class BatchScheduler extends EventEmitter {
       this.probe = options.probe
     }
     
+    // 🆕 调度策略配置
+    this.schedulingStrategy = options.config.schedulerConfig?.schedulingStrategy ?? 'event'
+    // timedInterval 边界检查：限制在 1-10 秒之间
+    const rawInterval = options.config.schedulerConfig?.timedInterval ?? 2
+    this.timedInterval = Math.max(1, Math.min(10, rawInterval))
+    
     // 初始化等待队列（所有传入的任务）
     this.waitingQueue = [...options.taskIds]
     
     console.log(`🎯 [BatchScheduler] 初始化调度器: batchId=${this.batchId}, tasks=${options.taskIds.length}, maxConcurrency=${this.maxConcurrency}`)
+    console.log(`📋 [BatchScheduler] 调度策略: ${this.schedulingStrategy}${this.schedulingStrategy === 'timed' ? ` (间隔${this.timedInterval}秒)` : ''}`)
   }
 
   /**
@@ -90,13 +102,41 @@ export class BatchScheduler extends EventEmitter {
     }
 
     this.isRunning = true
-    console.log(`🚀 [BatchScheduler] 启动调度器`)
+    console.log(`🚀 [BatchScheduler] 启动调度器 (策略: ${this.schedulingStrategy})`)
 
     // 设置事件监听器
     this.setupEventListeners()
 
-    // 开始处理队列
-    this.processQueue()
+    // 🆕 根据调度策略选择启动方式
+    if (this.schedulingStrategy === 'timed') {
+      // 定时调度模式：固定间隔发送任务
+      this.startTimedScheduling()
+    } else {
+      // 事件驱动模式：任务完成立即发送下一个
+      this.processQueue()
+    }
+  }
+
+  /**
+   * 🆕 启动定时调度模式
+   * 每隔固定间隔发送一批任务（受并发数限制）
+   */
+  private startTimedScheduling(): void {
+    console.log(`⏰ [BatchScheduler] 启动定时调度模式，间隔: ${this.timedInterval}秒`)
+    
+    // 立即处理一次
+    void this.processQueue()
+    
+    // 设置定时器
+    const intervalMs = (this.timedInterval ?? 2) * 1000
+    this.timedIntervalTimer = setInterval(() => {
+      if (!this.isPaused && !this.isThrottled) {
+        console.log(`⏰ [BatchScheduler] 定时触发任务发送`)
+        void this.processQueue()
+      }
+    }, intervalMs)
+    
+    console.log(`✅ [BatchScheduler] 定时调度器已启动，间隔: ${intervalMs}ms`)
   }
 
   /**
@@ -109,6 +149,13 @@ export class BatchScheduler extends EventEmitter {
 
     this.isRunning = false
     this.isPaused = true
+    
+    // 🆕 清理定时器
+    if (this.timedIntervalTimer) {
+      clearInterval(this.timedIntervalTimer)
+      this.timedIntervalTimer = undefined
+      console.log(`⏰ [BatchScheduler] 定时调度器已停止`)
+    }
     
     // 移除事件监听器
     this.removeEventListeners()
@@ -191,8 +238,18 @@ export class BatchScheduler extends EventEmitter {
     this.activeSet.delete(taskId)
     this.completedSet.add(taskId)
 
-    // 触发下一批任务
-    void this.processQueue()
+    // 🆕 调度策略处理
+    if (this.schedulingStrategy === 'event') {
+      // 事件驱动模式：立即触发下一批任务
+      void this.processQueue()
+    } else {
+      // 定时调度模式：检查是否所有任务已完成，是则立即触发检查
+      // 避免最后一个任务完成时还需等待下一个定时器周期
+      if (this.waitingQueue.length === 0 && this.activeSet.size === 0) {
+        console.log(`🎉 [BatchScheduler] 检测到所有任务已完成，立即触发最终检查`)
+        void this.processQueue()
+      }
+    }
   }
 
   /**

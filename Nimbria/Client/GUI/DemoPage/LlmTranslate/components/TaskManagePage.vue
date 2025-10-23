@@ -341,6 +341,9 @@
       @save-model-params="handleModelParamsSave"
       @save-model-config="handleModelConfigSave"
       @save-request-control="handleRequestControlSave"
+      @save-timeout="handleTimeoutSave"
+      @save-strategy="handleStrategySave"
+      @save-token="handleTokenSave"
     />
   </div>
 </template>
@@ -721,6 +724,112 @@ const handleRequestControlSave = async (config: {
   } catch (error) {
     console.error('保存请求控制配置失败:', error)
     const errorMsg = error instanceof Error ? error.message : '保存请求控制配置失败'
+    ElMessage({ message: errorMsg, type: 'error' })
+  }
+}
+
+// 保存超时控制配置
+const handleTimeoutSave = async (config: {
+  taskTotalTimeout?: number
+  httpTimeout?: number
+  streamFirstTokenTimeout?: number
+  streamIdleTimeout?: number
+}) => {
+  if (!store.currentBatch) {
+    ElMessage({ message: '未选择批次', type: 'error' })
+    return
+  }
+
+  try {
+    console.log('💾 [TaskManagePage] 保存超时控制配置:', config)
+    
+    // 更新 store 配置
+    if (config.taskTotalTimeout !== undefined) {
+      store.config.taskTotalTimeout = config.taskTotalTimeout
+    }
+    if (config.httpTimeout !== undefined) {
+      store.config.httpTimeout = config.httpTimeout
+    }
+    if (config.streamFirstTokenTimeout !== undefined) {
+      store.config.streamFirstTokenTimeout = config.streamFirstTokenTimeout
+    }
+    if (config.streamIdleTimeout !== undefined) {
+      store.config.streamIdleTimeout = config.streamIdleTimeout
+    }
+    
+    // 持久化到数据库
+    await store.updateBatchConfig(store.currentBatch.id, config)
+    
+    ElMessage({ message: '超时控制配置已保存', type: 'success' })
+  } catch (error) {
+    console.error('保存超时控制配置失败:', error)
+    const errorMsg = error instanceof Error ? error.message : '保存超时控制配置失败'
+    ElMessage({ message: errorMsg, type: 'error' })
+  }
+}
+
+// 保存调度策略配置
+const handleStrategySave = async (config: {
+  schedulingStrategy: 'timed' | 'event'
+  timedInterval?: number
+}) => {
+  if (!store.currentBatch) {
+    ElMessage({ message: '未选择批次', type: 'error' })
+    return
+  }
+
+  try {
+    console.log('💾 [TaskManagePage] 保存调度策略配置:', config)
+    
+    // 更新 store 配置中的 schedulerConfig
+    if (!store.config.schedulerConfig) {
+      store.config.schedulerConfig = {} as any
+    }
+    store.config.schedulerConfig.schedulingStrategy = config.schedulingStrategy
+    if (config.timedInterval !== undefined) {
+      store.config.schedulerConfig.timedInterval = config.timedInterval
+    }
+    
+    // 持久化到数据库
+    await store.updateBatchConfig(store.currentBatch.id, {
+      schedulerConfig: {
+        schedulingStrategy: config.schedulingStrategy,
+        ...(config.timedInterval !== undefined ? { timedInterval: config.timedInterval } : {})
+      }
+    })
+    
+    ElMessage({ message: '调度策略配置已保存', type: 'success' })
+  } catch (error) {
+    console.error('保存调度策略配置失败:', error)
+    const errorMsg = error instanceof Error ? error.message : '保存调度策略配置失败'
+    ElMessage({ message: errorMsg, type: 'error' })
+  }
+}
+
+// 保存Token估算配置
+const handleTokenSave = async (config: {
+  tokenConversionConfigId?: string
+}) => {
+  if (!store.currentBatch) {
+    ElMessage({ message: '未选择批次', type: 'error' })
+    return
+  }
+
+  try {
+    console.log('💾 [TaskManagePage] 保存Token估算配置:', config)
+    
+    // 更新 store 配置
+    if (config.tokenConversionConfigId !== undefined) {
+      store.config.tokenConversionConfigId = config.tokenConversionConfigId
+    }
+    
+    // 持久化到数据库
+    await store.updateBatchConfig(store.currentBatch.id, config)
+    
+    ElMessage({ message: 'Token估算配置已保存', type: 'success' })
+  } catch (error) {
+    console.error('保存Token估算配置失败:', error)
+    const errorMsg = error instanceof Error ? error.message : '保存Token估算配置失败'
     ElMessage({ message: errorMsg, type: 'error' })
   }
 }

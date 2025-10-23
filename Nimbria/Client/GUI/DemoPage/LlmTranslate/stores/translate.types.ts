@@ -45,6 +45,9 @@ export interface TranslateDatasource {
   retryTaskWithPrompt(taskId: string, modifiedSystemPrompt?: string): Promise<void>
   cancelTask(taskId: string): Promise<void>
   updateBatchConfig(batchId: string, updates: Partial<TranslateConfig>): Promise<void>
+  createTokenConfig(config: { name: string; chineseRatio: number; asciiRatio: number; description?: string }): Promise<any>
+  getTokenConfigs(): Promise<any[]>
+  deleteTokenConfig(id: string): Promise<void>
 }
 
 // ==================== Datasource 上下文类型 ====================
@@ -65,6 +68,9 @@ export interface DatasourceContext {
     retryTaskWithPrompt(params: { taskId: string; modifiedSystemPrompt?: string }): Promise<{ success: boolean; error?: string }>
     cancelTask(params: { taskId: string }): Promise<{ success: boolean; error?: string }>
     updateBatchConfig(params: { batchId: string; updates: Partial<TranslateConfig> }): Promise<{ success: boolean; error?: string }>
+    createTokenConfig(params: { config: { name: string; chineseRatio: number; asciiRatio: number; description?: string } }): Promise<{ success: boolean; data?: any; error?: string }>
+    getTokenConfigs(): Promise<{ success: boolean; data?: any[]; error?: string }>
+    deleteTokenConfig(params: { id: string }): Promise<{ success: boolean; error?: string }>
   }
 }
 

@@ -21,8 +21,8 @@ import { TaskStateManager } from './task-state-manager'
 import { BatchScheduler } from './batch-scheduler'
 import { ThrottleProbe } from './throttle-probe'
 import type { ThrottleProbeConfig, ThrottleProbeResult } from './throttle-probe'
-import { TokenRegressionEstimator } from './token-regression-estimator'
-import type { TokenSample } from './token-regression-estimator'
+import { TokenConversionService } from './token-conversion-service'
+import type { TokenConversionConfig } from './token-conversion-service'
 import { initializeErrorSimulator } from './error-simulator'
 
 // 从新的类型系统导入
@@ -60,7 +60,7 @@ export class LlmTranslateService extends EventEmitter {
   private activeBatches: Map<string, Batch> = new Map()
   private schedulers: Map<string, BatchScheduler> = new Map()
   private probes: Map<string, ThrottleProbe> = new Map()
-  private estimator: TokenRegressionEstimator
+  private tokenConversionService: TokenConversionService | null = null
 
   constructor(llmChatService: LlmChatService, llmConfigManager: any) {
     super()
@@ -74,9 +74,6 @@ export class LlmTranslateService extends EventEmitter {
     this.translationExecutor = new TranslationExecutor(this, llmConfigManager, this.taskStateManager)
     
     this.exportService = new ExportService(this)
-    
-    // 创建 TokenRegressionEstimator
-    this.estimator = new TokenRegressionEstimator()
   }
 
   /**
@@ -93,6 +90,10 @@ export class LlmTranslateService extends EventEmitter {
       debug: enableErrorMock && process.env.DEBUG_ERROR_SIMULATOR === 'true'
     })
     console.log(`🎲 [LlmTranslateService] 错误模拟器: ${enableErrorMock ? '已启用' : '已关闭'}`)
+    
+    // 🆕 初始化 TokenConversionService
+    this.tokenConversionService = new TokenConversionService(projectDatabase.getDatabase())
+    console.log('✅ [LlmTranslateService] TokenConversionService 已初始化')
     
     // 设置 TaskStateManager 的数据库
     this.taskStateManager.setProjectDatabase(projectDatabase)
@@ -133,9 +134,6 @@ export class LlmTranslateService extends EventEmitter {
     // 任务完成事件
     this.taskStateManager.on('task:complete', (event) => {
       this.emit('task:complete', event)
-      
-      // 收集token样本用于回归估计
-      this.collectTokenSample(event)
     })
 
     // 任务错误事件
@@ -144,62 +142,6 @@ export class LlmTranslateService extends EventEmitter {
     })
 
     console.log('✅ [LlmTranslateService] TaskStateManager 事件监听器已设置')
-  }
-  
-  /**
-   * 收集token样本（用于回归估计）
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private collectTokenSample(event: any): void {
-    try {
-      const { taskId, inputTokens, replyTokens } = event
-      
-      if (!taskId || !this.projectDatabase) {
-        return
-      }
-      
-      // 从数据库获取任务详情
-      const task = this.projectDatabase.query(
-        `SELECT content, metadata_json AS metadataJson FROM Llmtranslate_tasks WHERE id = ?`,
-        [taskId]
-      )[0]
-      
-      if (!task) {
-        return
-      }
-      
-      // 提取modelId
-      let modelId = ''
-      try {
-        const metadata = typeof task.metadataJson === 'string' 
-          ? JSON.parse(task.metadataJson) 
-          : task.metadataJson
-        modelId = metadata?.modelId || ''
-      } catch {
-        return
-      }
-      
-      if (!modelId || !replyTokens) {
-        return
-      }
-      
-      // 构建样本
-      const sample: TokenSample = {
-        modelId,
-        inputLength: task.content?.length || 0,
-        inputTokens: inputTokens || 0,
-        outputTokens: replyTokens,
-        timestamp: Date.now()
-      }
-      
-      // 添加到estimator
-      this.estimator.addSample(sample)
-      
-      console.log(`📊 [LlmTranslateService] 收集样本: modelId=${modelId}, input=${sample.inputLength}, output=${sample.outputTokens}`)
-      
-    } catch (error) {
-      console.error(`❌ [LlmTranslateService] 收集样本失败:`, error)
-    }
   }
 
   /**
@@ -1083,14 +1025,14 @@ export class LlmTranslateService extends EventEmitter {
    * 根据replyMode计算预估token数
    * 
    * @param content 任务内容
-   * @param modelId 模型ID
-   * @param replyMode 回复模式
+   * @param modelId 模型ID（保留参数以便未来扩展）
+   * @param replyMode 回复模式（仅支持 predicted 和 equivalent）
    * @param predictedTokens 用户设定的固定值（predicted模式使用）
    */
   private calculatePredictedTokens(
     content: string,
     modelId: string,
-    replyMode: 'predicted' | 'equivalent' | 'regression',
+    replyMode: 'predicted' | 'equivalent',
     predictedTokens: number
   ): number {
     switch (replyMode) {
@@ -1106,21 +1048,6 @@ export class LlmTranslateService extends EventEmitter {
         return equivalentTokens
       }
         
-      case 'regression': {
-        // 回归估计：使用历史样本学习
-        const contentLength = content.length
-        const estimated = this.estimator.estimate(contentLength, modelId)
-        
-        if (estimated > 0) {
-          console.log(`📊 [LlmTranslateService] 使用regression模式: ${estimated} tokens (基于样本)`)
-          return estimated
-        } else {
-          // 样本不足，降级到predicted模式
-          console.log(`⚠️ [LlmTranslateService] Regression模式样本不足，降级到predicted: ${predictedTokens} tokens`)
-          return predictedTokens
-        }
-      }
-        
       default:
         console.warn(`⚠️ [LlmTranslateService] 未知的replyMode: ${replyMode}，使用predicted`)
         return predictedTokens
@@ -1130,50 +1057,11 @@ export class LlmTranslateService extends EventEmitter {
   /**
    * 估算任务的输出token数（根据taskId）
    * 用于动态估算已存在任务的预估token
+   * @deprecated 已废弃，请使用 TokenConversionService.estimate() 并传入 tokenConversionConfigId
    */
   estimateTaskTokens(taskId: string): number {
-    if (!this.projectDatabase) {
-      return -1
-    }
-    
-    try {
-      // 从数据库获取任务
-      const task = this.projectDatabase.query(
-        `SELECT content, metadata_json AS metadataJson FROM Llmtranslate_tasks WHERE id = ?`,
-        [taskId]
-      )[0]
-      
-      if (!task) {
-        return -1
-      }
-      
-      // 提取modelId
-      let modelId = ''
-      try {
-        const metadata = typeof task.metadataJson === 'string' 
-          ? JSON.parse(task.metadataJson) 
-          : task.metadataJson
-        modelId = metadata?.modelId || ''
-      } catch {
-        return -1
-      }
-      
-      if (!modelId) {
-        return -1
-      }
-      
-      // 使用estimator估算
-      const contentLength = task.content?.length || 0
-      const estimated = this.estimator.estimate(contentLength, modelId)
-      
-      console.log(`📊 [LlmTranslateService] Token估算: taskId=${taskId}, modelId=${modelId}, length=${contentLength} → ${estimated}`)
-      
-      return estimated
-      
-    } catch (error) {
-      console.error(`❌ [LlmTranslateService] Token估算失败:`, error)
-      return -1
-    }
+    console.warn('⚠️ [LlmTranslateService] estimateTaskTokens 已废弃，请使用 TokenConversionService')
+    return -1
   }
 
   /**
@@ -1545,5 +1433,57 @@ export class LlmTranslateService extends EventEmitter {
     }
 
     console.log(`🔇 [LlmTranslateService] 全局日志过滤器已启用，将过滤 LangChain 重复token警告`)
+  }
+
+  // ===== 🆕 Token换算配置管理 =====
+
+  /**
+   * 创建Token换算配置
+   */
+  createTokenConfig(config: Omit<TokenConversionConfig, 'id' | 'createdAt' | 'updatedAt'>): TokenConversionConfig {
+    if (!this.tokenConversionService) {
+      throw new Error('TokenConversionService not initialized')
+    }
+    return this.tokenConversionService.createConfig(config)
+  }
+
+  /**
+   * 获取所有Token换算配置
+   */
+  getAllTokenConfigs(): TokenConversionConfig[] {
+    if (!this.tokenConversionService) {
+      throw new Error('TokenConversionService not initialized')
+    }
+    return this.tokenConversionService.getAllConfigs()
+  }
+
+  /**
+   * 更新Token换算配置
+   */
+  updateTokenConfig(id: string, updates: Partial<Omit<TokenConversionConfig, 'id' | 'createdAt' | 'updatedAt'>>): void {
+    if (!this.tokenConversionService) {
+      throw new Error('TokenConversionService not initialized')
+    }
+    this.tokenConversionService.updateConfig(id, updates)
+  }
+
+  /**
+   * 删除Token换算配置
+   */
+  deleteTokenConfig(id: string): void {
+    if (!this.tokenConversionService) {
+      throw new Error('TokenConversionService not initialized')
+    }
+    this.tokenConversionService.deleteConfig(id)
+  }
+
+  /**
+   * 估算token数
+   */
+  estimateTokens(text: string, configId: string): number {
+    if (!this.tokenConversionService) {
+      throw new Error('TokenConversionService not initialized')
+    }
+    return this.tokenConversionService.estimate(text, configId)
   }
 }
