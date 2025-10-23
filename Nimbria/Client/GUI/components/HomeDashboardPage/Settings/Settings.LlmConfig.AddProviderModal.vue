@@ -57,12 +57,24 @@
               <q-btn
                 outline
                 color="primary"
-                class="full-width"
+                class="full-width q-mb-sm"
                 @click="handleQuickAdd('azure')"
               >
                 <div class="quick-btn-content">
                   <q-icon name="cloud" size="24px" class="quick-btn-icon" />
                   <span>Azure OpenAI</span>
+                </div>
+              </q-btn>
+
+              <q-btn
+                outline
+                color="primary"
+                class="full-width"
+                @click="handleQuickAdd('ollama')"
+              >
+                <div class="quick-btn-content">
+                  <q-icon name="computer" size="24px" class="quick-btn-icon" />
+                  <span>Ollama (本地)</span>
                 </div>
               </q-btn>
             </div>
@@ -105,11 +117,11 @@
 
               <q-input
                 v-model="form.apiKey"
-                label="API Key *"
+                label="API Key"
                 type="password"
                 outlined
                 dense
-                :rules="[val => !!val || '请输入API Key']"
+                hint="本地服务（如Ollama）可留空"
               />
 
               <q-input
@@ -177,10 +189,11 @@
 
                 <q-input
                   v-model="wizardForm.apiKey"
-                  label="API Key *"
+                  label="API Key"
                   type="password"
                   outlined
                   dense
+                  hint="本地服务（如Ollama）可留空"
                   class="q-mb-md"
                 />
 
@@ -487,7 +500,6 @@ const isStep1Valid = computed(() => {
   return !!(
     wizardForm.value.name &&
     wizardForm.value.displayName &&
-    wizardForm.value.apiKey &&
     wizardForm.value.baseUrl
   )
 })
@@ -527,37 +539,37 @@ watch(isOpen, (newVal) => {
 
 // 快捷添加
 function handleQuickAdd(type: string) {
+  // 重置向导状态
+  resetWizard()
+  
   switch (type) {
     case 'openai':
-      form.value = {
-        id: 'openai',
-        displayName: 'OpenAI',
-        baseUrl: 'https://api.openai.com/v1',
-        apiKey: '',
-        description: 'Official OpenAI API'
-      }
+      wizardForm.value.name = 'openai'
+      wizardForm.value.displayName = 'OpenAI'
+      wizardForm.value.baseUrl = 'https://api.openai.com/v1'
+      wizardForm.value.apiKey = ''
       break
     case 'anthropic':
-      form.value = {
-        id: 'anthropic',
-        displayName: 'Anthropic',
-        baseUrl: 'https://api.anthropic.com/v1',
-        apiKey: '',
-        description: 'Claude AI by Anthropic'
-      }
+      wizardForm.value.name = 'anthropic'
+      wizardForm.value.displayName = 'Anthropic'
+      wizardForm.value.baseUrl = 'https://api.anthropic.com/v1'
+      wizardForm.value.apiKey = ''
       break
     case 'azure':
-      form.value = {
-        id: 'azure-openai',
-        displayName: 'Azure OpenAI',
-        baseUrl: 'https://YOUR_RESOURCE.openai.azure.com',
-        apiKey: '',
-        description: 'Azure OpenAI Service'
-      }
+      wizardForm.value.name = 'azure-openai'
+      wizardForm.value.displayName = 'Azure OpenAI'
+      wizardForm.value.baseUrl = 'https://YOUR_RESOURCE.openai.azure.com'
+      wizardForm.value.apiKey = ''
+      break
+    case 'ollama':
+      wizardForm.value.name = 'ollama'
+      wizardForm.value.displayName = 'Ollama'
+      wizardForm.value.baseUrl = 'http://localhost:11434/v1'
+      wizardForm.value.apiKey = 'ollama'
       break
   }
   
-  addMode.value = 'custom'
+  addMode.value = 'wizard'
 }
 
 // 提交表单
