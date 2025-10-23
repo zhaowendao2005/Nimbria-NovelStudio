@@ -443,6 +443,25 @@ contextBridge.exposeInMainWorld('nimbria', {
     updateBatchConfig: (args: { batchId: string; updates: any }) => 
       ipcRenderer.invoke('llm-translate:update-batch-config', args),
     
+    // ===== 系统提示词模板管理 =====
+    getPromptTemplates: () =>
+      ipcRenderer.invoke('llm-translate:get-prompt-templates'),
+    
+    getPromptTemplate: (args: { id: string }) =>
+      ipcRenderer.invoke('llm-translate:get-prompt-template', args),
+    
+    createPromptTemplate: (args: { template: { name: string; content: string; category?: string; description?: string } }) =>
+      ipcRenderer.invoke('llm-translate:create-prompt-template', args),
+    
+    updatePromptTemplate: (args: { id: string; updates: { name?: string; content?: string; category?: string; description?: string } }) =>
+      ipcRenderer.invoke('llm-translate:update-prompt-template', args),
+    
+    deletePromptTemplate: (args: { id: string }) =>
+      ipcRenderer.invoke('llm-translate:delete-prompt-template', args),
+    
+    getPromptTemplateCategories: () =>
+      ipcRenderer.invoke('llm-translate:get-prompt-template-categories'),
+
     // ===== Token换算配置管理 =====
     createTokenConfig: (args: { config: { name: string; chineseRatio: number; asciiRatio: number; description?: string } }) =>
       ipcRenderer.invoke('llm-translate:create-token-config', args),

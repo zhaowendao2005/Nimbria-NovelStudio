@@ -54,6 +54,9 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
   /** Token换算配置列表 */
   const tokenConversionConfigs = ref<any[]>([])
 
+  /** 系统提示词模板列表 */
+  const systemPromptTemplates = ref<any[]>([])
+
 
   /** 批次列表 */
   const batchList = ref<Batch[]>([])
@@ -697,6 +700,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
   const initialize = async () => {
     await fetchBatchList()
     await fetchTokenConfigs()
+    await fetchPromptTemplates()
     setupEventListeners()
   }
 
@@ -737,6 +741,52 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     }
   }
 
+  // ========== 系统提示词模板管理 ==========
+
+  const fetchPromptTemplates = async () => {
+    try {
+      const templates = await datasource.value.getPromptTemplates()
+      systemPromptTemplates.value = templates
+      console.log(`✅ [Store] 已加载 ${templates.length} 个系统提示词模板`)
+    } catch (err) {
+      console.error('获取系统提示词模板失败:', err)
+    }
+  }
+
+  const createPromptTemplate = async (template: { name: string; content: string; category?: string; description?: string }) => {
+    try {
+      const newTemplate = await datasource.value.createPromptTemplate(template)
+      await fetchPromptTemplates()
+      console.log(`✅ [Store] 已创建系统提示词模板:`, newTemplate.name)
+      return newTemplate
+    } catch (err) {
+      console.error('创建系统提示词模板失败:', err)
+      throw err
+    }
+  }
+
+  const updatePromptTemplate = async (id: string, updates: { name?: string; content?: string; category?: string; description?: string }) => {
+    try {
+      await datasource.value.updatePromptTemplate(id, updates)
+      await fetchPromptTemplates()
+      console.log(`✅ [Store] 已更新系统提示词模板:`, id)
+    } catch (err) {
+      console.error('更新系统提示词模板失败:', err)
+      throw err
+    }
+  }
+
+  const deletePromptTemplate = async (id: string) => {
+    try {
+      await datasource.value.deletePromptTemplate(id)
+      await fetchPromptTemplates()
+      console.log(`✅ [Store] 已删除系统提示词模板:`, id)
+    } catch (err) {
+      console.error('删除系统提示词模板失败:', err)
+      throw err
+    }
+  }
+
   return {
     // 状态
     config,
@@ -753,6 +803,7 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     selectedBatchIds,
     batchSelectMode,
     tokenConversionConfigs,
+    systemPromptTemplates,
 
     // 计算属性
     batchStats,
@@ -780,6 +831,11 @@ export const useLlmTranslateStore = defineStore('llmTranslate', () => {
     // Token换算配置
     fetchTokenConfigs,
     createTokenConfig,
-    deleteTokenConfig
+    deleteTokenConfig,
+    // 系统提示词模板
+    fetchPromptTemplates,
+    createPromptTemplate,
+    updatePromptTemplate,
+    deletePromptTemplate
   }
 })

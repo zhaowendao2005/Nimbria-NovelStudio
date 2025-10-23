@@ -25,9 +25,17 @@
 
     <el-divider></el-divider>
 
-    <!-- 任务元数据 -->
+    <!-- 任务创建时元数据 -->
     <div v-if="taskData.metadata" class="drawer-section">
-      <div class="section-title"><el-icon><Setting /></el-icon> 任务配置</div>
+      <div class="section-title">
+        <el-icon><Setting /></el-icon> 
+        任务创建时元数据
+        <el-tooltip content="创建时使用的配置，具体发送请以实际发送配置为准" placement="top">
+          <el-icon class="info-icon" style="margin-left: 8px; font-size: 14px; color: #909399;">
+            <QuestionFilled />
+          </el-icon>
+        </el-tooltip>
+      </div>
       <div class="metadata-grid">
         <div class="metadata-item">
           <span class="label">模型:</span>
@@ -71,11 +79,170 @@
         </div>
       </div>
 
-      <!-- 系统提示词 -->
-      <div class="system-prompt-section">
-        <div class="prompt-label">系统提示词:</div>
-        <div class="prompt-content">{{ taskData.metadata.systemPrompt }}</div>
+    </div>
+
+    <el-divider></el-divider>
+
+    <!-- 实际发送配置 -->
+    <div v-if="batchConfig" class="drawer-section">
+      <div class="section-title">
+        <el-icon><Stamp /></el-icon> 
+        实际发送配置
+        <el-tooltip content="批次的 config.json，为实际发送请求的配置（实时更新）" placement="top">
+          <el-icon class="info-icon" style="margin-left: 8px; font-size: 14px; color: #909399;">
+            <QuestionFilled />
+          </el-icon>
+        </el-tooltip>
       </div>
+      
+      <!-- 模型参数 -->
+      <div class="config-subsection">
+        <div class="subsection-title">模型参数</div>
+        <div class="metadata-grid">
+          <div class="metadata-item">
+            <span class="label">模型ID:</span>
+            <span class="value">{{ batchConfig.modelId }}</span>
+          </div>
+          <div class="metadata-item" v-if="batchConfig.maxTokens">
+            <span class="label">最大Token:</span>
+            <span class="value">{{ batchConfig.maxTokens }}</span>
+          </div>
+          <div class="metadata-item" v-if="batchConfig.temperature !== undefined">
+            <span class="label">Temperature:</span>
+            <span class="value">{{ batchConfig.temperature }}</span>
+          </div>
+          <div class="metadata-item" v-if="batchConfig.topP !== undefined">
+            <span class="label">Top P:</span>
+            <span class="value">{{ batchConfig.topP }}</span>
+          </div>
+          <div class="metadata-item" v-if="batchConfig.frequencyPenalty !== undefined">
+            <span class="label">频率惩罚:</span>
+            <span class="value">{{ batchConfig.frequencyPenalty }}</span>
+          </div>
+          <div class="metadata-item" v-if="batchConfig.presencePenalty !== undefined">
+            <span class="label">存在惩罚:</span>
+            <span class="value">{{ batchConfig.presencePenalty }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 分片策略 -->
+      <div class="config-subsection">
+        <div class="subsection-title">分片策略</div>
+        <div class="metadata-grid">
+          <div class="metadata-item">
+            <span class="label">分片策略:</span>
+            <span class="value">{{ batchConfig.chunkStrategy === 'line' ? '按行' : '按Token' }}</span>
+          </div>
+          <div class="metadata-item" v-if="batchConfig.chunkStrategy === 'line'">
+            <span class="label">每片行数:</span>
+            <span class="value">{{ batchConfig.chunkSizeByLine }}</span>
+          </div>
+          <div class="metadata-item" v-if="batchConfig.chunkStrategy === 'token'">
+            <span class="label">每片Token:</span>
+            <span class="value">{{ batchConfig.chunkSizeByToken }}</span>
+          </div>
+          <div class="metadata-item">
+            <span class="label">并发数:</span>
+            <span class="value">{{ batchConfig.concurrency }}</span>
+          </div>
+          <div class="metadata-item">
+            <span class="label">回复模式:</span>
+            <span class="value">{{ getReplyModeText(batchConfig.replyMode) }}</span>
+          </div>
+          <div class="metadata-item" v-if="batchConfig.predictedTokens">
+            <span class="label">预测Token:</span>
+            <span class="value">{{ batchConfig.predictedTokens }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 超时控制 -->
+      <div class="config-subsection">
+        <div class="subsection-title">超时控制</div>
+        <div class="metadata-grid">
+          <div class="metadata-item" v-if="batchConfig.taskTotalTimeout">
+            <span class="label">任务总超时:</span>
+            <span class="value">{{ (batchConfig.taskTotalTimeout / 1000).toFixed(0) }}秒</span>
+          </div>
+          <div class="metadata-item" v-if="batchConfig.httpTimeout">
+            <span class="label">HTTP超时:</span>
+            <span class="value">{{ (batchConfig.httpTimeout / 1000).toFixed(0) }}秒</span>
+          </div>
+          <div class="metadata-item" v-if="batchConfig.streamFirstTokenTimeout">
+            <span class="label">流式首字超时:</span>
+            <span class="value">{{ (batchConfig.streamFirstTokenTimeout / 1000).toFixed(0) }}秒</span>
+          </div>
+          <div class="metadata-item" v-if="batchConfig.streamIdleTimeout">
+            <span class="label">流式空闲超时:</span>
+            <span class="value">{{ (batchConfig.streamIdleTimeout / 1000).toFixed(0) }}秒</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 请求控制 -->
+      <div class="config-subsection">
+        <div class="subsection-title">请求控制</div>
+        <div class="metadata-grid">
+          <div class="metadata-item" v-if="batchConfig.enableStreaming !== undefined">
+            <span class="label">启用流式:</span>
+            <span class="value">
+              <el-tag :type="batchConfig.enableStreaming ? 'success' : 'info'" size="small">
+                {{ batchConfig.enableStreaming ? '是' : '否' }}
+              </el-tag>
+            </span>
+          </div>
+          <div class="metadata-item" v-if="batchConfig.maxRetries !== undefined">
+            <span class="label">最大重试:</span>
+            <span class="value">{{ batchConfig.maxRetries }}次</span>
+          </div>
+          <div class="metadata-item" v-if="batchConfig.tokenConversionConfigId">
+            <span class="label">Token估算:</span>
+            <span class="value">{{ batchConfig.tokenConversionConfigId }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 调度策略 -->
+      <div class="config-subsection" v-if="batchConfig.schedulerConfig">
+        <div class="subsection-title">调度策略</div>
+        <div class="metadata-grid">
+          <div class="metadata-item">
+            <span class="label">调度模式:</span>
+            <span class="value">
+              <el-tag :type="batchConfig.schedulerConfig.schedulingStrategy === 'event' ? 'success' : 'warning'" size="small">
+                {{ batchConfig.schedulerConfig.schedulingStrategy === 'event' ? '事件驱动' : '定时轮询' }}
+              </el-tag>
+            </span>
+          </div>
+          <div class="metadata-item" v-if="batchConfig.schedulerConfig.schedulingStrategy === 'timed'">
+            <span class="label">轮询间隔:</span>
+            <span class="value">{{ batchConfig.schedulerConfig.timedInterval }}秒</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 系统提示词 -->
+      <div class="config-subsection">
+        <div class="subsection-title">系统提示词</div>
+        <div class="prompt-content-box">
+          {{ batchConfig.systemPrompt || '未设置' }}
+        </div>
+      </div>
+    </div>
+    
+    <!-- 如果批次配置不可用，显示提示 -->
+    <div v-else class="drawer-section">
+      <div class="section-title">
+        <el-icon><Stamp /></el-icon> 
+        实际发送配置
+      </div>
+      <el-alert
+        title="批次配置不可用"
+        type="warning"
+        :closable="false"
+        description="无法加载批次的 config.json，请确保批次数据已正确加载"
+      />
     </div>
 
     <el-divider></el-divider>
@@ -199,7 +366,7 @@
 </template>
 
 <script setup lang="ts">
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElAlert } from 'element-plus'
 import { 
   Loading, 
   DataAnalysis, 
@@ -209,9 +376,10 @@ import {
   Tools, 
   Document, 
   Refresh, 
-  Download, 
-  Check,
-  Setting 
+  Download,
+  Setting,
+  Stamp,
+  QuestionFilled
 } from '@element-plus/icons-vue'
 import type { Task } from '../types/task'
 import type { TaskStatus } from '../types/task'
@@ -232,9 +400,35 @@ const taskData = computed(() => {
   return store.taskList.find(t => t.id === props.task.id) || props.task
 })
 
+// 获取批次的实际配置（从批次的 config.json）
+const batchConfig = computed(() => {
+  const batch = store.batchList.find(b => b.id === taskData.value.batchId)
+  if (batch && batch.configJson) {
+    try {
+      return typeof batch.configJson === 'string' 
+        ? JSON.parse(batch.configJson) 
+        : batch.configJson
+    } catch (error) {
+      console.error('解析批次配置失败:', error)
+      return null
+    }
+  }
+  return null
+})
+
 // 重发相关状态
 const withPromptModification = ref(false)
 const retryDialogVisible = ref(false)
+
+// 辅助函数：获取回复模式文本
+const getReplyModeText = (mode: string) => {
+  const modeMap: Record<string, string> = {
+    'equivalent': '等量',
+    'concise': '精简',
+    'detailed': '详细'
+  }
+  return modeMap[mode] || mode
+}
 
 // 处理已完成任务的重发
 const handleRetryCompleted = () => {
@@ -243,7 +437,7 @@ const handleRetryCompleted = () => {
     retryDialogVisible.value = true
   } else {
     // 直接重发，不修改提示词
-    retryTaskWithPrompt('none')
+    void retryTaskWithPrompt('none')
   }
 }
 
@@ -308,41 +502,36 @@ const getStatusTagType = (status: TaskStatus) => {
   }
 }
 
-// 获取回复模式文本
-const getReplyModeText = (replyMode: string): string => {
-  switch (replyMode) {
-    case 'predicted': return '预测模式'
-    case 'equivalent': return '等额模式'
-    case 'regression': return '回归估计模式'
-    default: return replyMode
-  }
-}
-
 // 复制原文
 const copySource = () => {
-  navigator.clipboard.writeText(taskData.value.content)
-  ElMessage({ message: '原文已复制', type: 'success' })
+  void navigator.clipboard.writeText(taskData.value.content)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ElMessage.success({ message: '原文已复制' } as any)
 }
 
 // 复制翻译
 const copyTranslation = () => {
   if (!taskData.value.translation) {
-    ElMessage({ message: '翻译结果尚未返回', type: 'warning' })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ElMessage.warning({ message: '翻译结果尚未返回' } as any)
     return
   }
-  navigator.clipboard.writeText(taskData.value.translation)
-  ElMessage({ message: '翻译已复制', type: 'success' })
+  void navigator.clipboard.writeText(taskData.value.translation)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ElMessage.success({ message: '翻译已复制' } as any)
 }
 
 // 重新翻译
 const retryTask = () => {
-  ElMessage({ message: '正在重新翻译...', type: 'info' })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ElMessage.info({ message: '正在重新翻译...' } as any)
   // TODO: 实现重试逻辑
 }
 
 // 保存结果
 const saveTask = () => {
-  ElMessage({ message: '结果已保存', type: 'success' })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ElMessage.success({ message: '结果已保存' } as any)
   // TODO: 实现保存逻辑
 }
 </script>
@@ -439,6 +628,35 @@ const saveTask = () => {
       border: 1px solid #e4e7eb;
       white-space: pre-wrap;
       word-break: break-word;
+    }
+  }
+
+  // 实际发送配置区域样式
+  .config-subsection {
+    margin-bottom: 20px;
+
+    .subsection-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #606266;
+      margin-bottom: 12px;
+      padding-left: 8px;
+      border-left: 3px solid #409eff;
+    }
+
+    .prompt-content-box {
+      padding: 12px;
+      background-color: #f5f7fa;
+      border: 1px solid #dcdfe6;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #333;
+      line-height: 1.8;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
     }
   }
 

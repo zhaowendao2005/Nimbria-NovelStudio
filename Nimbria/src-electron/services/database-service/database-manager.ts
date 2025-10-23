@@ -226,25 +226,77 @@ export class DatabaseManager {
 
   /**
    * 运行数据库迁移
+   * 自动查找并执行迁移脚本
    */
   private async runMigrations(db: Database.Database, fromVersion: string, toVersion: string): Promise<void> {
     console.log(`🔄 [DatabaseManager] 开始迁移: ${fromVersion} → ${toVersion}`)
 
-    // 导入迁移脚本
-    const { MIGRATION_1_2_2_TO_1_2_3 } = await import('./schema/versions/v1.2.3.schema')
-
-    // 根据版本执行相应的迁移
-    if (fromVersion === '1.2.2' && toVersion === '1.2.3') {
-      console.log(`📝 [DatabaseManager] 执行迁移: ${MIGRATION_1_2_2_TO_1_2_3.description}`)
-      db.exec(MIGRATION_1_2_2_TO_1_2_3.sql)
-      console.log(`✅ [DatabaseManager] 迁移完成: ${fromVersion} → ${toVersion}`)
-    } else {
-      console.warn(`⚠️ [DatabaseManager] 未找到从 ${fromVersion} 到 ${toVersion} 的迁移脚本`)
-      // 如果没有对应的迁移脚本，直接应用完整Schema（可能会丢失数据，需谨慎）
-      console.log(`📝 [DatabaseManager] 尝试直接应用Schema v${toVersion}`)
-      const { PROJECT_SCHEMA_V1_2_3 } = await import('./schema/versions')
-      await this.applySchema(db, PROJECT_SCHEMA_V1_2_3)
+    try {
+      // 尝试动态加载迁移脚本
+      const migration = await this.loadMigrationScript(fromVersion, toVersion)
+      
+      if (migration) {
+        console.log(`📝 [DatabaseManager] 执行迁移: ${migration.description}`)
+        db.exec(migration.sql)
+        console.log(`✅ [DatabaseManager] 迁移完成: ${fromVersion} → ${toVersion}`)
+      } else {
+        console.warn(`⚠️ [DatabaseManager] 未找到从 ${fromVersion} 到 ${toVersion} 的迁移脚本`)
+        console.log(`📝 [DatabaseManager] 尝试直接应用最新Schema v${toVersion}`)
+        
+        // 加载目标版本的完整Schema
+        const targetSchema = await this.loadSchemaByVersion(toVersion)
+        await this.applySchema(db, targetSchema)
+      }
+    } catch (error) {
+      console.error(`❌ [DatabaseManager] 迁移失败:`, error)
+      throw error
     }
+  }
+
+  /**
+   * 动态加载迁移脚本
+   * 命名规范: MIGRATION_{from}_{to} (版本号中的点替换为下划线)
+   * 例如: MIGRATION_1_2_3_TO_1_2_4
+   */
+  private async loadMigrationScript(fromVersion: string, toVersion: string): Promise<{ from: string; to: string; description: string; sql: string } | null> {
+    try {
+      // 转换版本号格式: 1.2.3 -> 1_2_3
+      const fromKey = fromVersion.replace(/\./g, '_')
+      const toKey = toVersion.replace(/\./g, '_')
+      const migrationName = `MIGRATION_${fromKey}_TO_${toKey}`
+      
+      // 从统一的index.ts导入（支持esbuild打包）
+      const schemas = await import('./schema/versions')
+      const migration = schemas[migrationName as keyof typeof schemas]
+      
+      if (migration && typeof migration === 'object' && 'sql' in migration) {
+        return migration as { from: string; to: string; description: string; sql: string }
+      }
+      
+      return null
+    } catch (error) {
+      console.warn(`⚠️ [DatabaseManager] 加载迁移脚本失败 (${fromVersion} → ${toVersion}):`, error)
+      return null
+    }
+  }
+
+  /**
+   * 根据版本号加载Schema
+   * 命名规范: PROJECT_SCHEMA_V{version} (版本号中的点替换为下划线)
+   * 例如: PROJECT_SCHEMA_V1_2_4
+   */
+  private async loadSchemaByVersion(version: string): Promise<SchemaDefinition> {
+    const versionKey = version.replace(/\./g, '_')
+    const schemaName = `PROJECT_SCHEMA_V${versionKey}`
+    
+    const schemas = await import('./schema/versions')
+    const schema = schemas[schemaName as keyof typeof schemas] as SchemaDefinition
+    
+    if (!schema) {
+      throw new Error(`Schema ${schemaName} not found`)
+    }
+    
+    return schema
   }
 
   /**

@@ -579,6 +579,87 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
 
   // ========== 🆕 Token换算配置管理 ==========
 
+  // ========== 系统提示词模板管理 ==========
+
+  ipcMain.handle('llm-translate:get-prompt-templates', async () => {
+    try {
+      console.log(`📥 [IPC] 获取所有系统提示词模板`)
+      const result = llmTranslateService.getAllPromptTemplates()
+      return { success: true, data: result }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error(`❌ [IPC] 获取系统提示词模板失败:`, errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  ipcMain.handle('llm-translate:get-prompt-template', async (_event, args: { id: string }) => {
+    try {
+      console.log(`📥 [IPC] 获取系统提示词模板:`, args.id)
+      const result = llmTranslateService.getPromptTemplate(args.id)
+      return { success: true, data: result }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error(`❌ [IPC] 获取系统提示词模板失败:`, errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  ipcMain.handle('llm-translate:create-prompt-template', async (_event, args: {
+    template: { name: string; content: string; category?: string; description?: string }
+  }) => {
+    try {
+      console.log(`📥 [IPC] 创建系统提示词模板:`, args.template.name)
+      const result = llmTranslateService.createPromptTemplate(args.template)
+      return { success: true, data: result }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error(`❌ [IPC] 创建系统提示词模板失败:`, errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  ipcMain.handle('llm-translate:update-prompt-template', async (_event, args: {
+    id: string
+    updates: { name?: string; content?: string; category?: string; description?: string }
+  }) => {
+    try {
+      console.log(`📥 [IPC] 更新系统提示词模板:`, args.id)
+      llmTranslateService.updatePromptTemplate(args.id, args.updates)
+      return { success: true }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error(`❌ [IPC] 更新系统提示词模板失败:`, errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  ipcMain.handle('llm-translate:delete-prompt-template', async (_event, args: { id: string }) => {
+    try {
+      console.log(`📥 [IPC] 删除系统提示词模板:`, args.id)
+      llmTranslateService.deletePromptTemplate(args.id)
+      return { success: true }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error(`❌ [IPC] 删除系统提示词模板失败:`, errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  ipcMain.handle('llm-translate:get-prompt-template-categories', async () => {
+    try {
+      console.log(`📥 [IPC] 获取系统提示词模板分类`)
+      const result = llmTranslateService.getPromptTemplateCategories()
+      return { success: true, data: result }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error(`❌ [IPC] 获取系统提示词模板分类失败:`, errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  // ========== Token换算配置管理 ==========
+
   ipcMain.handle('llm-translate:create-token-config', async (_event, args: {
     config: { name: string; chineseRatio: number; asciiRatio: number; description?: string }
   }) => {

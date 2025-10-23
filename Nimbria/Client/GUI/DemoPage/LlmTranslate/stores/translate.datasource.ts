@@ -162,6 +162,46 @@ class ElectronTranslateDatasource implements TranslateDatasource {
       throw new Error(result.error || '删除配置失败')
     }
   }
+
+  // ========== 系统提示词模板管理 ==========
+
+  async getPromptTemplates(): Promise<any[]> {
+    const result = await this.electronAPI.getPromptTemplates()
+    if (!result.success) {
+      throw new Error(result.error || '获取系统提示词模板失败')
+    }
+    return result.data
+  }
+
+  async getPromptTemplate(id: string): Promise<any> {
+    const result = await this.electronAPI.getPromptTemplate({ id })
+    if (!result.success) {
+      throw new Error(result.error || '获取系统提示词模板失败')
+    }
+    return result.data
+  }
+
+  async createPromptTemplate(template: { name: string; content: string; category?: string; description?: string }): Promise<any> {
+    const result = await this.electronAPI.createPromptTemplate({ template })
+    if (!result.success) {
+      throw new Error(result.error || '创建系统提示词模板失败')
+    }
+    return result.data
+  }
+
+  async updatePromptTemplate(id: string, updates: { name?: string; content?: string; category?: string; description?: string }): Promise<void> {
+    const result = await this.electronAPI.updatePromptTemplate({ id, updates })
+    if (!result.success) {
+      throw new Error(result.error || '更新系统提示词模板失败')
+    }
+  }
+
+  async deletePromptTemplate(id: string): Promise<void> {
+    const result = await this.electronAPI.deletePromptTemplate({ id })
+    if (!result.success) {
+      throw new Error(result.error || '删除系统提示词模板失败')
+    }
+  }
 }
 
 // ==================== Datasource 工厂 ====================

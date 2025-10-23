@@ -194,30 +194,29 @@ export class TranslationExecutor {
       // 记录正在执行的任务（用于取消功能）
       this.executingTasks.set(taskId, client)
 
-      // 6. Token估算（优先使用配置的tokenConversionConfigId）
+      // 6. Token估算（优先使用tokenConversionConfigId，未配置时使用默认配置）
       let estimatedTokens = config.predictedTokens ?? 2000 // 默认值
       
-      if (config.tokenConversionConfigId) {
-        try {
-          // 使用公有方法 estimateTokens（LlmTranslateService对外暴露）
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const tokenService = this.llmTranslateService as any
-          if (tokenService.estimateTokens && typeof tokenService.estimateTokens === 'function') {
-            estimatedTokens = tokenService.estimateTokens(
-              task.content,
-              config.tokenConversionConfigId
-            ) as number
-            console.log(`🔢 [Executor] 使用Token换算配置 ${config.tokenConversionConfigId}: ${estimatedTokens} tokens`)
-          } else {
-            console.warn(`⚠️ [Executor] Token估算服务不可用，使用预设值`)
-            estimatedTokens = config.predictedTokens ?? 2000
-          }
-        } catch (error) {
-          console.warn(`⚠️ [Executor] Token估算失败，使用预设值: ${error instanceof Error ? error.message : String(error)}`)
+      try {
+        // 使用公有方法 estimateTokens（LlmTranslateService对外暴露）
+        // 如果未配置 tokenConversionConfigId，会自动使用 default-balanced 配置
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tokenService = this.llmTranslateService as any
+        if (tokenService.estimateTokens && typeof tokenService.estimateTokens === 'function') {
+          estimatedTokens = tokenService.estimateTokens(
+            task.content,
+            config.tokenConversionConfigId
+          ) as number
+          
+          const configInfo = config.tokenConversionConfigId || 'default-balanced (默认)'
+          console.log(`🔢 [Executor] 使用Token换算配置 ${configInfo}: ${estimatedTokens} tokens`)
+        } else {
+          console.warn(`⚠️ [Executor] Token估算服务不可用，使用预设值`)
           estimatedTokens = config.predictedTokens ?? 2000
         }
-      } else if (config.predictedTokens) {
-        estimatedTokens = config.predictedTokens
+      } catch (error) {
+        console.warn(`⚠️ [Executor] Token估算失败，使用预设值: ${error instanceof Error ? error.message : String(error)}`)
+        estimatedTokens = config.predictedTokens ?? 2000
       }
 
       // 7. 构建翻译请求

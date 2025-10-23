@@ -23,6 +23,8 @@ import { ThrottleProbe } from './throttle-probe'
 import type { ThrottleProbeConfig, ThrottleProbeResult } from './throttle-probe'
 import { TokenConversionService } from './token-conversion-service'
 import type { TokenConversionConfig } from './token-conversion-service'
+import { SystemPromptTemplateService } from './system-prompt-template-service'
+import type { SystemPromptTemplate } from './system-prompt-template-service'
 import { initializeErrorSimulator } from './error-simulator'
 
 // 从新的类型系统导入
@@ -61,6 +63,7 @@ export class LlmTranslateService extends EventEmitter {
   private schedulers: Map<string, BatchScheduler> = new Map()
   private probes: Map<string, ThrottleProbe> = new Map()
   private tokenConversionService: TokenConversionService | null = null
+  private systemPromptTemplateService: SystemPromptTemplateService | null = null
 
   constructor(llmChatService: LlmChatService, llmConfigManager: any) {
     super()
@@ -94,6 +97,10 @@ export class LlmTranslateService extends EventEmitter {
     // 🆕 初始化 TokenConversionService
     this.tokenConversionService = new TokenConversionService(projectDatabase.getRawConnection())
     console.log('✅ [LlmTranslateService] TokenConversionService 已初始化')
+    
+    // 🆕 初始化 SystemPromptTemplateService
+    this.systemPromptTemplateService = new SystemPromptTemplateService(projectDatabase.getRawConnection())
+    console.log('✅ [LlmTranslateService] SystemPromptTemplateService 已初始化')
     
     // 设置 TaskStateManager 的数据库
     this.taskStateManager.setProjectDatabase(projectDatabase)
@@ -1479,11 +1486,85 @@ export class LlmTranslateService extends EventEmitter {
 
   /**
    * 估算token数
+   * @param text 要估算的文本
+   * @param configId Token换算配置ID（可选，未指定时使用默认配置）
    */
-  estimateTokens(text: string, configId: string): number {
+  estimateTokens(text: string, configId?: string | null): number {
     if (!this.tokenConversionService) {
       throw new Error('TokenConversionService not initialized')
     }
     return this.tokenConversionService.estimate(text, configId)
+  }
+
+  // ========== 系统提示词模板管理 ==========
+
+  /**
+   * 获取所有系统提示词模板
+   */
+  getAllPromptTemplates(): SystemPromptTemplate[] {
+    if (!this.systemPromptTemplateService) {
+      throw new Error('SystemPromptTemplateService not initialized')
+    }
+    return this.systemPromptTemplateService.getAllTemplates()
+  }
+
+  /**
+   * 获取单个系统提示词模板
+   */
+  getPromptTemplate(id: string): SystemPromptTemplate | null {
+    if (!this.systemPromptTemplateService) {
+      throw new Error('SystemPromptTemplateService not initialized')
+    }
+    return this.systemPromptTemplateService.getTemplate(id)
+  }
+
+  /**
+   * 创建系统提示词模板
+   */
+  createPromptTemplate(template: Omit<SystemPromptTemplate, 'id' | 'createdAt' | 'updatedAt' | 'isBuiltin'>): SystemPromptTemplate {
+    if (!this.systemPromptTemplateService) {
+      throw new Error('SystemPromptTemplateService not initialized')
+    }
+    return this.systemPromptTemplateService.createTemplate(template)
+  }
+
+  /**
+   * 更新系统提示词模板
+   */
+  updatePromptTemplate(id: string, updates: Partial<Pick<SystemPromptTemplate, 'name' | 'content' | 'category' | 'description'>>): void {
+    if (!this.systemPromptTemplateService) {
+      throw new Error('SystemPromptTemplateService not initialized')
+    }
+    this.systemPromptTemplateService.updateTemplate(id, updates)
+  }
+
+  /**
+   * 删除系统提示词模板
+   */
+  deletePromptTemplate(id: string): void {
+    if (!this.systemPromptTemplateService) {
+      throw new Error('SystemPromptTemplateService not initialized')
+    }
+    this.systemPromptTemplateService.deleteTemplate(id)
+  }
+
+  /**
+   * 获取所有分类
+   */
+  getPromptTemplateCategories(): string[] {
+    if (!this.systemPromptTemplateService) {
+      throw new Error('SystemPromptTemplateService not initialized')
+    }
+    return this.systemPromptTemplateService.getCategories()
+  }
+
+  /**
+   * 按分类获取模板
+   */
+  getPromptTemplatesByCategory(category: string): SystemPromptTemplate[] {
+    if (!this.systemPromptTemplateService) {
+      throw new Error('SystemPromptTemplateService not initialized')
+    }
+    return this.systemPromptTemplateService.getTemplatesByCategory(category)
   }
 }

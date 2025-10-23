@@ -230,14 +230,17 @@ export class TokenConversionService {
    * 估算token数
    * 
    * @param text 要估算的文本
-   * @param configId Token换算配置ID
+   * @param configId Token换算配置ID（如果为undefined或null，使用默认配置）
    * @returns 估算的token数量
    */
-  estimate(text: string, configId: string): number {
-    const config = this.getConfig(configId)
+  estimate(text: string, configId?: string | null): number {
+    // 🔧 如果未指定配置，使用默认配置作为回退
+    const actualConfigId = configId || 'default-balanced'
+    
+    const config = this.getConfig(actualConfigId)
     
     if (!config) {
-      throw new Error(`Token conversion config ${configId} not found`)
+      throw new Error(`Token conversion config ${actualConfigId} not found`)
     }
 
     return this.estimateWithConfig(text, config)

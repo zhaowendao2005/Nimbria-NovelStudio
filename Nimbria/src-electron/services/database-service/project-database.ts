@@ -5,7 +5,8 @@
 
 import type Database from 'better-sqlite3'
 import type { DatabaseManager } from './database-manager'
-import { PROJECT_SCHEMA_V1_2_3 } from './schema/versions'
+import { CURRENT_PROJECT_SCHEMA_VERSION } from './schema/versions'
+import type { SchemaDefinition } from './schema/base-schema'
 
 export class ProjectDatabase {
   private db: Database.Database | null = null
@@ -19,16 +20,44 @@ export class ProjectDatabase {
 
   /**
    * 初始化项目数据库
+   * 自动使用最新版本的Schema
    */
   async initialize(): Promise<void> {
     console.log('🚀 [ProjectDatabase] 初始化项目数据库:', this.projectPath)
     
+    // 动态导入最新版本的Project Schema
+    const latestSchema = await this.getLatestProjectSchema()
+    console.log(`📦 [ProjectDatabase] 使用Schema版本: ${latestSchema.version}`)
+    
     this.db = await this.databaseManager.createProjectDatabase(
       this.projectPath,
-      PROJECT_SCHEMA_V1_2_3
+      latestSchema
     )
 
     console.log('✅ [ProjectDatabase] 项目数据库初始化成功')
+  }
+
+  /**
+   * 获取最新版本的Project Schema
+   */
+  private async getLatestProjectSchema(): Promise<SchemaDefinition> {
+    const version = CURRENT_PROJECT_SCHEMA_VERSION
+    const versionKey = version.replace(/\./g, '_') // 1.2.4 -> 1_2_4
+    const schemaName = `PROJECT_SCHEMA_V${versionKey}`
+    
+    try {
+      const schemas = await import('./schema/versions')
+      const schema = schemas[schemaName as keyof typeof schemas] as SchemaDefinition
+      
+      if (!schema) {
+        throw new Error(`Schema ${schemaName} not found`)
+      }
+      
+      return schema
+    } catch (error) {
+      console.error(`❌ [ProjectDatabase] 无法加载Schema ${schemaName}:`, error)
+      throw error
+    }
   }
 
   /**

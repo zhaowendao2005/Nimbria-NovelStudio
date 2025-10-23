@@ -26,20 +26,85 @@
               />
             </div>
 
-            <!-- 系统提示词 -->
+            <!-- 系统提示词模板选择 -->
             <div class="config-item">
               <div class="config-label">
-                <span>系统提示词</span>
-                <el-tooltip content="指导模型如何进行翻译，提示词会影响翻译质量" placement="top">
+                <span>系统提示词模板</span>
+                <el-tooltip content="选择预设模板或创建自定义模板" placement="top">
+                  <el-icon class="info-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
+              <div style="display: flex; gap: 8px">
+                <el-select
+                  v-model="selectedPromptTemplateId"
+                  placeholder="选择模板"
+                  clearable
+                  style="flex: 1"
+                  @change="handlePromptTemplateChange"
+                >
+                  <el-option-group
+                    v-for="category in promptTemplateCategories"
+                    :key="category"
+                    :label="category"
+                  >
+                    <el-option
+                      v-for="template in getTemplatesByCategory(category)"
+                      :key="template.id"
+                      :label="template.name"
+                      :value="template.id"
+                    >
+                      <span>{{ template.name }}</span>
+                      <el-tag
+                        v-if="template.isBuiltin"
+                size="small"
+                        type="info"
+                        style="margin-left: 8px"
+                      >
+                        内置
+                      </el-tag>
+                    </el-option>
+                  </el-option-group>
+                </el-select>
+                <el-button @click="showPromptTemplateDialog('create')">
+                  <el-icon><Plus /></el-icon>
+                  新建
+                </el-button>
+                <el-button
+                  v-if="selectedPromptTemplateId"
+                  @click="showPromptTemplateDialog('edit')"
+                >
+                  <el-icon><Edit /></el-icon>
+                  编辑
+                </el-button>
+                <el-button
+                  v-if="selectedPromptTemplateId && canDeleteCurrentTemplate"
+                  type="danger"
+                  @click="handleDeletePromptTemplate"
+                >
+                  <el-icon><Delete /></el-icon>
+                  删除
+                </el-button>
+              </div>
+            </div>
+
+            <!-- 系统提示词内容预览/编辑 -->
+            <div class="config-item">
+              <div class="config-label">
+                <span>提示词内容</span>
+                <el-tooltip content="当前使用的系统提示词内容，可直接编辑" placement="top">
                   <el-icon class="info-icon"><QuestionFilled /></el-icon>
                 </el-tooltip>
               </div>
               <el-input
                 v-model="modelConfigForm.systemPrompt"
                 type="textarea"
-                :rows="5"
+                :rows="8"
                 placeholder="你是一个专业的翻译助手..."
               />
+              <div v-if="selectedPromptTemplateId" style="margin-top: 8px; font-size: 12px; color: #909399">
+                <el-icon><InfoFilled /></el-icon>
+                当前已选择模板：{{ currentTemplateName }}
+              </div>
             </div>
 
             <el-alert
@@ -320,8 +385,10 @@
               :closable="false"
               class="config-alert mb-3"
             >
-              <div>这些配置控制底层 LLM 客户端的请求行为</div>
-              <div>优先级关系：任务总超时 > HTTP 请求超时 > 流式空闲超时</div>
+              <div><strong>📍 生效位置：</strong>这些配置控制 LangChain HTTP 客户端的底层行为</div>
+              <div><strong>⚡ 作用范围：</strong>单次 API 请求的连接层和传输层超时</div>
+              <div><strong>🔄 重试机制：</strong>超时后会自动重试（最多 maxRetries 次）</div>
+              <div style="color: #E6A23C; margin-top: 4px;"><strong>🔗 同步说明：</strong>HTTP超时和流式空闲超时会与"超时控制"tab自动同步</div>
             </el-alert>
 
             <!-- 启用流式响应 -->
@@ -330,10 +397,17 @@
                 <span>启用流式响应</span>
                 <el-tooltip placement="top">
                   <template #content>
-                    <div><strong>控制 API 调用模式</strong></div>
-                    <div>• 开启：使用流式 API，实时显示进度（推荐）</div>
-                    <div>• 关闭：使用普通 API，完成后一次性返回</div>
-                    <div>• 注意：流式模式下"流式空闲超时"生效</div>
+                    <div style="max-width: 400px; line-height: 1.6;">
+                      <div><strong>🎯 作用：</strong>控制 LangChain 调用 LLM API 的模式</div>
+                      <div style="margin-top: 8px;"><strong>📡 流式模式（推荐）：</strong></div>
+                      <div>• API 按 token 逐步返回，可实时显示翻译进度</div>
+                      <div>• 使用"流式首字超时"和"流式空闲超时"</div>
+                      <div>• 适合长文本翻译，用户体验更好</div>
+                      <div style="margin-top: 8px;"><strong>📦 非流式模式：</strong></div>
+                      <div>• API 翻译完成后一次性返回完整结果</div>
+                      <div>• 使用"HTTP 请求超时"</div>
+                      <div>• 适合短文本或不关心实时进度的场景</div>
+                    </div>
                   </template>
                   <el-icon class="info-icon"><QuestionFilled /></el-icon>
                 </el-tooltip>
@@ -351,11 +425,24 @@
                 <span>HTTP 请求超时（秒）</span>
                 <el-tooltip placement="top">
                   <template #content>
-                    <div><strong>【底层】LangChain HTTP 请求的最大等待时间</strong></div>
-                    <div>• 作用范围：单次 API 调用的 HTTP 连接超时</div>
-                    <div>• 适用场景：防止网络连接无响应</div>
-                    <div>• 建议值：短任务 30-60秒，长任务 120-300秒</div>
-                    <div>• 注意：流式响应下此配置影响较小</div>
+                    <div style="max-width: 450px; line-height: 1.6;">
+                      <div><strong>🎯 作用：</strong>LangChain HTTP 客户端的底层连接超时</div>
+                      <div style="margin-top: 8px;"><strong>📍 生效阶段：</strong></div>
+                      <div style="margin-left: 16px;">
+                        TCP连接 → 发送请求 → 【此超时控制整个过程】 → 接收响应
+                      </div>
+                      <div style="margin-top: 8px;"><strong>⚙️ 工作原理：</strong></div>
+                      <div>• <strong>非流式</strong>：从发起请求到接收完整响应的总时长</div>
+                      <div>• <strong>流式</strong>：仅控制 TCP 连接建立阶段</div>
+                      <div style="margin-top: 8px;"><strong>🔄 重试机制：</strong></div>
+                      <div>• 超时后触发自动重试（最多 maxRetries 次）</div>
+                      <div style="margin-top: 8px;"><strong>💡 建议值：</strong></div>
+                      <div>• 网络良好：60-120秒</div>
+                      <div>• 网络不稳定：180-300秒</div>
+                      <div style="margin-top: 8px; background: #FFF7E6; padding: 8px; border-radius: 4px; border-left: 3px solid #FAAD14; color: #333;">
+                        <strong>🔗 同步说明：</strong>此配置与"超时控制"tab中的"HTTP超时"<strong>自动同步</strong>，修改任一处即可
+                      </div>
+                    </div>
                   </template>
                   <el-icon class="info-icon"><QuestionFilled /></el-icon>
                 </el-tooltip>
@@ -378,11 +465,24 @@
                 <span>流式空闲超时（秒）</span>
                 <el-tooltip placement="top">
                   <template #content>
-                    <div><strong>【中层】流式数据流的空闲检测时间</strong></div>
-                    <div>• 作用范围：两次数据块之间的最大间隔</div>
-                    <div>• 适用场景：允许 AI "思考"，只要有数据就继续</div>
-                    <div>• 建议值：60-120秒（允许较长的首字延迟）</div>
-                    <div>• 优势：比 HTTP 超时更智能，适合长文本任务</div>
+                    <div style="max-width: 450px; line-height: 1.6;">
+                      <div><strong>🎯 作用：</strong>流式响应中，两次收到数据之间的最大允许间隔</div>
+                      <div style="margin-top: 8px;"><strong>📍 生效阶段：</strong></div>
+                      <div style="margin-left: 16px;">
+                        收到第1个token → 【空闲超时重置】 → 收到第2个token → 【空闲超时重置】 → ...
+                      </div>
+                      <div style="margin-top: 8px;"><strong>⚙️ 工作原理：</strong></div>
+                      <div>• 每次收到新的 token，计时器重置</div>
+                      <div>• 如果超过设定时间没有新 token，判定为超时</div>
+                      <div>• 适用于：首个token之后的所有后续token</div>
+                      <div style="margin-top: 8px;"><strong>💡 使用建议：</strong></div>
+                      <div>• 快速模型（GPT-4o-mini）：30-60秒</div>
+                      <div>• 慢速模型或长文本：60-120秒</div>
+                      <div style="margin-top: 8px;"><strong>✅ 优势：</strong>比固定HTTP超时更智能，允许AI"思考"</div>
+                      <div style="margin-top: 8px; background: #FFF7E6; padding: 8px; border-radius: 4px; border-left: 3px solid #FAAD14; color: #333;">
+                        <strong>🔗 同步说明：</strong>此配置与"超时控制"tab中的"流式空闲超时"<strong>自动同步</strong>，修改任一处即可
+                      </div>
+                    </div>
                   </template>
                   <el-icon class="info-icon"><QuestionFilled /></el-icon>
                 </el-tooltip>
@@ -405,8 +505,22 @@
                 <span>最大重试次数</span>
                 <el-tooltip placement="top">
                   <template #content>
-                    <div>遇到可重试错误（如限流、超时）时的最大重试次数</div>
-                    <div>建议：3-5次</div>
+                    <div style="max-width: 400px; line-height: 1.6;">
+                      <div><strong>🎯 作用：</strong>LangChain 自动重试机制的最大次数</div>
+                      <div style="margin-top: 8px;"><strong>🔄 触发条件（会自动重试）：</strong></div>
+                      <div>• HTTP 请求超时</div>
+                      <div>• 流式空闲超时</div>
+                      <div>• 429 限流错误（Rate Limit）</div>
+                      <div>• 502/503 服务器临时错误</div>
+                      <div style="margin-top: 8px;"><strong>⚙️ 工作原理：</strong></div>
+                      <div>第1次失败 → 等待1秒 → 重试1</div>
+                      <div>第2次失败 → 等待2秒 → 重试2</div>
+                      <div>第3次失败 → 等待4秒 → 重试3</div>
+                      <div style="margin-top: 8px;"><strong>💡 建议值：</strong></div>
+                      <div>• 稳定网络：1-3次</div>
+                      <div>• 不稳定或易限流：3-5次</div>
+                      <div>• 不重试：设为0</div>
+                    </div>
                   </template>
                   <el-icon class="info-icon"><QuestionFilled /></el-icon>
                 </el-tooltip>
@@ -431,9 +545,11 @@
               :closable="false"
               class="config-alert mb-3"
             >
-              <div><strong>Layer 3（兜底）：</strong>任务总超时 - 包括排队+执行+重试的全部时间</div>
-              <div><strong>Layer 2a（HTTP）：</strong>非流式模式的HTTP请求超时</div>
-              <div><strong>Layer 2b（流式）：</strong>首字超时 + 空闲超时</div>
+              <div><strong>🏗️ 架构设计：</strong>三层超时保护，层层递进</div>
+              <div><strong>Layer 3（任务总超时）：</strong>兜底机制，包括排队+执行+重试的<strong>全部生命周期</strong></div>
+              <div><strong>Layer 2a（HTTP超时）：</strong>非流式模式，单次HTTP请求的<strong>整体超时</strong></div>
+              <div><strong>Layer 2b（流式超时）：</strong>流式模式，<strong>首字</strong>和<strong>后续token</strong>的细粒度超时</div>
+              <div style="color: #E6A23C; margin-top: 4px;"><strong>🔗 同步说明：</strong>HTTP超时和流式空闲超时会与"请求控制"tab自动同步</div>
             </el-alert>
 
             <!-- 任务总超时 -->
@@ -442,10 +558,33 @@
                 <span>任务总超时（秒）</span>
                 <el-tooltip placement="top">
                   <template #content>
-                    <div><strong>Layer 3：任务生命周期兜底</strong></div>
-                    <div>• 包括：排队 + 执行 + 重试的全部时间</div>
-                    <div>• 超时后标记为error，可手动重试</div>
-                    <div>• 建议值：600秒（10分钟）</div>
+                    <div style="max-width: 450px; line-height: 1.6;">
+                      <div><strong>🎯 作用：</strong>单个翻译任务从创建到完成的<strong>整个生命周期</strong>兜底超时</div>
+                      <div style="margin-top: 8px;"><strong>📍 生效位置：</strong>Executor 层（任务执行器）</div>
+                      <div style="margin-top: 8px;"><strong>📅 生命周期：</strong></div>
+                      <div style="margin-left: 16px; font-size: 12px;">
+                        创建任务 → 排队等待 → 开始执行 → 重试1 → 重试2 → 重试3 → 完成
+                        <br/>【━━━━━━━━━━━ 任务总超时控制全程 ━━━━━━━━━━━】
+                      </div>
+                      <div style="margin-top: 8px;"><strong>⚙️ 工作原理：</strong></div>
+                      <div>• 使用 Promise.race 与翻译过程竞速</div>
+                      <div>• 无论任务在哪个阶段，超时后立即终止</div>
+                      <div>• 标记为 <code>TIMEOUT_TOTAL</code> 错误</div>
+                      <div style="margin-top: 8px;"><strong>🆚 与 HTTP 超时的区别：</strong></div>
+                      <div style="background: #F4F4F5; padding: 8px; border-radius: 4px; margin-top: 4px; font-size: 12px; color: #333;">
+                        <div><strong>任务总超时（这里）：</strong></div>
+                        <div>• 位置：Executor 层</div>
+                        <div>• 范围：任务全生命周期（排队+执行+重试）</div>
+                        <div>• 目的：防止任务永久卡死</div>
+                        <div style="margin-top: 6px;"><strong>HTTP 超时（请求控制）：</strong></div>
+                        <div>• 位置：LangChain HTTP 客户端</div>
+                        <div>• 范围：单次 HTTP 请求</div>
+                        <div>• 目的：快速失败并重试</div>
+                      </div>
+                      <div style="margin-top: 8px;"><strong>💡 建议值：</strong></div>
+                      <div>• 短文本：300-600秒（5-10分钟）</div>
+                      <div>• 长文本：600-1800秒（10-30分钟）</div>
+                    </div>
                   </template>
                   <el-icon class="info-icon"><QuestionFilled /></el-icon>
                 </el-tooltip>
@@ -468,10 +607,30 @@
                 <span>HTTP超时（秒）</span>
                 <el-tooltip placement="top">
                   <template #content>
-                    <div><strong>Layer 2a：非流式HTTP请求超时</strong></div>
-                    <div>• 整个HTTP请求的最长等待时间</div>
-                    <div>• 超时后主动关闭连接，可重试</div>
-                    <div>• 建议值：120秒（2分钟）</div>
+                    <div style="max-width: 450px; line-height: 1.6;">
+                      <div><strong>🎯 作用：</strong>非流式模式下，单次 HTTP 请求的整体超时</div>
+                      <div style="margin-top: 8px;"><strong>📍 生效位置：</strong>LangChain HTTP 客户端</div>
+                      <div style="margin-top: 8px;"><strong>📍 生效场景：</strong></div>
+                      <div>• <strong>仅当关闭流式响应时生效</strong></div>
+                      <div>• 流式模式下，此配置被"流式首字超时"和"流式空闲超时"替代</div>
+                      <div style="margin-top: 8px;"><strong>⚙️ 工作原理：</strong></div>
+                      <div style="margin-left: 16px; font-size: 12px;">
+                        发起请求 → 【HTTP超时计时】 → 接收完整响应
+                        <br/>如果超过设定时间未完成，立即中止连接
+                      </div>
+                      <div style="margin-top: 8px;"><strong>🔄 重试机制：</strong></div>
+                      <div>• 超时后触发自动重试（最多 maxRetries 次）</div>
+                      <div>• 标记为 <code>TIMEOUT_HTTP</code> 错误</div>
+                      <div style="margin-top: 8px;"><strong>🆚 与任务总超时的关系：</strong></div>
+                      <div style="background: #F4F4F5; padding: 8px; border-radius: 4px; margin-top: 4px; font-size: 12px; color: #333;">
+                        任务总超时 (600秒) &gt; HTTP超时 (120秒) × 重试次数 (3次)
+                        <br/><strong>示例：</strong>120秒 × 3次重试 = 360秒 &lt; 600秒任务总超时
+                      </div>
+                      <div style="margin-top: 8px;"><strong>💡 建议值：</strong>120秒</div>
+                      <div style="margin-top: 8px; background: #FFF7E6; padding: 8px; border-radius: 4px; border-left: 3px solid #FAAD14; color: #333;">
+                        <strong>🔗 同步说明：</strong>此配置与"请求控制"tab中的"HTTP请求超时"<strong>自动同步</strong>，修改任一处即可
+                      </div>
+                    </div>
                   </template>
                   <el-icon class="info-icon"><QuestionFilled /></el-icon>
                 </el-tooltip>
@@ -494,10 +653,30 @@
                 <span>流式首字超时（秒）</span>
                 <el-tooltip placement="top">
                   <template #content>
-                    <div><strong>Layer 2b：等待首个token的最长时间</strong></div>
-                    <div>• 仅在流式模式下生效</div>
-                    <div>• 超时后主动关闭连接，可重试</div>
-                    <div>• 建议值：60秒（1分钟）</div>
+                    <div style="max-width: 450px; line-height: 1.6;">
+                      <div><strong>🎯 作用：</strong>流式模式下，等待<strong>第一个 token</strong> 的最长时间</div>
+                      <div style="margin-top: 8px;"><strong>📍 生效位置：</strong>Translation Client（我们的流式处理层）</div>
+                      <div style="margin-top: 8px;"><strong>📍 生效场景：</strong></div>
+                      <div>• <strong>仅当开启流式响应时生效</strong></div>
+                      <div>• 从发起请求到收到第一个 token 的等待时间</div>
+                      <div style="margin-top: 8px;"><strong>⚙️ 工作原理：</strong></div>
+                      <div style="margin-left: 16px; font-size: 12px;">
+                        发起请求 → 【首字超时计时】 → 收到第1个token → ✅ 计时器停止
+                        <br/>之后切换到"流式空闲超时"
+                      </div>
+                      <div style="margin-top: 8px;"><strong>🔄 超时处理：</strong></div>
+                      <div>• 主动调用 <code>abortController.abort()</code> 中止连接</div>
+                      <div>• 标记为 <code>TIMEOUT_FIRST_TOKEN</code> 错误</div>
+                      <div>• 触发自动重试</div>
+                      <div style="margin-top: 8px;"><strong>🆚 与 HTTP 超时的区别：</strong></div>
+                      <div style="background: #F4F4F5; padding: 8px; border-radius: 4px; margin-top: 4px; font-size: 12px; color: #333;">
+                        <div><strong>首字超时（这里）：</strong>只等首个token，精准控制</div>
+                        <div><strong>HTTP 超时（请求控制）：</strong>控制整个HTTP连接建立</div>
+                      </div>
+                      <div style="margin-top: 8px;"><strong>💡 建议值：</strong></div>
+                      <div>• 快速模型：30-60秒</div>
+                      <div>• 慢速模型或长prompt：60-120秒</div>
+                    </div>
                   </template>
                   <el-icon class="info-icon"><QuestionFilled /></el-icon>
                 </el-tooltip>
@@ -520,10 +699,27 @@
                 <span>流式空闲超时（秒）</span>
                 <el-tooltip placement="top">
                   <template #content>
-                    <div><strong>Layer 2b：后续token之间的最大间隔</strong></div>
-                    <div>• 仅在流式模式下生效</div>
-                    <div>• 超时后主动关闭连接，可重试</div>
-                    <div>• 建议值：60秒（1分钟）</div>
+                    <div style="max-width: 450px; line-height: 1.6;">
+                      <div><strong>🎯 作用：</strong>流式模式下，<strong>后续 tokens</strong> 之间的最大允许间隔</div>
+                      <div style="margin-top: 8px;"><strong>📍 生效位置：</strong>Translation Client（我们的流式处理层）</div>
+                      <div style="margin-top: 8px;"><strong>📍 生效场景：</strong></div>
+                      <div>• <strong>仅当开启流式响应且收到首个token后生效</strong></div>
+                      <div>• 监控后续所有 token 之间的间隔</div>
+                      <div style="margin-top: 8px;"><strong>⚙️ 工作原理：</strong></div>
+                      <div style="margin-left: 16px; font-size: 12px;">
+                        收到第1个token → 【空闲超时计时】 → 收到第2个token → 【重置计时器】
+                        <br/>收到第2个token → 【空闲超时计时】 → 收到第3个token → 【重置计时器】
+                        <br/>...依此类推，每次收到新token就重置
+                      </div>
+                      <div style="margin-top: 8px;"><strong>🔄 超时处理：</strong></div>
+                      <div>• 主动调用 <code>abortController.abort()</code> 中止连接</div>
+                      <div>• 标记为 <code>TIMEOUT_IDLE</code> 错误</div>
+                      <div>• 触发自动重试</div>
+                      <div style="margin-top: 8px;"><strong>💡 建议值：</strong>60秒</div>
+                      <div style="margin-top: 8px; background: #FFF7E6; padding: 8px; border-radius: 4px; border-left: 3px solid #FAAD14; color: #333;">
+                        <strong>🔗 同步说明：</strong>此配置与"请求控制"tab中的"流式空闲超时"<strong>自动同步</strong>，修改任一处即可
+                      </div>
+                    </div>
                   </template>
                   <el-icon class="info-icon"><QuestionFilled /></el-icon>
                 </el-tooltip>
@@ -669,6 +865,14 @@
         @confirm="handleCreateTokenConfig"
       />
 
+      <!-- 系统提示词模板对话框 -->
+      <PromptTemplateDialog
+        v-model="showPromptTemplateDialogVisible"
+        :mode="promptTemplateDialogMode"
+        :template="currentTemplate"
+        @confirm="handlePromptTemplateConfirm"
+      />
+
       <!-- 底部按钮 -->
       <div class="drawer-footer">
         <el-button @click="handleReset">重置为默认</el-button>
@@ -680,10 +884,11 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { QuestionFilled } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { QuestionFilled, Plus, Edit, Delete, InfoFilled } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import ModelSelector from './ModelSelector.vue'
 import TokenConfigDialog from './TokenConfigDialog.vue'
+import PromptTemplateDialog from './PromptTemplateDialog.vue'
 import type { SchedulerConfig } from '../types/scheduler'
 import type { TranslateConfig } from '../types/config'
 import { DEFAULT_SCHEDULER_CONFIG } from '../types/scheduler'
@@ -781,6 +986,42 @@ const showTokenConfigDialog = ref(false)
 // Token配置列表
 const tokenConversionConfigs = computed(() => store.tokenConversionConfigs)
 
+// 系统提示词模板对话框
+const showPromptTemplateDialogVisible = ref(false)
+const promptTemplateDialogMode = ref<'create' | 'edit'>('create')
+const selectedPromptTemplateId = ref<string | null>(null)
+
+// 系统提示词模板列表
+const systemPromptTemplates = computed(() => store.systemPromptTemplates)
+
+// 当前选中的模板
+const currentTemplate = computed(() => {
+  if (!selectedPromptTemplateId.value) return null
+  return systemPromptTemplates.value.find(t => t.id === selectedPromptTemplateId.value) || null
+})
+
+// 当前模板名称
+const currentTemplateName = computed(() => currentTemplate.value?.name || '')
+
+// 是否可以删除当前模板（内置模板不可删除）
+const canDeleteCurrentTemplate = computed(() => {
+  return currentTemplate.value && !currentTemplate.value.isBuiltin
+})
+
+// 按分类分组的模板
+const promptTemplateCategories = computed(() => {
+  const categories = new Set<string>()
+  systemPromptTemplates.value.forEach(t => {
+    if (t.category) categories.add(t.category)
+  })
+  return Array.from(categories).sort()
+})
+
+// 根据分类获取模板
+const getTemplatesByCategory = (category: string) => {
+  return systemPromptTemplates.value.filter(t => t.category === category)
+}
+
 // 自定义Token配置（排除默认配置）
 const customTokenConfigs = computed(() => {
   return tokenConversionConfigs.value.filter(config => 
@@ -866,6 +1107,36 @@ watch(() => props.translateConfig, (newConfig) => {
     tokenForm.value.tokenConversionConfigId = newConfig.tokenConversionConfigId ?? 'default-balanced'
   }
 }, { immediate: true })
+
+// 🔄 同步 httpTimeout：请求控制 ↔ 超时控制
+watch(() => requestControlForm.value.httpTimeoutSeconds, (newValue) => {
+  if (timeoutForm.value.httpTimeoutSeconds !== newValue) {
+    console.log(`🔄 [同步] 请求控制的HTTP超时变更 → 同步到超时控制: ${newValue}秒`)
+    timeoutForm.value.httpTimeoutSeconds = newValue
+  }
+})
+
+watch(() => timeoutForm.value.httpTimeoutSeconds, (newValue) => {
+  if (requestControlForm.value.httpTimeoutSeconds !== newValue) {
+    console.log(`🔄 [同步] 超时控制的HTTP超时变更 → 同步到请求控制: ${newValue}秒`)
+    requestControlForm.value.httpTimeoutSeconds = newValue
+  }
+})
+
+// 🔄 同步 streamIdleTimeout：请求控制 ↔ 超时控制
+watch(() => requestControlForm.value.streamIdleTimeoutSeconds, (newValue) => {
+  if (timeoutForm.value.streamIdleTimeoutSeconds !== newValue) {
+    console.log(`🔄 [同步] 请求控制的流式空闲超时变更 → 同步到超时控制: ${newValue}秒`)
+    timeoutForm.value.streamIdleTimeoutSeconds = newValue
+  }
+})
+
+watch(() => timeoutForm.value.streamIdleTimeoutSeconds, (newValue) => {
+  if (requestControlForm.value.streamIdleTimeoutSeconds !== newValue) {
+    console.log(`🔄 [同步] 超时控制的流式空闲超时变更 → 同步到请求控制: ${newValue}秒`)
+    requestControlForm.value.streamIdleTimeoutSeconds = newValue
+  }
+})
 
 // 监听visible变化
 watch(() => props.visible, (newVisible) => {
@@ -983,6 +1254,90 @@ const handleDeleteTokenConfig = async (id: string) => {
   } catch (error) {
     ElMessage({ message: '删除Token配置失败', type: 'error' })
     console.error(error)
+  }
+}
+
+// ========== 系统提示词模板管理 ==========
+
+// 显示系统提示词模板对话框
+const showPromptTemplateDialog = (mode: 'create' | 'edit') => {
+  promptTemplateDialogMode.value = mode
+  showPromptTemplateDialogVisible.value = true
+}
+
+// 模板选择变化
+const handlePromptTemplateChange = (templateId: string | null) => {
+  if (!templateId) {
+    // 清除选择
+    selectedPromptTemplateId.value = null
+    return
+  }
+
+  const template = systemPromptTemplates.value.find(t => t.id === templateId)
+  if (template) {
+    console.log('📝 [SchedulerConfigDrawer] 应用模板:', template.name)
+    console.log('📝 [SchedulerConfigDrawer] 模板内容:', template.content.substring(0, 50) + '...')
+    
+    // 将模板内容应用到systemPrompt
+    modelConfigForm.value.systemPrompt = template.content
+    selectedPromptTemplateId.value = templateId
+    
+    console.log('📝 [SchedulerConfigDrawer] 已更新 modelConfigForm.systemPrompt')
+    
+    ElMessage({ message: `已应用模板：${template.name}`, type: 'success' })
+  } else {
+    console.warn('⚠️ [SchedulerConfigDrawer] 未找到模板:', templateId)
+  }
+}
+
+// 确认创建/编辑模板
+const handlePromptTemplateConfirm = async (data: { name: string; content: string; category?: string; description?: string }) => {
+  try {
+    if (promptTemplateDialogMode.value === 'create') {
+      await store.createPromptTemplate(data)
+      ElMessage({ message: '模板已创建', type: 'success' })
+    } else if (promptTemplateDialogMode.value === 'edit' && selectedPromptTemplateId.value) {
+      await store.updatePromptTemplate(selectedPromptTemplateId.value, data)
+      ElMessage({ message: '模板已更新', type: 'success' })
+    }
+    showPromptTemplateDialogVisible.value = false
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : '操作失败'
+    ElMessage({ message: errorMessage, type: 'error' })
+    console.error(error)
+  }
+}
+
+// 删除系统提示词模板
+const handleDeletePromptTemplate = async () => {
+  if (!selectedPromptTemplateId.value || !currentTemplate.value) {
+    return
+  }
+
+  if (currentTemplate.value.isBuiltin) {
+    ElMessage({ message: '内置模板不可删除', type: 'warning' })
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除模板"${currentTemplate.value.name}"吗？`,
+      '确认删除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    await store.deletePromptTemplate(selectedPromptTemplateId.value)
+    selectedPromptTemplateId.value = null
+    ElMessage({ message: '模板已删除', type: 'success' })
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage({ message: '删除模板失败', type: 'error' })
+      console.error(error)
+    }
   }
 }
 
