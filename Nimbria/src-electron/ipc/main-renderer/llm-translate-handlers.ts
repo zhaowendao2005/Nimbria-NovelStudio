@@ -698,6 +698,57 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
     }
   })
 
+  // ========== 文件保存 ==========
+
+  /**
+   * 选择文本文件保存路径
+   */
+  ipcMain.handle('llm-translate:select-text-save-path', async (_event, args: { 
+    defaultPath?: string 
+  }) => {
+    try {
+      const result = await dialog.showSaveDialog({
+        title: '保存导出文件',
+        defaultPath: args.defaultPath || 'export.txt',
+        filters: [
+          { name: '文本文件', extensions: ['txt'] },
+          { name: '所有文件', extensions: ['*'] }
+        ]
+      })
+
+      return { 
+        success: true, 
+        data: { 
+          canceled: result.canceled, 
+          filePath: result.filePath 
+        } 
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error(`❌ [IPC] 选择保存路径失败:`, errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  /**
+   * 保存文本文件
+   */
+  ipcMain.handle('llm-translate:save-text-file', async (_event, args: { 
+    filePath: string
+    content: string 
+  }) => {
+    try {
+      const fs = await import('fs/promises')
+      await fs.writeFile(args.filePath, args.content, 'utf-8')
+      console.log(`✅ [IPC] 文件已保存: ${args.filePath}`)
+      return { success: true }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error(`❌ [IPC] 保存文件失败:`, errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
   console.log('✅ [IPC] LLM Translate handlers registered')
 }
 

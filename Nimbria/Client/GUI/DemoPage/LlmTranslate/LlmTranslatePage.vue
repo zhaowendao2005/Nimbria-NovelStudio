@@ -14,12 +14,6 @@
             <TaskManagePage />
           </div>
         </el-tab-pane>
-
-        <el-tab-pane label="结果导出" name="export">
-          <div class="tab-content">
-            <ExportPage />
-          </div>
-        </el-tab-pane>
       </el-tabs>
     </div>
   </div>
@@ -30,7 +24,6 @@ import { ref, onMounted } from 'vue'
 import { useLlmTranslateStore } from './stores'
 import HomePage from './components/HomePage.vue'
 import TaskManagePage from './components/TaskManagePage.vue'
-import ExportPage from './components/ExportPage.vue'
 
 const props = defineProps<{
   instanceId?: string

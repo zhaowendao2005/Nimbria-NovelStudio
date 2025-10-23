@@ -472,6 +472,13 @@ contextBridge.exposeInMainWorld('nimbria', {
     deleteTokenConfig: (args: { id: string }) =>
       ipcRenderer.invoke('llm-translate:delete-token-config', args),
     
+    // ===== 文本文件保存 =====
+    selectTextSavePath: (args: { defaultPath?: string }) =>
+      ipcRenderer.invoke('llm-translate:select-text-save-path', args),
+    
+    saveTextFile: (args: { filePath: string; content: string }) =>
+      ipcRenderer.invoke('llm-translate:save-text-file', args),
+    
     // ===== 单个任务操作 =====
     pauseTask: (args: { taskId: string }) => 
       ipcRenderer.invoke('llm-translate:pause-task', args),

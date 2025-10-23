@@ -179,6 +179,16 @@
               <el-icon><Delete /></el-icon>
             </div>
 
+            <!-- 导出 -->
+            <div 
+              class="tool-item" 
+              @click="showExportDialog"
+              :title="`导出选中的已完成任务`"
+              :class="{ disabled: !hasCompletedTasksSelected }"
+            >
+              <el-icon><Download /></el-icon>
+            </div>
+
             <!-- 更多配置 -->
             <div 
               class="tool-item" 
@@ -345,6 +355,9 @@
       @save-strategy="handleStrategySave"
       @save-token="handleTokenSave"
     />
+
+    <!-- 导出对话框 -->
+    <ExportDialog v-model:visible="exportDialogVisible" />
   </div>
 </template>
 
@@ -359,7 +372,8 @@ import {
   Check, 
   Select, 
   Upload, 
-  Delete, 
+  Delete,
+  Download, 
   Collection, 
   Timer, 
   Close, 
@@ -373,6 +387,7 @@ import { useTaskManagement } from '../composables/useTaskManagement'
 import { useBatchManagement } from '../composables/useBatchManagement'
 import ThreadDrawer from './ThreadDrawer.vue'
 import SchedulerConfigDrawer from './SchedulerConfigDrawer.vue'
+import ExportDialog from './ExportDialog.vue'
 import type { TaskStatus } from '../types/task'
 import type { SchedulerConfig } from '../types/scheduler'
 import { DEFAULT_SCHEDULER_CONFIG } from '../types/scheduler'
@@ -385,6 +400,9 @@ const { switchToBatch, pauseBatch } = useBatchManagement()
 // 调度器配置抽屉相关
 const configDrawerVisible = ref(false)
 const currentSchedulerConfig = ref<SchedulerConfig>({ ...DEFAULT_SCHEDULER_CONFIG })
+
+// 导出对话框相关
+const exportDialogVisible = ref(false)
 
 // 任务状态排序优先级（sending最优先，然后是waiting、throttled等）
 const TASK_STATUS_ORDER: TaskStatus[] = ['sending', 'waiting', 'throttled', 'completed', 'error', 'unsent']
@@ -401,6 +419,16 @@ const sortedTaskList = computed(() => {
 const currentTask = computed(() => {
   if (!store.threadDrawer.currentTaskId) return null
   return store.taskList.find(task => task.id === store.threadDrawer.currentTaskId)
+})
+
+// 检查是否有已完成的任务被选中
+const hasCompletedTasksSelected = computed(() => {
+  const selectedIds = Array.from(store.selectedTaskIds)
+  return store.taskList.some(task => 
+    selectedIds.includes(task.id) && 
+    task.status === 'completed' &&
+    task.translation
+  )
 })
 
 // 获取批次状态文本
@@ -570,6 +598,15 @@ const showSchedulerConfig = () => {
   // 加载当前配置（暂时使用默认配置，后续可以从store获取）
   currentSchedulerConfig.value = { ...DEFAULT_SCHEDULER_CONFIG }
   configDrawerVisible.value = true
+}
+
+// 显示导出对话框
+const showExportDialog = () => {
+  if (!hasCompletedTasksSelected.value) {
+    ElMessage({ message: '请先选择已完成的任务', type: 'warning' })
+    return
+  }
+  exportDialogVisible.value = true
 }
 
 // 保存调度器配置（立即持久化到数据库）
@@ -1140,6 +1177,12 @@ onMounted(async () => {
         &:hover {
           background-color: #e6f7ff;
           border-color: #409eff;
+        }
+
+        &.disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+          pointer-events: none;
         }
 
         span {
