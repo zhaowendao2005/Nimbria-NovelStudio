@@ -478,6 +478,9 @@ contextBridge.exposeInMainWorld('nimbria', {
     
     saveTextFile: (args: { filePath: string; content: string }) =>
       ipcRenderer.invoke('llm-translate:save-text-file', args),
+
+    saveExcelFile: (args: { defaultPath: string; rows: string[][] }) =>
+      ipcRenderer.invoke('llm-translate:save-excel-file', args),
     
     // ===== 单个任务操作 =====
     pauseTask: (args: { taskId: string }) => 

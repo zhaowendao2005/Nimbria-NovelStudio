@@ -749,6 +749,74 @@ export function registerLlmTranslateHandlers(llmTranslateService: LlmTranslateSe
     }
   })
 
+  /**
+   * 保存 Excel 文件
+   */
+  ipcMain.handle('llm-translate:save-excel-file', async (_event, args: {
+    defaultPath: string
+    rows: string[][]  // 二维数组，每行是一个字符串数组
+  }) => {
+    try {
+      // 1. 选择保存路径
+      const saveResult = await dialog.showSaveDialog({
+        title: '保存 Excel 文件',
+        defaultPath: args.defaultPath,
+        filters: [
+          { name: 'Excel 文件', extensions: ['xlsx'] },
+          { name: '所有文件', extensions: ['*'] }
+        ]
+      })
+
+      if (saveResult.canceled || !saveResult.filePath) {
+        return { 
+          success: true, 
+          data: { canceled: true } 
+        }
+      }
+
+      // 2. 生成 Excel 文件
+      const XLSX = await import('xlsx')
+      
+      // Excel 单元格字符限制
+      const EXCEL_CELL_LIMIT = 32767
+      
+      // 处理超长的单元格内容
+      const data = args.rows.map((row: string[], rowIndex: number) => {
+        return row.map((cell, colIndex) => {
+          if (cell && cell.length > EXCEL_CELL_LIMIT) {
+            console.warn(`⚠️ [Excel] 第 ${rowIndex + 1} 行第 ${colIndex + 1} 列内容过长 (${cell.length} 字符)，已截断至 ${EXCEL_CELL_LIMIT} 字符`)
+            return cell.substring(0, EXCEL_CELL_LIMIT - 20) + '\n\n[内容过长已截断...]'
+          }
+          return cell || ''
+        })
+      })
+
+      // 创建工作表
+      const worksheet = XLSX.utils.aoa_to_sheet(data)
+      
+      // 创建工作簿
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Translation')
+
+      // 写入文件
+      XLSX.writeFile(workbook, saveResult.filePath)
+      
+      console.log(`✅ [IPC] Excel 文件已保存: ${saveResult.filePath}`)
+      
+      return { 
+        success: true, 
+        data: { 
+          canceled: false,
+          filePath: saveResult.filePath 
+        } 
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error(`❌ [IPC] 保存 Excel 失败:`, errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
   console.log('✅ [IPC] LLM Translate handlers registered')
 }
 

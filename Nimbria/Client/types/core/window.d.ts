@@ -687,6 +687,9 @@ export interface NimbriaWindowAPI {
     selectFile: () => Promise<{ success: boolean; data?: { filePath: string; fileName: string; fileSize: number; content: string }; canceled?: boolean; error?: string }>
     selectOutputDir: () => Promise<{ success: boolean; data?: { outputDir: string }; canceled?: boolean; error?: string }>
     exportBatch: (args: { batchId: string; options: any }) => Promise<{ success: boolean; data?: { exportId: string }; error?: string }>
+    selectTextSavePath: (args: { defaultPath?: string }) => Promise<{ success: boolean; data?: { filePath: string; canceled: boolean }; error?: string }>
+    saveTextFile: (args: { filePath: string; content: string }) => Promise<{ success: boolean; error?: string }>
+    saveExcelFile: (args: { defaultPath: string; rows: string[][] }) => Promise<{ success: boolean; data?: { canceled: boolean; filePath?: string }; error?: string }>
     
     // 事件监听（IPC 事件流）
     onBatchCreateStart: (callback: (data: any) => void) => void
