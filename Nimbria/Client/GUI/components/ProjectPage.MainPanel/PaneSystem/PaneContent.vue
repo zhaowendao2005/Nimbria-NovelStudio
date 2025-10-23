@@ -41,6 +41,7 @@
         />
         <SearchPanel
           v-else-if="localActiveTabId && activeTabType === 'search'"
+          :tab-id="localActiveTabId"
         />
         
         <!-- 动态渲染自定义页面 -->

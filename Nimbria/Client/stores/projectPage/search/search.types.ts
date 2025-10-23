@@ -2,8 +2,10 @@
  * Search Panel 类型定义
  */
 
-// 保留一个基础类型，后续扩展用
-export interface SearchPanelState {
+// 搜索实例状态（每个标签页一个实例）
+export interface SearchInstanceState {
+  tabId: string
   initialized: boolean
+  // 后续扩展用
 }
 

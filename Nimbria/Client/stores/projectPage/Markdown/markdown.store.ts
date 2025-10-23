@@ -408,22 +408,14 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     return newTab
   }
   
-  // 打开Search标签页
+  // 打开Search标签页（支持多实例）
   const openSearch = () => {
-    // 检查是否已存在
-    const existingTab = openTabs.value.find(tab => tab.type === 'search')
-    if (existingTab) {
-      activeTabId.value = existingTab.id
-      console.log('[Markdown] Search tab already exists, switching to it')
-      return existingTab
-    }
-    
-    // 创建新标签页
+    // 🔥 每次都创建新的标签页（支持多个搜索实例）
     const newTab: MarkdownTab = {
       id: `search-${Date.now()}`,
       type: 'search',
       filePath: '',
-      fileName: '搜索',
+      fileName: `搜索 #${openTabs.value.filter(t => t.type === 'search').length + 1}`,
       content: '',
       mode: 'edit',
       isDirty: false
