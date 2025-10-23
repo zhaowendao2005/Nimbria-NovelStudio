@@ -268,12 +268,17 @@ onMounted(() => {
   --el-collapse-header-text-color: var(--obsidian-text-primary);
 }
 
+/* 移除折叠面板内容区的默认padding，让卡片填满 */
+.settings-collapse :deep(.el-collapse-item__content) {
+  padding: 0;
+}
+
 /* Card 样式 */
 .settings-card {
   --el-card-border-color: var(--obsidian-border-color);
   --el-card-bg-color: var(--obsidian-background-tertiary);
   --el-card-text-color: var(--obsidian-text-primary);
-  margin-bottom: 12px;
+  margin: 0;
 }
 
 .card-header {

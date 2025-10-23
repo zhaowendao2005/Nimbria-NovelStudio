@@ -99,6 +99,7 @@ import {
   Folder
 } from '@element-plus/icons-vue'
 import { useMarkdownStore } from '@stores/projectPage'
+import { useLeftSidebarStore } from '@stores/projectPage/leftSidebar'
 
 /**
  * FileTreeToolbar
@@ -107,6 +108,7 @@ import { useMarkdownStore } from '@stores/projectPage'
  */
 
 const markdownStore = useMarkdownStore()
+const leftSidebarStore = useLeftSidebarStore()
 
 // ==================== 工具栏状态 ====================
 const autoReveal = ref(false)
@@ -119,7 +121,7 @@ const isExpanded = computed(() => expandAllState.value)
 // ==================== 关闭面板 ====================
 const handleClose = () => {
   console.log('关闭左侧面板')
-  // TODO: 调用store方法关闭左侧面板
+  leftSidebarStore.hideContent()
 }
 
 // ==================== 新建文件/文件夹 ====================
