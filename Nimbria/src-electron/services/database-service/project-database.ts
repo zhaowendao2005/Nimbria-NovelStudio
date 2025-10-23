@@ -5,7 +5,7 @@
 
 import type Database from 'better-sqlite3'
 import type { DatabaseManager } from './database-manager'
-import { PROJECT_SCHEMA_V1_2_2 } from './schema/versions'
+import { PROJECT_SCHEMA_V1_2_3 } from './schema/versions'
 
 export class ProjectDatabase {
   private db: Database.Database | null = null
@@ -25,7 +25,7 @@ export class ProjectDatabase {
     
     this.db = await this.databaseManager.createProjectDatabase(
       this.projectPath,
-      PROJECT_SCHEMA_V1_2_2
+      PROJECT_SCHEMA_V1_2_3
     )
 
     console.log('✅ [ProjectDatabase] 项目数据库初始化成功')

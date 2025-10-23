@@ -200,10 +200,6 @@
             <el-radio label="equivalent">等额回复模式</el-radio>
             <span class="description">自动检测等长内容</span>
           </div>
-          <div class="radio-group-item">
-            <el-radio label="regression">回归估计模式</el-radio>
-            <span class="description">基于历史样本自动学习（需≥3个完成任务）</span>
-          </div>
         </el-radio-group>
         <el-alert 
           title="用途说明" 
@@ -214,8 +210,10 @@
           <div><strong>用于流式进度估算</strong>，任务卡片会根据实时回复 Token 显示动态进度条</div>
           <div style="margin-top: 8px; font-size: 12px; opacity: 0.9;">
             • <strong>预计回复</strong>：使用固定值 | 
-            <strong>等额回复</strong>：输出≈输入 | 
-            <strong>回归估计</strong>：基于历史样本自动学习（越用越准）
+            <strong>等额回复</strong>：输出≈输入
+          </div>
+          <div style="margin-top: 8px; font-size: 12px; opacity: 0.9; color: #409eff;">
+            💡 提示：如需更精准的Token估算，请在配置抽屉的"Token估算"标签中选择或创建Token换算配置
           </div>
         </el-alert>
       </div>

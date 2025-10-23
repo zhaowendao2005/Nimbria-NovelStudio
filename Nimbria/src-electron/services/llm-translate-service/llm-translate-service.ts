@@ -92,7 +92,7 @@ export class LlmTranslateService extends EventEmitter {
     console.log(`🎲 [LlmTranslateService] 错误模拟器: ${enableErrorMock ? '已启用' : '已关闭'}`)
     
     // 🆕 初始化 TokenConversionService
-    this.tokenConversionService = new TokenConversionService(projectDatabase.getDatabase())
+    this.tokenConversionService = new TokenConversionService(projectDatabase.getRawConnection())
     console.log('✅ [LlmTranslateService] TokenConversionService 已初始化')
     
     // 设置 TaskStateManager 的数据库

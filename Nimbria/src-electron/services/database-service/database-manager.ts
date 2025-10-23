@@ -81,10 +81,17 @@ export class DatabaseManager {
       // 配置WAL模式
       this.configureDatabase(db)
 
-      // 应用Schema
-      await this.applySchema(db, schema)
+      // 检查是否需要迁移
+      const currentVersion = this.getCurrentVersion(db)
+      if (currentVersion && currentVersion !== schema.version) {
+        console.log(`🔄 [DatabaseManager] 检测到版本差异: ${currentVersion} → ${schema.version}`)
+        await this.runMigrations(db, currentVersion, schema.version)
+      } else if (!currentVersion) {
+        // 新数据库，直接应用Schema
+        await this.applySchema(db, schema)
+      }
 
-      // 初始化版本信息
+      // 更新版本信息
       await this.initializeVersionInfo(db, schema.version)
 
       // 缓存连接
@@ -193,6 +200,51 @@ export class DatabaseManager {
     })()
 
     console.log('✅ [DatabaseManager] Schema应用完成')
+  }
+
+  /**
+   * 获取当前数据库版本
+   */
+  private getCurrentVersion(db: Database.Database): string | null {
+    try {
+      // 检查schema_version表是否存在
+      const tableExists = db.prepare(`
+        SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version'
+      `).get()
+
+      if (!tableExists) {
+        return null
+      }
+
+      // 获取当前版本
+      const row = db.prepare('SELECT version FROM schema_version WHERE id = 1').get() as { version: string } | undefined
+      return row?.version || null
+    } catch (error) {
+      return null
+    }
+  }
+
+  /**
+   * 运行数据库迁移
+   */
+  private async runMigrations(db: Database.Database, fromVersion: string, toVersion: string): Promise<void> {
+    console.log(`🔄 [DatabaseManager] 开始迁移: ${fromVersion} → ${toVersion}`)
+
+    // 导入迁移脚本
+    const { MIGRATION_1_2_2_TO_1_2_3 } = await import('./schema/versions/v1.2.3.schema')
+
+    // 根据版本执行相应的迁移
+    if (fromVersion === '1.2.2' && toVersion === '1.2.3') {
+      console.log(`📝 [DatabaseManager] 执行迁移: ${MIGRATION_1_2_2_TO_1_2_3.description}`)
+      db.exec(MIGRATION_1_2_2_TO_1_2_3.sql)
+      console.log(`✅ [DatabaseManager] 迁移完成: ${fromVersion} → ${toVersion}`)
+    } else {
+      console.warn(`⚠️ [DatabaseManager] 未找到从 ${fromVersion} 到 ${toVersion} 的迁移脚本`)
+      // 如果没有对应的迁移脚本，直接应用完整Schema（可能会丢失数据，需谨慎）
+      console.log(`📝 [DatabaseManager] 尝试直接应用Schema v${toVersion}`)
+      const { PROJECT_SCHEMA_V1_2_3 } = await import('./schema/versions')
+      await this.applySchema(db, PROJECT_SCHEMA_V1_2_3)
+    }
   }
 
   /**
