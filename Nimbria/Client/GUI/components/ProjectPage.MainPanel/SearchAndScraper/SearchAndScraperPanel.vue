@@ -35,40 +35,51 @@
 
     <!-- 内容区域 -->
     <div class="content-area">
-      <!-- 搜索栏（未搜索时垂直居中显示） -->
-      <div v-if="!isBrowserViewVisible" class="search-container-wrapper">
-        <div class="search-container">
-          <!-- 搜索引擎选择 -->
-          <el-dropdown @command="handleEngineSelect" trigger="click">
-            <button class="engine-btn">
-              <span class="engine-icon">{{ currentEngine }}</span>
-            </button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="google">Google</el-dropdown-item>
-                <el-dropdown-item command="bing">Bing</el-dropdown-item>
-                <el-dropdown-item command="baidu">Baidu</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-          
-          <!-- 搜索框 -->
-          <el-input
-            v-model="searchQuery"
-            placeholder="搜索..."
-            clearable
-            @keyup.enter="handleSearch"
-            class="search-input"
-          >
-            <template #suffix>
-              <el-icon><Search /></el-icon>
-            </template>
-          </el-input>
-        </div>
-      </div>
+      <el-splitter style="height: 100%;">
+        <el-splitter-panel>
+          <div ref="leftPanelRef" class="left-panel">
+            <!-- 搜索栏（未搜索时垂直居中显示） -->
+            <div v-if="!isBrowserViewVisible" class="search-container-wrapper">
+            <div class="search-container">
+              <!-- 搜索引擎选择 -->
+              <el-dropdown @command="handleEngineSelect" trigger="click">
+                <button class="engine-btn">
+                  <span class="engine-icon">{{ currentEngine }}</span>
+                </button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="google">Google</el-dropdown-item>
+                    <el-dropdown-item command="bing">Bing</el-dropdown-item>
+                    <el-dropdown-item command="baidu">Baidu</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+              
+              <!-- 搜索框 -->
+              <el-input
+                v-model="searchQuery"
+                placeholder="搜索..."
+                clearable
+                @keyup.enter="handleSearch"
+                class="search-input"
+              >
+                <template #suffix>
+                  <el-icon><Search /></el-icon>
+                </template>
+              </el-input>
+            </div>
+            </div>
 
-      <!-- 🔥 BrowserView 占位区域（空白，BrowserView 会覆盖在这里） -->
-      <div v-else ref="browserViewContainerRef" class="browserview-container"></div>
+            <!-- 🔥 BrowserView 占位区域（空白，BrowserView 会覆盖在这里） -->
+            <div v-else ref="browserViewContainerRef" class="browserview-container"></div>
+          </div>
+        </el-splitter-panel>
+
+        <!-- 右侧面板 -->
+        <el-splitter-panel :min-size="20">
+          <div class="right-panel"></div>
+        </el-splitter-panel>
+      </el-splitter>
     </div>
   </div>
 </template>
@@ -98,6 +109,7 @@ const isLoading = ref<boolean>(false)
 // DOM 引用
 const panelRef = ref<HTMLElement | null>(null)
 const toolbarRef = ref<HTMLElement | null>(null)
+const leftPanelRef = ref<HTMLElement | null>(null)
 const browserViewContainerRef = ref<HTMLElement | null>(null)
 
 // 导航状态
@@ -132,18 +144,18 @@ const getSearchUrl = (query: string, engine: string): string => {
  * 计算 BrowserView 的 bounds
  */
 const calculateBrowserViewBounds = (): { x: number; y: number; width: number; height: number } => {
-  if (!panelRef.value || !toolbarRef.value) {
+  if (!leftPanelRef.value) {
     return { x: 0, y: 0, width: 0, height: 0 }
   }
   
-  const panelRect = panelRef.value.getBoundingClientRect()
-  const toolbarHeight = toolbarRef.value.offsetHeight
+  // 使用左侧 splitter-panel 的实际位置和大小
+  const leftPanelRect = leftPanelRef.value.getBoundingClientRect()
   
   return {
-    x: Math.round(panelRect.x),
-    y: Math.round(panelRect.y + toolbarHeight),
-    width: Math.round(panelRect.width),
-    height: Math.round(panelRect.height - toolbarHeight)
+    x: Math.round(leftPanelRect.x),
+    y: Math.round(leftPanelRect.y),
+    width: Math.round(leftPanelRect.width),
+    height: Math.round(leftPanelRect.height)
   }
 }
 
@@ -287,7 +299,9 @@ const handleLoadFailed = (data: LoadFailedEvent): void => {
  */
 const handleResize = (): void => {
   if (isBrowserViewVisible.value && isViewCreated.value) {
-    updateBrowserViewBounds()
+    updateBrowserViewBounds().catch(error => {
+      console.error('[SearchAndScraper] Failed to update bounds on resize:', error)
+    })
   }
 }
 
@@ -335,9 +349,11 @@ onUnmounted(async (): Promise<void> => {
 })
 
 // 监听容器大小变化
-watch([panelRef, toolbarRef], () => {
+watch([leftPanelRef, toolbarRef], () => {
   if (isBrowserViewVisible.value && isViewCreated.value) {
-    updateBrowserViewBounds()
+    updateBrowserViewBounds().catch(error => {
+      console.error('[SearchAndScraper] Failed to update bounds on watch:', error)
+    })
   }
 })
 </script>
@@ -400,6 +416,13 @@ watch([panelRef, toolbarRef], () => {
   overflow: hidden;
 }
 
+// 左侧面板
+.left-panel {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
 // 搜索栏容器（垂直居中）
 .search-container-wrapper {
   height: 100%;
@@ -456,5 +479,13 @@ watch([panelRef, toolbarRef], () => {
   height: 100%;
   background: var(--el-fill-color-lighter);
   position: relative;
+}
+
+// 右侧面板
+.right-panel {
+  width: 100%;
+  height: 100%;
+  background: var(--el-bg-color-page);
+  overflow-y: auto;
 }
 </style>
