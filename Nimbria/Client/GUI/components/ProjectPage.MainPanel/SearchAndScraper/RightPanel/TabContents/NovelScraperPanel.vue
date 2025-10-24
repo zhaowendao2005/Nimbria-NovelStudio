@@ -35,24 +35,67 @@
       </div>
     </div>
     
-    <!-- 内容区域 -->
-    <div class="content-area">
+    <!-- 🔥 主内容区 - 改成长页面滚动 -->
+    <div class="panel-content">
       <!-- 智能模式内容 -->
       <div v-if="currentMode === 'smart'" class="smart-mode-content">
-        <!-- 上半部分：匹配到的章节列表 -->
-        <ChapterListSection
-          :chapters="matchedChapters"
-          :url-prefix="urlPrefix"
-          :url-prefix-enabled="urlPrefixEnabled"
-          @update:url-prefix="urlPrefix = $event"
-          @update:url-prefix-enabled="urlPrefixEnabled = $event"
-        />
+        <!-- 🔥 章节列表区域 -->
+        <div class="content-section chapter-list-section">
+          <div class="section-header">
+            <h3>匹配章节列表</h3>
+            <div class="header-tools">
+              <el-switch
+                v-model="urlPrefixEnabled"
+                size="small"
+                active-text="URL前缀"
+              />
+              <el-input
+                v-if="urlPrefixEnabled"
+                v-model="urlPrefix"
+                size="small"
+                placeholder="https://example.com"
+                style="width: 200px; margin-left: 8px"
+              />
+            </div>
+          </div>
+          <div class="section-body">
+            <ChapterListSection
+              :chapters="matchedChapters"
+              :url-prefix="urlPrefix"
+              :url-prefix-enabled="urlPrefixEnabled"
+              @update:url-prefix="urlPrefix = $event"
+              @update:url-prefix-enabled="urlPrefixEnabled = $event"
+            />
+          </div>
+        </div>
         
-        <!-- 下半部分：章节摘要卡片 -->
-        <ChapterSummarySection
-          :chapters="scrapedChapters"
-          @view-detail="handleViewDetail"
-        />
+        <!-- 🔥 爬取进度区域（仅在爬取时显示） -->
+        <div v-if="isScrapingInProgress" class="content-section progress-section">
+          <div class="section-header">
+            <h3>爬取进度</h3>
+          </div>
+          <div class="section-body">
+            <el-progress
+              :percentage="scrapingProgressPercent"
+              :format="() => `${instance?.scrapingProgress?.current || 0} / ${instance?.scrapingProgress?.total || 0}`"
+            />
+            <p class="current-chapter">当前: {{ instance?.scrapingProgress?.currentChapter || '' }}</p>
+          </div>
+        </div>
+        
+        <!-- 🔥 章节摘要区域 -->
+        <div class="content-section chapter-summary-section">
+          <div class="section-header">
+            <h3>已爬取章节</h3>
+            <span class="chapter-count">共 {{ scrapedChapters.length }} 章</span>
+          </div>
+          <div class="section-body">
+            <ChapterSummarySection
+              :chapters="scrapedChapters"
+              @view-detail="handleViewDetail"
+            />
+          </div>
+        </div>
       </div>
     </div>
     
@@ -123,6 +166,13 @@ const urlPrefixEnabled = computed({
 const matchedChapters = computed(() => instance.value?.matchedChapters ?? [])
 const scrapedChapters = computed(() => instance.value?.scrapedChapters ?? [])
 const isScrapingInProgress = computed(() => instance.value?.isScrapingInProgress ?? false)
+
+// 🔥 计算爬取进度百分比
+const scrapingProgressPercent = computed(() => {
+  if (!instance.value?.scrapingProgress) return 0
+  const { current, total } = instance.value.scrapingProgress
+  return total > 0 ? Math.round((current / total) * 100) : 0
+})
 
 // 对话框状态（仅UI，不需要持久化）
 const detailDialogVisible = ref(false)
@@ -339,17 +389,94 @@ onUnmounted(() => {
   }
 }
 
-// ==================== 内容区域 ====================
-.content-area {
+// ==================== 🔥 长页面布局（参考DocParser） ====================
+.panel-content {
   flex: 1;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  overflow: auto; // 🔥 关键：让整个内容区可滚动
+  min-height: 0;
 }
 
 .smart-mode-content {
-  width: 100%;
-  height: 100%;
   display: flex;
   flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+
+// ==================== 🔥 卡片区域（参考DocParser） ====================
+.content-section {
+  display: flex;
+  flex-direction: column;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  overflow: hidden;
+  
+  // 🔥 为每个区域设置固定高度
+  &.chapter-list-section {
+    min-height: 500px;
+  }
+  
+  &.chapter-summary-section {
+    min-height: 600px;
+  }
+  
+  &.progress-section {
+    min-height: 150px;
+  }
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--el-border-color);
+  background: var(--el-bg-color-page);
+  flex-shrink: 0;
+  
+  h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--el-text-color-primary);
+  }
+  
+  .header-tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .chapter-count {
+    font-size: 14px;
+    color: var(--el-text-color-secondary);
+  }
+}
+
+.section-body {
+  flex: 1;
+  padding: 0;
+  overflow: hidden; // 🔥 让子组件自己处理滚动
+  min-height: 0;
+}
+
+// ==================== 🔥 进度区域特殊样式 ====================
+.progress-section {
+  .section-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px; // 进度区域需要padding
+  }
+  
+  .current-chapter {
+    margin: 0;
+    font-size: 14px;
+    color: var(--el-text-color-regular);
+  }
 }
 
 // ==================== 详情对话框 ====================

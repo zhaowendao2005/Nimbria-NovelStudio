@@ -1,26 +1,5 @@
 <template>
   <div class="chapter-list-section">
-    <!-- 标题栏 -->
-    <div class="section-header">
-      <span class="section-title">匹配到的章节</span>
-      <div class="section-controls">
-        <el-checkbox
-          :model-value="urlPrefixEnabled"
-          @update:model-value="$emit('update:urlPrefixEnabled', $event)"
-        />
-        <span class="label">链接拼接规则：</span>
-        <el-input
-          :model-value="urlPrefix"
-          :disabled="!urlPrefixEnabled"
-          size="small"
-          placeholder="可选，如：https://example.com"
-          style="width: 240px"
-          clearable
-          @update:model-value="$emit('update:urlPrefix', $event)"
-        />
-      </div>
-    </div>
-    
     <!-- 🆕 工具栏 (仿 TaskManagePage) -->
     <div class="chapter-toolbar">
       <div class="toolbar-row toolbar-row-1">
@@ -175,39 +154,12 @@ const toggleSelectAll = () => {
 
 <style scoped lang="scss">
 .chapter-list-section {
-  flex: 0 0 300px;
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  border-bottom: 1px solid var(--el-border-color-light);
-  background: var(--el-bg-color);
+  background: var(--el-bg-color-page);
   overflow: hidden;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  flex-shrink: 0;
-}
-
-.section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.section-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  
-  .label {
-    font-size: 13px;
-    color: var(--el-text-color-regular);
-    white-space: nowrap;
-  }
 }
 
 // 🆕 工具栏样式

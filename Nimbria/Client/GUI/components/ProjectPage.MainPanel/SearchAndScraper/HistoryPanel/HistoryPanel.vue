@@ -84,7 +84,6 @@ import { ref, computed } from 'vue'
 import { Clock, Delete, Close, Search, Link } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { useSearchAndScraperStore } from '@stores/projectPage/searchAndScraper'
-import { SearchAndScraperService } from '@service/SearchAndScraper'
 import type { BrowseHistoryItem } from '@stores/projectPage/searchAndScraper/searchAndScraper.types'
 
 /**
@@ -99,8 +98,10 @@ interface Props {
 
 interface Emits {
   (e: 'update:visible', value: boolean): void
+  (e: 'navigate', url: string): void
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
@@ -140,20 +141,16 @@ const groupedHistory = computed((): HistoryGroup[] => {
     const diff = now - item.timestamp
     
     let dateKey: string
-    let label: string
     
     if (diff < oneDayMs && itemDate.getDate() === new Date().getDate()) {
       // 今天
       dateKey = 'today'
-      label = `今天 - ${itemDate.getFullYear()}年${itemDate.getMonth() + 1}月${itemDate.getDate()}日`
     } else if (diff < 2 * oneDayMs) {
       // 昨天
       dateKey = 'yesterday'
-      label = `昨天 - ${itemDate.getFullYear()}年${itemDate.getMonth() + 1}月${itemDate.getDate()}日`
     } else {
       // 其他日期
       dateKey = itemDate.toDateString()
-      label = `${itemDate.getFullYear()}年${itemDate.getMonth() + 1}月${itemDate.getDate()}日`
     }
     
     if (!groups.has(dateKey)) {
@@ -234,23 +231,18 @@ const handleClearAll = async (): Promise<void> => {
     store.clearHistory()
     // @ts-expect-error - ElMessage类型定义问题
     ElMessage.success({ message: '历史记录已清空' })
-  } catch (e) {
+  } catch {
     // 用户取消
   }
 }
 
 /**
  * 点击历史项
+ * 🔥 通过 emit 通知父组件导航，父组件会确保 browser view 已挂载
  */
-const handleItemClick = async (item: BrowseHistoryItem): Promise<void> => {
-  try {
-    await SearchAndScraperService.loadURL(props.tabId, item.url)
-    handleClose()
-  } catch (error) {
-    console.error('[HistoryPanel] Failed to load URL:', error)
-    // @ts-expect-error - ElMessage类型定义问题
-    ElMessage.error({ message: '加载页面失败' })
-  }
+const handleItemClick = (item: BrowseHistoryItem): void => {
+  emit('navigate', item.url)
+  handleClose()
 }
 </script>
 

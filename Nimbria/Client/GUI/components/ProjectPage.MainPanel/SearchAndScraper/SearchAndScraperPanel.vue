@@ -70,6 +70,7 @@
     <HistoryPanel
       v-model:visible="historyPanelVisible"
       :tab-id="props.tabId"
+      @navigate="handleNavigateFromHistory"
     />
   </div>
 </template>
@@ -258,6 +259,52 @@ const handleGoForward = async (): Promise<void> => {
     await refreshNavigationState()
   } catch (error) {
     console.error('[SearchAndScraper] Failed to go forward:', error)
+  }
+}
+
+/**
+ * 🔥 处理从历史记录导航
+ * 确保 BrowserView 已挂载，然后加载 URL
+ */
+const handleNavigateFromHistory = async (url: string): Promise<void> => {
+  if (!url) return
+  
+  try {
+    // 创建 BrowserView（如果还未创建）
+    if (!isViewCreated.value) {
+      await SearchAndScraperService.createView(props.tabId)
+      isViewCreated.value = true
+      console.log(`[SearchAndScraper ${props.tabId}] BrowserView created (from history)`)
+    }
+    
+    // 显示 BrowserView 容器
+    isBrowserViewVisible.value = true
+    
+    // 等待 DOM 更新
+    await nextTick()
+    
+    // 计算并显示 BrowserView
+    const bounds = calculateBrowserViewBounds()
+    await SearchAndScraperService.showView(props.tabId, bounds)
+    
+    // 加载 URL
+    await SearchAndScraperService.loadURL(props.tabId, url)
+    
+    // 更新导航状态
+    await refreshNavigationState()
+    
+    // 保存到store
+    searchAndScraperStore.updateInstance(props.tabId, {
+      isViewCreated: true,
+      isBrowserViewVisible: true,
+      currentUrl: url
+    })
+    
+    console.log(`[SearchAndScraper ${props.tabId}] Navigated from history:`, url)
+  } catch (error) {
+    console.error(`[SearchAndScraper ${props.tabId}] Failed to navigate from history:`, error)
+    // @ts-expect-error - ElMessage类型定义问题
+    ElMessage.error({ message: '加载页面失败' })
   }
 }
 
