@@ -30,17 +30,21 @@
         <!-- 根据标签页类型渲染不同组件 -->
         <MarkdownTab
           v-if="localActiveTabId && activeTabType === 'markdown'"
+          :key="`markdown-${localActiveTabId}`"
           :tab-id="localActiveTabId"
         />
         <DocParserPanel
           v-else-if="localActiveTabId && activeTabType === 'docparser'"
+          :key="`docparser-${localActiveTabId}`"
         />
         <StarChart
           v-else-if="localActiveTabId && activeTabType === 'starchart'"
+          :key="`starchart-${localActiveTabId}`"
           :tab-id="localActiveTabId"
         />
         <SearchAndScraperPanel
           v-else-if="localActiveTabId && activeTabType === 'search-and-scraper'"
+          :key="`search-and-scraper-${localActiveTabId}`"
           :tab-id="localActiveTabId"
         />
         
@@ -48,6 +52,7 @@
         <component 
           v-else-if="localActiveTabId && customPageComponent"
           :is="customPageComponent"
+          :key="`custom-${localActiveTabId}`"
           :instance-id="customPageInstanceId"
           :tab-id="localActiveTabId"
         />

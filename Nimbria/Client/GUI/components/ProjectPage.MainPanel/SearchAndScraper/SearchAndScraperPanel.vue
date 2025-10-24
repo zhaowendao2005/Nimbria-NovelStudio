@@ -151,11 +151,14 @@ const handleSearch = async (query: string, engine: string): Promise<void> => {
   const url = getSearchUrl(query, engine)
   
   try {
+    // 更新searchQuery状态
+    searchQuery.value = query
+    
     // 创建 BrowserView（如果还未创建）
     if (!isViewCreated.value) {
       await SearchAndScraperService.createView(props.tabId)
       isViewCreated.value = true
-      console.log('[SearchAndScraper] BrowserView created for tab:', props.tabId)
+      console.log(`[SearchAndScraper ${props.tabId}] BrowserView created`)
     }
     
     // 显示 BrowserView 容器
@@ -174,9 +177,16 @@ const handleSearch = async (query: string, engine: string): Promise<void> => {
     // 更新导航状态
     await refreshNavigationState()
     
-    console.log('[SearchAndScraper] Searching:', query, 'URL:', url)
+    // 保存到store
+    searchAndScraperStore.updateInstance(props.tabId, {
+      searchQuery: query,
+      isViewCreated: true,
+      isBrowserViewVisible: true
+    })
+    
+    console.log(`[SearchAndScraper ${props.tabId}] Searching:`, query, 'URL:', url)
   } catch (error) {
-    console.error('[SearchAndScraper] Failed to search:', error)
+    console.error(`[SearchAndScraper ${props.tabId}] Failed to search:`, error)
   }
 }
 
@@ -194,9 +204,16 @@ const handleHome = async (): Promise<void> => {
       currentUrl: ''
     }
     
-    console.log('[SearchAndScraper] Back to home')
+    // 保存到store
+    searchAndScraperStore.updateInstance(props.tabId, {
+      searchQuery: '',
+      isBrowserViewVisible: false,
+      currentUrl: ''
+    })
+    
+    console.log(`[SearchAndScraper ${props.tabId}] Back to home`)
   } catch (error) {
-    console.error('[SearchAndScraper] Failed to go home:', error)
+    console.error(`[SearchAndScraper ${props.tabId}] Failed to go home:`, error)
   }
 }
 
@@ -317,6 +334,13 @@ onMounted(async (): Promise<void> => {
   isBrowserViewVisible.value = state.isBrowserViewVisible
   searchQuery.value = state.searchQuery
   navigationState.value.currentUrl = state.currentUrl
+  
+  console.log(`[SearchAndScraper ${props.tabId}] Component mounted, restored state:`, {
+    isViewCreated: isViewCreated.value,
+    isBrowserViewVisible: isBrowserViewVisible.value,
+    searchQuery: searchQuery.value,
+    currentUrl: navigationState.value.currentUrl
+  })
   
   // 初始化 Session
   try {

@@ -32,7 +32,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 
 /**
@@ -52,7 +52,12 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-const searchQuery = ref<string>(props.modelValue)
+// 使用computed保持与父组件同步
+const searchQuery = computed({
+  get: () => props.modelValue,
+  set: (value: string) => emit('update:modelValue', value)
+})
+
 const currentEngine = ref<string>('G')
 
 /**
@@ -75,7 +80,6 @@ const handleSearch = (): void => {
   if (!searchQuery.value.trim()) return
   
   const engine = localStorage.getItem('search_engine') || 'google'
-  emit('update:modelValue', searchQuery.value)
   emit('search', searchQuery.value, engine)
 }
 
