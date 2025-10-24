@@ -84,7 +84,9 @@ export interface SearchInstanceState {
     total: number
     currentChapter: string
   } | null
-  // 🕒 浏览历史
-  browseHistory: BrowseHistoryItem[]
+  // 📚 章节选择状态
+  chapterSelectMode: boolean
+  selectedChapterIndexes: Set<number>
+  chapterSearchQuery: string
 }
 

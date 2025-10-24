@@ -13,6 +13,13 @@ export const useSearchAndScraperStore = defineStore('projectPage-searchAndScrape
   // 使用 Map 存储每个标签页的独立状态
   const instances = ref<Map<string, SearchInstanceState>>(new Map())
   
+  // 🌐 全局浏览历史记录（所有标签页共享）
+  const browseHistory = ref<BrowseHistoryItem[]>([])
+  
+  // ==================== 常量 ====================
+  const HISTORY_STORAGE_KEY = 'search-scraper-browse-history-global'
+  const MAX_HISTORY_ITEMS = 100
+  
   // ==================== 方法 ====================
   
   /**
@@ -48,8 +55,10 @@ export const useSearchAndScraperStore = defineStore('projectPage-searchAndScrape
       scrapedChapters: [],
       isScrapingInProgress: false,
       scrapingProgress: null,
-      // 浏览历史
-      browseHistory: []
+      // 📚 章节选择状态
+      chapterSelectMode: false,
+      selectedChapterIndexes: new Set(),
+      chapterSearchQuery: ''
     }
     
     instances.value.set(tabId, newInstance)
@@ -86,39 +95,31 @@ export const useSearchAndScraperStore = defineStore('projectPage-searchAndScrape
     console.log('[SearchAndScraper Store] All instances cleared')
   }
   
-  // ==================== 浏览历史管理 ====================
-  
-  const HISTORY_STORAGE_KEY = 'search-scraper-browse-history'
-  const MAX_HISTORY_ITEMS = 100 // 最多保存100条历史记录
+  // ==================== 🌐 全局浏览历史管理 ====================
   
   /**
-   * 从localStorage加载历史记录
+   * 从localStorage加载全局历史记录
    */
-  const loadHistoryFromStorage = (tabId: string): void => {
+  const loadHistoryFromStorage = (): void => {
     try {
-      const stored = localStorage.getItem(`${HISTORY_STORAGE_KEY}-${tabId}`)
+      const stored = localStorage.getItem(HISTORY_STORAGE_KEY)
       if (stored) {
-        const history: BrowseHistoryItem[] = JSON.parse(stored)
-        updateInstance(tabId, { browseHistory: history })
-        console.log(`[SearchAndScraper Store] Loaded ${history.length} history items for ${tabId}`)
+        browseHistory.value = JSON.parse(stored)
+        console.log(`[SearchAndScraper Store] Loaded ${browseHistory.value.length} history items`)
       }
     } catch (error) {
       console.error('[SearchAndScraper Store] Failed to load history:', error)
+      browseHistory.value = []
     }
   }
   
   /**
-   * 保存历史记录到localStorage
+   * 保存全局历史记录到localStorage
    */
-  const saveHistoryToStorage = (tabId: string): void => {
+  const saveHistoryToStorage = (): void => {
     try {
-      const instance = instances.value.get(tabId)
-      if (instance) {
-        localStorage.setItem(
-          `${HISTORY_STORAGE_KEY}-${tabId}`,
-          JSON.stringify(instance.browseHistory)
-        )
-      }
+      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(browseHistory.value))
+      console.log(`[SearchAndScraper Store] Saved ${browseHistory.value.length} history items`)
     } catch (error) {
       console.error('[SearchAndScraper Store] Failed to save history:', error)
     }
@@ -127,50 +128,47 @@ export const useSearchAndScraperStore = defineStore('projectPage-searchAndScrape
   /**
    * 添加历史记录
    */
-  const addHistoryItem = (tabId: string, item: Omit<BrowseHistoryItem, 'timestamp'>): void => {
-    const instance = instances.value.get(tabId)
-    if (!instance) {
-      return
-    }
-    
+  const addHistoryItem = (item: Omit<BrowseHistoryItem, 'timestamp'>): void => {
     const newItem: BrowseHistoryItem = {
       ...item,
       timestamp: Date.now()
     }
     
-    // 检查是否已存在相同URL的记录，如果存在则更新时间戳
-    const existingIndex = instance.browseHistory.findIndex(h => h.url === item.url)
+    // 检查是否已存在相同URL的记录，如果存在则移除旧记录
+    const existingIndex = browseHistory.value.findIndex(h => h.url === item.url)
     if (existingIndex !== -1) {
-      // 移除旧记录
-      instance.browseHistory.splice(existingIndex, 1)
+      browseHistory.value.splice(existingIndex, 1)
     }
     
     // 添加到最前面
-    instance.browseHistory.unshift(newItem)
+    browseHistory.value.unshift(newItem)
     
     // 限制最大数量
-    if (instance.browseHistory.length > MAX_HISTORY_ITEMS) {
-      instance.browseHistory = instance.browseHistory.slice(0, MAX_HISTORY_ITEMS)
+    if (browseHistory.value.length > MAX_HISTORY_ITEMS) {
+      browseHistory.value = browseHistory.value.slice(0, MAX_HISTORY_ITEMS)
     }
     
     // 保存到localStorage
-    saveHistoryToStorage(tabId)
+    saveHistoryToStorage()
     
     console.log(`[SearchAndScraper Store] Added history: ${item.title}`)
   }
   
   /**
-   * 清空历史记录
+   * 清空全局历史记录
    */
-  const clearHistory = (tabId: string): void => {
-    updateInstance(tabId, { browseHistory: [] })
+  const clearHistory = (): void => {
+    browseHistory.value = []
     try {
-      localStorage.removeItem(`${HISTORY_STORAGE_KEY}-${tabId}`)
-      console.log(`[SearchAndScraper Store] Cleared history for ${tabId}`)
+      localStorage.removeItem(HISTORY_STORAGE_KEY)
+      console.log('[SearchAndScraper Store] Cleared history')
     } catch (error) {
       console.error('[SearchAndScraper Store] Failed to clear history:', error)
     }
   }
+  
+  // 🔥 初始化时加载历史记录
+  loadHistoryFromStorage()
   
   // ==================== 返回 ====================
   
@@ -181,8 +179,10 @@ export const useSearchAndScraperStore = defineStore('projectPage-searchAndScrape
     updateInstance,
     removeInstance,
     reset,
-    // 历史记录
+    // 🌐 全局历史记录
+    browseHistory,
     loadHistoryFromStorage,
+    saveHistoryToStorage,
     addHistoryItem,
     clearHistory
   }

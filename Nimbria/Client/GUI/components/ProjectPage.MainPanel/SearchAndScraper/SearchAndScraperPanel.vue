@@ -2,6 +2,7 @@
   <div ref="panelRef" class="search-and-scraper-panel">
     <!-- Toolbar -->
     <div ref="toolbarRef" class="toolbar">
+      <!-- 左侧：导航按钮 -->
       <div class="nav-buttons">
         <el-button
           :disabled="!isBrowserViewVisible"
@@ -26,9 +27,15 @@
         />
       </div>
       
-      <div class="spacer"></div>
+      <!-- 🔥 中间：URL显示区域（始终存在以保持布局） -->
+      <div class="url-display">
+        <template v-if="isBrowserViewVisible">
+          <el-icon v-if="isLoading" class="is-loading"><Loading /></el-icon>
+          <el-text truncated>{{ navigationState.currentUrl }}</el-text>
+        </template>
+      </div>
       
-      <!-- 右侧按钮组 -->
+      <!-- 右侧：功能按钮 -->
       <div class="action-buttons">
         <el-button
           :icon="Clock"
@@ -36,12 +43,6 @@
           size="small"
           @click="historyPanelVisible = true"
         />
-      </div>
-      
-      <!-- 当 BrowserView 可见时，显示当前 URL -->
-      <div v-if="isBrowserViewVisible" class="url-display">
-        <el-icon v-if="isLoading" class="is-loading"><Loading /></el-icon>
-        <el-text truncated>{{ navigationState.currentUrl }}</el-text>
       </div>
     </div>
 
@@ -295,7 +296,7 @@ const handleNavigationChanged = (data: NavigationChangedEvent): void => {
         // URL解析失败，使用原始URL
       }
       
-      searchAndScraperStore.addHistoryItem(props.tabId, {
+      searchAndScraperStore.addHistoryItem({
         url: data.url,
         title
       })
@@ -380,9 +381,6 @@ onMounted(async (): Promise<void> => {
     currentUrl: navigationState.value.currentUrl
   })
   
-  // 🔥 加载历史记录
-  searchAndScraperStore.loadHistoryFromStorage(props.tabId)
-  
   // 初始化 Session
   try {
     await SearchAndScraperService.initSession()
@@ -418,6 +416,22 @@ onMounted(async (): Promise<void> => {
     await nextTick()
     await updateBrowserViewBounds()
     console.log('[SearchAndScraper] BrowserView restored for tab:', props.tabId)
+  }
+  
+  // 🔥 预创建BrowserView（即使不显示），确保所有初始化完成
+  if (!isViewCreated.value) {
+    try {
+      await SearchAndScraperService.createView(props.tabId)
+      isViewCreated.value = true
+      console.log(`[SearchAndScraper ${props.tabId}] BrowserView pre-created (hidden)`)
+      
+      // 更新store
+      searchAndScraperStore.updateInstance(props.tabId, {
+        isViewCreated: true
+      })
+    } catch (error) {
+      console.error('[SearchAndScraper] Failed to pre-create BrowserView:', error)
+    }
   }
 })
 
@@ -489,10 +503,6 @@ watch([leftPanelRef, toolbarRef], () => {
   gap: 8px;
   align-items: center;
   flex-shrink: 0;
-}
-
-.spacer {
-  flex: 1;
 }
 
 .action-buttons {

@@ -107,8 +107,8 @@ const emit = defineEmits<Emits>()
 const store = useSearchAndScraperStore()
 const searchQuery = ref('')
 
-// 获取历史记录
-const historyItems = computed(() => store.getInstance(props.tabId)?.browseHistory ?? [])
+// 🌐 获取全局历史记录
+const historyItems = computed(() => store.browseHistory)
 
 // 过滤后的历史记录
 const filteredHistory = computed(() => {
@@ -231,7 +231,7 @@ const handleClearAll = async (): Promise<void> => {
       }
     )
     
-    store.clearHistory(props.tabId)
+    store.clearHistory()
     // @ts-expect-error - ElMessage类型定义问题
     ElMessage.success({ message: '历史记录已清空' })
   } catch (e) {
