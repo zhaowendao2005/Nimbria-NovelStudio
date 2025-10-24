@@ -26,6 +26,9 @@
         <el-empty description="请选择一个标签页" />
       </div>
     </div>
+    
+    <!-- 🔥 对话框专用容器 - 避免被BrowserView覆盖 -->
+    <div id="right-panel-dialog-container" class="dialog-container"></div>
   </div>
 </template>
 
@@ -83,11 +86,13 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .right-panel {
+  position: relative; // 建立定位上下文
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
   background: var(--el-bg-color);
+  z-index: 10; // 确保高于左侧BrowserView
 }
 
 .tab-content {
@@ -102,6 +107,23 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+// 对话框容器
+.dialog-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none; // 不阻止下层交互
+  z-index: 1000;
+  
+  // 允许对话框本身可交互
+  :deep(.el-dialog),
+  :deep(.el-overlay) {
+    pointer-events: auto;
+  }
 }
 </style>
 

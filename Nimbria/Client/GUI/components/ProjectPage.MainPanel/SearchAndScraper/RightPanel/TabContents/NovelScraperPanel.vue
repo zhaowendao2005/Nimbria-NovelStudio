@@ -56,19 +56,23 @@
       </div>
     </div>
     
-    <!-- 详情对话框 -->
-    <el-dialog
-      v-model="detailDialogVisible"
-      :title="currentChapter?.title || '章节详情'"
-      width="70%"
-      :close-on-click-modal="false"
-    >
-      <el-scrollbar max-height="600px">
-        <div class="chapter-detail-content">
-          {{ currentChapter?.content || '暂无内容' }}
-        </div>
-      </el-scrollbar>
-    </el-dialog>
+    <!-- 🔥 使用Teleport将对话框传送到右栏容器，避免被BrowserView覆盖 -->
+    <teleport to="#right-panel-dialog-container">
+      <el-dialog
+        v-model="detailDialogVisible"
+        :title="currentChapter?.title || '章节详情'"
+        width="85%"
+        :close-on-click-modal="false"
+        :append-to-body="false"
+        class="chapter-detail-dialog"
+      >
+        <el-scrollbar max-height="600px">
+          <div class="chapter-detail-content">
+            {{ currentChapter?.content || '暂无内容' }}
+          </div>
+        </el-scrollbar>
+      </el-dialog>
+    </teleport>
   </div>
 </template>
 

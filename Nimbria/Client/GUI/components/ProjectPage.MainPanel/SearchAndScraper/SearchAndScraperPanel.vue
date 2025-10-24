@@ -26,6 +26,18 @@
         />
       </div>
       
+      <div class="spacer"></div>
+      
+      <!-- 右侧按钮组 -->
+      <div class="action-buttons">
+        <el-button
+          :icon="Clock"
+          circle
+          size="small"
+          @click="historyPanelVisible = true"
+        />
+      </div>
+      
       <!-- 当 BrowserView 可见时，显示当前 URL -->
       <div v-if="isBrowserViewVisible" class="url-display">
         <el-icon v-if="isLoading" class="is-loading"><Loading /></el-icon>
@@ -52,12 +64,18 @@
         </el-splitter-panel>
       </el-splitter>
     </div>
+    
+    <!-- 🔥 历史记录面板 -->
+    <HistoryPanel
+      v-model:visible="historyPanelVisible"
+      :tab-id="props.tabId"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { HomeFilled, ArrowLeft, ArrowRight, Loading } from '@element-plus/icons-vue'
+import { HomeFilled, ArrowLeft, ArrowRight, Loading, Clock } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import NProgress from 'nprogress'
 import 'nprogress/nprogress.css'
@@ -66,6 +84,7 @@ import { SearchAndScraperService } from '@service/SearchAndScraper'
 import type { NavigationChangedEvent, LoadingChangedEvent, LoadFailedEvent } from '@service/SearchAndScraper/types'
 import LeftPanel from './LeftContent/LeftPanel.vue'
 import { RightPanel } from './RightPanel'
+import HistoryPanel from './HistoryPanel/HistoryPanel.vue'
 
 // 配置 NProgress
 NProgress.configure({ 
@@ -88,6 +107,7 @@ const searchQuery = ref<string>('')
 const isBrowserViewVisible = ref<boolean>(false)
 const isViewCreated = ref<boolean>(false)
 const isLoading = ref<boolean>(false)
+const historyPanelVisible = ref<boolean>(false)
 
 // DOM 引用
 const panelRef = ref<HTMLElement | null>(null)
@@ -263,6 +283,23 @@ const handleNavigationChanged = (data: NavigationChangedEvent): void => {
       currentUrl: data.url
     }
     console.log('[SearchAndScraper] Navigation changed:', data.url)
+    
+    // 🔥 记录浏览历史
+    if (data.url && data.url !== 'about:blank') {
+      // 提取URL的标题（使用domain或最后一段path作为标题）
+      let title = data.url
+      try {
+        const urlObj = new URL(data.url)
+        title = urlObj.hostname + urlObj.pathname
+      } catch {
+        // URL解析失败，使用原始URL
+      }
+      
+      searchAndScraperStore.addHistoryItem(props.tabId, {
+        url: data.url,
+        title
+      })
+    }
   }
 }
 
@@ -342,6 +379,9 @@ onMounted(async (): Promise<void> => {
     searchQuery: searchQuery.value,
     currentUrl: navigationState.value.currentUrl
   })
+  
+  // 🔥 加载历史记录
+  searchAndScraperStore.loadHistoryFromStorage(props.tabId)
   
   // 初始化 Session
   try {
@@ -445,6 +485,17 @@ watch([leftPanelRef, toolbarRef], () => {
 }
 
 .nav-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.action-buttons {
   display: flex;
   gap: 8px;
   align-items: center;

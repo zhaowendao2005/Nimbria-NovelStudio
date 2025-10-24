@@ -43,6 +43,20 @@ export interface ScrapedChapter {
 }
 
 /**
+ * 浏览历史记录项
+ */
+export interface BrowseHistoryItem {
+  /** URL */
+  url: string
+  /** 页面标题 */
+  title: string
+  /** 访问时间戳 */
+  timestamp: number
+  /** 网站图标（可选） */
+  favicon?: string
+}
+
+/**
  * Store 内部状态类型
  * 每个 tabId 对应一个实例状态
  */
@@ -70,5 +84,7 @@ export interface SearchInstanceState {
     total: number
     currentChapter: string
   } | null
+  // 🕒 浏览历史
+  browseHistory: BrowseHistoryItem[]
 }
 
