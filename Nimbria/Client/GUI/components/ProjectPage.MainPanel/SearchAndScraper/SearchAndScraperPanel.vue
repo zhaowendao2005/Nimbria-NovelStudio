@@ -4,7 +4,7 @@
     <div ref="toolbarRef" class="toolbar">
       <div class="nav-buttons">
         <el-button
-          :disabled="!navigationState.canGoBack"
+          :disabled="!isBrowserViewVisible"
           :icon="HomeFilled"
           circle
           size="small"
@@ -35,44 +35,15 @@
 
     <!-- 内容区域 -->
     <div class="content-area">
-      <el-splitter style="height: 100%;">
+      <el-splitter style="height: 100%;" @resize="handleSplitterResize">
         <el-splitter-panel>
-          <div ref="leftPanelRef" class="left-panel">
-            <!-- 搜索栏（未搜索时垂直居中显示） -->
-            <div v-if="!isBrowserViewVisible" class="search-container-wrapper">
-            <div class="search-container">
-              <!-- 搜索引擎选择 -->
-              <el-dropdown @command="handleEngineSelect" trigger="click">
-                <button class="engine-btn">
-                  <span class="engine-icon">{{ currentEngine }}</span>
-                </button>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item command="google">Google</el-dropdown-item>
-                    <el-dropdown-item command="bing">Bing</el-dropdown-item>
-                    <el-dropdown-item command="baidu">Baidu</el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
-              
-              <!-- 搜索框 -->
-              <el-input
-                v-model="searchQuery"
-                placeholder="搜索..."
-                clearable
-                @keyup.enter="handleSearch"
-                class="search-input"
-              >
-                <template #suffix>
-                  <el-icon><Search /></el-icon>
-                </template>
-              </el-input>
-            </div>
-            </div>
-
-            <!-- 🔥 BrowserView 占位区域（空白，BrowserView 会覆盖在这里） -->
-            <div v-else ref="browserViewContainerRef" class="browserview-container"></div>
-          </div>
+          <LeftPanel
+            ref="leftPanelRef"
+            :is-browser-view-visible="isBrowserViewVisible"
+            :search-query="searchQuery"
+            @update:search-query="searchQuery = $event"
+            @search="handleSearch"
+          />
         </el-splitter-panel>
 
         <!-- 右侧面板 -->
@@ -86,10 +57,22 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { Search, HomeFilled, ArrowLeft, ArrowRight, Loading } from '@element-plus/icons-vue'
+import { HomeFilled, ArrowLeft, ArrowRight, Loading } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import NProgress from 'nprogress'
+import 'nprogress/nprogress.css'
 import { useSearchAndScraperStore } from '@stores/projectPage/searchAndScraper'
 import { SearchAndScraperService } from '@service/SearchAndScraper'
 import type { NavigationChangedEvent, LoadingChangedEvent, LoadFailedEvent } from '@service/SearchAndScraper/types'
+import LeftPanel from './LeftContent/LeftPanel.vue'
+
+// 配置 NProgress
+NProgress.configure({ 
+  showSpinner: false,  // 不显示右上角的旋转图标
+  parent: '.search-and-scraper-panel',  // 挂载到当前组件
+  trickleSpeed: 200,  // 自动增长速度
+  minimum: 0.08  // 最小百分比
+})
 
 interface Props {
   tabId: string
@@ -101,7 +84,6 @@ const searchAndScraperStore = useSearchAndScraperStore()
 // ==================== 状态 ====================
 
 const searchQuery = ref<string>('')
-const currentEngine = ref<string>('G')
 const isBrowserViewVisible = ref<boolean>(false)
 const isViewCreated = ref<boolean>(false)
 const isLoading = ref<boolean>(false)
@@ -109,8 +91,10 @@ const isLoading = ref<boolean>(false)
 // DOM 引用
 const panelRef = ref<HTMLElement | null>(null)
 const toolbarRef = ref<HTMLElement | null>(null)
-const leftPanelRef = ref<HTMLElement | null>(null)
-const browserViewContainerRef = ref<HTMLElement | null>(null)
+const leftPanelRef = ref<InstanceType<typeof LeftPanel> | null>(null)
+
+// ResizeObserver
+let resizeObserver: ResizeObserver | null = null
 
 // 导航状态
 const navigationState = ref({
@@ -120,16 +104,6 @@ const navigationState = ref({
 })
 
 // ==================== 方法 ====================
-
-const handleEngineSelect = (command: string): void => {
-  const engineMap: Record<string, string> = {
-    google: 'G',
-    bing: 'B',
-    baidu: '百'
-  }
-  currentEngine.value = engineMap[command] ?? 'G'
-  localStorage.setItem('search_engine', command)
-}
 
 const getSearchUrl = (query: string, engine: string): string => {
   const engineUrls = {
@@ -144,12 +118,12 @@ const getSearchUrl = (query: string, engine: string): string => {
  * 计算 BrowserView 的 bounds
  */
 const calculateBrowserViewBounds = (): { x: number; y: number; width: number; height: number } => {
-  if (!leftPanelRef.value) {
+  if (!leftPanelRef.value?.panelRef) {
     return { x: 0, y: 0, width: 0, height: 0 }
   }
   
-  // 使用左侧 splitter-panel 的实际位置和大小
-  const leftPanelRect = leftPanelRef.value.getBoundingClientRect()
+  // 使用左侧 panel 的实际位置和大小
+  const leftPanelRect = leftPanelRef.value.panelRef.getBoundingClientRect()
   
   return {
     x: Math.round(leftPanelRect.x),
@@ -167,14 +141,14 @@ const updateBrowserViewBounds = async (): Promise<void> => {
   
   const bounds = calculateBrowserViewBounds()
   await SearchAndScraperService.showView(props.tabId, bounds)
-  console.log('[SearchAndScraper] Updated BrowserView bounds:', bounds)
+  // 日志太频繁，注释掉避免污染控制台
+  // console.log('[SearchAndScraper] Updated BrowserView bounds:', bounds)
 }
 
-const handleSearch = async (): Promise<void> => {
-  if (!searchQuery.value.trim()) return
+const handleSearch = async (query: string, engine: string): Promise<void> => {
+  if (!query.trim()) return
   
-  const engine = localStorage.getItem('search_engine') || 'google'
-  const url = getSearchUrl(searchQuery.value, engine)
+  const url = getSearchUrl(query, engine)
   
   try {
     // 创建 BrowserView（如果还未创建）
@@ -200,7 +174,7 @@ const handleSearch = async (): Promise<void> => {
     // 更新导航状态
     await refreshNavigationState()
     
-    console.log('[SearchAndScraper] Searching:', searchQuery.value, 'URL:', url)
+    console.log('[SearchAndScraper] Searching:', query, 'URL:', url)
   } catch (error) {
     console.error('[SearchAndScraper] Failed to search:', error)
   }
@@ -280,6 +254,14 @@ const handleNavigationChanged = (data: NavigationChangedEvent): void => {
 const handleLoadingChanged = (data: LoadingChangedEvent): void => {
   if (data.tabId === props.tabId) {
     isLoading.value = data.isLoading
+    
+    // 控制进度条
+    if (data.isLoading) {
+      NProgress.start()  // 开始加载，进度条快速到达30%，然后慢慢增长
+    } else {
+      NProgress.done()  // 加载完成，进度条快速到达100%并消失
+    }
+    
     console.log('[SearchAndScraper] Loading:', data.isLoading)
   }
 }
@@ -287,10 +269,23 @@ const handleLoadingChanged = (data: LoadingChangedEvent): void => {
 /**
  * 处理加载失败事件
  */
-const handleLoadFailed = (data: LoadFailedEvent): void => {
+const handleLoadFailed = async (data: LoadFailedEvent): Promise<void> => {
   if (data.tabId === props.tabId) {
     console.error('[SearchAndScraper] Failed to load:', data.url, data.errorCode, data.errorDescription)
-    // 可以在这里显示错误提示
+    
+    // 停止进度条
+    NProgress.done()
+    
+    // 刷新导航状态，确保后退按钮可用
+    await refreshNavigationState()
+    
+    // 显示错误提示
+    const hasHistory = navigationState.value.canGoBack
+    const msg = hasHistory
+      ? `页面加载失败：${data.errorDescription}。您可以点击回退按钮返回上一页，或点击Home按钮返回搜索页面。`
+      : `页面加载失败：${data.errorDescription}。您可以点击Home按钮返回搜索页面。`
+    // @ts-expect-error - ElMessage类型定义问题，运行时正常
+    ElMessage.error({ message: msg })
   }
 }
 
@@ -303,6 +298,13 @@ const handleResize = (): void => {
       console.error('[SearchAndScraper] Failed to update bounds on resize:', error)
     })
   }
+}
+
+/**
+ * Splitter大小调整处理
+ */
+const handleSplitterResize = (): void => {
+  handleResize()
 }
 
 // ==================== 生命周期 ====================
@@ -323,19 +325,28 @@ onMounted(async (): Promise<void> => {
     console.error('[SearchAndScraper] Failed to initialize session:', error)
   }
   
-  // 恢复搜索引擎选择
-  const saved = localStorage.getItem('search_engine')
-  if (saved) {
-    handleEngineSelect(saved)
-  }
-  
   // 监听导航变化（从主进程发来的事件）
   window.nimbria.searchScraper.onNavigationChanged(handleNavigationChanged)
   window.nimbria.searchScraper.onLoadingChanged(handleLoadingChanged)
-  window.nimbria.searchScraper.onLoadFailed(handleLoadFailed)
+  window.nimbria.searchScraper.onLoadFailed((data) => {
+    void handleLoadFailed(data)
+  })
   
   // 监听窗口大小变化
-  window.addEventListener('resize', handleResize)
+  window.addEventListener('resize', handleResize as EventListener)
+  
+  // 🔥 监听左侧面板的大小变化（使用ResizeObserver）
+  if (leftPanelRef.value?.panelRef) {
+    resizeObserver = new ResizeObserver(() => {
+      if (isBrowserViewVisible.value && isViewCreated.value) {
+        updateBrowserViewBounds().catch(error => {
+          console.error('[SearchAndScraper] Failed to update bounds on panel resize:', error)
+        })
+      }
+    })
+    resizeObserver.observe(leftPanelRef.value.panelRef)
+    console.log('[SearchAndScraper] ResizeObserver attached to left panel')
+  }
   
   // 🔥 如果已有 BrowserView，恢复显示
   if (isViewCreated.value && isBrowserViewVisible.value) {
@@ -347,6 +358,13 @@ onMounted(async (): Promise<void> => {
 
 onUnmounted(async (): Promise<void> => {
   window.removeEventListener('resize', handleResize)
+  
+  // 🔥 断开ResizeObserver
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+    console.log('[SearchAndScraper] ResizeObserver disconnected')
+  }
   
   // 🔥 保存状态到 store
   searchAndScraperStore.updateInstance(props.tabId, {
@@ -438,76 +456,38 @@ watch([leftPanelRef, toolbarRef], () => {
   overflow: hidden;
 }
 
-// 左侧面板
-.left-panel {
-  width: 100%;
-  height: 100%;
-  position: relative;
-}
-
-// 搜索栏容器（垂直居中）
-.search-container-wrapper {
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.search-container {
-  display: flex;
-  gap: 12px;
-  width: 100%;
-  max-width: 600px;
-}
-
-.engine-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 1px solid var(--el-border-color);
-  background: var(--el-fill-color-light);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: all 0.2s;
-  
-  &:hover {
-    background: var(--el-fill-color);
-    border-color: var(--el-color-primary);
-  }
-  
-  .engine-icon {
-    font-size: 16px;
-    font-weight: bold;
-  }
-}
-
-.search-input {
-  flex: 1;
-  
-  :deep(.el-input__wrapper) {
-    border-radius: 20px;
-    padding: 0 16px;
-    height: 40px;
-  }
-}
-
-// BrowserView 容器（占位）
-.browserview-container {
-  width: 100%;
-  height: 100%;
-  background: var(--el-fill-color-lighter);
-  position: relative;
-}
-
 // 右侧面板
 .right-panel {
   width: 100%;
   height: 100%;
   background: var(--el-bg-color-page);
   overflow-y: auto;
+}
+
+// ==================== NProgress 样式覆盖 ====================
+// 自定义进度条样式，使其更像 Chrome/Edge
+:deep(#nprogress) {
+  pointer-events: none;
+  
+  .bar {
+    background: var(--el-color-primary) !important;  // 使用主题色
+    position: fixed;
+    z-index: 9999;
+    top: 50px;  // toolbar的高度
+    left: 0;
+    width: 100%;
+    height: 3px;  // 稍微粗一点，更明显
+  }
+  
+  .peg {
+    display: block;
+    position: absolute;
+    right: 0px;
+    width: 100px;
+    height: 100%;
+    box-shadow: 0 0 10px var(--el-color-primary), 0 0 5px var(--el-color-primary);
+    opacity: 1;
+    transform: rotate(3deg) translate(0px, -4px);
+  }
 }
 </style>

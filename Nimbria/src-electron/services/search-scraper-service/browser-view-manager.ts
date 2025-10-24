@@ -137,7 +137,8 @@ export class BrowserViewManager {
     instance.view.setBounds(bounds)
     instance.isVisible = true
     
-    console.log(`[BrowserViewManager] Showing view ${tabId} with bounds:`, bounds)
+    // 日志太频繁，注释掉避免污染控制台
+    // console.log(`[BrowserViewManager] Showing view ${tabId} with bounds:`, bounds)
   }
   
   /**

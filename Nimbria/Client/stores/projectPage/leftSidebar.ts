@@ -15,7 +15,7 @@ export const useLeftSidebarStore = defineStore('leftSidebar', () => {
   const currentView = ref<LeftSidebarView>('files')
   
   /** 内容区是否可见 */
-  const isContentVisible = ref<boolean>(true)
+  const isContentVisible = ref<boolean>(false)
   
   /** 上一个视图（用于恢复） */
   const previousView = ref<LeftSidebarView>('files')
@@ -108,7 +108,7 @@ export const useLeftSidebarStore = defineStore('leftSidebar', () => {
    */
   function reset() {
     currentView.value = 'files'
-    isContentVisible.value = true
+    isContentVisible.value = false
     previousView.value = 'files'
     customWidth.value = null
   }
