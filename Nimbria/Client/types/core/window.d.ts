@@ -890,6 +890,26 @@ export interface NimbriaWindowAPI {
      */
     stopElementPicker(tabId: string): Promise<{ success: boolean }>
     
+    // ==================== 小说爬取 ====================
+    
+    /**
+     * 智能提取当前页面的章节列表
+     */
+    extractChapters(tabId: string): Promise<{ 
+      success: boolean
+      chapters?: Array<{ title: string; url: string }>
+      error?: string 
+    }>
+    
+    /**
+     * 爬取指定章节的内容
+     */
+    scrapeChapter(tabId: string, chapterUrl: string): Promise<{ 
+      success: boolean
+      chapter?: { title: string; content: string; summary: string }
+      error?: string 
+    }>
+    
     // ==================== 事件监听 ====================
     
     /**

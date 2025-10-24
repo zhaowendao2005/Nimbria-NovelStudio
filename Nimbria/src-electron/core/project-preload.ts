@@ -615,6 +615,12 @@ contextBridge.exposeInMainWorld('nimbria', {
     stopElementPicker: (tabId: string) => 
       ipcRenderer.invoke('search-scraper:stop-element-picker', { tabId }),
     
+    // 小说爬取
+    extractChapters: (tabId: string) => 
+      ipcRenderer.invoke('search-scraper:extract-chapters', { tabId }),
+    scrapeChapter: (tabId: string, chapterUrl: string) => 
+      ipcRenderer.invoke('search-scraper:scrape-chapter', { tabId, chapterUrl }),
+    
     // 事件监听
     onNavigationChanged: (callback: (data: { tabId: string; url: string; canGoBack: boolean; canGoForward: boolean }) => void) => {
       ipcRenderer.on('search-scraper:navigation-changed', (_event, data) => callback(data))

@@ -1,43 +1,283 @@
 <template>
   <div class="novel-scraper-panel">
-    <div class="placeholder-content">
-      <el-empty description="小说爬取功能开发中">
-        <template #image>
-          <el-icon :size="100" color="var(--el-color-info)">
-            <Reading />
-          </el-icon>
-        </template>
-        <template #description>
-          <div class="description">
-            <p class="title">📚 小说可视化爬取工具</p>
-            <p class="subtitle">即将推出以下功能：</p>
-            <ul class="feature-list">
-              <li>自动识别章节列表</li>
-              <li>批量下载小说内容</li>
-              <li>智能去除广告和无关内容</li>
-              <li>多种格式导出（TXT、EPUB等）</li>
-              <li>断点续传和进度保存</li>
-            </ul>
-          </div>
-        </template>
-      </el-empty>
+    <!-- Toolbar -->
+    <div class="novel-toolbar">
+      <!-- 模式选择器 -->
+      <el-select
+        v-model="currentMode"
+        size="small"
+        style="width: 120px"
+        @change="handleModeChange"
+      >
+        <el-option
+          label="智能模式"
+          value="smart"
+        />
+      </el-select>
+      
+      <!-- 工具栏 -->
+      <div class="toolbar-tools">
+        <div
+          class="tool-item"
+          @click="handleMatchChapters"
+        >
+          <el-icon><Aim /></el-icon>
+          <span>智能匹配章节列表</span>
+        </div>
+        
+        <div
+          class="tool-item"
+          @click="handleScrapeChapters"
+        >
+          <el-icon><Download /></el-icon>
+          <span>爬取章节</span>
+        </div>
+      </div>
     </div>
+    
+    <!-- 内容区域 -->
+    <div class="content-area">
+      <!-- 智能模式内容 -->
+      <div v-if="currentMode === 'smart'" class="smart-mode-content">
+        <!-- 上半部分：匹配到的章节列表 -->
+        <ChapterListSection
+          :chapters="matchedChapters"
+          :url-prefix="urlPrefix"
+          :url-prefix-enabled="urlPrefixEnabled"
+          @update:url-prefix="urlPrefix = $event"
+          @update:url-prefix-enabled="urlPrefixEnabled = $event"
+        />
+        
+        <!-- 下半部分：章节摘要卡片 -->
+        <ChapterSummarySection
+          :chapters="scrapedChapters"
+          @view-detail="handleViewDetail"
+        />
+      </div>
+    </div>
+    
+    <!-- 详情对话框 -->
+    <el-dialog
+      v-model="detailDialogVisible"
+      :title="currentChapter?.title || '章节详情'"
+      width="70%"
+      :close-on-click-modal="false"
+    >
+      <el-scrollbar max-height="600px">
+        <div class="chapter-detail-content">
+          {{ currentChapter?.content || '暂无内容' }}
+        </div>
+      </el-scrollbar>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Reading } from '@element-plus/icons-vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { Aim, Download } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { useSearchAndScraperStore } from '@stores/projectPage/searchAndScraper'
+import { SearchAndScraperService } from '@service/SearchAndScraper'
+import ChapterListSection from './SmartMode/ChapterListSection.vue'
+import ChapterSummarySection from './SmartMode/ChapterSummarySection.vue'
+import type { ScrapedChapter } from '@stores/projectPage/searchAndScraper/searchAndScraper.types'
 
 /**
  * NovelScraperPanel 组件
- * 小说可视化爬取功能（占位）
+ * 小说可视化爬取工具
+ * 
+ * 🔥 多例模式：
+ * - 每个 tabId 对应一个独立的状态实例
+ * - 状态存储在 Store 中，切换标签页时保持状态
+ * - 组件挂载/卸载时自动恢复/保存状态
  */
 
 interface Props {
   tabId: string
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
+const store = useSearchAndScraperStore()
+
+// 🔥 从Store获取当前实例的状态（保证多例独立性）
+const instance = computed(() => store.getInstance(props.tabId))
+
+// 本地响应式状态（用于UI绑定）
+const currentMode = ref<string>('smart')
+
+// 🔥 使用computed双向绑定到Store，确保状态同步
+const urlPrefix = computed({
+  get: () => instance.value?.urlPrefix ?? '',
+  set: (value) => store.updateInstance(props.tabId, { urlPrefix: value })
+})
+
+const urlPrefixEnabled = computed({
+  get: () => instance.value?.urlPrefixEnabled ?? false,
+  set: (value) => store.updateInstance(props.tabId, { urlPrefixEnabled: value })
+})
+
+const matchedChapters = computed(() => instance.value?.matchedChapters ?? [])
+const scrapedChapters = computed(() => instance.value?.scrapedChapters ?? [])
+const isScrapingInProgress = computed(() => instance.value?.isScrapingInProgress ?? false)
+
+// 对话框状态（仅UI，不需要持久化）
+const detailDialogVisible = ref(false)
+const currentChapter = ref<ScrapedChapter | null>(null)
+
+/**
+ * 模式切换
+ */
+const handleModeChange = (mode: string): void => {
+  console.log(`[NovelScraper ${props.tabId}] Mode changed:`, mode)
+}
+
+/**
+ * 智能匹配章节列表
+ */
+const handleMatchChapters = async (): Promise<void> => {
+  try {
+    // @ts-expect-error - ElMessage类型定义问题
+    ElMessage.info({ message: '正在智能匹配章节列表...' })
+    
+    const result = await SearchAndScraperService.extractChapters(props.tabId)
+    
+    if (result.success && result.chapters) {
+      // 处理URL前缀拼接
+      let chapters = result.chapters.map(ch => ({
+        title: ch.title,
+        url: ch.url
+      }))
+      
+      // 如果启用了URL前缀且链接是相对路径
+      if (urlPrefixEnabled.value && urlPrefix.value) {
+        chapters = chapters.map(ch => ({
+          ...ch,
+          url: ch.url.startsWith('http') ? ch.url : `${urlPrefix.value}${ch.url}`
+        }))
+      }
+      
+      store.updateInstance(props.tabId, { matchedChapters: chapters })
+      
+      // @ts-expect-error - ElMessage类型定义问题
+      ElMessage.success({ message: `成功匹配到 ${chapters.length} 个章节` })
+      console.log(`[NovelScraper ${props.tabId}] Matched ${chapters.length} chapters`)
+    } else {
+      // @ts-expect-error - ElMessage类型定义问题
+      ElMessage.warning({ message: result.error || '未找到章节' })
+    }
+  } catch (error) {
+    console.error(`[NovelScraper ${props.tabId}] Match chapters failed:`, error)
+    // @ts-expect-error - ElMessage类型定义问题
+    ElMessage.error({ message: '匹配章节失败' })
+  }
+}
+
+/**
+ * 爬取章节
+ */
+const handleScrapeChapters = async (): Promise<void> => {
+  if (matchedChapters.value.length === 0) {
+    // @ts-expect-error - ElMessage类型定义问题
+    ElMessage.warning({ message: '请先匹配章节列表' })
+    return
+  }
+  
+  if (isScrapingInProgress.value) {
+    // @ts-expect-error - ElMessage类型定义问题
+    ElMessage.warning({ message: '正在爬取中，请稍候...' })
+    return
+  }
+  
+  try {
+    store.updateInstance(props.tabId, { 
+      isScrapingInProgress: true,
+      scrapingProgress: {
+        current: 0,
+        total: matchedChapters.value.length,
+        currentChapter: ''
+      }
+    })
+    
+    const scraped: ScrapedChapter[] = []
+    
+    for (let i = 0; i < matchedChapters.value.length; i++) {
+      const chapter = matchedChapters.value[i]
+      
+      if (!chapter) {
+        continue
+      }
+      
+      // 更新进度
+      store.updateInstance(props.tabId, {
+        scrapingProgress: {
+          current: i + 1,
+          total: matchedChapters.value.length,
+          currentChapter: chapter.title
+        }
+      })
+      
+      try {
+        const result = await SearchAndScraperService.scrapeChapter(props.tabId, chapter.url)
+        
+        if (result.success && result.chapter && result.chapter.title && result.chapter.content) {
+          scraped.push({
+            title: result.chapter.title,
+            content: result.chapter.content,
+            summary: result.chapter.summary || '',
+            url: chapter.url
+          })
+          
+          // 实时更新已爬取的章节
+          store.updateInstance(props.tabId, { scrapedChapters: [...scraped] })
+        }
+        
+        // 延迟，避免请求过快
+        await new Promise(resolve => setTimeout(resolve, 500))
+      } catch (error) {
+        console.error(`[NovelScraper ${props.tabId}] Failed to scrape chapter:`, chapter.title, error)
+      }
+    }
+    
+    // @ts-expect-error - ElMessage类型定义问题
+    ElMessage.success({ message: `爬取完成！共爬取 ${scraped.length} 个章节` })
+    console.log(`[NovelScraper ${props.tabId}] Scraping completed: ${scraped.length} chapters`)
+  } catch (error) {
+    console.error(`[NovelScraper ${props.tabId}] Scrape chapters failed:`, error)
+    // @ts-expect-error - ElMessage类型定义问题
+    ElMessage.error({ message: '爬取失败' })
+  } finally {
+    store.updateInstance(props.tabId, { 
+      isScrapingInProgress: false,
+      scrapingProgress: null
+    })
+  }
+}
+
+/**
+ * 查看详情
+ */
+const handleViewDetail = (chapter: ScrapedChapter): void => {
+  currentChapter.value = chapter
+  detailDialogVisible.value = true
+}
+
+// 🔥 生命周期：挂载时记录日志
+onMounted(() => {
+  console.log(`[NovelScraper ${props.tabId}] Mounted`, {
+    urlPrefix: urlPrefix.value,
+    matchedChapters: matchedChapters.value.length,
+    scrapedChapters: scrapedChapters.value.length
+  })
+})
+
+// 🔥 生命周期：卸载时记录日志（状态已经自动同步到Store）
+onUnmounted(() => {
+  console.log(`[NovelScraper ${props.tabId}] Unmounted`, {
+    urlPrefix: urlPrefix.value,
+    matchedChapters: matchedChapters.value.length,
+    scrapedChapters: scrapedChapters.value.length
+  })
+})
 </script>
 
 <style scoped lang="scss">
@@ -45,53 +285,75 @@ defineProps<Props>()
   width: 100%;
   height: 100%;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   background: var(--el-bg-color-page);
-  padding: 24px;
+  overflow: hidden;
 }
 
-.placeholder-content {
+// ==================== Toolbar ====================
+.novel-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: var(--el-bg-color);
+  border-bottom: 1px solid var(--el-border-color-light);
+  flex-shrink: 0;
+}
+
+.toolbar-tools {
+  flex: 1;
+  display: flex;
+  gap: 6px;
+  padding: 3px 6px;
+  background: var(--el-fill-color-light);
+  border-radius: 4px;
+}
+
+.tool-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+  
+  &:hover {
+    border-color: var(--el-color-primary);
+    color: var(--el-color-primary);
+    background: var(--el-color-primary-light-9);
+  }
+  
+  &:active {
+    transform: translateY(1px);
+  }
+}
+
+// ==================== 内容区域 ====================
+.content-area {
+  flex: 1;
+  overflow: hidden;
+}
+
+.smart-mode-content {
   width: 100%;
   height: 100%;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
 }
 
-.description {
-  text-align: center;
-  
-  .title {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--el-text-color-primary);
-    margin-bottom: 12px;
-  }
-  
-  .subtitle {
-    font-size: 14px;
-    color: var(--el-text-color-regular);
-    margin-bottom: 16px;
-  }
-  
-  .feature-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    
-    li {
-      font-size: 13px;
-      color: var(--el-text-color-secondary);
-      padding: 4px 0;
-      
-      &::before {
-        content: '✓ ';
-        color: var(--el-color-success);
-        margin-right: 4px;
-      }
-    }
-  }
+// ==================== 详情对话框 ====================
+.chapter-detail-content {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--el-text-color-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 </style>
-

@@ -239,6 +239,54 @@ export function setupSearchScraperHandlers(): void {
     }
   })
   
+  // ==================== 小说爬取 ====================
+  
+  // 智能提取章节列表
+  ipcMain.handle('search-scraper:extract-chapters', async (
+    _event: IpcMainInvokeEvent,
+    request: { tabId: string }
+  ): Promise<{ success: boolean; chapters?: Array<{ title: string; url: string }>; error?: string }> => {
+    if (!browserViewManager) {
+      return { success: false, error: 'BrowserViewManager not available' }
+    }
+    
+    try {
+      const chapters = await browserViewManager.intelligentExtractChapters(request.tabId)
+      return { success: true, chapters }
+    } catch (error) {
+      console.error('[SearchAndScraper] Failed to extract chapters:', error)
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      }
+    }
+  })
+  
+  // 爬取章节内容
+  ipcMain.handle('search-scraper:scrape-chapter', async (
+    _event: IpcMainInvokeEvent,
+    request: { tabId: string; chapterUrl: string }
+  ): Promise<{ 
+    success: boolean
+    chapter?: { title: string; content: string; summary: string }
+    error?: string 
+  }> => {
+    if (!browserViewManager) {
+      return { success: false, error: 'BrowserViewManager not available' }
+    }
+    
+    try {
+      const chapter = await browserViewManager.scrapeChapterContent(request.tabId, request.chapterUrl)
+      return { success: true, chapter }
+    } catch (error) {
+      console.error('[SearchAndScraper] Failed to scrape chapter:', error)
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      }
+    }
+  })
+  
   console.log('[SearchAndScraper] IPC handlers registered (with BrowserView support)')
 }
 

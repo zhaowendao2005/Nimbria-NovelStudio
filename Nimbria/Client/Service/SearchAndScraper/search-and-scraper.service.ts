@@ -148,5 +148,35 @@ export class SearchAndScraperService {
     }
     window.nimbria.searchScraper.onElementSelected(callback)
   }
+  
+  // ==================== 小说爬取 ====================
+  
+  /**
+   * 智能提取章节列表
+   */
+  static async extractChapters(tabId: string): Promise<{ 
+    success: boolean
+    chapters?: Array<{ title: string; url: string }>
+    error?: string 
+  }> {
+    if (!window.nimbria?.searchScraper) {
+      throw new Error('SearchScraper API not available')
+    }
+    return window.nimbria.searchScraper.extractChapters(tabId)
+  }
+  
+  /**
+   * 爬取章节内容
+   */
+  static async scrapeChapter(tabId: string, chapterUrl: string): Promise<{ 
+    success: boolean
+    chapter?: { title: string; content: string; summary: string }
+    error?: string 
+  }> {
+    if (!window.nimbria?.searchScraper) {
+      throw new Error('SearchScraper API not available')
+    }
+    return window.nimbria.searchScraper.scrapeChapter(tabId, chapterUrl)
+  }
 }
 

@@ -311,6 +311,201 @@ export class BrowserViewManager {
   }
   
   /**
+   * 智能提取章节列表
+   */
+  public async intelligentExtractChapters(tabId: string): Promise<Array<{ title: string; url: string }>> {
+    const instance = this.views.get(tabId)
+    if (!instance) {
+      throw new Error(`View ${tabId} not found`)
+    }
+    
+    try {
+      const chapters = await instance.view.webContents.executeJavaScript(`
+        (function() {
+          // 策略1: 找链接密度最高的容器
+          function findChapterContainer() {
+            let maxLinks = 0;
+            let bestContainer = null;
+            
+            const containers = document.querySelectorAll('div, ul, ol, table, section');
+            
+            containers.forEach(container => {
+              const links = container.querySelectorAll('a');
+              if (links.length > maxLinks && links.length > 10) {
+                maxLinks = links.length;
+                bestContainer = container;
+              }
+            });
+            
+            return bestContainer;
+          }
+          
+          // 策略2: 通过章节命名模式识别
+          function extractByPattern() {
+            const allLinks = Array.from(document.querySelectorAll('a'));
+            const patterns = [
+              /第\\s*[0-9零一二三四五六七八九十百千万]+\\s*[章节回]/,
+              /Chapter\\s*\\d+/i,
+              /^\\d+[\\.、\\s]/,
+            ];
+            
+            return allLinks.filter(link => {
+              const text = link.textContent?.trim() || '';
+              return patterns.some(p => p.test(text));
+            });
+          }
+          
+          // 先尝试容器方式
+          let container = findChapterContainer();
+          let links = container ? Array.from(container.querySelectorAll('a')) : [];
+          
+          // 如果失败，用模式匹配
+          if (links.length < 5) {
+            links = extractByPattern();
+          }
+          
+          // 过滤和提取
+          const blacklist = ['首页', '书架', '投票', '打赏', '目录', '上一章', '下一章', '返回'];
+          
+          return links
+            .filter(link => {
+              const text = link.textContent?.trim() || '';
+              const href = link.href || '';
+              
+              if (!text || text.length < 2 || text.length > 100) return false;
+              
+              return !blacklist.some(kw => 
+                text.includes(kw) || href.includes(kw)
+              );
+            })
+            .map(link => ({
+              title: link.textContent?.trim() || '',
+              url: link.href
+            }));
+        })();
+      `)
+      
+      console.log(`[BrowserViewManager] Extracted ${chapters.length} chapters from ${tabId}`)
+      return chapters
+    } catch (error) {
+      console.error(`[BrowserViewManager] Failed to extract chapters:`, error)
+      return []
+    }
+  }
+  
+  /**
+   * 爬取章节内容
+   */
+  public async scrapeChapterContent(tabId: string, chapterUrl: string): Promise<{
+    title: string
+    content: string
+    summary: string
+  }> {
+    const instance = this.views.get(tabId)
+    if (!instance) {
+      throw new Error(`View ${tabId} not found`)
+    }
+    
+    try {
+      // 加载章节URL
+      await instance.view.webContents.loadURL(chapterUrl)
+      
+      // 等待页面加载完成
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      
+      // 智能提取正文
+      const content = await instance.view.webContents.executeJavaScript(`
+        (function() {
+          // 移除干扰元素
+          const removeSelectors = ['script', 'style', 'nav', 'header', 'footer', 'aside', 'iframe'];
+          removeSelectors.forEach(sel => {
+            document.querySelectorAll(sel).forEach(el => el.remove());
+          });
+          
+          // 提取标题
+          const titleElem = document.querySelector('h1') || 
+                           document.querySelector('h2') ||
+                           document.querySelector('.title');
+          const title = titleElem?.textContent?.trim() || '未知标题';
+          
+          // 找文字最多的容器（使用文本密度评分）
+          function findMainContent() {
+            let maxScore = 0;
+            let bestElement = null;
+            
+            const candidates = document.querySelectorAll('div, article, section');
+            
+            candidates.forEach(elem => {
+              const text = elem.textContent?.trim() || '';
+              
+              // 计算文本密度
+              const tagCount = elem.querySelectorAll('*').length || 1;
+              const density = text.length / tagCount;
+              
+              // 综合评分
+              const score = text.length * 0.7 + density * 0.3;
+              
+              if (text.length > 500 && score > maxScore) {
+                maxScore = score;
+                bestElement = elem;
+              }
+            });
+            
+            return bestElement;
+          }
+          
+          const mainElem = findMainContent();
+          
+          if (!mainElem) {
+            return { title, content: '', summary: '' };
+          }
+          
+          // 提取段落
+          const paragraphs = Array.from(mainElem.querySelectorAll('p'))
+            .map(p => p.textContent?.trim())
+            .filter(text => text && text.length > 0);
+          
+          let content = paragraphs.join('\\n\\n');
+          
+          // 如果没有p标签，按br分割
+          if (!content || content.length < 100) {
+            content = mainElem.innerHTML
+              .replace(/<br\\s*\\/?>/gi, '\\n')
+              .replace(/<[^>]+>/g, '')
+              .trim();
+          }
+          
+          // 清理广告等
+          const adPatterns = [
+            /請記住本站域名.*?黃金屋/g,
+            /快捷鍵.*$/g,
+            /www\\..*?\\.com/g,
+          ];
+          
+          adPatterns.forEach(pattern => {
+            content = content.replace(pattern, '');
+          });
+          
+          // 生成摘要（前200字）
+          const summary = content.substring(0, 200) + (content.length > 200 ? '...' : '');
+          
+          return {
+            title,
+            content: content.trim(),
+            summary
+          };
+        })();
+      `)
+      
+      console.log(`[BrowserViewManager] Scraped chapter: ${content.title}`)
+      return content
+    } catch (error) {
+      console.error(`[BrowserViewManager] Failed to scrape chapter:`, error)
+      throw error
+    }
+  }
+  
+  /**
    * 生成元素选取脚本
    */
   private getElementPickerScript(tabId: string, window: BrowserWindow): string {

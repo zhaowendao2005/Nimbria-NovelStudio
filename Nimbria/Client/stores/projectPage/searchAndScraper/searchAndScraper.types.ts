@@ -25,6 +25,24 @@ export interface SelectedElement {
 }
 
 /**
+ * 章节信息
+ */
+export interface Chapter {
+  title: string
+  url: string
+}
+
+/**
+ * 爬取的章节内容
+ */
+export interface ScrapedChapter {
+  title: string
+  content: string
+  summary: string
+  url: string
+}
+
+/**
  * Store 内部状态类型
  * 每个 tabId 对应一个实例状态
  */
@@ -41,5 +59,16 @@ export interface SearchInstanceState {
   // 🎯 元素选取状态
   isSelectingElement: boolean
   selectedElements: SelectedElement[]
+  // 📚 小说爬取状态
+  urlPrefix: string
+  urlPrefixEnabled: boolean
+  matchedChapters: Chapter[]
+  scrapedChapters: ScrapedChapter[]
+  isScrapingInProgress: boolean
+  scrapingProgress: {
+    current: number
+    total: number
+    currentChapter: string
+  } | null
 }
 

@@ -40,7 +40,14 @@ export const useSearchAndScraperStore = defineStore('projectPage-searchAndScrape
       currentUrl: '',
       searchQuery: '',
       isSelectingElement: false,
-      selectedElements: []
+      selectedElements: [],
+      // 小说爬取状态
+      urlPrefix: '',
+      urlPrefixEnabled: false,
+      matchedChapters: [],
+      scrapedChapters: [],
+      isScrapingInProgress: false,
+      scrapingProgress: null
     }
     
     instances.value.set(tabId, newInstance)
