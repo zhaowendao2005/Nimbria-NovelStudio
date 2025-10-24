@@ -150,6 +150,21 @@ const toggleSelectAll = () => {
     )
   }
 }
+
+// 🆕 暴露给父组件的方法和状态
+defineExpose({
+  get selectMode() {
+    return selectMode.value
+  },
+  get selectedIndexes() {
+    return selectedIndexes.value
+  },
+  getSelectedChapters: () => {
+    return Array.from(selectedIndexes.value)
+      .map(index => props.chapters[index])
+      .filter((ch): ch is Chapter => ch !== undefined)
+  }
+})
 </script>
 
 <style scoped lang="scss">

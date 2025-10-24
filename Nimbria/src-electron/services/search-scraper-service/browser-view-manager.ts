@@ -378,6 +378,7 @@ export class BrowserViewManager {
   
   /**
    * 智能提取章节列表
+   * 🔥 优化：只等待 DOM Ready，不等待完全加载（图片、广告等资源）
    */
   public async intelligentExtractChapters(tabId: string): Promise<Array<{ title: string; url: string }>> {
     const instance = this.views.get(tabId)
@@ -386,6 +387,31 @@ export class BrowserViewManager {
     }
     
     try {
+      // 🔥 智能等待：如果正在加载，等待 DOM Ready；否则立即提取
+      const isLoading = instance.view.webContents.isLoading()
+      
+      if (isLoading) {
+        console.log(`[BrowserViewManager] Page is loading, waiting for DOM ready...`)
+        // 等待 DOM 内容加载完成（不等待图片、样式等资源）
+        await new Promise<void>((resolve) => {
+          const onDomReady = () => {
+            console.log(`[BrowserViewManager] DOM ready, extracting chapters...`)
+            instance.view.webContents.removeListener('dom-ready', onDomReady)
+            resolve()
+          }
+          instance.view.webContents.once('dom-ready', onDomReady)
+          
+          // 超时保护（3秒）
+          setTimeout(() => {
+            instance.view.webContents.removeListener('dom-ready', onDomReady)
+            console.warn(`[BrowserViewManager] DOM ready timeout, extracting anyway...`)
+            resolve()
+          }, 3000)
+        })
+      } else {
+        console.log(`[BrowserViewManager] Page already loaded, extracting immediately...`)
+      }
+      
       const chapters = await instance.view.webContents.executeJavaScript(`
         (function() {
           // 策略1: 找链接密度最高的容器

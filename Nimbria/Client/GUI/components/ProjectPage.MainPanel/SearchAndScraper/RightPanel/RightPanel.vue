@@ -92,7 +92,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   background: var(--el-bg-color);
-  z-index: 10; // 确保高于左侧BrowserView
+  // z-index: 10 移除 - splitter 需要更高 z-index，不应该被右侧面板遮挡
 }
 
 .tab-content {
@@ -118,11 +118,34 @@ onMounted(() => {
   bottom: 0;
   pointer-events: none; // 不阻止下层交互
   z-index: 1000;
+  overflow: hidden; // 🔥 防止对话框溢出右栏
   
-  // 允许对话框本身可交互
+  // 允许对话框本身和遮罩层可交互
   :deep(.el-dialog),
-  :deep(.el-overlay) {
+  :deep(.el-overlay),
+  :deep(.el-overlay-dialog) {
     pointer-events: auto;
+  }
+  
+  // 🔥 确保遮罩层正确填充容器
+  :deep(.el-overlay) {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+  }
+  
+  // 🔥 对话框居中显示在容器内
+  :deep(.el-overlay-dialog) {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
   }
 }
 </style>

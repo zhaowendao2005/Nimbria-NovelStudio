@@ -60,6 +60,7 @@
           </div>
           <div class="section-body">
             <ChapterListSection
+              ref="chapterListRef"
               :chapters="matchedChapters"
               :url-prefix="urlPrefix"
               :url-prefix-enabled="urlPrefixEnabled"
@@ -104,12 +105,13 @@
       <el-dialog
         v-model="detailDialogVisible"
         :title="currentChapter?.title || '章节详情'"
-        width="85%"
+        width="90%"
         :close-on-click-modal="false"
         :append-to-body="false"
+        :modal="true"
         class="chapter-detail-dialog"
       >
-        <el-scrollbar max-height="600px">
+        <el-scrollbar max-height="60vh">
           <div class="chapter-detail-content">
             {{ currentChapter?.content || '暂无内容' }}
           </div>
@@ -145,6 +147,9 @@ interface Props {
 
 const props = defineProps<Props>()
 const store = useSearchAndScraperStore()
+
+// 🔥 ChapterListSection 组件引用
+const chapterListRef = ref<InstanceType<typeof ChapterListSection> | null>(null)
 
 // 🔥 从Store获取当前实例的状态（保证多例独立性）
 const instance = computed(() => store.getInstance(props.tabId))
@@ -242,20 +247,44 @@ const handleScrapeChapters = async (): Promise<void> => {
     return
   }
   
+  // 🔥 获取要爬取的章节列表
+  let chaptersToScrape = matchedChapters.value
+  
+  // 🔥 检查是否启用了选择模式
+  const listComponent = chapterListRef.value
+  if (listComponent) {
+    const isSelectModeEnabled = listComponent.selectMode
+    
+    if (isSelectModeEnabled) {
+      const selectedChapters = listComponent.getSelectedChapters()
+      
+      if (selectedChapters.length === 0) {
+        // @ts-expect-error - ElMessage类型定义问题
+        ElMessage.warning({ message: '请先选择要爬取的章节' })
+        return
+      }
+      
+      chaptersToScrape = selectedChapters
+      console.log(`[NovelScraper ${props.tabId}] 选择模式：将爬取 ${chaptersToScrape.length} 个选中章节`)
+    } else {
+      console.log(`[NovelScraper ${props.tabId}] 普通模式：将爬取所有 ${chaptersToScrape.length} 个章节`)
+    }
+  }
+  
   try {
     store.updateInstance(props.tabId, { 
       isScrapingInProgress: true,
       scrapingProgress: {
         current: 0,
-        total: matchedChapters.value.length,
+        total: chaptersToScrape.length,
         currentChapter: ''
       }
     })
     
     const scraped: ScrapedChapter[] = []
     
-    for (let i = 0; i < matchedChapters.value.length; i++) {
-      const chapter = matchedChapters.value[i]
+    for (let i = 0; i < chaptersToScrape.length; i++) {
+      const chapter = chaptersToScrape[i]
       
       if (!chapter) {
         continue
@@ -265,7 +294,7 @@ const handleScrapeChapters = async (): Promise<void> => {
       store.updateInstance(props.tabId, {
         scrapingProgress: {
           current: i + 1,
-          total: matchedChapters.value.length,
+          total: chaptersToScrape.length,
           currentChapter: chapter.title
         }
       })
@@ -414,17 +443,17 @@ onUnmounted(() => {
   border-radius: 4px;
   overflow: hidden;
   
-  // 🔥 为每个区域设置固定高度
+  // 🔥 为每个区域设置固定高度（改为 height 使其固定）
   &.chapter-list-section {
-    min-height: 500px;
+    height: 800px; // 🔥 固定高度
   }
   
   &.chapter-summary-section {
-    min-height: 600px;
+    height: 800px; // 🔥 固定高度
   }
   
   &.progress-section {
-    min-height: 150px;
+    height: 150px; // 🔥 固定高度
   }
 }
 
@@ -459,7 +488,7 @@ onUnmounted(() => {
 .section-body {
   flex: 1;
   padding: 0;
-  overflow: hidden; // 🔥 让子组件自己处理滚动
+  overflow: auto; // 🔥 改为 auto，让溢出内容可以滚动
   min-height: 0;
 }
 
