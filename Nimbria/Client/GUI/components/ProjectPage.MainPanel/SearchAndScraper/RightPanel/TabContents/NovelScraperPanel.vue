@@ -32,6 +32,14 @@
           <el-icon><Download /></el-icon>
           <span>爬取章节</span>
         </div>
+        
+        <div
+          class="tool-item"
+          @click="handleOpenSettings"
+        >
+          <el-icon><Setting /></el-icon>
+          <span>设置</span>
+        </div>
       </div>
     </div>
     
@@ -123,7 +131,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { Aim, Download } from '@element-plus/icons-vue'
+import { Aim, Download, Setting } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useSearchAndScraperStore } from '@stores/projectPage/searchAndScraper'
 import { SearchAndScraperService } from '@service/SearchAndScraper'
@@ -145,7 +153,12 @@ interface Props {
   tabId: string
 }
 
+interface Emits {
+  (e: 'open-drawer', content: string): void
+}
+
 const props = defineProps<Props>()
+const emit = defineEmits<Emits>()
 const store = useSearchAndScraperStore()
 
 // 🔥 ChapterListSection 组件引用
@@ -342,6 +355,14 @@ const handleScrapeChapters = async (): Promise<void> => {
 const handleViewDetail = (chapter: ScrapedChapter): void => {
   currentChapter.value = chapter
   detailDialogVisible.value = true
+}
+
+/**
+ * 打开设置抽屉
+ */
+const handleOpenSettings = (): void => {
+  emit('open-drawer', 'settings')
+  console.log(`[NovelScraper ${props.tabId}] Opening settings drawer`)
 }
 
 // 🔥 生命周期：挂载时记录日志

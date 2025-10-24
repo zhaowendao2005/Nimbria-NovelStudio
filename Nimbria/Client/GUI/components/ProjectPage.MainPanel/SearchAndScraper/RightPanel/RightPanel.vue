@@ -19,6 +19,7 @@
       <NovelScraperPanel
         v-else-if="activeTabId === 'novel-scraper'"
         :tab-id="props.tabId"
+        @open-drawer="handleOpenDrawer"
       />
       
       <!-- 占位 -->
@@ -29,15 +30,28 @@
     
     <!-- 🔥 对话框专用容器 - 避免被BrowserView覆盖 -->
     <div id="right-panel-dialog-container" class="dialog-container"></div>
+    
+    <!-- 🔥 抽屉组件 -->
+    <RightDrawer
+      v-model:visible="drawerVisible"
+      :title="drawerTitle"
+      :width="500"
+      :min-width-percent="70"
+    >
+      <!-- 动态内容 -->
+      <component :is="drawerContent" v-if="drawerContent" />
+    </RightDrawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, type Component } from 'vue'
 import { Pointer, Reading } from '@element-plus/icons-vue'
 import DevToolsTabBar from './DevToolsTabBar.vue'
 import ElementPickerPanel from './TabContents/ElementPickerPanel.vue'
 import NovelScraperPanel from './TabContents/NovelScraperPanel.vue'
+import RightDrawer from './RightDrawer.vue'
+import SettingsContent from './DrawerContents/SettingsContent.vue'
 import type { TabItem } from './types'
 
 /**
@@ -71,12 +85,38 @@ const tabs = ref<TabItem[]>([
 
 const activeTabId = ref<string>('element-picker')
 
+// 抽屉状态
+const drawerVisible = ref(false)
+const drawerTitle = ref('抽屉')
+const drawerContent = ref<Component | null>(null)
+
 /**
  * 处理标签页点击
  */
 const handleTabClick = (tabId: string): void => {
   activeTabId.value = tabId
   console.log('[RightPanel] Tab clicked:', tabId)
+}
+
+/**
+ * 打开抽屉
+ */
+const handleOpenDrawer = (contentType: string): void => {
+  console.log('[RightPanel] Opening drawer with content:', contentType)
+  
+  // 根据内容类型加载不同的组件
+  switch (contentType) {
+    case 'settings':
+      drawerTitle.value = '设置'
+      drawerContent.value = SettingsContent
+      break
+    // 可以添加更多内容类型
+    default:
+      drawerTitle.value = '未知内容'
+      drawerContent.value = null
+  }
+  
+  drawerVisible.value = true
 }
 
 onMounted(() => {
