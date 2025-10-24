@@ -7,7 +7,8 @@ import type {
   SearchScraperInitResponse,
   SearchScraperCookiesResponse,
   BrowserViewBounds,
-  NavigationState
+  NavigationState,
+  ElementSelectedEvent
 } from './types'
 
 export class SearchAndScraperService {
@@ -114,6 +115,38 @@ export class SearchAndScraperService {
       throw new Error('SearchScraper API not available')
     }
     return window.nimbria.searchScraper.getNavigationState(tabId)
+  }
+  
+  // ==================== 元素选取 ====================
+  
+  /**
+   * 开始元素选取模式
+   */
+  static async startElementPicker(tabId: string): Promise<{ success: boolean }> {
+    if (!window.nimbria?.searchScraper) {
+      throw new Error('SearchScraper API not available')
+    }
+    return window.nimbria.searchScraper.startElementPicker(tabId)
+  }
+  
+  /**
+   * 停止元素选取模式
+   */
+  static async stopElementPicker(tabId: string): Promise<{ success: boolean }> {
+    if (!window.nimbria?.searchScraper) {
+      throw new Error('SearchScraper API not available')
+    }
+    return window.nimbria.searchScraper.stopElementPicker(tabId)
+  }
+  
+  /**
+   * 监听元素选取事件
+   */
+  static onElementSelected(callback: (data: ElementSelectedEvent) => void): void {
+    if (!window.nimbria?.searchScraper) {
+      throw new Error('SearchScraper API not available')
+    }
+    window.nimbria.searchScraper.onElementSelected(callback)
   }
 }
 

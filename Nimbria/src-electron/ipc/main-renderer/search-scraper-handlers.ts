@@ -191,6 +191,54 @@ export function setupSearchScraperHandlers(): void {
     return browserViewManager.getNavigationState(request.tabId)
   })
   
+  // ==================== 元素选取 ====================
+  
+  // 开始元素选取
+  ipcMain.handle('search-scraper:start-element-picker', (
+    event: IpcMainInvokeEvent,
+    request: { tabId: string }
+  ): { success: boolean } => {
+    if (!browserViewManager) {
+      return { success: false }
+    }
+    
+    const window = ElectronBrowserWindow.fromWebContents(event.sender)
+    if (!window) {
+      return { success: false }
+    }
+    
+    try {
+      browserViewManager.startElementPicker(request.tabId, window)
+      return { success: true }
+    } catch (error) {
+      console.error('[SearchAndScraper] Failed to start element picker:', error)
+      return { success: false }
+    }
+  })
+  
+  // 停止元素选取
+  ipcMain.handle('search-scraper:stop-element-picker', (
+    event: IpcMainInvokeEvent,
+    request: { tabId: string }
+  ): { success: boolean } => {
+    if (!browserViewManager) {
+      return { success: false }
+    }
+    
+    const window = ElectronBrowserWindow.fromWebContents(event.sender)
+    if (!window) {
+      return { success: false }
+    }
+    
+    try {
+      browserViewManager.stopElementPicker(request.tabId, window)
+      return { success: true }
+    } catch (error) {
+      console.error('[SearchAndScraper] Failed to stop element picker:', error)
+      return { success: false }
+    }
+  })
+  
   console.log('[SearchAndScraper] IPC handlers registered (with BrowserView support)')
 }
 

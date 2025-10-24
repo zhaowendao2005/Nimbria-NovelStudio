@@ -49,3 +49,24 @@ export interface LoadFailedEvent {
   errorDescription: string
 }
 
+/**
+ * 选取的元素信息（与Store中的SelectedElement保持一致）
+ */
+export interface SelectedElementInfo {
+  selector: string
+  tagName: string
+  id?: string
+  classList?: string[]
+  textContent?: string
+  xpath?: string
+  timestamp: number
+}
+
+/**
+ * 元素选取事件
+ */
+export interface ElementSelectedEvent {
+  tabId: string
+  element: SelectedElementInfo
+}
+

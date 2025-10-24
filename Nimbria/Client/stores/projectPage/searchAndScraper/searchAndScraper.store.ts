@@ -38,7 +38,9 @@ export const useSearchAndScraperStore = defineStore('projectPage-searchAndScrape
       isViewCreated: false,
       isBrowserViewVisible: false,
       currentUrl: '',
-      searchQuery: ''
+      searchQuery: '',
+      isSelectingElement: false,
+      selectedElements: []
     }
     
     instances.value.set(tabId, newInstance)

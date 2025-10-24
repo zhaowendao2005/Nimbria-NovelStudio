@@ -103,6 +103,21 @@ export class BrowserViewManager {
       })
     })
     
+    // 监听console消息（用于接收元素选取信息）
+    view.webContents.on('console-message', (_event, _level, message) => {
+      if (message.startsWith('__NIMBRIA_ELEMENT_SELECTED__')) {
+        try {
+          const jsonStr = message.replace('__NIMBRIA_ELEMENT_SELECTED__', '').trim()
+          const data = JSON.parse(jsonStr)
+          // 发送到渲染进程
+          window.webContents.send('search-scraper:element-selected', data)
+          console.log(`[BrowserViewManager] Element selected event sent:`, data)
+        } catch (error) {
+          console.error(`[BrowserViewManager] Failed to parse element selection data:`, error)
+        }
+      }
+    })
+    
     this.views.set(tabId, {
       view,
       tabId,
@@ -248,6 +263,206 @@ export class BrowserViewManager {
       this.views.delete(tabId)
     })
     console.log(`[BrowserViewManager] Cleaned up ${tabIds.length} views for window ${windowId}`)
+  }
+  
+  /**
+   * 开始元素选取模式
+   */
+  public startElementPicker(tabId: string, window: BrowserWindow): void {
+    const instance = this.views.get(tabId)
+    if (!instance) {
+      throw new Error(`View ${tabId} not found`)
+    }
+    
+    // 注入元素选取脚本
+    const pickerScript = this.getElementPickerScript(tabId, window)
+    instance.view.webContents.executeJavaScript(pickerScript)
+      .then(() => {
+        console.log(`[BrowserViewManager] Element picker started for ${tabId}`)
+      })
+      .catch(error => {
+        console.error(`[BrowserViewManager] Failed to inject picker script:`, error)
+      })
+  }
+  
+  /**
+   * 停止元素选取模式
+   */
+  public stopElementPicker(tabId: string, _window: BrowserWindow): void {
+    const instance = this.views.get(tabId)
+    if (!instance) {
+      throw new Error(`View ${tabId} not found`)
+    }
+    
+    // 移除选取脚本
+    const stopScript = `
+      if (window.__nimbriaElementPicker) {
+        window.__nimbriaElementPicker.destroy();
+        delete window.__nimbriaElementPicker;
+      }
+    `
+    instance.view.webContents.executeJavaScript(stopScript)
+      .then(() => {
+        console.log(`[BrowserViewManager] Element picker stopped for ${tabId}`)
+      })
+      .catch(error => {
+        console.error(`[BrowserViewManager] Failed to stop picker:`, error)
+      })
+  }
+  
+  /**
+   * 生成元素选取脚本
+   */
+  private getElementPickerScript(tabId: string, window: BrowserWindow): string {
+    return `
+      (function() {
+        // 防止重复注入
+        if (window.__nimbriaElementPicker) {
+          console.log('[ElementPicker] Already initialized');
+          return;
+        }
+        
+        console.log('[ElementPicker] Initializing...');
+        
+        // 创建高亮overlay
+        const overlay = document.createElement('div');
+        overlay.id = '__nimbria-picker-overlay';
+        overlay.style.cssText = \`
+          position: absolute;
+          pointer-events: none;
+          border: 2px solid #409EFF;
+          background: rgba(64, 158, 255, 0.1);
+          z-index: 999999;
+          transition: all 0.1s ease;
+        \`;
+        document.body.appendChild(overlay);
+        
+        // 当前高亮的元素
+        let currentElement = null;
+        
+        // 生成CSS选择器路径
+        function getSelector(element) {
+          if (element.id) return '#' + element.id;
+          
+          let path = [];
+          while (element.parentElement) {
+            let selector = element.tagName.toLowerCase();
+            if (element.className) {
+              const classes = Array.from(element.classList).filter(c => !c.startsWith('__nimbria'));
+              if (classes.length > 0) {
+                selector += '.' + classes.join('.');
+              }
+            }
+            
+            // 添加nth-child
+            let sibling = element;
+            let nth = 1;
+            while (sibling.previousElementSibling) {
+              sibling = sibling.previousElementSibling;
+              if (sibling.tagName === element.tagName) nth++;
+            }
+            if (nth > 1 || element.nextElementSibling) {
+              selector += \`:nth-child(\${nth})\`;
+            }
+            
+            path.unshift(selector);
+            element = element.parentElement;
+            
+            // 限制路径长度
+            if (path.length >= 6) break;
+          }
+          
+          return path.join(' > ');
+        }
+        
+        // 生成XPath
+        function getXPath(element) {
+          if (element.id) return '//*[@id="' + element.id + '"]';
+          
+          const parts = [];
+          while (element && element.nodeType === Node.ELEMENT_NODE) {
+            let index = 0;
+            let sibling = element.previousSibling;
+            while (sibling) {
+              if (sibling.nodeType === Node.ELEMENT_NODE && sibling.nodeName === element.nodeName) {
+                index++;
+              }
+              sibling = sibling.previousSibling;
+            }
+            
+            const tagName = element.nodeName.toLowerCase();
+            const pathIndex = index ? \`[\${index + 1}]\` : '';
+            parts.unshift(tagName + pathIndex);
+            element = element.parentNode;
+          }
+          
+          return parts.length ? '/' + parts.join('/') : '';
+        }
+        
+        // 鼠标移动事件
+        function handleMouseMove(e) {
+          const element = e.target;
+          if (element.id === '__nimbria-picker-overlay') return;
+          
+          currentElement = element;
+          const rect = element.getBoundingClientRect();
+          
+          overlay.style.left = (rect.left + window.scrollX) + 'px';
+          overlay.style.top = (rect.top + window.scrollY) + 'px';
+          overlay.style.width = rect.width + 'px';
+          overlay.style.height = rect.height + 'px';
+        }
+        
+        // 点击事件
+        function handleClick(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          if (!currentElement || currentElement.id === '__nimbria-picker-overlay') return;
+          
+          const elementInfo = {
+            selector: getSelector(currentElement),
+            tagName: currentElement.tagName.toLowerCase(),
+            id: currentElement.id || undefined,
+            classList: currentElement.className ? Array.from(currentElement.classList).filter(c => !c.startsWith('__nimbria')) : undefined,
+            textContent: currentElement.textContent?.substring(0, 100) || undefined,
+            xpath: getXPath(currentElement),
+            timestamp: Date.now()
+          };
+          
+          console.log('[ElementPicker] Element selected:', elementInfo);
+          
+          // 发送到主进程（通过自定义事件）
+          document.dispatchEvent(new CustomEvent('__nimbria-element-selected', {
+            detail: { tabId: '${tabId}', element: elementInfo }
+          }));
+        }
+        
+        // 监听自定义事件并通过console发送数据
+        document.addEventListener('__nimbria-element-selected', (e) => {
+          // 通过console.log传递数据到主进程
+          console.log('__NIMBRIA_ELEMENT_SELECTED__', JSON.stringify(e.detail));
+        });
+        
+        // 绑定事件
+        document.addEventListener('mousemove', handleMouseMove, true);
+        document.addEventListener('click', handleClick, true);
+        
+        // 清理函数
+        window.__nimbriaElementPicker = {
+          destroy: function() {
+            document.removeEventListener('mousemove', handleMouseMove, true);
+            document.removeEventListener('click', handleClick, true);
+            if (overlay.parentElement) {
+              overlay.parentElement.removeChild(overlay);
+            }
+            console.log('[ElementPicker] Destroyed');
+          }
+        };
+        
+        console.log('[ElementPicker] Initialized successfully');
+      })();
+    `
   }
 }
 

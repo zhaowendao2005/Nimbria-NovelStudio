@@ -878,6 +878,18 @@ export interface NimbriaWindowAPI {
      */
     getNavigationState(tabId: string): Promise<{ canGoBack: boolean; canGoForward: boolean; currentUrl: string }>
     
+    // ==================== 元素选取 ====================
+    
+    /**
+     * 开始元素选取模式
+     */
+    startElementPicker(tabId: string): Promise<{ success: boolean }>
+    
+    /**
+     * 停止元素选取模式
+     */
+    stopElementPicker(tabId: string): Promise<{ success: boolean }>
+    
     // ==================== 事件监听 ====================
     
     /**
@@ -894,6 +906,11 @@ export interface NimbriaWindowAPI {
      * 监听加载失败
      */
     onLoadFailed(callback: (data: { tabId: string; url: string; errorCode: number; errorDescription: string }) => void): void
+    
+    /**
+     * 监听元素选取
+     */
+    onElementSelected(callback: (data: { tabId: string; element: any }) => void): void
   }
 
   /**

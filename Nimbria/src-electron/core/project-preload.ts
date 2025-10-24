@@ -609,6 +609,12 @@ contextBridge.exposeInMainWorld('nimbria', {
     getNavigationState: (tabId: string) => 
       ipcRenderer.invoke('search-scraper:get-navigation-state', { tabId }),
     
+    // 元素选取
+    startElementPicker: (tabId: string) => 
+      ipcRenderer.invoke('search-scraper:start-element-picker', { tabId }),
+    stopElementPicker: (tabId: string) => 
+      ipcRenderer.invoke('search-scraper:stop-element-picker', { tabId }),
+    
     // 事件监听
     onNavigationChanged: (callback: (data: { tabId: string; url: string; canGoBack: boolean; canGoForward: boolean }) => void) => {
       ipcRenderer.on('search-scraper:navigation-changed', (_event, data) => callback(data))
@@ -618,6 +624,9 @@ contextBridge.exposeInMainWorld('nimbria', {
     },
     onLoadFailed: (callback: (data: { tabId: string; url: string; errorCode: number; errorDescription: string }) => void) => {
       ipcRenderer.on('search-scraper:load-failed', (_event, data) => callback(data))
+    },
+    onElementSelected: (callback: (data: { tabId: string; element: any }) => void) => {
+      ipcRenderer.on('search-scraper:element-selected', (_event, data) => callback(data))
     }
   },
 
