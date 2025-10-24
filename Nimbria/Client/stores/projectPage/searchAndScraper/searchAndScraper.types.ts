@@ -13,5 +13,10 @@ export interface SearchInstanceState {
   initialized: boolean
   currentEngine: SearchEngine
   searchHistory: SearchHistoryItem[]
+  // 🔥 添加运行时状态
+  isViewCreated: boolean
+  isBrowserViewVisible: boolean
+  currentUrl: string
+  searchQuery: string
 }
 

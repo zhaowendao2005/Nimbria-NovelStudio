@@ -308,7 +308,13 @@ const handleResize = (): void => {
 // ==================== 生命周期 ====================
 
 onMounted(async (): Promise<void> => {
-  searchAndScraperStore.initInstance(props.tabId)
+  const state = searchAndScraperStore.initInstance(props.tabId)
+  
+  // 🔥 从 store 恢复状态
+  isViewCreated.value = state.isViewCreated
+  isBrowserViewVisible.value = state.isBrowserViewVisible
+  searchQuery.value = state.searchQuery
+  navigationState.value.currentUrl = state.currentUrl
   
   // 初始化 Session
   try {
@@ -330,22 +336,38 @@ onMounted(async (): Promise<void> => {
   
   // 监听窗口大小变化
   window.addEventListener('resize', handleResize)
+  
+  // 🔥 如果已有 BrowserView，恢复显示
+  if (isViewCreated.value && isBrowserViewVisible.value) {
+    await nextTick()
+    await updateBrowserViewBounds()
+    console.log('[SearchAndScraper] BrowserView restored for tab:', props.tabId)
+  }
 })
 
 onUnmounted(async (): Promise<void> => {
   window.removeEventListener('resize', handleResize)
   
-  // 销毁 BrowserView
-  if (isViewCreated.value) {
+  // 🔥 保存状态到 store
+  searchAndScraperStore.updateInstance(props.tabId, {
+    isViewCreated: isViewCreated.value,
+    isBrowserViewVisible: isBrowserViewVisible.value,
+    searchQuery: searchQuery.value,
+    currentUrl: navigationState.value.currentUrl
+  })
+  
+  // 🔥 标签页切换时，只隐藏 BrowserView，不销毁
+  // 保持浏览状态，只有真正关闭标签页时才销毁（通过 markdown.store 的清理机制）
+  if (isViewCreated.value && isBrowserViewVisible.value) {
     try {
-      await SearchAndScraperService.destroyView(props.tabId)
-      console.log('[SearchAndScraper] BrowserView destroyed for tab:', props.tabId)
+      await SearchAndScraperService.hideView(props.tabId)
+      console.log('[SearchAndScraper] BrowserView hidden for tab:', props.tabId)
     } catch (error) {
-      console.error('[SearchAndScraper] Failed to destroy BrowserView:', error)
+      console.error('[SearchAndScraper] Failed to hide BrowserView:', error)
     }
   }
   
-  searchAndScraperStore.removeInstance(props.tabId)
+  console.log('[SearchAndScraper] Component unmounted for tab:', props.tabId, ', state saved')
 })
 
 // 监听容器大小变化

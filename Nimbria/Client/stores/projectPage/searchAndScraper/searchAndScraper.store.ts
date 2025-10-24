@@ -34,12 +34,29 @@ export const useSearchAndScraperStore = defineStore('projectPage-searchAndScrape
       tabId,
       initialized: true,
       currentEngine: 'google',
-      searchHistory: []
+      searchHistory: [],
+      isViewCreated: false,
+      isBrowserViewVisible: false,
+      currentUrl: '',
+      searchQuery: ''
     }
     
     instances.value.set(tabId, newInstance)
     console.log('[SearchAndScraper Store] Instance initialized:', tabId)
     return newInstance
+  }
+  
+  /**
+   * 更新标签页状态
+   */
+  const updateInstance = (tabId: string, updates: Partial<Omit<SearchInstanceState, 'tabId'>>): void => {
+    const instance = instances.value.get(tabId)
+    if (!instance) {
+      console.warn('[SearchAndScraper Store] Cannot update non-existent instance:', tabId)
+      return
+    }
+    
+    Object.assign(instance, updates)
   }
   
   /**
@@ -64,6 +81,7 @@ export const useSearchAndScraperStore = defineStore('projectPage-searchAndScrape
     instances,
     getInstance,
     initInstance,
+    updateInstance,
     removeInstance,
     reset
   }

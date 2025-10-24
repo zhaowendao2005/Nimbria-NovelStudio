@@ -461,6 +461,28 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
       // TODO: 显示确认对话框
     }
     
+    // 🔥 如果是 SearchAndScraper 标签页，销毁其 BrowserView
+    if (tab.type === 'search-and-scraper') {
+      // 动态导入以避免循环依赖
+      import('@stores/projectPage/searchAndScraper').then(({ useSearchAndScraperStore }) => {
+        const searchAndScraperStore = useSearchAndScraperStore()
+        searchAndScraperStore.removeInstance(tabId)
+      }).catch(error => {
+        console.error('[Markdown] Failed to cleanup SearchAndScraper:', error)
+      })
+      
+      // 销毁 BrowserView
+      import('@service/SearchAndScraper').then(({ SearchAndScraperService }) => {
+        SearchAndScraperService.destroyView(tabId).then(() => {
+          console.log(`[Markdown] BrowserView destroyed for tab: ${tabId}`)
+        }).catch(error => {
+          console.error('[Markdown] Failed to destroy BrowserView:', error)
+        })
+      }).catch(error => {
+        console.error('[Markdown] Failed to import SearchAndScraperService:', error)
+      })
+    }
+    
     openTabs.value.splice(index, 1)
     
     // 如果关闭的是当前激活的标签页，切换到相邻标签页

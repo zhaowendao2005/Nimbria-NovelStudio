@@ -277,10 +277,35 @@ export default configure((/* ctx */) => {
         directories: {
           output: '.release'
         },
-        // 使用正确的图标文件路径
-        win: { icon: 'src-electron/icons/icon.ico' },
-        mac: { icon: 'src-electron/icons/icon.icns' },
-        linux: { icon: 'src-electron/icons/icon.png' },
+        // 使用正确的图标文件路径（仅支持 Windows）
+        win: { 
+          icon: 'src-electron/icons/icon.ico',
+          target: [
+            {
+              target: 'nsis',
+              arch: ['x64']
+            }
+          ]
+        },
+        nsis: {
+          // 允许用户选择安装目录
+          oneClick: false,
+          allowToChangeInstallationDirectory: true,
+          // 允许用户选择是否创建桌面快捷方式
+          allowElevation: true,
+          createDesktopShortcut: true,
+          createStartMenuShortcut: true,
+          // 安装程序显示名称
+          installerIcon: 'src-electron/icons/icon.ico',
+          uninstallerIcon: 'src-electron/icons/icon.ico',
+          // 安装程序语言（支持简体中文）
+          installerLanguages: ['zh_CN', 'en_US'],
+          // 安装程序界面配置
+          artifactName: '${productName}-${version}-Setup.${ext}',
+          shortcutName: 'Nimbria',
+          // 卸载时删除用户数据选项
+          deleteAppDataOnUninstall: false
+        },
         // 追加资源：优先保持 .dist/backend 既有逻辑；并通过"目录映射配置区"批量加入
         extraResources: (() => {
           const resources: Array<{ from: string; to: string; filter: string[] }> = [];
