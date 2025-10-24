@@ -48,7 +48,7 @@
 
         <!-- 右侧面板 -->
         <el-splitter-panel :min-size="20">
-          <div class="right-panel"></div>
+          <RightPanel :tab-id="props.tabId" />
         </el-splitter-panel>
       </el-splitter>
     </div>
@@ -65,6 +65,7 @@ import { useSearchAndScraperStore } from '@stores/projectPage/searchAndScraper'
 import { SearchAndScraperService } from '@service/SearchAndScraper'
 import type { NavigationChangedEvent, LoadingChangedEvent, LoadFailedEvent } from '@service/SearchAndScraper/types'
 import LeftPanel from './LeftContent/LeftPanel.vue'
+import { RightPanel } from './RightPanel'
 
 // 配置 NProgress
 NProgress.configure({ 
@@ -478,14 +479,6 @@ watch([leftPanelRef, toolbarRef], () => {
   flex: 1;
   position: relative;
   overflow: hidden;
-}
-
-// 右侧面板
-.right-panel {
-  width: 100%;
-  height: 100%;
-  background: var(--el-bg-color-page);
-  overflow-y: auto;
 }
 
 // ==================== NProgress 样式覆盖 ====================
