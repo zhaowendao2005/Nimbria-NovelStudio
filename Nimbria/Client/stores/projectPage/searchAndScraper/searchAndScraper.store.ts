@@ -1,13 +1,13 @@
 /**
- * Search Panel Store
+ * SearchAndScraper Store
  * 支持多实例（每个标签页一个独立状态）
  */
 
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { SearchInstanceState } from './search.types'
+import type { SearchInstanceState } from './searchAndScraper.types'
 
-export const useSearchStore = defineStore('projectPage-search', () => {
+export const useSearchAndScraperStore = defineStore('projectPage-searchAndScraper', () => {
   // ==================== 状态 ====================
   
   // 使用 Map 存储每个标签页的独立状态
@@ -32,28 +32,30 @@ export const useSearchStore = defineStore('projectPage-search', () => {
     
     const newInstance: SearchInstanceState = {
       tabId,
-      initialized: true
+      initialized: true,
+      currentEngine: 'google',
+      searchHistory: []
     }
     
     instances.value.set(tabId, newInstance)
-    console.log('[Search Store] Instance initialized:', tabId)
+    console.log('[SearchAndScraper Store] Instance initialized:', tabId)
     return newInstance
   }
   
   /**
    * 移除标签页状态
    */
-  const removeInstance = (tabId: string) => {
+  const removeInstance = (tabId: string): void => {
     instances.value.delete(tabId)
-    console.log('[Search Store] Instance removed:', tabId)
+    console.log('[SearchAndScraper Store] Instance removed:', tabId)
   }
   
   /**
    * 重置所有状态
    */
-  const reset = () => {
+  const reset = (): void => {
     instances.value.clear()
-    console.log('[Search Store] All instances cleared')
+    console.log('[SearchAndScraper Store] All instances cleared')
   }
   
   // ==================== 返回 ====================

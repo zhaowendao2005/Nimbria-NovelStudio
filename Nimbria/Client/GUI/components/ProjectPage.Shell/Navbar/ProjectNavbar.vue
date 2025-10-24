@@ -47,8 +47,8 @@
     <el-tooltip content="搜索" placement="right" :show-after="500">
       <button 
         class="nav-icon-btn"
-        :class="{ active: currentView === 'search' }"
-        @click="handleClick('search')"
+        :class="{ active: currentView === 'search-and-scraper' }"
+        @click="handleClick('search-and-scraper')"
       >
         <el-icon class="nav-icon"><Search /></el-icon>
       </button>
@@ -163,14 +163,14 @@ const handleClick = async (type: string) => {
   }
   
   // 搜索面板 - 特殊处理，在主内容区创建panel
-  if (type === 'search') {
-    console.log('[ProjectNavbar] 打开Search标签页')
+  if (type === 'search-and-scraper') {
+    console.log('[ProjectNavbar] 打开SearchAndScraper标签页')
     
-    // 1. 打开Search标签页
-    const tab = markdownStore.openSearch()
+    // 1. 打开SearchAndScraper标签页
+    const tab = markdownStore.openSearchAndScraper()
     
     if (!tab) {
-      console.error('[ProjectNavbar] Failed to create Search tab')
+      console.error('[ProjectNavbar] Failed to create SearchAndScraper tab')
       return
     }
     
@@ -183,12 +183,12 @@ const handleClick = async (type: string) => {
     // 3. 在焦点面板中显示该 tab
     if (paneLayoutStore.focusedPane) {
       paneLayoutStore.openTabInPane(paneLayoutStore.focusedPane.id, tab.id)
-      console.log('[ProjectNavbar] Opened Search in focused pane:', {
+      console.log('[ProjectNavbar] Opened SearchAndScraper in focused pane:', {
         paneId: paneLayoutStore.focusedPane.id,
         tabId: tab.id
       })
     } else {
-      console.error('[ProjectNavbar] Failed to open Search: no focused pane available')
+      console.error('[ProjectNavbar] Failed to open SearchAndScraper: no focused pane available')
     }
     
     return

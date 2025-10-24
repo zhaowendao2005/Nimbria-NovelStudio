@@ -408,14 +408,14 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     return newTab
   }
   
-  // 打开Search标签页（支持多实例）
-  const openSearch = () => {
+  // 打开SearchAndScraper标签页（支持多实例）
+  const openSearchAndScraper = (): MarkdownTab => {
     // 🔥 每次都创建新的标签页（支持多个搜索实例）
     const newTab: MarkdownTab = {
-      id: `search-${Date.now()}`,
-      type: 'search',
+      id: `search-and-scraper-${Date.now()}`,
+      type: 'search-and-scraper',
       filePath: '',
-      fileName: `搜索 #${openTabs.value.filter(t => t.type === 'search').length + 1}`,
+      fileName: `搜索 #${openTabs.value.filter(t => t.type === 'search-and-scraper').length + 1}`,
       content: '',
       mode: 'edit',
       isDirty: false
@@ -424,7 +424,7 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     openTabs.value.push(newTab)
     activeTabId.value = newTab.id
     
-    console.log('[Markdown] Search tab created:', newTab.id)
+    console.log('[Markdown] SearchAndScraper tab created:', newTab.id)
     return newTab
   }
   
@@ -1017,7 +1017,7 @@ export const useMarkdownStore = defineStore('projectPage-markdown', () => {
     openFile,
     openDocParser,
     openStarChart,
-    openSearch,
+    openSearchAndScraper,
     closeTab,
     switchTab,
     updateTabContent,

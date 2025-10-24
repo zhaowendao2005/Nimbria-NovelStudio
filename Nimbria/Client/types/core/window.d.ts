@@ -802,6 +802,101 @@ export interface NimbriaWindowAPI {
   }
 
   /**
+   * SearchAndScraper API
+   * 
+   * 提供浏览器级别的搜索和爬取功能
+   */
+  searchScraper: {
+    // ==================== Session 管理 ====================
+    
+    /**
+     * 初始化浏览器 Session
+     */
+    initSession(): Promise<{ success: boolean }>
+    
+    /**
+     * 获取指定 URL 的 Cookies
+     */
+    getCookies(url: string): Promise<{ cookies: Array<{
+      name: string
+      value: string
+      domain: string | undefined
+      path: string | undefined
+      expirationDate: number | undefined
+    }> }>
+    
+    /**
+     * 获取所有 Cookies
+     */
+    getAllCookies(): Promise<{ cookies: Array<{
+      name: string
+      value: string
+      domain: string | undefined
+      path: string | undefined
+      expirationDate: number | undefined
+    }> }>
+    
+    // ==================== BrowserView 控制 ====================
+    
+    /**
+     * 创建 BrowserView
+     */
+    createView(tabId: string): Promise<{ success: boolean }>
+    
+    /**
+     * 显示 BrowserView
+     */
+    showView(tabId: string, bounds: { x: number; y: number; width: number; height: number }): Promise<{ success: boolean }>
+    
+    /**
+     * 隐藏 BrowserView
+     */
+    hideView(tabId: string): Promise<{ success: boolean }>
+    
+    /**
+     * 销毁 BrowserView
+     */
+    destroyView(tabId: string): Promise<{ success: boolean }>
+    
+    /**
+     * 加载 URL
+     */
+    loadURL(tabId: string, url: string): Promise<{ success: boolean }>
+    
+    /**
+     * 后退
+     */
+    goBack(tabId: string): Promise<{ success: boolean }>
+    
+    /**
+     * 前进
+     */
+    goForward(tabId: string): Promise<{ success: boolean }>
+    
+    /**
+     * 获取导航状态
+     */
+    getNavigationState(tabId: string): Promise<{ canGoBack: boolean; canGoForward: boolean; currentUrl: string }>
+    
+    // ==================== 事件监听 ====================
+    
+    /**
+     * 监听导航变化
+     */
+    onNavigationChanged(callback: (data: { tabId: string; url: string; canGoBack: boolean; canGoForward: boolean }) => void): void
+    
+    /**
+     * 监听加载状态变化
+     */
+    onLoadingChanged(callback: (data: { tabId: string; isLoading: boolean }) => void): void
+    
+    /**
+     * 监听加载失败
+     */
+    onLoadFailed(callback: (data: { tabId: string; url: string; errorCode: number; errorDescription: string }) => void): void
+  }
+
+  /**
    * 🔥 事件通信 API
    * 
    * 用于在渲染进程中监听和发送 IPC 事件

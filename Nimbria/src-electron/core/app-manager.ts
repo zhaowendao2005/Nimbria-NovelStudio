@@ -24,6 +24,7 @@ import { registerFileHandlers } from '../ipc/main-renderer/file-handlers'
 import { registerDocParserHandlers } from '../ipc/main-renderer/docParser-handlers'
 import { registerLlmHandlers } from '../ipc/main-renderer/llm-handlers'
 import { registerLlmChatHandlers } from '../ipc/main-renderer/llm-chat-handlers'
+import { setupSearchScraperHandlers } from '../ipc/main-renderer/search-scraper-handlers'
 import { LlmConfigManager } from '../services/llm-service/llm-config-manager'
 import { LlmChatService } from '../services/llm-chat-service/llm-chat-service'
 import { ConversationManager } from '../services/llm-chat-service/conversation-manager'
@@ -513,6 +514,10 @@ export class AppManager {
     // 注册 DocParser IPC 处理器
     registerDocParserHandlers()
     logger.info('DocParser IPC handlers registered')
+    
+    // 注册 SearchAndScraper IPC 处理器
+    setupSearchScraperHandlers()
+    logger.info('SearchAndScraper IPC handlers registered')
     
     // 注册 LLM 配置 IPC 处理器
     registerLlmHandlers({

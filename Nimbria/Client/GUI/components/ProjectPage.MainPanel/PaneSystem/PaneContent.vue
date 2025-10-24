@@ -39,8 +39,8 @@
           v-else-if="localActiveTabId && activeTabType === 'starchart'"
           :tab-id="localActiveTabId"
         />
-        <SearchPanel
-          v-else-if="localActiveTabId && activeTabType === 'search'"
+        <SearchAndScraperPanel
+          v-else-if="localActiveTabId && activeTabType === 'search-and-scraper'"
           :tab-id="localActiveTabId"
         />
         
@@ -114,7 +114,7 @@ import { CustomPageAPI } from '../../../../Service/CustomPageManager'
 import MarkdownTab from '@components/ProjectPage.MainPanel/Markdown/MarkdownTab.vue'
 import { DocParserPanel } from '@components/ProjectPage.MainPanel/DocParser'
 import { StarChart } from '@components/ProjectPage.MainPanel/StarChart'
-import { SearchPanel } from '@components/ProjectPage.MainPanel/Search'
+import { SearchAndScraperPanel } from '@components/ProjectPage.MainPanel/SearchAndScraper'
 import DraggableTabBar from './DraggableTabBar.vue'
 import ContextMenu from './ContextMenu.vue'
 

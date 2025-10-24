@@ -581,6 +581,46 @@ contextBridge.exposeInMainWorld('nimbria', {
     }
   },
 
+  // SearchAndScraper API
+  searchScraper: {
+    // Session 管理
+    initSession: () => 
+      ipcRenderer.invoke('search-scraper:init'),
+    getCookies: (url: string) => 
+      ipcRenderer.invoke('search-scraper:get-cookies', { url }),
+    getAllCookies: () => 
+      ipcRenderer.invoke('search-scraper:get-all-cookies'),
+    
+    // BrowserView 控制
+    createView: (tabId: string) => 
+      ipcRenderer.invoke('search-scraper:create-view', { tabId }),
+    showView: (tabId: string, bounds: { x: number; y: number; width: number; height: number }) => 
+      ipcRenderer.invoke('search-scraper:show-view', { tabId, bounds }),
+    hideView: (tabId: string) => 
+      ipcRenderer.invoke('search-scraper:hide-view', { tabId }),
+    destroyView: (tabId: string) => 
+      ipcRenderer.invoke('search-scraper:destroy-view', { tabId }),
+    loadURL: (tabId: string, url: string) => 
+      ipcRenderer.invoke('search-scraper:load-url', { tabId, url }),
+    goBack: (tabId: string) => 
+      ipcRenderer.invoke('search-scraper:go-back', { tabId }),
+    goForward: (tabId: string) => 
+      ipcRenderer.invoke('search-scraper:go-forward', { tabId }),
+    getNavigationState: (tabId: string) => 
+      ipcRenderer.invoke('search-scraper:get-navigation-state', { tabId }),
+    
+    // 事件监听
+    onNavigationChanged: (callback: (data: { tabId: string; url: string; canGoBack: boolean; canGoForward: boolean }) => void) => {
+      ipcRenderer.on('search-scraper:navigation-changed', (_event, data) => callback(data))
+    },
+    onLoadingChanged: (callback: (data: { tabId: string; isLoading: boolean }) => void) => {
+      ipcRenderer.on('search-scraper:loading-changed', (_event, data) => callback(data))
+    },
+    onLoadFailed: (callback: (data: { tabId: string; url: string; errorCode: number; errorDescription: string }) => void) => {
+      ipcRenderer.on('search-scraper:load-failed', (_event, data) => callback(data))
+    }
+  },
+
   // 🔥 事件通信 API
   on: (channel: string, callback: (...args: unknown[]) => void) => {
     ipcRenderer.on(channel, (_event, ...args) => callback(...args))
