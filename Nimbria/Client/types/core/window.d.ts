@@ -878,6 +878,23 @@ export interface NimbriaWindowAPI {
      */
     getNavigationState(tabId: string): Promise<{ canGoBack: boolean; canGoForward: boolean; currentUrl: string }>
     
+    // ==================== 🔍 缩放控制 ====================
+    
+    /**
+     * 调整缩放比例（相对调整）
+     */
+    adjustZoom(tabId: string, delta: number): Promise<{ success: boolean; zoomFactor?: number }>
+    
+    /**
+     * 设置缩放比例（绝对设置）
+     */
+    setZoomFactor(tabId: string, factor: number): Promise<{ success: boolean }>
+    
+    /**
+     * 获取当前缩放比例
+     */
+    getZoomFactor(tabId: string): Promise<{ success: boolean; zoomFactor?: number }>
+    
     // ==================== 元素选取 ====================
     
     /**

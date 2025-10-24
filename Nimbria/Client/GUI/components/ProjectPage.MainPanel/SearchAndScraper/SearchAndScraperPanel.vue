@@ -458,6 +458,9 @@ onMounted(async (): Promise<void> => {
     console.log('[SearchAndScraper] ResizeObserver attached to left panel')
   }
   
+  // 🔍 缩放控制已通过注入脚本在 BrowserView 的 webContents 中实现
+  // 不需要在前端监听，因为 BrowserView 是原生组件，事件无法穿透
+  
   // 🔥 如果已有 BrowserView，恢复显示
   if (isViewCreated.value && isBrowserViewVisible.value) {
     await nextTick()

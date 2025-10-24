@@ -92,6 +92,11 @@ export class BrowserViewManager {
       })
     })
     
+    // 🔍 页面加载完成后注入缩放控制脚本
+    view.webContents.on('did-finish-load', () => {
+      this.injectZoomControlScript(tabId, window)
+    })
+    
     // 监听加载失败
     view.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
       console.error(`[BrowserViewManager] Failed to load ${validatedURL}:`, errorCode, errorDescription)
@@ -103,7 +108,7 @@ export class BrowserViewManager {
       })
     })
     
-    // 监听console消息（用于接收元素选取信息）
+    // 监听console消息（用于接收元素选取信息和缩放请求）
     view.webContents.on('console-message', (_event, _level, message) => {
       if (message.startsWith('__NIMBRIA_ELEMENT_SELECTED__')) {
         try {
@@ -114,6 +119,17 @@ export class BrowserViewManager {
           console.log(`[BrowserViewManager] Element selected event sent:`, data)
         } catch (error) {
           console.error(`[BrowserViewManager] Failed to parse element selection data:`, error)
+        }
+      } else if (message.startsWith('__NIMBRIA_ZOOM_REQUEST__')) {
+        try {
+          const jsonStr = message.replace('__NIMBRIA_ZOOM_REQUEST__', '').trim()
+          const data = JSON.parse(jsonStr)
+          // 直接调整缩放
+          if (data.tabId === tabId && typeof data.delta === 'number') {
+            this.adjustZoom(tabId, data.delta)
+          }
+        } catch (error) {
+          console.error(`[BrowserViewManager] Failed to parse zoom request:`, error)
         }
       }
     })
@@ -235,6 +251,56 @@ export class BrowserViewManager {
       canGoForward: instance.view.webContents.canGoForward(),
       currentUrl: instance.currentUrl
     }
+  }
+  
+  /**
+   * 🔍 调整缩放比例（相对调整）
+   */
+  public adjustZoom(tabId: string, delta: number): number {
+    const instance = this.views.get(tabId)
+    if (!instance) {
+      throw new Error(`View ${tabId} not found`)
+    }
+    
+    // 获取当前缩放比例
+    const currentZoom = instance.view.webContents.getZoomFactor()
+    
+    // 计算新的缩放比例，限制在 0.25 到 5.0 之间
+    const newZoom = Math.min(Math.max(currentZoom + delta, 0.25), 5.0)
+    
+    // 设置新的缩放比例
+    instance.view.webContents.setZoomFactor(newZoom)
+    
+    console.log(`[BrowserViewManager] Zoom adjusted for ${tabId}: ${currentZoom.toFixed(2)} -> ${newZoom.toFixed(2)}`)
+    return newZoom
+  }
+  
+  /**
+   * 🔍 设置缩放比例（绝对设置）
+   */
+  public setZoomFactor(tabId: string, factor: number): void {
+    const instance = this.views.get(tabId)
+    if (!instance) {
+      throw new Error(`View ${tabId} not found`)
+    }
+    
+    // 限制范围
+    const newZoom = Math.min(Math.max(factor, 0.25), 5.0)
+    instance.view.webContents.setZoomFactor(newZoom)
+    
+    console.log(`[BrowserViewManager] Zoom set for ${tabId}: ${newZoom.toFixed(2)}`)
+  }
+  
+  /**
+   * 🔍 获取当前缩放比例
+   */
+  public getZoomFactor(tabId: string): number {
+    const instance = this.views.get(tabId)
+    if (!instance) {
+      throw new Error(`View ${tabId} not found`)
+    }
+    
+    return instance.view.webContents.getZoomFactor()
   }
   
   /**
@@ -658,6 +724,53 @@ export class BrowserViewManager {
         console.log('[ElementPicker] Initialized successfully');
       })();
     `
+  }
+  
+  /**
+   * 🔍 注入缩放控制脚本
+   */
+  private injectZoomControlScript(tabId: string, window: BrowserWindow): void {
+    const instance = this.views.get(tabId)
+    if (!instance) {
+      return
+    }
+    
+    const zoomScript = `
+      (function() {
+        if (window.__nimbriaZoomControl) {
+          return; // 已注入，避免重复
+        }
+        
+        let currentZoom = 1.0;
+        
+        // 监听 Ctrl+滚轮事件
+        window.addEventListener('wheel', function(e) {
+          if (e.ctrlKey) {
+            e.preventDefault();
+            
+            // 计算缩放增量
+            const delta = e.deltaY > 0 ? -0.1 : 0.1;
+            
+            // 通过 console 发送缩放请求
+            console.log('__NIMBRIA_ZOOM_REQUEST__', JSON.stringify({
+              tabId: '${tabId}',
+              delta: delta
+            }));
+          }
+        }, { passive: false });
+        
+        window.__nimbriaZoomControl = true;
+        console.log('[ZoomControl] Initialized for tab ${tabId}');
+      })();
+    `
+    
+    instance.view.webContents.executeJavaScript(zoomScript)
+      .then(() => {
+        console.log(`[BrowserViewManager] Zoom control script injected for ${tabId}`)
+      })
+      .catch(error => {
+        console.error(`[BrowserViewManager] Failed to inject zoom control script:`, error)
+      })
   }
 }
 

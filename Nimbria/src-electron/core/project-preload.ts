@@ -609,6 +609,14 @@ contextBridge.exposeInMainWorld('nimbria', {
     getNavigationState: (tabId: string) => 
       ipcRenderer.invoke('search-scraper:get-navigation-state', { tabId }),
     
+    // 🔍 缩放控制
+    adjustZoom: (tabId: string, delta: number) => 
+      ipcRenderer.invoke('search-scraper:adjust-zoom', { tabId, delta }),
+    setZoomFactor: (tabId: string, factor: number) => 
+      ipcRenderer.invoke('search-scraper:set-zoom-factor', { tabId, factor }),
+    getZoomFactor: (tabId: string) => 
+      ipcRenderer.invoke('search-scraper:get-zoom-factor', { tabId }),
+    
     // 元素选取
     startElementPicker: (tabId: string) => 
       ipcRenderer.invoke('search-scraper:start-element-picker', { tabId }),

@@ -191,6 +191,62 @@ export function setupSearchScraperHandlers(): void {
     return browserViewManager.getNavigationState(request.tabId)
   })
   
+  // ==================== 🔍 缩放控制 ====================
+  
+  // 调整缩放（相对调整）
+  ipcMain.handle('search-scraper:adjust-zoom', (
+    _event: IpcMainInvokeEvent,
+    request: { tabId: string; delta: number }
+  ): { success: boolean; zoomFactor?: number } => {
+    if (!browserViewManager) {
+      return { success: false }
+    }
+    
+    try {
+      const zoomFactor = browserViewManager.adjustZoom(request.tabId, request.delta)
+      return { success: true, zoomFactor }
+    } catch (error) {
+      console.error('[SearchAndScraper] Failed to adjust zoom:', error)
+      return { success: false }
+    }
+  })
+  
+  // 设置缩放（绝对设置）
+  ipcMain.handle('search-scraper:set-zoom-factor', (
+    _event: IpcMainInvokeEvent,
+    request: { tabId: string; factor: number }
+  ): { success: boolean } => {
+    if (!browserViewManager) {
+      return { success: false }
+    }
+    
+    try {
+      browserViewManager.setZoomFactor(request.tabId, request.factor)
+      return { success: true }
+    } catch (error) {
+      console.error('[SearchAndScraper] Failed to set zoom factor:', error)
+      return { success: false }
+    }
+  })
+  
+  // 获取当前缩放
+  ipcMain.handle('search-scraper:get-zoom-factor', (
+    _event: IpcMainInvokeEvent,
+    request: { tabId: string }
+  ): { success: boolean; zoomFactor?: number } => {
+    if (!browserViewManager) {
+      return { success: false }
+    }
+    
+    try {
+      const zoomFactor = browserViewManager.getZoomFactor(request.tabId)
+      return { success: true, zoomFactor }
+    } catch (error) {
+      console.error('[SearchAndScraper] Failed to get zoom factor:', error)
+      return { success: false }
+    }
+  })
+  
   // ==================== 元素选取 ====================
   
   // 开始元素选取

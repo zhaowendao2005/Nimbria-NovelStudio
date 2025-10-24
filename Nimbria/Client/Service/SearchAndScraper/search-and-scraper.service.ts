@@ -117,6 +117,38 @@ export class SearchAndScraperService {
     return window.nimbria.searchScraper.getNavigationState(tabId)
   }
   
+  // ==================== 🔍 缩放控制 ====================
+  
+  /**
+   * 调整缩放比例（相对调整）
+   */
+  static async adjustZoom(tabId: string, delta: number): Promise<{ success: boolean; zoomFactor?: number }> {
+    if (!window.nimbria?.searchScraper) {
+      throw new Error('SearchScraper API not available')
+    }
+    return window.nimbria.searchScraper.adjustZoom(tabId, delta)
+  }
+  
+  /**
+   * 设置缩放比例（绝对设置）
+   */
+  static async setZoomFactor(tabId: string, factor: number): Promise<{ success: boolean }> {
+    if (!window.nimbria?.searchScraper) {
+      throw new Error('SearchScraper API not available')
+    }
+    return window.nimbria.searchScraper.setZoomFactor(tabId, factor)
+  }
+  
+  /**
+   * 获取当前缩放比例
+   */
+  static async getZoomFactor(tabId: string): Promise<{ success: boolean; zoomFactor?: number }> {
+    if (!window.nimbria?.searchScraper) {
+      throw new Error('SearchScraper API not available')
+    }
+    return window.nimbria.searchScraper.getZoomFactor(tabId)
+  }
+  
   // ==================== 元素选取 ====================
   
   /**
