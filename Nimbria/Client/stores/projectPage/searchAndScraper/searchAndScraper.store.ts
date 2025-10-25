@@ -5,7 +5,7 @@
 
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { SearchInstanceState, BrowseHistoryItem } from './searchAndScraper.types'
+import type { SearchInstanceState, BrowseHistoryItem, ScrapeMode, LightModeConfig } from './searchAndScraper.types'
 
 export const useSearchAndScraperStore = defineStore('projectPage-searchAndScraper', () => {
   // ==================== 状态 ====================
@@ -58,7 +58,15 @@ export const useSearchAndScraperStore = defineStore('projectPage-searchAndScrape
       // 📚 章节选择状态
       chapterSelectMode: false,
       selectedChapterIndexes: new Set(),
-      chapterSearchQuery: ''
+      chapterSearchQuery: '',
+      // 🚀 爬取模式配置
+      scrapeMode: 'browser',
+      lightModeConfig: {
+        parallelCount: 3,
+        requestTimeout: 30,
+        contentSelector: undefined,
+        selectorLearned: false
+      }
     }
     
     instances.value.set(tabId, newInstance)
@@ -167,6 +175,61 @@ export const useSearchAndScraperStore = defineStore('projectPage-searchAndScrape
     }
   }
   
+  // ==================== 🚀 爬取模式管理 ====================
+  
+  /**
+   * 更新爬取模式
+   */
+  const updateScrapeMode = (tabId: string, mode: ScrapeMode): void => {
+    const instance = instances.value.get(tabId)
+    if (!instance) {
+      console.warn('[SearchAndScraper Store] Cannot update scrape mode for non-existent instance:', tabId)
+      return
+    }
+    
+    instance.scrapeMode = mode
+    console.log(`[SearchAndScraper Store] Tab ${tabId} 爬取模式更新为: ${mode}`)
+  }
+  
+  /**
+   * 更新轻量模式配置
+   */
+  const updateLightModeConfig = (tabId: string, config: Partial<LightModeConfig>): void => {
+    const instance = instances.value.get(tabId)
+    if (!instance) {
+      console.warn('[SearchAndScraper Store] Cannot update light mode config for non-existent instance:', tabId)
+      return
+    }
+    
+    instance.lightModeConfig = {
+      ...instance.lightModeConfig,
+      ...config
+    }
+    console.log(`[SearchAndScraper Store] Tab ${tabId} 轻量模式配置已更新:`, config)
+  }
+  
+  /**
+   * 设置内容选择器（学习完成）
+   */
+  const setContentSelector = (tabId: string, selector: string): void => {
+    updateLightModeConfig(tabId, {
+      contentSelector: selector,
+      selectorLearned: true
+    })
+    console.log(`[SearchAndScraper Store] Tab ${tabId} 已学习选择器: ${selector}`)
+  }
+  
+  /**
+   * 重置轻量模式状态（清除选择器）
+   */
+  const resetLightModeSelector = (tabId: string): void => {
+    updateLightModeConfig(tabId, {
+      contentSelector: undefined,
+      selectorLearned: false
+    })
+    console.log(`[SearchAndScraper Store] Tab ${tabId} 轻量模式选择器已重置`)
+  }
+  
   // 🔥 初始化时加载历史记录
   loadHistoryFromStorage()
   
@@ -184,7 +247,12 @@ export const useSearchAndScraperStore = defineStore('projectPage-searchAndScrape
     loadHistoryFromStorage,
     saveHistoryToStorage,
     addHistoryItem,
-    clearHistory
+    clearHistory,
+    // 🚀 爬取模式管理
+    updateScrapeMode,
+    updateLightModeConfig,
+    setContentSelector,
+    resetLightModeSelector
   }
 })
 

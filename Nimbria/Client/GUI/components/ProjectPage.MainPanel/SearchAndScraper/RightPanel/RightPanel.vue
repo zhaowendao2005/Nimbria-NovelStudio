@@ -38,8 +38,8 @@
       :width="500"
       :min-width-percent="70"
     >
-      <!-- 动态内容 -->
-      <component :is="drawerContent" v-if="drawerContent" />
+      <!-- 动态内容 - 传递 tabId -->
+      <component :is="drawerContent" v-if="drawerContent" :tab-id="props.tabId" />
     </RightDrawer>
   </div>
 </template>

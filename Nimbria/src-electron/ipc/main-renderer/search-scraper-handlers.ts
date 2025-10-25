@@ -343,6 +343,83 @@ export function setupSearchScraperHandlers(): void {
     }
   })
   
-  console.log('[SearchAndScraper] IPC handlers registered (with BrowserView support)')
+  // ==================== 🚀 轻量模式爬取 ====================
+  
+  /**
+   * 学习内容选择器
+   */
+  ipcMain.handle('search-scraper:learn-selector', async (
+    _event: IpcMainInvokeEvent,
+    request: { tabId: string; url: string }
+  ): Promise<{ success: boolean; selector?: string; error?: string }> => {
+    if (!browserViewManager) {
+      return { success: false, error: 'BrowserViewManager not available' }
+    }
+    
+    try {
+      const selector = await browserViewManager.learnContentSelector(request.tabId, request.url)
+      return { success: !!selector, selector: selector || undefined }
+    } catch (error) {
+      console.error('[SearchAndScraper] Failed to learn selector:', error)
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      }
+    }
+  })
+  
+  /**
+   * 轻量模式爬取章节
+   */
+  ipcMain.handle('search-scraper:scrape-light', async (
+    _event: IpcMainInvokeEvent,
+    request: { 
+      tabId: string
+      chapters: Array<{ title: string; url: string }>
+      options: {
+        selector: string
+        parallelCount: number
+        timeout: number
+        urlPrefix?: string
+      }
+    }
+  ): Promise<{ 
+    success: boolean
+    successCount: number
+    message?: string
+    results?: Array<{
+      success: boolean
+      chapter: { title: string; url: string }
+      content?: string
+      error?: string
+    }>
+  }> => {
+    if (!browserViewManager) {
+      return { success: false, successCount: 0, message: 'BrowserViewManager not available' }
+    }
+    
+    try {
+      const result = await browserViewManager.scrapeChaptersLight(
+        request.chapters,
+        request.options
+      )
+      
+      return { 
+        success: result.success, 
+        successCount: result.successCount,
+        results: result.results,
+        message: `Successfully scraped ${result.successCount}/${request.chapters.length} chapters`
+      }
+    } catch (error) {
+      console.error('[SearchAndScraper] Light mode scrape failed:', error)
+      return { 
+        success: false, 
+        successCount: 0,
+        message: error instanceof Error ? error.message : 'Unknown error' 
+      }
+    }
+  })
+  
+  console.log('[SearchAndScraper] IPC handlers registered (with BrowserView & Light Mode support)')
 }
 

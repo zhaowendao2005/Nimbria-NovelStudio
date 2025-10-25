@@ -629,6 +629,12 @@ contextBridge.exposeInMainWorld('nimbria', {
     scrapeChapter: (tabId: string, chapterUrl: string) => 
       ipcRenderer.invoke('search-scraper:scrape-chapter', { tabId, chapterUrl }),
     
+    // 🚀 轻量模式爬取
+    learnSelector: (tabId: string, url: string) => 
+      ipcRenderer.invoke('search-scraper:learn-selector', { tabId, url }),
+    scrapeLight: (tabId: string, chapters: any[], options: any) =>
+      ipcRenderer.invoke('search-scraper:scrape-light', { tabId, chapters, options }),
+    
     // 事件监听
     onNavigationChanged: (callback: (data: { tabId: string; url: string; canGoBack: boolean; canGoForward: boolean }) => void) => {
       ipcRenderer.on('search-scraper:navigation-changed', (_event, data) => callback(data))

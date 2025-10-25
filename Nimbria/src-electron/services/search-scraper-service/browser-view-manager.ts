@@ -5,6 +5,7 @@
 
 import { BrowserView, BrowserWindow } from 'electron'
 import type { Session } from 'electron'
+import { LightModeScraper, type LightScrapeOptions, type ChapterData, type ScrapeResult } from './light-mode-scraper'
 
 interface BrowserViewInstance {
   view: BrowserView
@@ -17,9 +18,11 @@ interface BrowserViewInstance {
 export class BrowserViewManager {
   private views = new Map<string, BrowserViewInstance>()
   private session: Session
+  private lightScraper: LightModeScraper
   
   constructor(session: Session) {
     this.session = session
+    this.lightScraper = new LightModeScraper()
   }
   
   /**
@@ -387,12 +390,12 @@ export class BrowserViewManager {
     }
     
     try {
-      // 🔥 智能等待：如果正在加载，等待 DOM Ready；否则立即提取
-      const isLoading = instance.view.webContents.isLoading()
+      // 🔥 更准确的检测：检查 document.readyState
+      const readyState = await instance.view.webContents.executeJavaScript('document.readyState')
       
-      if (isLoading) {
-        console.log(`[BrowserViewManager] Page is loading, waiting for DOM ready...`)
-        // 等待 DOM 内容加载完成（不等待图片、样式等资源）
+      if (readyState !== 'complete' && readyState !== 'interactive') {
+        console.log(`[BrowserViewManager] Document not ready (${readyState}), waiting for DOM ready...`)
+        // 等待 DOM 准备
         await new Promise<void>((resolve) => {
           const onDomReady = () => {
             console.log(`[BrowserViewManager] DOM ready, extracting chapters...`)
@@ -401,15 +404,15 @@ export class BrowserViewManager {
           }
           instance.view.webContents.once('dom-ready', onDomReady)
           
-          // 超时保护（3秒）
+          // 超时保护（1.5秒，更短）
           setTimeout(() => {
             instance.view.webContents.removeListener('dom-ready', onDomReady)
             console.warn(`[BrowserViewManager] DOM ready timeout, extracting anyway...`)
             resolve()
-          }, 3000)
+          }, 1500)
         })
       } else {
-        console.log(`[BrowserViewManager] Page already loaded, extracting immediately...`)
+        console.log(`[BrowserViewManager] Document ready (${readyState}), extracting immediately...`)
       }
       
       const chapters = await instance.view.webContents.executeJavaScript(`
@@ -797,6 +800,130 @@ export class BrowserViewManager {
       .catch(error => {
         console.error(`[BrowserViewManager] Failed to inject zoom control script:`, error)
       })
+  }
+  
+  // ==================== 🚀 轻量模式爬取 ====================
+  
+  /**
+   * 学习内容选择器
+   * 在 BrowserView 中加载页面，然后使用 cheerio 分析 HTML
+   */
+  public async learnContentSelector(tabId: string, url: string): Promise<string | null> {
+    const instance = this.views.get(tabId)
+    if (!instance) {
+      throw new Error(`[BrowserViewManager] Tab ${tabId} not found`)
+    }
+    
+    try {
+      console.log(`[BrowserViewManager] Learning selector from: ${url}`)
+      
+      // 🔥 学习选择器时，先隐藏 BrowserView，避免用户看到跳转
+      const wasVisible = instance.isVisible
+      const window = BrowserWindow.fromId(instance.windowId)
+      
+      if (wasVisible && window) {
+        // 保存当前 bounds，以便恢复
+        const currentBounds = instance.view.getBounds()
+        // 🔥 设置 bounds 为零，视觉上隐藏
+        instance.view.setBounds({ x: 0, y: 0, width: 0, height: 0 })
+        instance.isVisible = false
+        console.log(`[BrowserViewManager] Temporarily hidden view for selector learning`)
+        // 保存 bounds 用于恢复
+        ;(instance as any).__savedBounds = currentBounds
+      }
+      
+      // 在 BrowserView 中加载页面
+      await instance.view.webContents.loadURL(url)
+      
+      // 等待 DOM 准备完成
+      await new Promise<void>((resolve) => {
+        instance.view.webContents.once('dom-ready', () => resolve())
+        // 超时保护
+        setTimeout(() => resolve(), 5000)
+      })
+      
+      // 获取页面 HTML
+      const html = await instance.view.webContents.executeJavaScript(
+        'document.documentElement.outerHTML'
+      )
+      
+      // 使用 cheerio 学习选择器
+      const selector = await this.lightScraper.learnSelector(html)
+      
+      // 🔥 学习完成后，恢复 BrowserView 的显示状态
+      if (wasVisible && window) {
+        const savedBounds = (instance as any).__savedBounds
+        if (savedBounds) {
+          instance.view.setBounds(savedBounds)
+          instance.isVisible = true
+          delete (instance as any).__savedBounds
+          console.log(`[BrowserViewManager] Restored view visibility`)
+        }
+      }
+      
+      if (selector) {
+        console.log(`[BrowserViewManager] Successfully learned selector: ${selector}`)
+      } else {
+        console.warn(`[BrowserViewManager] Failed to learn selector from ${url}`)
+      }
+      
+      return selector
+      
+    } catch (error) {
+      console.error('[BrowserViewManager] Learn selector failed:', error)
+      
+      // 🔥 出错时也要恢复显示状态
+      if (wasVisible && window) {
+        const savedBounds = (instance as any).__savedBounds
+        if (savedBounds) {
+          instance.view.setBounds(savedBounds)
+          instance.isVisible = true
+          delete (instance as any).__savedBounds
+          console.log(`[BrowserViewManager] Restored view visibility after error`)
+        }
+      }
+      
+      return null
+    }
+  }
+  
+  /**
+   * 轻量模式爬取章节
+   * 使用并行请求 + cheerio 解析
+   */
+  public async scrapeChaptersLight(
+    chapters: ChapterData[],
+    options: LightScrapeOptions,
+    onProgress?: (current: number, total: number, currentChapter: string) => void
+  ): Promise<{ success: boolean; results: ScrapeResult[]; successCount: number }> {
+    try {
+      console.log(`[BrowserViewManager] Starting light mode scrape: ${chapters.length} chapters`)
+      console.log(`[BrowserViewManager] Options:`, {
+        selector: options.selector,
+        parallelCount: options.parallelCount,
+        timeout: options.timeout
+      })
+      
+      const results = await this.lightScraper.scrapeChapters(chapters, options, onProgress)
+      
+      const successCount = results.filter(r => r.success).length
+      
+      console.log(`[BrowserViewManager] Light mode scrape completed: ${successCount}/${chapters.length} successful`)
+      
+      return {
+        success: true,
+        results,
+        successCount
+      }
+      
+    } catch (error) {
+      console.error('[BrowserViewManager] Light scrape failed:', error)
+      return {
+        success: false,
+        results: [],
+        successCount: 0
+      }
+    }
   }
 }
 

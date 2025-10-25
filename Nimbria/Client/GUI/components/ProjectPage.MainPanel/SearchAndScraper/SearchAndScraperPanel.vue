@@ -27,12 +27,25 @@
         />
       </div>
       
-      <!-- 🔥 中间：URL显示区域（始终存在以保持布局） -->
-      <div class="url-display">
-        <template v-if="isBrowserViewVisible">
-          <el-icon v-if="isLoading" class="is-loading"><Loading /></el-icon>
-          <el-text truncated>{{ navigationState.currentUrl }}</el-text>
-        </template>
+      <!-- 🔥 中间：地址栏（可编辑，支持回车访问，未挂载也可使用） -->
+      <div class="url-input-wrapper">
+        <el-icon v-if="isLoading" class="url-loading-icon"><Loading /></el-icon>
+        <el-input
+          v-model="addressBarUrl"
+          placeholder="输入网址并回车访问..."
+          size="small"
+          @keyup.enter="handleNavigateToUrl"
+        >
+          <template #suffix>
+            <el-button
+              :icon="Right"
+              circle
+              size="small"
+              :disabled="!addressBarUrl"
+              @click="handleNavigateToUrl"
+            />
+          </template>
+        </el-input>
       </div>
       
       <!-- 右侧：功能按钮 -->
@@ -77,7 +90,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { HomeFilled, ArrowLeft, ArrowRight, Loading, Clock } from '@element-plus/icons-vue'
+import { HomeFilled, ArrowLeft, ArrowRight, Loading, Clock, Right } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import NProgress from 'nprogress'
 import 'nprogress/nprogress.css'
@@ -125,6 +138,9 @@ const navigationState = ref({
   canGoForward: false,
   currentUrl: ''
 })
+
+// 🔥 地址栏输入的 URL
+const addressBarUrl = ref('')
 
 // ==================== 方法 ====================
 
@@ -263,6 +279,52 @@ const handleGoForward = async (): Promise<void> => {
 }
 
 /**
+ * 🔥 地址栏导航：访问输入的 URL
+ * 如果 BrowserView 未挂载，先挂载再访问
+ */
+const handleNavigateToUrl = async (): Promise<void> => {
+  if (!addressBarUrl.value) return
+  
+  let url = addressBarUrl.value.trim()
+  
+  // 🔥 如果没有协议，自动添加 https://
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'https://' + url
+  }
+  
+  try {
+    console.log(`[SearchAndScraper] Navigating to URL from address bar: ${url}`)
+    
+    // 🔥 如果 BrowserView 未创建，先创建
+    if (!isViewCreated.value) {
+      await SearchAndScraperService.createView(props.tabId)
+      isViewCreated.value = true
+      console.log(`[SearchAndScraper ${props.tabId}] BrowserView created`)
+    }
+    
+    // 🔥 显示 BrowserView
+    if (!isBrowserViewVisible.value) {
+      console.log('[SearchAndScraper] Mounting BrowserView...')
+      isBrowserViewVisible.value = true
+      // 等待 DOM 更新
+      await nextTick()
+      // 计算并显示 BrowserView
+      const bounds = calculateBrowserViewBounds()
+      await SearchAndScraperService.showView(props.tabId, bounds)
+      console.log('[SearchAndScraper] BrowserView mounted')
+    }
+    
+    // 导航到 URL
+    await SearchAndScraperService.loadURL(props.tabId, url)
+    await refreshNavigationState()
+  } catch (error) {
+    console.error('[SearchAndScraper] Failed to navigate to URL:', error)
+    // @ts-expect-error - ElMessage类型定义问题
+    ElMessage.error({ message: '导航失败' })
+  }
+}
+
+/**
  * 🔥 处理从历史记录导航
  * 确保 BrowserView 已挂载，然后加载 URL
  */
@@ -330,6 +392,8 @@ const handleNavigationChanged = (data: NavigationChangedEvent): void => {
       canGoForward: data.canGoForward,
       currentUrl: data.url
     }
+    // 🔥 同步地址栏
+    addressBarUrl.value = data.url
     console.log('[SearchAndScraper] Navigation changed:', data.url)
     
     // 🔥 记录浏览历史
@@ -562,17 +626,43 @@ watch([leftPanelRef, toolbarRef], () => {
   flex-shrink: 0;
 }
 
-.url-display {
+// 🔥 地址栏输入框区域
+.url-input-wrapper {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
-  color: var(--el-text-color-secondary);
   display: flex;
   align-items: center;
   gap: 8px;
+  position: relative;
   
-  .is-loading {
+  .url-loading-icon {
+    position: absolute;
+    left: 10px;
+    z-index: 1;
     animation: rotating 2s linear infinite;
+  }
+  
+  .el-input {
+    flex: 1;
+    
+    // 当有加载图标时，增加左侧 padding
+    &:has(~ .url-loading-icon) {
+      :deep(.el-input__wrapper) {
+        padding-left: 32px;
+      }
+    }
+  }
+  
+  // suffix 内的圆形按钮样式调整
+  :deep(.el-input__suffix) {
+    display: flex;
+    align-items: center;
+    
+    .el-button.is-circle {
+      width: 24px;
+      height: 24px;
+      padding: 0;
+    }
   }
 }
 

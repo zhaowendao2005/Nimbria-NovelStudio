@@ -1,3 +1,47 @@
+好的，Boss！让我先研究一下当前的实现，然后设计这个爬取模式的功能。
+
+[1 tool called]
+
+现在让我搜索一下 Element Plus 的胶囊开关（Segmented）或者类似组件的用法：
+
+[1 tool called]
+
+好的！我现在来为你设计这个"爬取模式"功能。让我先整理一下需求和设计方案：
+
+## 📋 需求分析
+
+### 两种爬取模式
+
+1. **全浏览器自动化模式（当前模式）**
+   - 每个章节都在 BrowserView 中加载
+   - 更慢，但兼容性好
+   - 可以处理动态加载的内容
+
+2. **轻量模式（新增）**
+   - 浏览器自动化仅用于：
+     - 获取章节列表
+     - 获取内容选择器
+   - 实际爬取使用 cheerio（后端）+ 并行请求
+   - 更快，但需要提前确定选择器
+
+### UI 设计
+
+1. **胶囊式开关**
+   - 蓝色：全浏览器模式
+   - 黄色：轻量模式
+   - 类似 iOS 的 Segmented Control
+
+2. **并行数设置**
+   - 仅在轻量模式下显示
+   - 使用 `el-input-number` 或 `el-slider`
+
+## 🎨 设计方案
+
+由于你在 **Ask 模式**，我给你完整的代码，你可以切换到 Agent 模式让我帮你应用：
+
+### 修改后的 `SettingsContent.vue`
+
+```vue
 <template>
   <div class="settings-content">
     <!-- 🔥 新增：爬取模式 -->
@@ -96,28 +140,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import { Monitor, Lightning, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { useSearchAndScraperStore } from '@stores/projectPage/searchAndScraper'
-import type { ScrapeMode } from '@stores/projectPage/searchAndScraper/searchAndScraper.types'
 
 /**
  * SettingsContent 组件
  * 小说爬取设置页内容
  */
 
-// Props
-interface Props {
-  tabId: string
-}
-
-const props = defineProps<Props>()
-
-// Store
-const searchAndScraperStore = useSearchAndScraperStore()
-
 // 🔥 爬取模式
+type ScrapeMode = 'browser' | 'light'
 const scrapeMode = ref<ScrapeMode>('browser')
 
 // 🔥 轻量模式设置
@@ -132,44 +165,14 @@ const parallelMarks = {
 }
 
 /**
- * 组件挂载时从 Store 加载设置
- */
-onMounted(() => {
-  const instance = searchAndScraperStore.getInstance(props.tabId)
-  if (instance) {
-    scrapeMode.value = instance.scrapeMode
-    parallelCount.value = instance.lightModeConfig.parallelCount
-    requestTimeout.value = instance.lightModeConfig.requestTimeout
-    console.log('[SettingsContent] Loaded settings from store:', {
-      scrapeMode: scrapeMode.value,
-      parallelCount: parallelCount.value,
-      requestTimeout: requestTimeout.value
-    })
-  }
-})
-
-/**
  * 保存设置
  */
 const handleSave = (): void => {
-  console.log(`[SettingsContent ${props.tabId}] 🔥 保存前的值:`, {
+  // TODO: 将设置保存到 Store 或持久化存储
+  console.log('[SettingsContent] Saving settings:', {
     scrapeMode: scrapeMode.value,
     parallelCount: parallelCount.value,
     requestTimeout: requestTimeout.value
-  })
-  
-  // 保存到 Store
-  searchAndScraperStore.updateScrapeMode(props.tabId, scrapeMode.value)
-  searchAndScraperStore.updateLightModeConfig(props.tabId, {
-    parallelCount: parallelCount.value,
-    requestTimeout: requestTimeout.value
-  })
-  
-  // 验证保存结果
-  const instance = searchAndScraperStore.getInstance(props.tabId)
-  console.log(`[SettingsContent ${props.tabId}] 🔥 保存后的 Store 值:`, {
-    scrapeMode: instance?.scrapeMode,
-    lightModeConfig: instance?.lightModeConfig
   })
   
   // @ts-expect-error - ElMessage类型定义问题
@@ -375,3 +378,66 @@ const handleReset = (): void => {
   z-index: 1;
 }
 </style>
+```
+
+## 🎯 设计亮点
+
+### 1. **胶囊式切换器**
+- 类似 iOS Segmented Control
+- 蓝色（#409EFF）：全浏览器模式
+- 黄色（#F7BA2A）：轻量模式
+- 带阴影效果和平滑过渡
+
+### 2. **可视化图标**
+- `Monitor`（显示器）：全浏览器模式
+- `Lightning`（闪电）：轻量模式
+- 直观表达模式特点
+
+### 3. **动态说明**
+- 根据选择的模式显示不同说明
+- 带信息图标，颜色匹配模式
+
+### 4. **渐进式设置**
+- 轻量模式专属设置仅在选中时显示
+- 使用 slide-fade 动画过渡
+
+### 5. **并行数控制**
+- 滑块 + 数字输入框组合
+- 滑块带标记（慢/中/快）
+- 范围 1-10，默认 3
+
+## 📐 UI 效果预览
+
+```
+┌─────────────────────────────────────┐
+│ 爬取模式                             │
+├─────────────────────────────────────┤
+│ ┌───────────────┬───────────────┐   │
+│ │  🖥️          │  ⚡           │   │
+│ │ 全浏览器模式  │ 轻量模式      │   │  ← 胶囊开关
+│ └───────────────┴───────────────┘   │
+│                                     │
+│ ℹ️ 轻量模式                          │
+│    浏览器仅用于获取章节列表和选择器  │  ← 动态说明
+│    实际爬取使用并行请求，速度更快    │
+│                                     │
+│ ────────────────────────────────    │
+│                                     │
+│ 并行请求数                           │
+│ [━━━●━━━━━━] 3                      │  ← 滑块 + 数字
+│ 慢      中      快                   │
+│ 同时发送的请求数量...                │
+│                                     │
+│ 请求超时（秒） [30] ▲▼              │
+│                                     │
+└─────────────────────────────────────┘
+```
+
+## 🚀 下一步实现
+
+需要我切换到 Agent 模式帮你应用这些修改吗？还是你想先看看设计，有什么需要调整的？
+
+另外，后续还需要：
+1. 在 Store 中添加爬取模式的状态管理
+2. 在后端实现轻量模式的爬取逻辑（使用 cheerio）
+3. 修改 `handleScrapeChapters` 方法，根据模式选择不同的爬取策略

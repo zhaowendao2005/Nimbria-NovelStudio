@@ -927,6 +927,41 @@ export interface NimbriaWindowAPI {
       error?: string 
     }>
     
+    // ==================== 🚀 轻量模式爬取 ====================
+    
+    /**
+     * 学习内容选择器
+     */
+    learnSelector(tabId: string, url: string): Promise<{ 
+      success: boolean
+      selector?: string
+      error?: string 
+    }>
+    
+    /**
+     * 轻量模式爬取章节
+     */
+    scrapeLight(
+      tabId: string, 
+      chapters: Array<{ title: string; url: string }>, 
+      options: {
+        selector: string
+        parallelCount: number
+        timeout: number
+        urlPrefix?: string
+      }
+    ): Promise<{ 
+      success: boolean
+      successCount: number
+      message?: string
+      results?: Array<{
+        success: boolean
+        chapter: { title: string; url: string }
+        content?: string
+        error?: string
+      }>
+    }>
+    
     // ==================== 事件监听 ====================
     
     /**

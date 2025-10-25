@@ -245,7 +245,7 @@ const handleMatchChapters = async (): Promise<void> => {
 }
 
 /**
- * 爬取章节
+ * 爬取章节（路由器）
  */
 const handleScrapeChapters = async (): Promise<void> => {
   if (matchedChapters.value.length === 0) {
@@ -283,6 +283,32 @@ const handleScrapeChapters = async (): Promise<void> => {
       console.log(`[NovelScraper ${props.tabId}] 普通模式：将爬取所有 ${chaptersToScrape.length} 个章节`)
     }
   }
+  
+  // 🚀 根据爬取模式选择不同的策略
+  // 🔥 重新从 store 获取最新的 instance 状态
+  const currentInstance = store.getInstance(props.tabId)
+  if (!currentInstance) {
+    console.error(`[NovelScraper ${props.tabId}] Instance not found!`)
+    return
+  }
+  
+  const scrapeMode = currentInstance.scrapeMode
+  console.log(`[NovelScraper ${props.tabId}] 当前爬取模式: ${scrapeMode}`)
+  console.log(`[NovelScraper ${props.tabId}] 轻量模式配置:`, currentInstance.lightModeConfig)
+  
+  if (scrapeMode === 'light') {
+    // 🟡 轻量模式
+    await scrapeLightMode(chaptersToScrape)
+  } else {
+    // 🔵 全浏览器模式
+    await scrapeBrowserMode(chaptersToScrape)
+  }
+}
+
+/**
+ * 全浏览器模式爬取
+ */
+const scrapeBrowserMode = async (chaptersToScrape: Chapter[]): Promise<void> => {
   
   try {
     store.updateInstance(props.tabId, { 
@@ -355,6 +381,115 @@ const handleScrapeChapters = async (): Promise<void> => {
 const handleViewDetail = (chapter: ScrapedChapter): void => {
   currentChapter.value = chapter
   detailDialogVisible.value = true
+}
+
+/**
+ * 轻量模式爬取
+ */
+const scrapeLightMode = async (chaptersToScrape: Chapter[]): Promise<void> => {
+  // 🔥 实时获取 instance
+  const currentInstance = store.getInstance(props.tabId)
+  if (!currentInstance) return
+  
+  try {
+    // 1. 检查是否已学习选择器
+    if (!currentInstance.lightModeConfig.selectorLearned) {
+      // @ts-expect-error - ElMessage类型定义问题
+      ElMessage.info({ message: '正在学习内容选择器...' })
+      
+      // 使用第一个章节学习选择器
+      const firstChapter = chaptersToScrape[0]
+      if (!firstChapter) {
+        // @ts-expect-error - ElMessage类型定义问题
+        ElMessage.error({ message: '章节列表为空' })
+        return
+      }
+      
+      const selectorResult = await SearchAndScraperService.learnContentSelector(
+        props.tabId,
+        firstChapter.url
+      )
+      
+      if (!selectorResult.success || !selectorResult.selector) {
+        // @ts-expect-error - ElMessage类型定义问题
+        ElMessage.error({ message: '选择器学习失败，请尝试全浏览器模式' })
+        return
+      }
+      
+      // 保存学习到的选择器
+      store.setContentSelector(props.tabId, selectorResult.selector)
+      // @ts-expect-error - ElMessage类型定义问题
+      ElMessage.success({ message: `已学习选择器: ${selectorResult.selector}` })
+    }
+    
+    // 2. 开始并行爬取
+    store.updateInstance(props.tabId, { 
+      isScrapingInProgress: true,
+      scrapingProgress: {
+        current: 0,
+        total: chaptersToScrape.length,
+        currentChapter: '正在准备...'
+      }
+    })
+    
+    // @ts-expect-error - ElMessage类型定义问题
+    ElMessage.info({ message: `开始轻量模式爬取 ${chaptersToScrape.length} 个章节...` })
+    
+    // 🔥 转换为纯 JSON 对象，避免 IPC 序列化错误
+    const plainChapters = chaptersToScrape.map(ch => ({
+      title: ch.title,
+      url: ch.url
+    }))
+    
+    const result = await SearchAndScraperService.scrapeChaptersLight(
+      props.tabId,
+      plainChapters,
+      {
+        selector: currentInstance.lightModeConfig.contentSelector!,
+        parallelCount: currentInstance.lightModeConfig.parallelCount,
+        timeout: currentInstance.lightModeConfig.requestTimeout * 1000,
+        urlPrefix: urlPrefixEnabled.value ? urlPrefix.value : undefined
+      }
+    )
+    
+    if (result.success && result.results) {
+      // 🔥 保存爬取成功的章节
+      const scraped: ScrapedChapter[] = result.results
+        .filter(r => r.success && r.content)
+        .map(r => ({
+          title: r.chapter.title,
+          content: r.content!,
+          // 🔥 生成摘要：取前200个字符
+          summary: r.content!.slice(0, 200) + (r.content!.length > 200 ? '...' : ''),
+          url: r.chapter.url
+        }))
+      
+      // 更新已爬取章节列表
+      const existingScraped = store.getInstance(props.tabId)?.scrapedChapters ?? []
+      store.updateInstance(props.tabId, { 
+        scrapedChapters: [...existingScraped, ...scraped] 
+      })
+      
+      // @ts-expect-error - ElMessage类型定义问题
+      ElMessage.success({ 
+        message: `爬取完成！成功 ${result.successCount}/${chaptersToScrape.length} 章` 
+      })
+      console.log(`[NovelScraper ${props.tabId}] Light mode scrape completed:`, result)
+    } else {
+      // @ts-expect-error - ElMessage类型定义问题
+      ElMessage.error({ message: result.message || '爬取失败' })
+    }
+    
+  } catch (error) {
+    console.error(`[NovelScraper ${props.tabId}] Light mode scrape error:`, error)
+    // @ts-expect-error - ElMessage类型定义问题
+    ElMessage.error({ message: '爬取过程中发生错误' })
+  } finally {
+    store.updateInstance(props.tabId, { 
+      isScrapingInProgress: false,
+      scrapingProgress: null
+    })
+  }
 }
 
 /**

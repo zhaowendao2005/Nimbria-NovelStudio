@@ -237,6 +237,10 @@ export default configure((/* ctx */) => {
         esbuildConf.external = esbuildConf.external || [];
         esbuildConf.external.push('better-sqlite3');
         esbuildConf.external.push('gun');
+        // 🚀 轻量模式爬取依赖
+        esbuildConf.external.push('cheerio');
+        esbuildConf.external.push('axios');
+        esbuildConf.external.push('p-limit');
       },
       
       // extendElectronPreloadConf (esbuildConf) {},

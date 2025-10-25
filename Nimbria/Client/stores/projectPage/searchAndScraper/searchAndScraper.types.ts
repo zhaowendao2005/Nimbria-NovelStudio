@@ -43,6 +43,25 @@ export interface ScrapedChapter {
 }
 
 /**
+ * 爬取模式类型
+ */
+export type ScrapeMode = 'browser' | 'light'
+
+/**
+ * 轻量模式配置
+ */
+export interface LightModeConfig {
+  /** 并行请求数 */
+  parallelCount: number
+  /** 请求超时时间（秒） */
+  requestTimeout: number
+  /** 内容选择器（自动学习） */
+  contentSelector?: string
+  /** 是否已学习选择器 */
+  selectorLearned: boolean
+}
+
+/**
  * 浏览历史记录项
  */
 export interface BrowseHistoryItem {
@@ -88,5 +107,8 @@ export interface SearchInstanceState {
   chapterSelectMode: boolean
   selectedChapterIndexes: Set<number>
   chapterSearchQuery: string
+  // 🚀 爬取模式配置
+  scrapeMode: ScrapeMode
+  lightModeConfig: LightModeConfig
 }
 
