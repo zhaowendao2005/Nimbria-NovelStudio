@@ -6,4 +6,5 @@ export * from './config'
 export * from './session'
 export * from './api'
 export * from './browserview'
+export * from './database'
 

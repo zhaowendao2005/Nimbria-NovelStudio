@@ -303,7 +303,17 @@ contextBridge.exposeInMainWorld('nimbria', {
     llmUpdateConversationTitle: (args: { projectPath: string; conversationId: string; title: string }) => 
       ipcRenderer.invoke('database:llm-update-conversation-title', args),
     llmSearchConversations: (args: { projectPath: string; query: string }) => 
-      ipcRenderer.invoke('database:llm-search-conversations', args)
+      ipcRenderer.invoke('database:llm-search-conversations', args),
+
+    // SearchAndScraper 批次管理
+    searchScraperCreateNovelBatch: (args: { projectPath: string; data: { name: string; description?: string } }) => 
+      ipcRenderer.invoke('database:search-scraper-create-novel-batch', args),
+    searchScraperGetAllNovelBatches: (args: { projectPath: string }) => 
+      ipcRenderer.invoke('database:search-scraper-get-all-novel-batches', args),
+    searchScraperGetNovelBatch: (args: { projectPath: string; batchId: string }) => 
+      ipcRenderer.invoke('database:search-scraper-get-novel-batch', args),
+    searchScraperUpdateNovelBatchStats: (args: { projectPath: string; batchId: string; stats: { totalMatched?: number; totalScraped?: number } }) => 
+      ipcRenderer.invoke('database:search-scraper-update-novel-batch-stats', args)
   },
   
   // DocParser 文档解析 API

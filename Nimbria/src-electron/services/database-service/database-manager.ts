@@ -8,7 +8,7 @@ import { app } from 'electron'
 import path from 'path'
 import fs from 'fs-extra'
 import type { SchemaDefinition } from './schema/base-schema'
-import { GLOBAL_SCHEMA_V1_0_0 } from './schema/versions'
+import { CURRENT_GLOBAL_SCHEMA_VERSION, CURRENT_PROJECT_SCHEMA_VERSION } from './schema/versions'
 
 export class DatabaseManager {
   private globalDb: Database.Database | null = null
@@ -42,11 +42,22 @@ export class DatabaseManager {
       // 配置WAL模式
       this.configureDatabase(this.globalDb)
 
-      // 应用Schema
-      await this.applySchema(this.globalDb, GLOBAL_SCHEMA_V1_0_0)
+      // ✅ 改进1：动态加载最新版本的全局Schema
+      const latestSchema = await this.getLatestGlobalSchema()
+      console.log(`📦 [DatabaseManager] 使用全局Schema版本: ${latestSchema.version}`)
 
-      // 初始化版本信息
-      await this.initializeVersionInfo(this.globalDb, GLOBAL_SCHEMA_V1_0_0.version)
+      // ✅ 改进2：检查是否需要迁移（与项目数据库一致）
+      const currentVersion = this.getCurrentVersion(this.globalDb)
+      if (currentVersion && currentVersion !== latestSchema.version) {
+        console.log(`🔄 [DatabaseManager] 检测到全局数据库版本差异: ${currentVersion} → ${latestSchema.version}`)
+        await this.runMigrations(this.globalDb, currentVersion, latestSchema.version)
+      } else if (!currentVersion) {
+        // 新数据库，直接应用Schema
+        await this.applySchema(this.globalDb, latestSchema)
+      }
+
+      // 更新版本信息
+      await this.initializeVersionInfo(this.globalDb, latestSchema.version)
 
       console.log('✅ [DatabaseManager] 全局数据库初始化成功')
     } catch (error) {
@@ -221,6 +232,29 @@ export class DatabaseManager {
       return row?.version || null
     } catch (error) {
       return null
+    }
+  }
+
+  /**
+   * ✅ 新增方法：获取最新版本的全局Schema
+   */
+  private async getLatestGlobalSchema(): Promise<SchemaDefinition> {
+    const version = CURRENT_GLOBAL_SCHEMA_VERSION
+    const versionKey = version.replace(/\./g, '_') // 1.2.4 -> 1_2_4
+    const schemaName = `GLOBAL_SCHEMA_V${versionKey}`
+    
+    try {
+      const schemas = await import('./schema/versions')
+      const schema = schemas[schemaName as keyof typeof schemas] as SchemaDefinition
+      
+      if (!schema) {
+        throw new Error(`Schema ${schemaName} not found`)
+      }
+      
+      return schema
+    } catch (error) {
+      console.error(`❌ [DatabaseManager] 无法加载Schema ${schemaName}:`, error)
+      throw error
     }
   }
 

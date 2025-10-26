@@ -662,6 +662,48 @@ export interface NimbriaWindowAPI {
     llmDeleteConversation: (args: { projectPath: string; conversationId: string }) => Promise<{ success: boolean; error?: string }>
     llmUpdateConversationTitle: (args: { projectPath: string; conversationId: string; title: string }) => Promise<{ success: boolean; error?: string }>
     llmSearchConversations: (args: { projectPath: string; query: string }) => Promise<{ success: boolean; conversations?: any[]; error?: string }>
+
+    // SearchAndScraper 批次管理
+    searchScraperCreateNovelBatch: (args: { 
+      projectPath: string; 
+      data: { name: string; description?: string } 
+    }) => Promise<{ success: boolean; batchId?: string; error?: string }>
+    searchScraperGetAllNovelBatches: (args: { 
+      projectPath: string 
+    }) => Promise<{ 
+      success: boolean; 
+      batches?: Array<{
+        id: string
+        name: string
+        description: string | null
+        total_matched: number
+        total_scraped: number
+        created_at: string
+        updated_at: string
+      }>; 
+      error?: string 
+    }>
+    searchScraperGetNovelBatch: (args: { 
+      projectPath: string; 
+      batchId: string 
+    }) => Promise<{ 
+      success: boolean; 
+      batch?: {
+        id: string
+        name: string
+        description: string | null
+        total_matched: number
+        total_scraped: number
+        created_at: string
+        updated_at: string
+      } | null; 
+      error?: string 
+    }>
+    searchScraperUpdateNovelBatchStats: (args: { 
+      projectPath: string; 
+      batchId: string; 
+      stats: { totalMatched?: number; totalScraped?: number } 
+    }) => Promise<{ success: boolean; error?: string }>
   }
 
   /**

@@ -446,5 +446,107 @@ export class ProjectDatabase {
       messages: []
     }))
   }
+
+  // ==================== SearchAndScraper 批次管理 ====================
+
+  /**
+   * 创建新批次（简化版，不绑定URL）
+   */
+  createNovelBatch(data: {
+    name: string
+    description?: string
+  }): string {
+    const batchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
+    
+    this.execute(
+      `INSERT INTO SearchAndScraper_novel_batch 
+      (id, name, description) 
+      VALUES (?, ?, ?)`,
+      [batchId, data.name, data.description || null]
+    )
+    
+    return batchId
+  }
+
+  /**
+   * 获取所有批次（按更新时间倒序）
+   */
+  getAllNovelBatches(): Array<{
+    id: string
+    name: string
+    description: string | null
+    total_matched: number
+    total_scraped: number
+    created_at: string
+    updated_at: string
+  }> {
+    return this.query(
+      `SELECT * FROM SearchAndScraper_novel_batch 
+       ORDER BY updated_at DESC`
+    ) as Array<{
+      id: string
+      name: string
+      description: string | null
+      total_matched: number
+      total_scraped: number
+      created_at: string
+      updated_at: string
+    }>
+  }
+
+  /**
+   * 获取批次详情
+   */
+  getNovelBatch(batchId: string): {
+    id: string
+    name: string
+    description: string | null
+    total_matched: number
+    total_scraped: number
+    created_at: string
+    updated_at: string
+  } | null {
+    return this.queryOne(
+      `SELECT * FROM SearchAndScraper_novel_batch WHERE id = ?`,
+      [batchId]
+    ) as {
+      id: string
+      name: string
+      description: string | null
+      total_matched: number
+      total_scraped: number
+      created_at: string
+      updated_at: string
+    } | null
+  }
+
+  /**
+   * 更新批次统计信息
+   */
+  updateNovelBatchStats(batchId: string, stats: {
+    totalMatched?: number
+    totalScraped?: number
+  }): void {
+    const fields: string[] = []
+    const values: unknown[] = []
+    
+    if (stats.totalMatched !== undefined) {
+      fields.push('total_matched = ?')
+      values.push(stats.totalMatched)
+    }
+    if (stats.totalScraped !== undefined) {
+      fields.push('total_scraped = ?')
+      values.push(stats.totalScraped)
+    }
+    
+    fields.push('updated_at = CURRENT_TIMESTAMP')
+    
+    this.execute(
+      `UPDATE SearchAndScraper_novel_batch 
+       SET ${fields.join(', ')} 
+       WHERE id = ?`,
+      [...values, batchId]
+    )
+  }
 }
 

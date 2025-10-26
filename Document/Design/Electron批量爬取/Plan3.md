@@ -196,7 +196,7 @@ const SEARCH_AND_SCRAPER_NOVEL_SITE_SELECTORS_TABLE: TableDefinition = {
   ]
 }
 ```
- 
+
 ---
 
 ## 💾 全局数据库渐进式开发改造
@@ -1081,174 +1081,595 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
 
 ---
 
-## 🎯 实施步骤总结
+## 🎯 端到端增量开发计划
 
-按照数据库修改工作流文档的规范，分以下步骤实施：
-
-### Phase 1: 全局数据库改造（基础设施阶段）
-
-这是必须首先完成的基础改造，使全局数据库支持渐进式开发模式。
-
-#### 1.1 改造 `database-manager.ts`
-
-- 第11行：改为 `import { CURRENT_GLOBAL_SCHEMA_VERSION, CURRENT_PROJECT_SCHEMA_VERSION } from './schema/versions'`
-- 第26-56行：改造 `initialize()` 方法，支持版本迁移检查（参考上面"💾 全局数据库渐进式开发改造"章节）
-- 新增 `getLatestGlobalSchema()` 私有方法
-
-#### 1.2 更新 `project-database.ts`
-
-- 第8行：改为 `import { CURRENT_PROJECT_SCHEMA_VERSION } from './schema/versions'`
-- 逻辑代码无需修改
-
-✅ **验证**：应用启动，全局数据库从硬编码版本改为动态版本
+按照端到端增量开发的原则，每次迭代都完成一个完整的功能链路（后端 → IPC → 前端），便于快速验证和发现问题。
 
 ---
 
-### Phase 2: SearchAndScraper 数据库功能实现（业务功能阶段）
+## 🔄 Iteration 0: 基础设施改造（必须先行）
 
-#### 2.1 创建新版本 Schema
+**目标**：让全局数据库支持渐进式开发，这是所有后续功能的基础。
 
-**文件：** `v1.2.5.schema.ts`
+### 📝 任务清单
 
-参考 Plan3.md 前面"🗄️ 数据库 Schema 设计"章节的 Schema 定义
+#### 0.1 改造 `database-manager.ts`
 
-包含：
-- ✅ 全局数据库表：`SearchAndScraper_novel_site_selectors`
-- ✅ 项目数据库表：`SearchAndScraper_novel_batch`、`SearchAndScraper_novel_matched_chapters`、`SearchAndScraper_novel_scraped_chapters`
+**文件位置**：`Nimbria/src-electron/services/database-service/database-manager.ts`
 
-#### 2.2 更新 `schema/versions/index.ts`
+- [ ] 第11行：改为 `import { CURRENT_GLOBAL_SCHEMA_VERSION, CURRENT_PROJECT_SCHEMA_VERSION } from './schema/versions'`
+- [ ] 第26-56行：改造 `initialize()` 方法，支持版本迁移检查（参考前面"💾 全局数据库渐进式开发改造"）
+- [ ] 新增 `getLatestGlobalSchema()` 私有方法
 
+#### 0.2 更新 `project-database.ts`
+
+**文件位置**：`Nimbria/src-electron/services/database-service/project-database.ts`
+
+- [ ] 第8行：改为 `import { CURRENT_PROJECT_SCHEMA_VERSION } from './schema/versions'`
+
+### ✅ 验证标准
+
+```bash
+# 1. 启动应用，检查全局数据库初始化日志
+📦 [DatabaseManager] 使用全局Schema版本: 1.2.4  # 应该是动态版本
+
+# 2. 验证项目数据库初始化正常
+✅ [DatabaseManager] 全局数据库初始化成功
+✅ [ProjectDatabase] 项目数据库创建成功
+```
+
+**预期结果**：应用正常启动，无数据库相关错误
+
+---
+
+## 🔄 Iteration 1: 批次创建功能（端到端）
+
+**目标**：用户可以在前端创建批次，并保存到项目数据库
+
+### 📝 任务清单
+
+#### 1.1 后端：创建 Schema v1.2.5
+
+**文件位置**：`Nimbria/src-electron/services/database-service/schema/versions/v1.2.5.schema.ts`
+
+- [ ] 复制 `v1.2.4.schema.ts` 作为基础
+- [ ] 在 `PROJECT_TABLES` 中添加 `SearchAndScraper_novel_batch` 表定义（参考前面"🗄️ 数据库 Schema 设计"）
+- [ ] 在 `GLOBAL_TABLES` 中添加 `SearchAndScraper_novel_site_selectors` 表定义（为后续迭代准备）
+- [ ] 创建 `MIGRATION_1_2_4_TO_1_2_5` 迁移脚本
+
+#### 1.2 后端：更新版本索引
+
+**文件位置**：`Nimbria/src-electron/services/database-service/schema/versions/index.ts`
+
+- [ ] 添加 `export { GLOBAL_SCHEMA_V1_2_5, PROJECT_SCHEMA_V1_2_5, MIGRATION_1_2_4_TO_1_2_5 } from './v1.2.5.schema'`
+- [ ] 更新 `CURRENT_GLOBAL_SCHEMA_VERSION = '1.2.5'`
+- [ ] 更新 `CURRENT_PROJECT_SCHEMA_VERSION = '1.2.5'`
+
+#### 1.3 后端：添加批次管理方法
+
+**文件位置**：`Nimbria/src-electron/services/database-service/project-database.ts`
+
+- [ ] 添加 `createNovelBatch()` 方法
+- [ ] 添加 `getAllNovelBatches()` 方法
+- [ ] 添加 `getNovelBatch()` 方法
+- [ ] 添加 `extractDomain()` 工具方法
+
+#### 1.4 IPC：注册批次管理通道
+
+**文件位置**：`Nimbria/src-electron/ipc/database-handlers.ts`
+
+- [ ] 注册 `database:create-novel-batch` 处理器
+- [ ] 注册 `database:get-all-novel-batches` 处理器
+
+#### 1.5 前端：类型定义
+
+**文件位置**：`Nimbria/Client/types/database.ts`（或新建）
+
+- [ ] 添加 `SearchAndScraperNovelBatch` 接口定义
+- [ ] 导出到 `Client/types/index.ts`
+
+#### 1.6 前端：改造 NovelScraperPanel
+
+**文件位置**：`Nimbria/Client/GUI/components/ProjectPage.MainPanel/SearchAndScraper/RightPanel/TabContents/NovelScraperPanel.vue`
+
+- [ ] 添加批次选择下拉菜单（放在 toolbar 第一项）
+- [ ] 添加批次创建对话框组件
+- [ ] 添加 `currentBatchId` 状态
+- [ ] 添加 `batchList` 状态
+- [ ] 实现 `loadBatchList()` 方法
+- [ ] 实现 `handleCreateBatch()` 方法
+- [ ] 实现 `handleBatchChange()` 方法
+- [ ] 未选择批次时显示空状态提示
+
+### ✅ 验证标准
+
+**测试场景1：创建批次**
 ```typescript
-export { GLOBAL_SCHEMA_V1_2_5, PROJECT_SCHEMA_V1_2_5, MIGRATION_1_2_4_TO_1_2_5 } from './v1.2.5.schema'
+// 操作步骤
+1. 打开项目 → 进入 SearchAndScraper Panel
+2. 点击批次下拉菜单 → 选择"创建新批次"
+3. 填写批次名称："测试小说批次1"
+4. 填写来源URL："https://www.qidian.com/book/123"
+5. 选择爬取模式："智能模式"
+6. 点击"创建"
 
-export const CURRENT_GLOBAL_SCHEMA_VERSION = '1.2.5'
-export const CURRENT_PROJECT_SCHEMA_VERSION = '1.2.5'
+// 预期结果
+✅ 对话框关闭
+✅ 批次下拉菜单自动选中新创建的批次
+✅ 后端日志显示：INSERT INTO SearchAndScraper_novel_batch ...
+✅ 数据库中成功插入记录（用 DB Browser 验证）
 ```
 
-✅ **验证**：新项目创建时，数据库自动包含所有新表
+**测试场景2：批次列表展示**
+```typescript
+// 操作步骤
+1. 创建3个批次（名称、URL各不同）
+2. 刷新页面或重新进入 Panel
+3. 打开批次下拉菜单
 
-#### 2.3 为 `ProjectDatabase` 添加业务方法
+// 预期结果
+✅ 下拉菜单第一项是"➕ 创建新批次"
+✅ 后面显示3个已创建的批次
+✅ 批次按更新时间倒序排列（最新的在最前）
+✅ 批次名称显示正确（可能需要截断长名称）
+```
 
-参考 Plan3.md 前面"📝 数据库操作层设计"章节的方法集合
+**测试场景3：未选择批次的禁用状态**
+```typescript
+// 操作步骤
+1. 打开 Panel，不选择任何批次
 
-包含：
-- 批次管理：`createNovelBatch()`、`getAllNovelBatches()`、`getNovelBatch()`、`updateNovelBatchStats()`
-- 匹配章节：`saveMatchedChapters()`、`getMatchedChapters()`、`toggleChapterSelection()`
-- 爬取章节：`saveScrapedChapter()`、`getScrapedChapters()`、`getNovelBatchSummary()`
-
-#### 2.4 为 `DatabaseService` 添加全局数据库方法
-
-参考 Plan3.md 前面"🌐 全局数据库操作"章节的方法集合
-
-包含：
-- `saveNovelSiteSelector()`：保存或更新网站选择器
-- `getNovelSiteSelector()`：获取指定网站的选择器
-- `getAllNovelSiteSelectors()`：获取所有网站选择器
-
-#### 2.5 更新 `database-handlers.ts`
-
-参考 Plan3.md 前面"📡 IPC 通信层设计"章节的 IPC 处理器
-
-注册以下 IPC 通道：
-- `database:create-novel-batch` - 创建批次
-- `database:get-all-novel-batches` - 获取所有批次
-- `database:save-matched-chapters` - 保存匹配章节
-- `database:get-matched-chapters` - 获取匹配章节
-- `database:save-scraped-chapter` - 保存爬取章节
-- `database:get-scraped-chapters` - 获取爬取章节
-- `database:save-novel-site-selector` - 保存网站选择器
-- `database:get-novel-site-selector` - 获取网站选择器
-
-✅ **验证**：前端可通过 IPC 调用所有数据库操作
-
-#### 2.6 扩展前端 Store 和 Service 层
-
-在 `databaseStore.ts` 中添加对应的 IPC 调用包装方法。
+// 预期结果
+✅ 显示空状态提示："请先创建或选择一个批次"
+✅ "智能匹配章节列表" 按钮禁用
+✅ "爬取章节" 按钮禁用
+✅ 模式选择器禁用
+```
 
 ---
 
-### Phase 3: 前端 UI 改造（用户界面阶段）
+## 🔄 Iteration 2: 章节匹配功能（端到端）
 
-#### 3.1 改造 `NovelScraperPanel.vue`
+**目标**：用户可以智能匹配章节列表，并保存到数据库，切换批次时自动恢复匹配结果
 
-参考 Plan3.md 前面"🎨 前端组件扩展设计"章节的设计
+### 📝 任务清单
 
-主要改造：
-- ✅ 添加批次选择下拉菜单（顶部左侧）
-- ✅ 未选择批次时禁用所有操作
-- ✅ 创建新批次对话框
-- ✅ 自动加载批次数据并恢复 UI 状态
+#### 2.1 后端：添加匹配章节表 Schema
 
-#### 3.2 改造 `ChapterListSection.vue`
+**文件位置**：`Nimbria/src-electron/services/database-service/schema/versions/v1.2.5.schema.ts`
 
-- ✅ 添加搜索框
-- ✅ 添加选择模式切换
-- ✅ 支持全选/取消全选
+- [ ] 在 `PROJECT_TABLES` 中添加 `SearchAndScraper_novel_matched_chapters` 表定义
 
-#### 3.3 改造 `ChapterSummarySection.vue`
+#### 2.2 后端：添加匹配章节管理方法
 
-- 无需大改，支持显示已爬取章节摘要（已有功能）
+**文件位置**：`Nimbria/src-electron/services/database-service/project-database.ts`
 
-✅ **验证**：用户可以创建批次、管理章节、查看爬取进度
+- [ ] 添加 `saveMatchedChapters()` 方法
+- [ ] 添加 `getMatchedChapters()` 方法
+- [ ] 添加 `toggleChapterSelection()` 方法
+- [ ] 添加 `updateNovelBatchStats()` 方法
+
+#### 2.3 IPC：注册匹配章节通道
+
+**文件位置**：`Nimbria/src-electron/ipc/database-handlers.ts`
+
+- [ ] 注册 `database:save-matched-chapters` 处理器
+- [ ] 注册 `database:get-matched-chapters` 处理器
+- [ ] 注册 `database:toggle-chapter-selection` 处理器
+
+#### 2.4 前端：类型定义
+
+**文件位置**：`Nimbria/Client/types/database.ts`
+
+- [ ] 添加 `SearchAndScraperNovelMatchedChapter` 接口定义
+
+#### 2.5 前端：改造 NovelScraperPanel
+
+**文件位置**：`NovelScraperPanel.vue`
+
+- [ ] 改造 `handleMatchChapters()` 方法，匹配成功后调用 `database:save-matched-chapters`
+- [ ] 实现 `loadBatchData()` 方法，切换批次时自动加载匹配章节
+- [ ] 启用"智能匹配章节列表"按钮（选择批次后）
+
+#### 2.6 前端：改造 ChapterListSection
+
+**文件位置**：`ChapterListSection.vue`
+
+- [ ] 添加搜索框（过滤章节标题）
+- [ ] 添加全选/取消全选按钮
+- [ ] 支持单个章节的选中/取消选中
+- [ ] 章节列表项显示选中状态（复选框）
+- [ ] 选中状态变更时调用 `database:toggle-chapter-selection`
+
+### ✅ 验证标准
+
+**测试场景1：智能匹配并保存**
+```typescript
+// 操作步骤
+1. 选择批次1
+2. 在 BrowserView 中打开小说目录页
+3. 点击"智能匹配章节列表"
+4. 等待匹配完成
+
+// 预期结果
+✅ ChapterListSection 显示匹配到的章节（例如50章）
+✅ 后端日志：INSERT INTO SearchAndScraper_novel_matched_chapters ... (50次)
+✅ 批次统计更新：total_matched = 50
+✅ 所有章节默认为选中状态（is_selected = 1）
+```
+
+**测试场景2：切换批次自动恢复数据**
+```typescript
+// 操作步骤
+1. 批次1 匹配了 50 章
+2. 切换到批次2（空批次）
+3. 再切换回批次1
+
+// 预期结果
+✅ 批次1 的章节列表自动恢复显示（50章）
+✅ 每个章节的选中状态与之前一致
+✅ 没有重新请求后端匹配
+```
+
+**测试场景3：章节选择与统计**
+```typescript
+// 操作步骤
+1. 在章节列表中取消选中第5-10章（6章）
+2. 点击全选
+3. 点击取消全选
+
+// 预期结果
+✅ 取消选中后，章节复选框变为未选中状态
+✅ 数据库中 is_selected 字段更新为 0
+✅ 全选后，所有章节变为选中状态
+✅ 取消全选后，所有章节变为未选中状态
+```
+
+**测试场景4：章节搜索**
+```typescript
+// 操作步骤
+1. 匹配了50章
+2. 在搜索框输入"第一"
+3. 清空搜索框
+
+// 预期结果
+✅ 搜索后仅显示标题包含"第一"的章节
+✅ 清空搜索后显示所有章节
+✅ 搜索不影响选中状态
+```
 
 ---
 
-### Phase 4: 集成与测试（交付阶段）
+## 🔄 Iteration 3: 章节爬取功能（端到端）
 
-#### 4.1 功能测试
+**目标**：用户可以爬取选中的章节，实时保存到数据库，显示爬取进度
 
-- [ ] 新用户场景：创建项目 → 创建批次 → 智能匹配 → 爬取章节
-- [ ] 批次管理：创建多个批次 → 切换批次 → 数据隔离验证
-- [ ] 选择器学习：匹配到的选择器是否正确保存到全局数据库
-- [ ] 跨项目使用：在新项目中验证是否能访问已学习的选择器
+### 📝 任务清单
 
-#### 4.2 数据库迁移测试
+#### 3.1 后端：添加爬取章节表 Schema
 
-- [ ] 新用户升级：v1.0.0 → v1.2.5 自动迁移验证
-- [ ] 数据完整性：迁移前后数据是否完好
-- [ ] 日志检查：迁移过程是否有正确的控制台日志输出
+**文件位置**：`v1.2.5.schema.ts`
 
-#### 4.3 性能测试
+- [ ] 在 `PROJECT_TABLES` 中添加 `SearchAndScraper_novel_scraped_chapters` 表定义
 
-- [ ] 批量创建批次（100+）性能
-- [ ] 批量保存匹配章节（1000+）性能
-- [ ] 批量保存爬取章节（1000+）性能
+#### 3.2 后端：添加爬取章节管理方法
+
+**文件位置**：`project-database.ts`
+
+- [ ] 添加 `saveScrapedChapter()` 方法
+- [ ] 添加 `getScrapedChapters()` 方法
+- [ ] 添加 `getNovelBatchSummary()` 方法
+
+#### 3.3 IPC：注册爬取章节通道
+
+**文件位置**：`database-handlers.ts`
+
+- [ ] 注册 `database:save-scraped-chapter` 处理器
+- [ ] 注册 `database:get-scraped-chapters` 处理器
+- [ ] 注册 `database:get-novel-batch-summary` 处理器
+
+#### 3.4 前端：类型定义
+
+**文件位置**：`Client/types/database.ts`
+
+- [ ] 添加 `SearchAndScraperNovelScrapedChapter` 接口定义
+
+#### 3.5 前端：改造爬取逻辑
+
+**文件位置**：`NovelScraperPanel.vue`
+
+- [ ] 改造 `scrapeBrowserMode()` 方法
+- [ ] 每爬取成功一个章节，立即调用 `database:save-scraped-chapter`
+- [ ] 更新 matched_chapter 的 `is_scraped` 状态
+- [ ] 实时更新批次统计信息
+
+#### 3.6 前端：改造 ChapterSummarySection
+
+**文件位置**：`ChapterSummarySection.vue`
+
+- [ ] 从数据库加载已爬取章节（而不是从 store）
+- [ ] 显示章节摘要（前200字）
+- [ ] 显示字数统计
+- [ ] 显示爬取耗时
+
+### ✅ 验证标准
+
+**测试场景1：爬取并实时保存**
+```typescript
+// 操作步骤
+1. 选择批次1（已匹配50章，全部选中）
+2. 点击"爬取章节"
+3. 观察爬取进度
+
+// 预期结果
+✅ 爬取进度实时更新（1/50, 2/50, ...）
+✅ 每爬取成功1章，后端日志显示：INSERT INTO SearchAndScraper_novel_scraped_chapters ...
+✅ ChapterListSection 中对应章节标记为"已爬取"（绿色勾号）
+✅ ChapterSummarySection 实时更新已爬取章节列表
+✅ 批次统计实时更新：total_scraped 逐步增加
+```
+
+**测试场景2：爬取中断与恢复**
+```typescript
+// 操作步骤
+1. 开始爬取50章
+2. 爬取到第10章时，点击"暂停"或关闭窗口
+3. 重新打开项目，进入该批次
+4. 再次点击"爬取章节"
+
+// 预期结果
+✅ 前10章显示为"已爬取"，不会重复爬取
+✅ 从第11章开始继续爬取
+✅ ChapterSummarySection 显示所有已爬取章节（包括之前的10章）
+```
+
+**测试场景3：批次统计准确性**
+```typescript
+// 操作步骤
+1. 批次1：匹配100章，选中50章，爬取完成
+2. 查看批次下拉菜单
+
+// 预期结果
+✅ 批次1 显示：测试小说批次1 (50/100)
+✅ 批次统计准确：total_matched=100, total_scraped=50
+```
+
+**测试场景4：章节内容完整性**
+```typescript
+// 操作步骤
+1. 爬取完成后，在 ChapterSummarySection 点击某个章节
+2. 查看章节详情（可能需要添加详情弹窗）
+
+// 预期结果
+✅ 章节标题正确
+✅ 章节URL正确
+✅ 章节正文内容完整（与网站一致）
+✅ 字数统计正确
+✅ 爬取耗时显示正确（单位：毫秒）
+```
 
 ---
 
-### 快速检查清单
+## 🔄 Iteration 4: 全局选择器学习（端到端）
+
+**目标**：智能模式自动学习并保存网站选择器到全局数据库，跨项目复用
+
+### 📝 任务清单
+
+#### 4.1 后端：添加全局数据库方法
+
+**文件位置**：`Nimbria/src-electron/services/database-service/database-service.ts`
+
+- [ ] 添加 `saveNovelSiteSelector()` 方法
+- [ ] 添加 `getNovelSiteSelector()` 方法
+- [ ] 添加 `getAllNovelSiteSelectors()` 方法
+
+#### 4.2 IPC：注册选择器通道
+
+**文件位置**：`database-handlers.ts`
+
+- [ ] 注册 `database:save-novel-site-selector` 处理器
+- [ ] 注册 `database:get-novel-site-selector` 处理器
+
+#### 4.3 前端：类型定义
+
+**文件位置**：`Client/types/database.ts`
+
+- [ ] 添加 `SearchAndScraperNovelSiteSelector` 接口定义
+
+#### 4.4 前端：集成选择器学习
+
+**文件位置**：`NovelScraperPanel.vue`
+
+- [ ] 在 `handleMatchChapters()` 成功后，提取并保存 `chapter_list_selector`
+- [ ] 在 `scrapeBrowserMode()` 成功后，提取并保存 `chapter_content_selector`
+- [ ] 在匹配前，先尝试从全局数据库加载已有选择器（预填充）
+
+#### 4.5 前端：选择器管理界面（可选）
+
+**新增组件**：`SelectorManagementDialog.vue`
+
+- [ ] 列表显示所有已学习的网站选择器
+- [ ] 显示网站域名、成功次数、最后使用时间
+- [ ] 支持编辑选择器
+- [ ] 支持删除选择器
+
+### ✅ 验证标准
+
+**测试场景1：自动学习章节列表选择器**
+```typescript
+// 操作步骤
+1. 批次1（来源URL: www.qidian.com/book/123）
+2. 智能匹配章节列表成功（使用了选择器 .chapter-list a）
+3. 匹配完成
+
+// 预期结果
+✅ 全局数据库中插入或更新记录：
+   - site_domain: www.qidian.com
+   - chapter_list_selector: .chapter-list a
+   - success_count: 1（或递增）
+   - last_used_at: 当前时间
+```
+
+**测试场景2：跨项目复用选择器**
+```typescript
+// 操作步骤
+1. 项目A 已经学习了 www.qidian.com 的选择器
+2. 创建项目B
+3. 在项目B 中创建批次（来源URL: www.qidian.com/book/456）
+4. 智能匹配时，检查日志
+
+// 预期结果
+✅ 后端日志：[SmartMode] 从全局数据库加载选择器: www.qidian.com
+✅ 匹配使用了已有选择器，无需重新学习
+✅ success_count 递增，last_used_at 更新
+```
+
+**测试场景3：选择器管理**
+```typescript
+// 操作步骤
+1. 点击 NovelScraperPanel 的"设置"按钮
+2. 选择"选择器管理"
+3. 查看已学习的选择器列表
+
+// 预期结果
+✅ 列表显示所有网站（按使用频率排序）
+✅ 显示每个网站的选择器详情
+✅ 可以编辑选择器（例如修正错误的选择器）
+✅ 可以删除不再使用的选择器
+```
+
+---
+
+## 🔄 Iteration 5: 批次管理增强（端到端）
+
+**目标**：支持批次的重命名、删除、复制、导出等高级功能
+
+### 📝 任务清单
+
+#### 5.1 后端：添加批次管理方法
+
+**文件位置**：`project-database.ts`
+
+- [ ] 添加 `updateNovelBatch()` 方法（重命名、修改配置）
+- [ ] 添加 `deleteNovelBatch()` 方法（级联删除相关章节）
+- [ ] 添加 `duplicateNovelBatch()` 方法（复制批次）
+
+#### 5.2 IPC：注册批次管理通道
+
+**文件位置**：`database-handlers.ts`
+
+- [ ] 注册 `database:update-novel-batch` 处理器
+- [ ] 注册 `database:delete-novel-batch` 处理器
+- [ ] 注册 `database:duplicate-novel-batch` 处理器
+
+#### 5.3 前端：批次操作菜单
+
+**文件位置**：`NovelScraperPanel.vue`
+
+- [ ] 批次下拉菜单添加右键菜单（或更多按钮）
+- [ ] 菜单项：重命名、删除、复制、导出
+- [ ] 实现各操作的确认对话框
+
+#### 5.4 前端：批次导出功能
+
+**新增方法**：
+
+- [ ] 导出批次为 JSON（包含批次信息、匹配章节、爬取章节）
+- [ ] 导出批次为 TXT 或 EPUB（纯文本格式）
+
+### ✅ 验证标准
+
+**测试场景1：重命名批次**
+```typescript
+// 预期结果
+✅ 批次名称更新，下拉菜单显示新名称
+✅ 数据库记录更新，updated_at 更新
+```
+
+**测试场景2：删除批次**
+```typescript
+// 预期结果
+✅ 批次从列表中移除
+✅ 相关的 matched_chapters 和 scraped_chapters 级联删除
+✅ 删除前有二次确认对话框
+```
+
+**测试场景3：复制批次**
+```typescript
+// 预期结果
+✅ 创建新批次（名称自动加 _副本）
+✅ 复制所有 matched_chapters（保留选中状态）
+✅ 不复制 scraped_chapters（新批次需要重新爬取）
+```
+
+**测试场景4：导出批次**
+```typescript
+// 预期结果
+✅ 导出为 JSON，包含完整数据
+✅ 导出为 TXT，按章节顺序拼接正文
+✅ 文件保存到用户选择的位置
+```
+
+---
+
+## 📊 完整检查清单
 
 ```
-✅ Phase 1: 全局数据库改造
+✅ Iteration 0: 基础设施改造
   □ database-manager.ts 改造完成
   □ project-database.ts 导入改为动态版本
-  □ 验证应用启动正常
+  □ 应用启动验证通过
 
-✅ Phase 2: SearchAndScraper 数据库功能
-  □ v1.2.5.schema.ts 创建完成
-  □ schema/versions/index.ts 更新完成
-  □ ProjectDatabase 业务方法添加完成
-  □ DatabaseService 全局方法添加完成
-  □ database-handlers.ts IPC 处理器注册完成
-  □ 前端 Store 包装方法添加完成
+✅ Iteration 1: 批次创建功能
+  □ v1.2.5.schema.ts 创建（batch 表）
+  □ schema/versions/index.ts 更新
+  □ ProjectDatabase.createNovelBatch() 实现
+  □ IPC 通道注册完成
+  □ NovelScraperPanel 批次UI实现
+  □ 测试场景1-3 全部通过
 
-✅ Phase 3: 前端 UI 改造
-  □ NovelScraperPanel.vue 改造完成
-  □ ChapterListSection.vue 改造完成
-  □ ChapterSummarySection.vue 验证完成
+✅ Iteration 2: 章节匹配功能
+  □ matched_chapters 表 Schema 添加
+  □ ProjectDatabase 匹配章节方法实现
+  □ IPC 通道注册完成
+  □ NovelScraperPanel 匹配逻辑改造
+  □ ChapterListSection 改造完成
+  □ 测试场景1-4 全部通过
 
-✅ Phase 4: 集成与测试
-  □ 功能测试全部通过
-  □ 数据库迁移测试通过
-  □ 性能测试通过
+✅ Iteration 3: 章节爬取功能
+  □ scraped_chapters 表 Schema 添加
+  □ ProjectDatabase 爬取章节方法实现
+  □ IPC 通道注册完成
+  □ NovelScraperPanel 爬取逻辑改造
+  □ ChapterSummarySection 改造完成
+  □ 测试场景1-4 全部通过
+
+✅ Iteration 4: 全局选择器学习
+  □ DatabaseService 全局方法实现
+  □ IPC 通道注册完成
+  □ NovelScraperPanel 选择器学习集成
+  □ SelectorManagementDialog 实现（可选）
+  □ 测试场景1-3 全部通过
+
+✅ Iteration 5: 批次管理增强
+  □ 批次管理方法实现
+  □ IPC 通道注册完成
+  □ 批次操作菜单实现
+  □ 批次导出功能实现
+  □ 测试场景1-4 全部通过
 ```
 
 ---
 
-Boss，这就是完整的改造计划！核心特点：
+## 🎯 端到端增量开发的优势
 
-1. ✅ **分阶段实施**：基础改造 → 业务功能 → UI 改造 → 集成测试
-2. ✅ **渐进式开发**：全局数据库现在支持版本演进，每次只需添加新Schema
-3. ✅ **数据隔离**：批次之间数据完全独立，互不影响
-4. ✅ **选择器复用**：全局学习选择器，跨项目共享
-5. ✅ **易于验证**：提供了详细的测试清单和验证点
+1. **✅ 快速验证**：每个迭代完成后立即可以测试完整功能链路
+2. **✅ 及早发现问题**：如果某个环节有问题，马上就能发现，而不是等到集成阶段
+3. **✅ 渐进式交付**：每个迭代都交付可用的功能，用户可以尽早使用
+4. **✅ 降低风险**：避免"大爆炸式集成"，减少后期返工
+5. **✅ 持续反馈**：每次迭代后可以根据反馈调整后续计划
+
+---
+
+Boss，这就是改造后的端到端增量开发计划！每个 Iteration 都是一个完整的功能闭环，可以独立验证。你觉得怎么样？

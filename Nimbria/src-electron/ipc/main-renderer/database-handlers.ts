@@ -252,6 +252,76 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
       return { success: false, error: error.message }
     }
   })
+
+  // ========== SearchAndScraper 批次管理 ==========
+
+  // 创建批次
+  ipcMain.handle('database:search-scraper-create-novel-batch', async (_event, { projectPath, data }) => {
+    try {
+      console.log('🔵 [IPC] 调用: database:search-scraper-create-novel-batch')
+      const projectDb = databaseService.getProjectDatabase(projectPath)
+      if (!projectDb) {
+        return { success: false, error: 'Project database not found' }
+      }
+      
+      const batchId = projectDb.createNovelBatch(data)
+      return { success: true, batchId }
+    } catch (error: any) {
+      console.error('❌ [IPC] database:search-scraper-create-novel-batch 失败:', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 获取所有批次
+  ipcMain.handle('database:search-scraper-get-all-novel-batches', async (_event, { projectPath }) => {
+    try {
+      console.log('🔵 [IPC] 调用: database:search-scraper-get-all-novel-batches')
+      const projectDb = databaseService.getProjectDatabase(projectPath)
+      if (!projectDb) {
+        return { success: false, error: 'Project database not found' }
+      }
+      
+      const batches = projectDb.getAllNovelBatches()
+      return { success: true, batches }
+    } catch (error: any) {
+      console.error('❌ [IPC] database:search-scraper-get-all-novel-batches 失败:', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 获取批次详情
+  ipcMain.handle('database:search-scraper-get-novel-batch', async (_event, { projectPath, batchId }) => {
+    try {
+      console.log('🔵 [IPC] 调用: database:search-scraper-get-novel-batch, batchId:', batchId)
+      const projectDb = databaseService.getProjectDatabase(projectPath)
+      if (!projectDb) {
+        return { success: false, error: 'Project database not found' }
+      }
+      
+      const batch = projectDb.getNovelBatch(batchId)
+      return { success: true, batch }
+    } catch (error: any) {
+      console.error('❌ [IPC] database:search-scraper-get-novel-batch 失败:', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 更新批次统计
+  ipcMain.handle('database:search-scraper-update-novel-batch-stats', async (_event, { projectPath, batchId, stats }) => {
+    try {
+      console.log('🔵 [IPC] 调用: database:search-scraper-update-novel-batch-stats, batchId:', batchId)
+      const projectDb = databaseService.getProjectDatabase(projectPath)
+      if (!projectDb) {
+        return { success: false, error: 'Project database not found' }
+      }
+      
+      projectDb.updateNovelBatchStats(batchId, stats)
+      return { success: true }
+    } catch (error: any) {
+      console.error('❌ [IPC] database:search-scraper-update-novel-batch-stats 失败:', error)
+      return { success: false, error: error.message }
+    }
+  })
   
   console.log('✅ [IPC] Database IPC处理器注册完成')
 }
