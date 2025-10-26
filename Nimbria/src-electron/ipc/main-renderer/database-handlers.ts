@@ -63,9 +63,9 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
       console.log('🔵 [IPC] 调用: database:initialize')
       const initId = await databaseService.initialize()
       return { success: true, initId }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [IPC] database:initialize 失败:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
   
@@ -75,9 +75,9 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
       console.log('🔵 [IPC] 调用: database:create-project, 项目路径:', projectPath)
       const operationId = await databaseService.createProjectDatabase(projectPath)
       return { success: true, operationId }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [IPC] database:create-project 失败:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
 
@@ -92,9 +92,9 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
       
       const stats = await projectDb.getStats()
       return { success: true, stats }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [IPC] database:get-stats 失败:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
   
@@ -109,9 +109,9 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
       
       const value = await projectDb.getMetadata(key)
       return { success: true, value }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [IPC] database:get-metadata 失败:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
   
@@ -126,9 +126,9 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
       
       await projectDb.setMetadata(key, value, type)
       return { success: true }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [IPC] database:set-metadata 失败:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
 
@@ -145,9 +145,9 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
       
       const conversations = await projectDb.getConversations()
       return { success: true, conversations }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [IPC] database:llm-get-conversations 失败:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
 
@@ -162,9 +162,9 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
       
       const conversation = await projectDb.getConversation(conversationId)
       return { success: true, conversation }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [IPC] database:llm-get-conversation 失败:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
 
@@ -179,9 +179,9 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
       
       await projectDb.createConversation(conversation)
       return { success: true }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [IPC] database:llm-create-conversation 失败:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
 
@@ -196,9 +196,9 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
       
       await projectDb.addMessage(message)
       return { success: true }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [IPC] database:llm-add-message 失败:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
 
@@ -213,9 +213,9 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
       
       await projectDb.deleteConversation(conversationId)
       return { success: true }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [IPC] database:llm-delete-conversation 失败:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
 
@@ -230,9 +230,9 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
       
       await projectDb.updateConversationTitle(conversationId, title)
       return { success: true }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [IPC] database:llm-update-conversation-title 失败:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
 
@@ -247,9 +247,9 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
       
       const conversations = await projectDb.searchConversations(query)
       return { success: true, conversations }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [IPC] database:llm-search-conversations 失败:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
 
@@ -266,9 +266,9 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
       
       const batchId = projectDb.createNovelBatch(data)
       return { success: true, batchId }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [IPC] database:search-scraper-create-novel-batch 失败:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
 
@@ -283,9 +283,9 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
       
       const batches = projectDb.getAllNovelBatches()
       return { success: true, batches }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [IPC] database:search-scraper-get-all-novel-batches 失败:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
 
@@ -300,9 +300,9 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
       
       const batch = projectDb.getNovelBatch(batchId)
       return { success: true, batch }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [IPC] database:search-scraper-get-novel-batch 失败:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
 
@@ -317,9 +317,132 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
       
       projectDb.updateNovelBatchStats(batchId, stats)
       return { success: true }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [IPC] database:search-scraper-update-novel-batch-stats 失败:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+
+  // ========== 匹配章节管理 ==========
+
+  // 保存匹配章节
+  ipcMain.handle('database:search-scraper-save-matched-chapters', async (_event, { projectPath, batchId, chapters, sourcePageUrl }) => {
+    try {
+      console.log('🔵 [IPC] 调用: database:search-scraper-save-matched-chapters, batchId:', batchId, 'chapters:', chapters.length)
+      const projectDb = databaseService.getProjectDatabase(projectPath)
+      if (!projectDb) {
+        return { success: false, error: 'Project database not found' }
+      }
+      
+      const savedChapters = projectDb.saveMatchedChapters(batchId, chapters, sourcePageUrl)
+      return { success: true, chapters: savedChapters }
+    } catch (error: unknown) {
+      console.error('❌ [IPC] database:search-scraper-save-matched-chapters 失败:', error)
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+
+  // 获取匹配章节列表
+  ipcMain.handle('database:search-scraper-get-matched-chapters', async (_event, { projectPath, batchId }) => {
+    try {
+      console.log('🔵 [IPC] 调用: database:search-scraper-get-matched-chapters, batchId:', batchId)
+      const projectDb = databaseService.getProjectDatabase(projectPath)
+      if (!projectDb) {
+        return { success: false, error: 'Project database not found' }
+      }
+      
+      const chapters = projectDb.getMatchedChapters(batchId)
+      return { success: true, chapters }
+    } catch (error: unknown) {
+      console.error('❌ [IPC] database:search-scraper-get-matched-chapters 失败:', error)
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+
+  // 切换单个章节选中状态
+  ipcMain.handle('database:search-scraper-toggle-chapter-selection', async (_event, { projectPath, chapterId, selected }) => {
+    try {
+      console.log('🔵 [IPC] 调用: database:search-scraper-toggle-chapter-selection, chapterId:', chapterId, 'selected:', selected)
+      const projectDb = databaseService.getProjectDatabase(projectPath)
+      if (!projectDb) {
+        return { success: false, error: 'Project database not found' }
+      }
+      
+      projectDb.toggleChapterSelection(chapterId, selected)
+      return { success: true }
+    } catch (error: unknown) {
+      console.error('❌ [IPC] database:search-scraper-toggle-chapter-selection 失败:', error)
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+
+  // 全选/取消全选章节
+  ipcMain.handle('database:search-scraper-toggle-all-chapters-selection', async (_event, { projectPath, batchId, selected }) => {
+    try {
+      console.log('🔵 [IPC] 调用: database:search-scraper-toggle-all-chapters-selection, batchId:', batchId, 'selected:', selected)
+      const projectDb = databaseService.getProjectDatabase(projectPath)
+      if (!projectDb) {
+        return { success: false, error: 'Project database not found' }
+      }
+
+      projectDb.toggleAllChaptersSelection(batchId, selected)
+      return { success: true }
+    } catch (error: unknown) {
+      console.error('❌ [IPC] database:search-scraper-toggle-all-chapters-selection 失败:', error)
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+
+  // ==================== 爬取章节管理（Iteration 3）====================
+
+  // 保存爬取的章节
+  ipcMain.handle('database:search-scraper-save-scraped-chapter', async (_event, { projectPath, data }) => {
+    try {
+      console.log('🔵 [IPC] 调用: database:search-scraper-save-scraped-chapter, batchId:', data.batchId)
+      const projectDb = databaseService.getProjectDatabase(projectPath)
+      if (!projectDb) {
+        return { success: false, error: 'Project database not found' }
+      }
+
+      projectDb.saveScrapedChapter(data)
+      return { success: true }
+    } catch (error: unknown) {
+      console.error('❌ [IPC] database:search-scraper-save-scraped-chapter 失败:', error)
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+
+  // 获取批次的爬取章节
+  ipcMain.handle('database:search-scraper-get-scraped-chapters', async (_event, { projectPath, batchId }) => {
+    try {
+      console.log('🔵 [IPC] 调用: database:search-scraper-get-scraped-chapters, batchId:', batchId)
+      const projectDb = databaseService.getProjectDatabase(projectPath)
+      if (!projectDb) {
+        return { success: false, error: 'Project database not found' }
+      }
+
+      const chapters = projectDb.getScrapedChapters(batchId)
+      return { success: true, chapters }
+    } catch (error: unknown) {
+      console.error('❌ [IPC] database:search-scraper-get-scraped-chapters 失败:', error)
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+
+  // 获取批次统计摘要
+  ipcMain.handle('database:search-scraper-get-batch-summary', async (_event, { projectPath, batchId }) => {
+    try {
+      console.log('🔵 [IPC] 调用: database:search-scraper-get-batch-summary, batchId:', batchId)
+      const projectDb = databaseService.getProjectDatabase(projectPath)
+      if (!projectDb) {
+        return { success: false, error: 'Project database not found' }
+      }
+
+      const summary = projectDb.getNovelBatchSummary(batchId)
+      return { success: true, summary }
+    } catch (error: unknown) {
+      console.error('❌ [IPC] database:search-scraper-get-batch-summary 失败:', error)
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
   

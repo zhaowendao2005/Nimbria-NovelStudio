@@ -7,10 +7,33 @@
 
 ### 数据流程
 ```
-用户创建批次 → 智能匹配章节列表 → 存储到 matched_chapters 
-→ 用户选择爬取 → 存储到 scraped_chapters
-→ 学习到的选择器 → 存储到全局数据库 site_selectors
+用户创建批次 
+  ↓
+【Iteration 2】智能匹配章节列表
+  - 当前页面：目录页（同构）
+  - 批量提取：章节标题 + URL
+  - 存储到：matched_chapters 表
+  - 学习：chapter_list_selector → site_selectors 表
+  ↓
+【Iteration 3】爬取章节内容
+  - 遍历每个章节URL
+  - 逐个提取：正文内容 + 摘要
+  - 存储到：scraped_chapters 表
+  - 学习：chapter_content_selector → site_selectors 表
 ```
+
+### 🎯 两种操作的本质区别
+
+| 维度 | Iteration 2：匹配章节列表 | Iteration 3：爬取章节内容 |
+|------|------------------------|------------------------|
+| **操作对象** | 目录页（1页或多页） | 每个章节页（N个） |
+| **页面特征** | 同构（结构相同） | 可能结构不同 |
+| **提取内容** | 章节标题 + URL（元数据） | 正文内容 + 摘要 |
+| **操作方式** | **批量**提取 | **逐个**遍历 |
+| **选择器** | `chapter_list_selector` | `chapter_content_selector` |
+| **数据库表** | `matched_chapters` | `scraped_chapters` |
+| **示例选择器** | `.chapter-list a` | `.read-content p` |
+| **BrowserView位置** | 停留在目录页 | 遍历每个章节页 |
 
 ---
 
@@ -21,20 +44,15 @@
 按照数据库修改工作流，我需要创建新版本的 Schema：
 
 ```typescript
-// ==================== 批次表 ====================
+// ==================== 批次表（简化版 - Iteration 1已实现）====================
 export interface SearchAndScraperNovelBatch {
   id: string                    // 批次ID（主键）
   name: string                  // 批次名称（用户自定义）
-  source_url: string            // 来源URL（小说目录页）
-  site_domain: string           // 网站域名（用于关联全局选择器）
-  scrape_mode: 'smart' | 'light' // 爬取模式
+  description?: string          // 批次描述（可选）
   
   // 统计信息
   total_matched: number         // 匹配到的章节总数
   total_scraped: number         // 已爬取的章节总数
-  
-  // 轻量模式配置（JSON 序列化）
-  light_mode_config?: string    // { selector, parallelCount, timeout }
   
   // 时间戳
   created_at: string
@@ -46,23 +64,40 @@ const SEARCH_AND_SCRAPER_NOVEL_BATCH_TABLE: TableDefinition = {
   sql: `CREATE TABLE IF NOT EXISTS SearchAndScraper_novel_batch (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    source_url TEXT NOT NULL,
-    site_domain TEXT NOT NULL,
-    scrape_mode TEXT DEFAULT 'smart' CHECK(scrape_mode IN ('smart', 'light')),
+    description TEXT,
     
     total_matched INTEGER DEFAULT 0,
     total_scraped INTEGER DEFAULT 0,
-    
-    light_mode_config TEXT,
     
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`,
   indexes: [
     `CREATE INDEX IF NOT EXISTS idx_novel_batch_updated ON SearchAndScraper_novel_batch(updated_at DESC)`,
-    `CREATE INDEX IF NOT EXISTS idx_novel_batch_domain ON SearchAndScraper_novel_batch(site_domain)`
+    `CREATE INDEX IF NOT EXISTS idx_novel_batch_name ON SearchAndScraper_novel_batch(name)`
   ]
 }
+
+/**
+ * 🎯 批次表设计理念（Iteration 1决策）
+ * 
+ * 采用**简化设计**，不绑定来源URL，理由：
+ * 1. ✅ 用户可能在不同页面匹配章节（提升灵活性）
+ * 2. ✅ 一个批次可以包含来自多个来源的章节（支持合集）
+ * 3. ✅ 批次作为纯粹的"组织容器"，不限定数据来源
+ * 
+ * URL信息存储策略：
+ * - 批次级别：仅存储 name + description
+ * - 章节级别：每个章节存储完整的 url 字段
+ * - 选择器关联：从章节URL或当前BrowserView的URL提取域名
+ * 
+ * 工作流程：
+ * 1. 用户创建批次（填写名称和描述）
+ * 2. 用户手动在BrowserView中打开目录页
+ * 3. 点击"智能匹配章节列表"，前端传递当前页面URL给后端
+ * 4. 后端从URL提取域名，用于关联全局选择器表
+ * 5. 章节信息（包括URL）存储在matched_chapters表中
+ */
 
 // ==================== 匹配章节表 ====================
 export interface SearchAndScraperNovelMatchedChapter {
@@ -152,14 +187,31 @@ const SEARCH_AND_SCRAPER_NOVEL_SCRAPED_CHAPTERS_TABLE: TableDefinition = {
 
 ```typescript
 // ==================== 网站选择器配置表 ====================
+/**
+ * 🎯 两种选择器的本质区别：
+ * 
+ * 1️⃣ chapter_list_selector（章节列表选择器）
+ *    - 用途：从**目录页**批量提取章节标题和URL
+ *    - 页面：一页或多页**同构**的目录页
+ *    - 时机：Iteration 2 - 匹配章节列表时学习
+ *    - 示例：`.chapter-list a`, `.book-catalog li a`
+ *    - 特点：批量操作，一次提取多个章节的元数据
+ * 
+ * 2️⃣ chapter_content_selector（章节内容选择器）
+ *    - 用途：从**每个章节页**提取正文内容
+ *    - 页面：需要遍历每个章节URL，逐个访问
+ *    - 时机：Iteration 3 - 爬取章节内容时学习
+ *    - 示例：`.content p`, `#chapter-content`, `.read-content`
+ *    - 特点：逐个处理，每个章节页面可能结构不同
+ */
 export interface SearchAndScraperNovelSiteSelector {
   id: string                    // 主键
   site_domain: string           // 网站域名（唯一键，如 www.qidian.com）
   site_name: string             // 网站名称（用户友好的显示名）
   
-  // 选择器配置
-  chapter_list_selector: string // 章节列表选择器
-  chapter_content_selector: string // 章节内容选择器
+  // 选择器配置（两个独立的选择器，分别学习）
+  chapter_list_selector: string   // 章节列表选择器（Iteration 2学习）
+  chapter_content_selector: string // 章节内容选择器（Iteration 3学习）
   
   // 特殊逻辑处理（占位，JSON 序列化）
   special_logic?: string        // { type: 'pagination', config: {...} }
@@ -353,23 +405,20 @@ import { CURRENT_PROJECT_SCHEMA_VERSION } from './schema/versions'
 // ==================== 批次管理 ====================
 
 /**
- * 创建新批次
+ * 创建新批次（简化版 - Iteration 1已实现）
+ * 不绑定来源URL，由用户手动导航到目录页
  */
 async createNovelBatch(data: {
   name: string
-  sourceUrl: string
-  scrapeMode: 'smart' | 'light'
+  description?: string
 }): Promise<string> {
   const batchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
   
-  // 提取域名
-  const siteDomain = this.extractDomain(data.sourceUrl)
-  
   this.execute(
     `INSERT INTO SearchAndScraper_novel_batch 
-    (id, name, source_url, site_domain, scrape_mode) 
-    VALUES (?, ?, ?, ?, ?)`,
-    [batchId, data.name, data.sourceUrl, siteDomain, data.scrapeMode]
+    (id, name, description) 
+    VALUES (?, ?, ?)`,
+    [batchId, data.name, data.description || null]
   )
   
   return batchId
@@ -428,11 +477,18 @@ async updateNovelBatchStats(batchId: string, stats: {
 
 /**
  * 批量保存匹配到的章节
+ * @param batchId 批次ID
+ * @param chapters 章节数组
+ * @param sourcePageUrl 来源页面URL（可选，用于提取域名学习选择器）
  */
-async saveMatchedChapters(batchId: string, chapters: Array<{
-  title: string
-  url: string
-}>): Promise<void> {
+async saveMatchedChapters(
+  batchId: string, 
+  chapters: Array<{
+    title: string
+    url: string
+  }>,
+  sourcePageUrl?: string
+): Promise<void> {
   // 清空旧数据
   this.execute(
     `DELETE FROM SearchAndScraper_novel_matched_chapters WHERE batch_id = ?`,
@@ -454,6 +510,13 @@ async saveMatchedChapters(batchId: string, chapters: Array<{
   
   // 更新批次统计
   await this.updateNovelBatchStats(batchId, { totalMatched: chapters.length })
+  
+  // ✨ 提取域名用于选择器学习（Iteration 4）
+  if (sourcePageUrl && chapters.length > 0) {
+    const siteDomain = this.extractDomain(sourcePageUrl)
+    // TODO: 在全局数据库中记录或更新选择器
+    console.log(`[Iteration 4] 学习选择器 - 域名: ${siteDomain}`)
+  }
 }
 
 /**
@@ -782,30 +845,26 @@ async getAllNovelSiteSelectors(): Promise<SearchAndScraperNovelSiteSelector[]> {
       </div>
     </div>
     
-    <!-- 🆕 创建批次对话框 -->
+    <!-- 🆕 创建批次对话框（简化版） -->
     <el-dialog
       v-model="showCreateBatchDialog"
       title="创建新批次"
       width="500px"
     >
       <el-form :model="createBatchForm" label-width="100px">
-        <el-form-item label="批次名称">
+        <el-form-item label="批次名称" required>
           <el-input
             v-model="createBatchForm.name"
             placeholder="例如：《三体》第一部"
           />
         </el-form-item>
-        <el-form-item label="来源URL">
+        <el-form-item label="批次描述">
           <el-input
-            v-model="createBatchForm.sourceUrl"
-            placeholder="小说目录页URL"
+            v-model="createBatchForm.description"
+            type="textarea"
+            :rows="3"
+            placeholder="可选：批次备注信息"
           />
-        </el-form-item>
-        <el-form-item label="爬取模式">
-          <el-radio-group v-model="createBatchForm.scrapeMode">
-            <el-radio label="smart">智能模式</el-radio>
-            <el-radio label="light">轻量模式</el-radio>
-          </el-radio-group>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -825,8 +884,7 @@ const batchList = ref<SearchAndScraperNovelBatch[]>([])
 const showCreateBatchDialog = ref(false)
 const createBatchForm = ref({
   name: '',
-  sourceUrl: '',
-  scrapeMode: 'smart' as 'smart' | 'light'
+  description: ''
 })
 
 // 🆕 是否允许操作（只有选择了有效批次才允许）
@@ -884,16 +942,17 @@ const loadBatchData = async (batchId: string) => {
   }
 }
 
-// 🆕 创建批次
+// 🆕 创建批次（简化版）
 const handleCreateBatch = async () => {
-  if (!createBatchForm.value.name || !createBatchForm.value.sourceUrl) {
-    ElMessage.warning({ message: '请填写完整信息' })
+  if (!createBatchForm.value.name) {
+    ElMessage.warning({ message: '请填写批次名称' })
     return
   }
   
   const result = await window.api.database.createNovelBatch({
     projectPath: currentProjectPath.value,
-    ...createBatchForm.value
+    name: createBatchForm.value.name,
+    description: createBatchForm.value.description || undefined
   })
   
   if (result.success) {
@@ -904,6 +963,9 @@ const handleCreateBatch = async () => {
     await loadBatchList()
     currentBatchId.value = result.batchId
     await loadBatchData(result.batchId)
+    
+    // 清空表单
+    createBatchForm.value = { name: '', description: '' }
   } else {
     ElMessage.error({ message: '批次创建失败' })
   }
@@ -915,11 +977,15 @@ const handleMatchChapters = async () => {
   
   // ... 原有的匹配逻辑 ...
   
+  // ✅ 获取当前 BrowserView 的 URL（用于提取域名学习选择器）
+  const currentUrl = await window.nimbria.browserView.getCurrentUrl(props.tabId)
+  
   // 匹配成功后，保存到数据库
   await window.api.database.saveMatchedChapters({
     projectPath: currentProjectPath.value,
     batchId: currentBatchId.value!,
-    chapters: matchedChapters
+    chapters: matchedChapters,
+    sourcePageUrl: currentUrl  // ✨ 传递当前页面URL
   })
 }
 
@@ -993,10 +1059,10 @@ onMounted(async () => {
 export function registerDatabaseHandlers(databaseService: DatabaseService) {
   // ==================== 批次管理 ====================
   
-  ipcMain.handle('database:create-novel-batch', async (_event, { projectPath, name, sourceUrl, scrapeMode }) => {
+  ipcMain.handle('database:create-novel-batch', async (_event, { projectPath, name, description }) => {
     try {
       const projectDb = databaseService.getProjectDatabase(projectPath)
-      const batchId = await projectDb.createNovelBatch({ name, sourceUrl, scrapeMode })
+      const batchId = await projectDb.createNovelBatch({ name, description })
       return { success: true, batchId }
     } catch (error: any) {
       return { success: false, error: error.message }
@@ -1015,10 +1081,10 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
   
   // ==================== 匹配章节管理 ====================
   
-  ipcMain.handle('database:save-matched-chapters', async (_event, { projectPath, batchId, chapters }) => {
+  ipcMain.handle('database:save-matched-chapters', async (_event, { projectPath, batchId, chapters, sourcePageUrl }) => {
     try {
       const projectDb = databaseService.getProjectDatabase(projectPath)
-      await projectDb.saveMatchedChapters(batchId, chapters)
+      await projectDb.saveMatchedChapters(batchId, chapters, sourcePageUrl)
       return { success: true }
     } catch (error: any) {
       return { success: false, error: error.message }
@@ -1149,10 +1215,11 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
 
 **文件位置**：`Nimbria/src-electron/services/database-service/project-database.ts`
 
-- [ ] 添加 `createNovelBatch()` 方法
+- [ ] 添加 `createNovelBatch()` 方法（简化版，参数：name, description?）
 - [ ] 添加 `getAllNovelBatches()` 方法
 - [ ] 添加 `getNovelBatch()` 方法
-- [ ] 添加 `extractDomain()` 工具方法
+- [ ] 添加 `updateNovelBatchStats()` 方法
+- [ ] 添加 `extractDomain()` 工具方法（用于Iteration 2-4）
 
 #### 1.4 IPC：注册批次管理通道
 
@@ -1183,27 +1250,27 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
 
 ### ✅ 验证标准
 
-**测试场景1：创建批次**
+**测试场景1：创建批次（简化版）**
 ```typescript
 // 操作步骤
 1. 打开项目 → 进入 SearchAndScraper Panel
 2. 点击批次下拉菜单 → 选择"创建新批次"
 3. 填写批次名称："测试小说批次1"
-4. 填写来源URL："https://www.qidian.com/book/123"
-5. 选择爬取模式："智能模式"
-6. 点击"创建"
+4. （可选）填写批次描述："用于测试三体小说"
+5. 点击"创建"
 
 // 预期结果
 ✅ 对话框关闭
 ✅ 批次下拉菜单自动选中新创建的批次
 ✅ 后端日志显示：INSERT INTO SearchAndScraper_novel_batch ...
 ✅ 数据库中成功插入记录（用 DB Browser 验证）
+✅ 数据库字段：id, name, description, total_matched=0, total_scraped=0
 ```
 
 **测试场景2：批次列表展示**
 ```typescript
 // 操作步骤
-1. 创建3个批次（名称、URL各不同）
+1. 创建3个批次（名称、描述各不同）
 2. 刷新页面或重新进入 Panel
 3. 打开批次下拉菜单
 
@@ -1232,6 +1299,12 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
 
 **目标**：用户可以智能匹配章节列表，并保存到数据库，切换批次时自动恢复匹配结果
 
+**核心操作**：从**目录页**批量提取章节标题和URL
+- 页面特征：一页或多页**同构**的目录页
+- 提取内容：章节标题 + 章节URL（元数据）
+- 数据存储：`matched_chapters` 表
+- 选择器学习：`chapter_list_selector`（Iteration 4）
+
 ### 📝 任务清单
 
 #### 2.1 后端：添加匹配章节表 Schema
@@ -1244,18 +1317,30 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
 
 **文件位置**：`Nimbria/src-electron/services/database-service/project-database.ts`
 
-- [ ] 添加 `saveMatchedChapters()` 方法
-- [ ] 添加 `getMatchedChapters()` 方法
-- [ ] 添加 `toggleChapterSelection()` 方法
-- [ ] 添加 `updateNovelBatchStats()` 方法
+- [ ] 添加 `saveMatchedChapters(batchId, chapters, sourcePageUrl?)` 方法
+  - 参数：chapters 数组包含 title 和 url
+  - 参数：sourcePageUrl（可选，用于提取域名）
+  - 功能：批量插入章节，更新批次统计
+  
+- [ ] 添加 `getMatchedChapters(batchId)` 方法
+  - 返回：按 chapter_index 排序的章节列表
+  
+- [ ] 添加 `toggleChapterSelection(chapterId, selected)` 方法
+  - 功能：切换单个章节的选中状态
+  
+- [ ] 添加 `toggleAllChaptersSelection(batchId, selected)` 方法（新增）
+  - 功能：全选/取消全选批次内所有章节
 
 #### 2.3 IPC：注册匹配章节通道
 
 **文件位置**：`Nimbria/src-electron/ipc/database-handlers.ts`
 
 - [ ] 注册 `database:save-matched-chapters` 处理器
+  - 参数：{ projectPath, batchId, chapters, sourcePageUrl? }
+  
 - [ ] 注册 `database:get-matched-chapters` 处理器
 - [ ] 注册 `database:toggle-chapter-selection` 处理器
+- [ ] 注册 `database:toggle-all-chapters-selection` 处理器（新增）
 
 #### 2.4 前端：类型定义
 
@@ -1267,9 +1352,16 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
 
 **文件位置**：`NovelScraperPanel.vue`
 
-- [ ] 改造 `handleMatchChapters()` 方法，匹配成功后调用 `database:save-matched-chapters`
-- [ ] 实现 `loadBatchData()` 方法，切换批次时自动加载匹配章节
-- [ ] 启用"智能匹配章节列表"按钮（选择批次后）
+- [ ] 改造 `handleMatchChapters()` 方法
+  - ✅ 获取当前 BrowserView 的 URL
+  - ✅ 调用 `database:save-matched-chapters` 时传递 sourcePageUrl
+  
+- [ ] 实现 `loadBatchData()` 方法
+  - 切换批次时自动加载匹配章节
+  - 显示章节数量统计
+  
+- [ ] 启用"智能匹配章节列表"按钮
+  - 条件：已选择批次 && BrowserView已加载页面
 
 #### 2.6 前端：改造 ChapterListSection
 
@@ -1286,8 +1378,8 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
 **测试场景1：智能匹配并保存**
 ```typescript
 // 操作步骤
-1. 选择批次1
-2. 在 BrowserView 中打开小说目录页
+1. 选择批次1（名称："三体第一部"，无来源URL绑定）
+2. ✅ 手动在 BrowserView 中打开小说目录页（例如：https://www.qidian.com/book/123）
 3. 点击"智能匹配章节列表"
 4. 等待匹配完成
 
@@ -1296,6 +1388,8 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
 ✅ 后端日志：INSERT INTO SearchAndScraper_novel_matched_chapters ... (50次)
 ✅ 批次统计更新：total_matched = 50
 ✅ 所有章节默认为选中状态（is_selected = 1）
+✅ ✨ 每个章节的URL字段记录了完整的章节链接
+✅ ✨（Iteration 4）从当前页面URL中提取域名（www.qidian.com），尝试学习选择器
 ```
 
 **测试场景2：切换批次自动恢复数据**
@@ -1343,6 +1437,13 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
 ## 🔄 Iteration 3: 章节爬取功能（端到端）
 
 **目标**：用户可以爬取选中的章节，实时保存到数据库，显示爬取进度
+
+**核心操作**：遍历每个章节URL，逐个提取正文内容
+- 页面特征：每个章节有独立的页面，可能结构不同
+- 提取内容：章节正文内容 + 摘要 + 字数等
+- 数据存储：`scraped_chapters` 表
+- 选择器学习：`chapter_content_selector`（Iteration 4）
+- 操作方式：**逐个**访问章节链接，特化处理（与Iteration 2的批量操作不同）
 
 ### 📝 任务清单
 
@@ -1454,6 +1555,11 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
 
 **目标**：智能模式自动学习并保存网站选择器到全局数据库，跨项目复用
 
+**⚠️ 重要概念区分：**
+- **章节列表选择器**：在Iteration 2（匹配章节列表）时学习，用于从目录页批量提取
+- **章节内容选择器**：在Iteration 3（爬取章节内容）时学习，用于从每个章节页提取正文
+- 这是**两个完全独立**的步骤，在**不同的页面**、**不同的时机**学习
+
 ### 📝 任务清单
 
 #### 4.1 后端：添加全局数据库方法
@@ -1481,9 +1587,21 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
 
 **文件位置**：`NovelScraperPanel.vue`
 
-- [ ] 在 `handleMatchChapters()` 成功后，提取并保存 `chapter_list_selector`
-- [ ] 在 `scrapeBrowserMode()` 成功后，提取并保存 `chapter_content_selector`
-- [ ] 在匹配前，先尝试从全局数据库加载已有选择器（预填充）
+**两个独立的学习时机：**
+
+- [ ] **时机1：匹配章节列表时（Iteration 2）**
+  - 在 `handleMatchChapters()` 成功后
+  - 当前页面：目录页（例如：www.qidian.com/book/123）
+  - 提取并保存 `chapter_list_selector`
+  - 用途：从同构的目录页批量提取章节标题和URL
+  
+- [ ] **时机2：爬取章节内容时（Iteration 3）**
+  - 在 `scrapeBrowserMode()` 每个章节爬取成功后
+  - 当前页面：章节页（例如：www.qidian.com/book/123/chapter/456）
+  - 提取并保存 `chapter_content_selector`
+  - 用途：从每个章节页提取正文内容
+  
+- [ ] 在操作前，先尝试从全局数据库加载已有选择器（预填充）
 
 #### 4.5 前端：选择器管理界面（可选）
 
@@ -1496,19 +1614,39 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
 
 ### ✅ 验证标准
 
-**测试场景1：自动学习章节列表选择器**
+**测试场景1：学习章节列表选择器（Iteration 2时机）**
 ```typescript
 // 操作步骤
-1. 批次1（来源URL: www.qidian.com/book/123）
-2. 智能匹配章节列表成功（使用了选择器 .chapter-list a）
-3. 匹配完成
+1. 批次1（名称："三体第一部"）
+2. 手动在 BrowserView 中打开目录页：www.qidian.com/book/123
+3. 点击"智能匹配章节列表"
+4. 匹配成功（使用了选择器 .chapter-list a，提取到50章）
 
 // 预期结果
 ✅ 全局数据库中插入或更新记录：
-   - site_domain: www.qidian.com
+   - site_domain: www.qidian.com（从目录页URL提取）
    - chapter_list_selector: .chapter-list a
+   - chapter_content_selector: NULL（尚未学习）
    - success_count: 1（或递增）
    - last_used_at: 当前时间
+✅ matched_chapters 表中插入50条记录（章节标题+URL）
+```
+
+**测试场景1.5：学习章节内容选择器（Iteration 3时机）**
+```typescript
+// 操作步骤（继续上一场景）
+5. 点击"爬取章节"
+6. 系统自动遍历50个章节链接
+7. 第一个章节：www.qidian.com/book/123/chapter/1
+8. 爬取成功（使用了选择器 .read-content p）
+
+// 预期结果
+✅ 全局数据库更新记录：
+   - site_domain: www.qidian.com（不变）
+   - chapter_list_selector: .chapter-list a（不变）
+   - chapter_content_selector: .read-content p（新学习）
+   - success_count: 2（递增）
+✅ scraped_chapters 表中插入50条记录（正文内容+摘要）
 ```
 
 **测试场景2：跨项目复用选择器**
@@ -1516,8 +1654,9 @@ export function registerDatabaseHandlers(databaseService: DatabaseService) {
 // 操作步骤
 1. 项目A 已经学习了 www.qidian.com 的选择器
 2. 创建项目B
-3. 在项目B 中创建批次（来源URL: www.qidian.com/book/456）
-4. 智能匹配时，检查日志
+3. 在项目B 中创建批次（名称："流浪地球"）
+4. 手动在 BrowserView 中打开 www.qidian.com/book/456
+5. 智能匹配时，检查日志
 
 // 预期结果
 ✅ 后端日志：[SmartMode] 从全局数据库加载选择器: www.qidian.com

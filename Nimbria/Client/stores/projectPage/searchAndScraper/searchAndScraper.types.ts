@@ -28,6 +28,7 @@ export interface SelectedElement {
  * 章节信息
  */
 export interface Chapter {
+  id: string        // 章节ID（从数据库matched_chapters表获取，用于关联爬取结果）
   title: string
   url: string
 }

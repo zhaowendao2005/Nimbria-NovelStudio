@@ -704,6 +704,96 @@ export interface NimbriaWindowAPI {
       batchId: string; 
       stats: { totalMatched?: number; totalScraped?: number } 
     }) => Promise<{ success: boolean; error?: string }>
+
+    // SearchAndScraper 章节匹配管理
+    searchScraperSaveMatchedChapters: (args: { 
+      projectPath: string
+      batchId: string
+      chapters: Array<{ title: string; url: string }>
+      sourcePageUrl?: string
+    }) => Promise<{ 
+      success: boolean
+      error?: string
+      chapters?: Array<{
+        id: string
+        title: string
+        url: string
+        chapterIndex: number
+      }>
+    }>
+    searchScraperGetMatchedChapters: (args: { 
+      projectPath: string
+      batchId: string
+    }) => Promise<{ 
+      success: boolean
+      error?: string
+      chapters?: Array<{
+        id: string
+        batch_id: string
+        chapter_index: number
+        title: string
+        url: string
+        site_domain: string | null
+        is_selected: number
+        created_at: string
+      }>
+    }>
+    searchScraperToggleChapterSelection: (args: { 
+      projectPath: string
+      chapterId: string
+      selected: boolean
+    }) => Promise<{ success: boolean; error?: string }>
+    searchScraperToggleAllChaptersSelection: (args: { 
+      projectPath: string
+      batchId: string
+      selected: boolean
+    }) => Promise<{ success: boolean; error?: string }>
+
+    // SearchAndScraper 章节爬取管理
+    searchScraperSaveScrapedChapter: (args: { 
+      projectPath: string
+      data: {
+        matchedChapterId: string
+        batchId: string
+        title: string
+        url: string
+        content: string
+        summary: string
+        scrapeDuration: number
+      }
+    }) => Promise<{ success: boolean; error?: string }>
+    searchScraperGetScrapedChapters: (args: { 
+      projectPath: string
+      batchId: string
+    }) => Promise<{ 
+      success: boolean
+      error?: string
+      chapters?: Array<{
+        id: string
+        batch_id: string
+        matched_chapter_id: string
+        title: string
+        url: string
+        content: string
+        summary: string | null
+        word_count: number
+        scrape_duration: number
+        created_at: string
+      }>
+    }>
+    searchScraperGetBatchSummary: (args: { 
+      projectPath: string
+      batchId: string
+    }) => Promise<{ 
+      success: boolean
+      error?: string
+      summary?: {
+        totalMatched: number
+        totalScraped: number
+        totalWords: number
+        avgScrapeDuration: number
+      }
+    }>
   }
 
   /**

@@ -548,5 +548,284 @@ export class ProjectDatabase {
       [...values, batchId]
     )
   }
+
+  // ==================== 匹配章节管理 ====================
+
+  /**
+   * 保存匹配章节列表
+   * @param batchId 批次ID
+   * @param chapters 章节列表（title + url）
+   * @param sourcePageUrl 可选的来源页面URL（用于提取域名）
+   * @returns 保存后的完整章节数据（包含id）
+   */
+  saveMatchedChapters(
+    batchId: string, 
+    chapters: Array<{ title: string; url: string }>,
+    sourcePageUrl?: string
+  ): Array<{ id: string; title: string; url: string; chapterIndex: number }> {
+    const savedChapters: Array<{ id: string; title: string; url: string; chapterIndex: number }> = []
+    
+    this.transaction(() => {
+      // 1. 删除该批次的旧章节
+      this.execute(
+        'DELETE FROM SearchAndScraper_novel_matched_chapters WHERE batch_id = ?',
+        [batchId]
+      )
+
+      // 2. 提取域名（如果提供了sourcePageUrl）
+      let siteDomain: string | null = null
+      if (sourcePageUrl) {
+        try {
+          const url = new URL(sourcePageUrl)
+          siteDomain = url.hostname
+        } catch (error) {
+          console.warn('[ProjectDatabase] Invalid sourcePageUrl:', sourcePageUrl)
+        }
+      }
+
+      // 3. 批量插入新章节
+      const insertStmt = this.db?.prepare(
+        `INSERT INTO SearchAndScraper_novel_matched_chapters 
+         (id, batch_id, chapter_index, title, url, site_domain, is_selected) 
+         VALUES (?, ?, ?, ?, ?, ?, 1)`
+      )
+
+      if (!insertStmt) {
+        throw new Error('Failed to prepare insert statement')
+      }
+
+      chapters.forEach((chapter, index) => {
+        const chapterId = `chapter_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 11)}`
+        insertStmt.run(
+          chapterId,
+          batchId,
+          index,
+          chapter.title,
+          chapter.url,
+          siteDomain
+        )
+        
+        // 收集保存后的章节数据
+        savedChapters.push({
+          id: chapterId,
+          title: chapter.title,
+          url: chapter.url,
+          chapterIndex: index
+        })
+      })
+
+      // 4. 更新批次统计
+      this.updateNovelBatchStats(batchId, { totalMatched: chapters.length })
+    })
+    
+    return savedChapters
+  }
+
+  /**
+   * 获取批次的匹配章节列表
+   * @param batchId 批次ID
+   * @returns 按 chapter_index 排序的章节列表
+   */
+  getMatchedChapters(batchId: string): Array<{
+    id: string
+    batch_id: string
+    chapter_index: number
+    title: string
+    url: string
+    site_domain: string | null
+    is_selected: number
+    created_at: string
+  }> {
+    return this.query(
+      `SELECT * FROM SearchAndScraper_novel_matched_chapters 
+       WHERE batch_id = ? 
+       ORDER BY chapter_index ASC`,
+      [batchId]
+    ) as Array<{
+      id: string
+      batch_id: string
+      chapter_index: number
+      title: string
+      url: string
+      site_domain: string | null
+      is_selected: number
+      created_at: string
+    }>
+  }
+
+  /**
+   * 切换单个章节的选中状态
+   * @param chapterId 章节ID
+   * @param selected 是否选中（true/false）
+   */
+  toggleChapterSelection(chapterId: string, selected: boolean): void {
+    this.execute(
+      'UPDATE SearchAndScraper_novel_matched_chapters SET is_selected = ? WHERE id = ?',
+      [selected ? 1 : 0, chapterId]
+    )
+  }
+
+  /**
+   * 全选/取消全选批次内所有章节
+   * @param batchId 批次ID
+   * @param selected 是否选中（true/false）
+   */
+  toggleAllChaptersSelection(batchId: string, selected: boolean): void {
+    this.execute(
+      'UPDATE SearchAndScraper_novel_matched_chapters SET is_selected = ? WHERE batch_id = ?',
+      [selected ? 1 : 0, batchId]
+    )
+  }
+
+  /**
+   * 从URL中提取域名
+   * @param url 完整URL
+   * @returns 域名或null
+   */
+  private extractDomain(url: string): string | null {
+    try {
+      const urlObj = new URL(url)
+      return urlObj.hostname
+    } catch {
+      return null
+    }
+  }
+
+  // ==================== 爬取章节管理（Iteration 3）====================
+
+  /**
+   * 保存爬取的章节
+   * @param data 爬取数据
+   */
+  saveScrapedChapter(data: {
+    matchedChapterId: string
+    batchId: string
+    title: string
+    url: string
+    content: string
+    summary: string
+    scrapeDuration: number
+  }): void {
+    const chapterId = `scraped_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
+    const wordCount = data.content.length
+
+    // 事务处理
+    this.transaction(() => {
+      // 插入爬取章节
+      this.execute(
+        `INSERT INTO SearchAndScraper_novel_scraped_chapters 
+        (id, batch_id, matched_chapter_id, title, url, content, summary, word_count, scrape_duration) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          chapterId,
+          data.batchId,
+          data.matchedChapterId,
+          data.title,
+          data.url,
+          data.content,
+          data.summary,
+          wordCount,
+          data.scrapeDuration
+        ]
+      )
+
+      // 标记匹配章节为已爬取
+      this.execute(
+        'UPDATE SearchAndScraper_novel_matched_chapters SET is_scraped = 1 WHERE id = ?',
+        [data.matchedChapterId]
+      )
+
+      // 更新批次统计
+      const scrapedCount = this.queryOne(
+        'SELECT COUNT(*) as count FROM SearchAndScraper_novel_scraped_chapters WHERE batch_id = ?',
+        [data.batchId]
+      ) as { count: number } | undefined
+
+      if (scrapedCount) {
+        this.updateNovelBatchStats(data.batchId, { totalScraped: scrapedCount.count })
+      }
+    })
+  }
+
+  /**
+   * 获取批次的所有爬取章节
+   * @param batchId 批次ID
+   * @returns 爬取章节数组
+   */
+  getScrapedChapters(batchId: string): Array<{
+    id: string
+    batch_id: string
+    matched_chapter_id: string
+    title: string
+    url: string
+    content: string
+    summary: string
+    word_count: number
+    scrape_duration: number
+    created_at: string
+  }> {
+    return this.query(
+      `SELECT * FROM SearchAndScraper_novel_scraped_chapters 
+       WHERE batch_id = ? 
+       ORDER BY created_at ASC`,
+      [batchId]
+    ) as Array<{
+      id: string
+      batch_id: string
+      matched_chapter_id: string
+      title: string
+      url: string
+      content: string
+      summary: string
+      word_count: number
+      scrape_duration: number
+      created_at: string
+    }>
+  }
+
+  /**
+   * 获取批次统计摘要
+   * @param batchId 批次ID
+   * @returns 统计摘要
+   */
+  getNovelBatchSummary(batchId: string): {
+    totalMatched: number
+    totalScraped: number
+    totalWords: number
+    avgScrapeDuration: number
+  } {
+    const result = this.queryOne(
+      `SELECT 
+        COUNT(DISTINCT mc.id) as total_matched,
+        COUNT(DISTINCT sc.id) as total_scraped,
+        COALESCE(SUM(sc.word_count), 0) as total_words,
+        COALESCE(AVG(sc.scrape_duration), 0) as avg_scrape_duration
+      FROM SearchAndScraper_novel_matched_chapters mc
+      LEFT JOIN SearchAndScraper_novel_scraped_chapters sc ON mc.id = sc.matched_chapter_id
+      WHERE mc.batch_id = ?`,
+      [batchId]
+    ) as {
+      total_matched: number
+      total_scraped: number
+      total_words: number
+      avg_scrape_duration: number
+    } | undefined
+
+    if (!result) {
+      return {
+        totalMatched: 0,
+        totalScraped: 0,
+        totalWords: 0,
+        avgScrapeDuration: 0
+      }
+    }
+
+    return {
+      totalMatched: result.total_matched,
+      totalScraped: result.total_scraped,
+      totalWords: result.total_words,
+      avgScrapeDuration: Math.round(result.avg_scrape_duration)
+    }
+  }
 }
 

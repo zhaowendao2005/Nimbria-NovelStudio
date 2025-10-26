@@ -313,7 +313,41 @@ contextBridge.exposeInMainWorld('nimbria', {
     searchScraperGetNovelBatch: (args: { projectPath: string; batchId: string }) => 
       ipcRenderer.invoke('database:search-scraper-get-novel-batch', args),
     searchScraperUpdateNovelBatchStats: (args: { projectPath: string; batchId: string; stats: { totalMatched?: number; totalScraped?: number } }) => 
-      ipcRenderer.invoke('database:search-scraper-update-novel-batch-stats', args)
+      ipcRenderer.invoke('database:search-scraper-update-novel-batch-stats', args),
+
+    // SearchAndScraper 章节匹配管理
+    searchScraperSaveMatchedChapters: (args: { 
+      projectPath: string
+      batchId: string
+      chapters: Array<{ title: string; url: string }>
+      sourcePageUrl?: string
+    }) => 
+      ipcRenderer.invoke('database:search-scraper-save-matched-chapters', args),
+    searchScraperGetMatchedChapters: (args: { projectPath: string; batchId: string }) => 
+      ipcRenderer.invoke('database:search-scraper-get-matched-chapters', args),
+    searchScraperToggleChapterSelection: (args: { projectPath: string; chapterId: string; selected: boolean }) => 
+      ipcRenderer.invoke('database:search-scraper-toggle-chapter-selection', args),
+    searchScraperToggleAllChaptersSelection: (args: { projectPath: string; batchId: string; selected: boolean }) => 
+      ipcRenderer.invoke('database:search-scraper-toggle-all-chapters-selection', args),
+
+    // SearchAndScraper 爬取章节管理（Iteration 3）
+    searchScraperSaveScrapedChapter: (args: { 
+      projectPath: string
+      data: {
+        matchedChapterId: string
+        batchId: string
+        title: string
+        url: string
+        content: string
+        summary: string
+        scrapeDuration: number
+      }
+    }) => 
+      ipcRenderer.invoke('database:search-scraper-save-scraped-chapter', args),
+    searchScraperGetScrapedChapters: (args: { projectPath: string; batchId: string }) => 
+      ipcRenderer.invoke('database:search-scraper-get-scraped-chapters', args),
+    searchScraperGetBatchSummary: (args: { projectPath: string; batchId: string }) => 
+      ipcRenderer.invoke('database:search-scraper-get-batch-summary', args)
   },
   
   // DocParser 文档解析 API

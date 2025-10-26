@@ -61,3 +61,135 @@ export function mapBatchRowToBatch(row: NovelBatchRow): NovelBatch {
   }
 }
 
+/**
+ * 匹配章节数据（数据库原始结构）
+ */
+export interface NovelMatchedChapterRow {
+  id: string
+  batch_id: string
+  chapter_index: number
+  title: string
+  url: string
+  site_domain: string | null
+  is_selected: number
+  created_at: string
+}
+
+/**
+ * 匹配章节数据（前端使用，驼峰命名）
+ */
+export interface NovelMatchedChapter {
+  id: string
+  batchId: string
+  chapterIndex: number
+  title: string
+  url: string
+  siteDomain: string | null
+  isSelected: boolean
+  createdAt: Date
+}
+
+/**
+ * 保存匹配章节的参数
+ */
+export interface SaveMatchedChaptersParams {
+  batchId: string
+  chapters: Array<{
+    title: string
+    url: string
+  }>
+  sourcePageUrl?: string
+}
+
+/**
+ * 保存匹配章节的返回结果（包含生成的ID）
+ */
+export interface SaveMatchedChaptersResult {
+  success: boolean
+  error?: string
+  chapters?: Array<{
+    id: string
+    title: string
+    url: string
+    chapterIndex: number
+  }>
+}
+
+/**
+ * 将匹配章节数据库行转换为前端对象
+ */
+export function mapMatchedChapterRowToChapter(row: NovelMatchedChapterRow): NovelMatchedChapter {
+  return {
+    id: row.id,
+    batchId: row.batch_id,
+    chapterIndex: row.chapter_index,
+    title: row.title,
+    url: row.url,
+    siteDomain: row.site_domain,
+    isSelected: row.is_selected === 1,
+    createdAt: new Date(row.created_at)
+  }
+}
+
+// ==================== 爬取章节类型（Iteration 3）====================
+
+/**
+ * 爬取章节数据（数据库原始结构）
+ */
+export interface NovelScrapedChapterRow {
+  id: string
+  batch_id: string
+  matched_chapter_id: string
+  title: string
+  url: string
+  content: string
+  summary: string | null
+  word_count: number
+  scrape_duration: number
+  created_at: string
+}
+
+/**
+ * 爬取章节数据（前端使用）
+ */
+export interface NovelScrapedChapter {
+  id: string
+  batchId: string
+  matchedChapterId: string
+  title: string
+  url: string
+  content: string
+  summary: string | null
+  wordCount: number
+  scrapeDuration: number
+  createdAt: Date
+}
+
+/**
+ * 批次统计摘要
+ */
+export interface NovelBatchSummary {
+  totalMatched: number
+  totalScraped: number
+  totalWords: number
+  avgScrapeDuration: number
+}
+
+/**
+ * 将爬取章节数据库行转换为前端对象
+ */
+export function mapScrapedChapterRowToChapter(row: NovelScrapedChapterRow): NovelScrapedChapter {
+  return {
+    id: row.id,
+    batchId: row.batch_id,
+    matchedChapterId: row.matched_chapter_id,
+    title: row.title,
+    url: row.url,
+    content: row.content,
+    summary: row.summary,
+    wordCount: row.word_count,
+    scrapeDuration: row.scrape_duration,
+    createdAt: new Date(row.created_at)
+  }
+}
+

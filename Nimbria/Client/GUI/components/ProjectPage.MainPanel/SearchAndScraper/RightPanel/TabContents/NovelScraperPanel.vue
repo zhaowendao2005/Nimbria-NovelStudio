@@ -216,10 +216,11 @@ import { Aim, Download, Setting, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useSearchAndScraperStore } from '@stores/projectPage/searchAndScraper'
 import { SearchAndScraperService } from '@service/SearchAndScraper'
+import { ScraperStorageService } from '@service/SearchAndScraper/scraper-storage.service'
 import ChapterListSection from './SmartMode/ChapterListSection.vue'
 import ChapterSummarySection from './SmartMode/ChapterSummarySection.vue'
-import type { ScrapedChapter } from '@stores/projectPage/searchAndScraper/searchAndScraper.types'
-import type { NovelBatch, CreateNovelBatchParams } from '@service/SearchAndScraper/types'
+import type { ScrapedChapter, Chapter } from '@stores/projectPage/searchAndScraper/searchAndScraper.types'
+import type { NovelBatch, CreateNovelBatchParams, SaveMatchedChaptersResult } from '@service/SearchAndScraper/types'
 
 /**
  * NovelScraperPanel 组件
@@ -338,6 +339,74 @@ const handleBatchChange = (value: string): void => {
   } else {
     selectedBatchId.value = value
     console.log('[NovelScraper] 批次已切换:', value)
+    // 🆕 加载批次数据
+    void loadBatchData(value)
+  }
+}
+
+/**
+ * 加载批次数据（匹配章节列表）
+ */
+const loadBatchData = async (batchId: string): Promise<void> => {
+  try {
+    const projectPath = window.nimbria.getCurrentProjectPath()
+    if (!projectPath) {
+      console.warn('[NovelScraper] 当前项目路径为空，无法加载批次数据')
+      return
+    }
+
+    // 加载匹配章节
+    const matchedResult = await window.nimbria.database.searchScraperGetMatchedChapters({ 
+      projectPath, 
+      batchId 
+    })
+
+    if (matchedResult.success && matchedResult.chapters) {
+      // 导入类型转换函数
+      const { mapMatchedChapterRowToChapter } = await import('@service/SearchAndScraper/types')
+      const chapters = matchedResult.chapters.map(mapMatchedChapterRowToChapter)
+      
+      // 转换为 store 需要的格式（包含id）
+      const matchedChapters = chapters.map(ch => ({
+        id: ch.id,  // 🔥 包含ID用于爬取时关联
+        title: ch.title,
+        url: ch.url
+      }))
+      
+      store.updateInstance(props.tabId, { matchedChapters })
+      
+      console.log('[NovelScraper] 匹配章节加载成功:', matchedChapters.length, '个章节')
+    } else {
+      console.warn('[NovelScraper] 加载匹配章节失败:', matchedResult.error)
+      store.updateInstance(props.tabId, { matchedChapters: [] })
+    }
+
+    // 🔥 加载已爬取章节（Iteration 3）
+    const scrapedResult = await ScraperStorageService.getScrapedChapters(projectPath, batchId)
+    
+    if (scrapedResult.success && scrapedResult.chapters) {
+      const { mapScrapedChapterRowToChapter } = await import('@service/SearchAndScraper/types')
+      const scrapedChapters = scrapedResult.chapters.map(mapScrapedChapterRowToChapter)
+      
+      // 转换为store格式
+      const formattedChapters = scrapedChapters.map(ch => ({
+        title: ch.title,
+        content: ch.content,
+        summary: ch.summary || '',
+        url: ch.url
+      }))
+      
+      store.updateInstance(props.tabId, { scrapedChapters: formattedChapters })
+      
+      console.log('[NovelScraper] 已爬取章节加载成功:', formattedChapters.length, '个章节')
+    } else {
+      console.warn('[NovelScraper] 加载已爬取章节失败:', scrapedResult.error)
+      store.updateInstance(props.tabId, { scrapedChapters: [] })
+    }
+  } catch (error) {
+    console.error('[NovelScraper] 加载批次数据失败:', error)
+    // 清空章节列表
+    store.updateInstance(props.tabId, { matchedChapters: [] })
   }
 }
 
@@ -423,6 +492,10 @@ const handleMatchChapters = async (): Promise<void> => {
     // @ts-expect-error - ElMessage类型定义问题
     ElMessage.info({ message: '正在智能匹配章节列表...' })
     
+    // 🆕 获取当前BrowserView的URL
+    const navState = await SearchAndScraperService.getNavigationState(props.tabId)
+    const sourcePageUrl = navState.currentUrl
+    
     const result = await SearchAndScraperService.extractChapters(props.tabId)
     
     if (result.success && result.chapters) {
@@ -440,7 +513,34 @@ const handleMatchChapters = async (): Promise<void> => {
         }))
       }
       
-      store.updateInstance(props.tabId, { matchedChapters: chapters })
+      // 🆕 保存到数据库并获取完整数据（包含id）
+      const projectPath = window.nimbria.getCurrentProjectPath()
+      if (projectPath && selectedBatchId.value) {
+        const saveResult = await window.nimbria.database.searchScraperSaveMatchedChapters({
+          projectPath,
+          batchId: selectedBatchId.value,
+          chapters: chapters,
+          sourcePageUrl: sourcePageUrl
+        }) as SaveMatchedChaptersResult
+        
+        if (!saveResult.success) {
+          console.error('[NovelScraper] 保存章节到数据库失败:', saveResult.error)
+          // 保存失败时使用原始数据（没有id）
+          store.updateInstance(props.tabId, { matchedChapters: chapters.map(ch => ({ ...ch, id: '' })) })
+        } else if (saveResult.chapters) {
+          // 🔥 使用返回的完整数据（包含id）更新store
+          const matchedChaptersWithId = saveResult.chapters.map(ch => ({
+            id: ch.id,
+            title: ch.title,
+            url: ch.url
+          }))
+          store.updateInstance(props.tabId, { matchedChapters: matchedChaptersWithId })
+          console.log('[NovelScraper] 章节已保存到数据库，已更新store（包含id）')
+        }
+      } else {
+        // 未选择批次或项目路径为空，直接使用原始数据
+        store.updateInstance(props.tabId, { matchedChapters: chapters.map(ch => ({ ...ch, id: '' })) })
+      }
       
       // @ts-expect-error - ElMessage类型定义问题
       ElMessage.success({ message: `成功匹配到 ${chapters.length} 个章节` })
@@ -525,7 +625,7 @@ const handleScrapeChapters = async (): Promise<void> => {
 }
 
 /**
- * 全浏览器模式爬取
+ * 全浏览器模式爬取（Iteration 3 - 对接存储服务）
  */
 const scrapeBrowserMode = async (chaptersToScrape: Chapter[]): Promise<void> => {
   
@@ -539,7 +639,8 @@ const scrapeBrowserMode = async (chaptersToScrape: Chapter[]): Promise<void> => 
       }
     })
     
-    const scraped: ScrapedChapter[] = []
+    let successCount = 0
+    const startTime = Date.now()
     
     for (let i = 0; i < chaptersToScrape.length; i++) {
       const chapter = chaptersToScrape[i]
@@ -558,18 +659,34 @@ const scrapeBrowserMode = async (chaptersToScrape: Chapter[]): Promise<void> => 
       })
       
       try {
+        const chapterStartTime = Date.now()
         const result = await SearchAndScraperService.scrapeChapter(props.tabId, chapter.url)
+        const scrapeDuration = Date.now() - chapterStartTime
         
         if (result.success && result.chapter && result.chapter.title && result.chapter.content) {
-          scraped.push({
-            title: result.chapter.title,
-            content: result.chapter.content,
-            summary: result.chapter.summary || '',
-            url: chapter.url
-          })
+          // 🔥 保存到数据库（使用存储服务）
+          const projectPath = window.nimbria.getCurrentProjectPath()
+          if (!projectPath) continue
           
-          // 实时更新已爬取的章节
-          store.updateInstance(props.tabId, { scrapedChapters: [...scraped] })
+          const saveResult = await ScraperStorageService.saveScrapedChapter(
+            projectPath,
+            {
+              matchedChapterId: chapter.id,  // 需要从matched_chapters获取ID
+              batchId: selectedBatchId.value!,
+              title: result.chapter.title,
+              url: chapter.url,
+              content: result.chapter.content,
+              summary: ScraperStorageService.generateSummary(result.chapter.content),
+              scrapeDuration
+            }
+          )
+          
+          if (saveResult.success) {
+            successCount++
+            console.log(`[NovelScraper ${props.tabId}] Chapter saved to database:`, chapter.title)
+          } else {
+            console.error(`[NovelScraper ${props.tabId}] Failed to save chapter:`, saveResult.error)
+          }
         }
         
         // 延迟，避免请求过快
@@ -579,9 +696,15 @@ const scrapeBrowserMode = async (chaptersToScrape: Chapter[]): Promise<void> => 
       }
     }
     
+    const totalTime = Date.now() - startTime
     // @ts-expect-error - ElMessage类型定义问题
-    ElMessage.success({ message: `爬取完成！共爬取 ${scraped.length} 个章节` })
-    console.log(`[NovelScraper ${props.tabId}] Scraping completed: ${scraped.length} chapters`)
+    ElMessage.success({ message: `爬取完成！成功爬取 ${successCount} 个章节，耗时 ${(totalTime / 1000).toFixed(1)}s` })
+    console.log(`[NovelScraper ${props.tabId}] Scraping completed: ${successCount}/${chaptersToScrape.length} chapters`)
+    
+    // 🔥 刷新批次数据
+    if (selectedBatchId.value) {
+      await loadBatchData(selectedBatchId.value)
+    }
   } catch (error) {
     console.error(`[NovelScraper ${props.tabId}] Scrape chapters failed:`, error)
     // @ts-expect-error - ElMessage类型定义问题
@@ -660,40 +783,67 @@ const scrapeLightMode = async (chaptersToScrape: Chapter[]): Promise<void> => {
       url: ch.url
     }))
     
+    const lightModeOptions: {
+      selector: string
+      parallelCount: number
+      timeout: number
+      urlPrefix?: string
+    } = {
+      selector: currentInstance.lightModeConfig.contentSelector!,
+      parallelCount: currentInstance.lightModeConfig.parallelCount,
+      timeout: currentInstance.lightModeConfig.requestTimeout * 1000
+    }
+    
+    if (urlPrefixEnabled.value && urlPrefix.value) {
+      lightModeOptions.urlPrefix = urlPrefix.value
+    }
+    
     const result = await SearchAndScraperService.scrapeChaptersLight(
       props.tabId,
       plainChapters,
-      {
-        selector: currentInstance.lightModeConfig.contentSelector!,
-        parallelCount: currentInstance.lightModeConfig.parallelCount,
-        timeout: currentInstance.lightModeConfig.requestTimeout * 1000,
-        urlPrefix: urlPrefixEnabled.value ? urlPrefix.value : undefined
-      }
+      lightModeOptions
     )
     
     if (result.success && result.results) {
-      // 🔥 保存爬取成功的章节
-      const scraped: ScrapedChapter[] = result.results
+      // 🔥 批量保存到数据库（使用存储服务）
+      const chaptersToSave = result.results
         .filter(r => r.success && r.content)
-        .map(r => ({
-          title: r.chapter.title,
-          content: r.content!,
-          // 🔥 生成摘要：取前200个字符
-          summary: r.content!.slice(0, 200) + (r.content!.length > 200 ? '...' : ''),
-          url: r.chapter.url
-        }))
+        .map(r => {
+          // 找到对应的matched_chapter
+          const matchedChapter = chaptersToScrape.find(ch => ch.url === r.chapter.url)
+          return {
+            matchedChapterId: matchedChapter?.id || '',
+            batchId: selectedBatchId.value!,
+            title: r.chapter.title,
+            url: r.chapter.url,
+            content: r.content!,
+            summary: ScraperStorageService.generateSummary(r.content!),
+            scrapeDuration: 1000  // 轻量模式没有单独计时，使用默认值
+          }
+        })
       
-      // 更新已爬取章节列表
-      const existingScraped = store.getInstance(props.tabId)?.scrapedChapters ?? []
-      store.updateInstance(props.tabId, { 
-        scrapedChapters: [...existingScraped, ...scraped] 
-      })
+      const projectPath = window.nimbria.getCurrentProjectPath()
+      if (!projectPath) {
+        // @ts-expect-error - ElMessage类型定义问题
+        ElMessage.error({ message: '未找到项目路径' })
+        return
+      }
+      
+      const saveResult = await ScraperStorageService.batchSaveScrapedChapters(
+        projectPath,
+        chaptersToSave
+      )
       
       // @ts-expect-error - ElMessage类型定义问题
       ElMessage.success({ 
-        message: `爬取完成！成功 ${result.successCount}/${chaptersToScrape.length} 章` 
+        message: `爬取完成！成功爬取 ${saveResult.successCount}/${chaptersToScrape.length} 章，已保存到数据库` 
       })
-      console.log(`[NovelScraper ${props.tabId}] Light mode scrape completed:`, result)
+      console.log(`[NovelScraper ${props.tabId}] Light mode scrape completed:`, saveResult)
+      
+      // 🔥 刷新批次数据
+      if (selectedBatchId.value) {
+        await loadBatchData(selectedBatchId.value)
+      }
     } else {
       // @ts-expect-error - ElMessage类型定义问题
       ElMessage.error({ message: result.message || '爬取失败' })
