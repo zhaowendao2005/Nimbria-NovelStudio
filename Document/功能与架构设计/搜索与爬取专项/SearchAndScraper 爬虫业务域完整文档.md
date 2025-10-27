@@ -2,9 +2,9 @@
 
 # SearchAndScraper（小说爬虫）业务域完整架构文档
 
-**文档状态**：🟡 开发中 - 当前实现到 Iteration 3（章节爬取功能）
+**文档状态**：🟢 进行中 - 已实现Iteration 1-3（章节爬取）+ Advanced（工作流引擎）
 
-**最后更新**：2025-10-26
+**最后更新**：2025-10-27
 
 ---
 
@@ -960,6 +960,193 @@ const HISTORY_STORAGE_KEY = 'search-scraper-browse-history-global'
 
 // 限制最多 100 条历史
 const MAX_HISTORY_ITEMS = 100
+```
+
+---
+
+## ✅ 高级模式 - 工作流引擎（Iteration Advanced）
+
+| 功能 | 状态 | 文件位置 | 说明 |
+|------|------|--------|------|
+| **工作流框架** |
+| VueFlow画布 | ✅ | `WorkflowCanvas.vue` | 支持节点拖拽、连接、缩放、小地图 |
+| 节点自定义 | ✅ | `Nodes/GetTextNode.vue` | 自定义节点组件，支持拖拽手柄 |
+| 节点配置抽屉 | ✅ | `NodeConfigContent.vue` | 动态配置节点参数和爬取引擎 |
+| 高级设置抽屉 | ✅ | `AdvancedSettingsDrawer.vue` | 浏览器环境配置（Edge/Chrome路径选择） |
+| **工作流执行** |
+| 节点执行器框架 | ✅ | `get-text-executor.ts` | 统一的节点执行器接口 |
+| BrowserView引擎 | ✅ | `get-text-executor.ts` | 使用BrowserView爬取动态内容 |
+| Cheerio引擎 | ✅ | `get-text-executor.ts` | 使用HTTP + Cheerio爬取静态内容 |
+| Puppeteer引擎 | ✅ | `get-text-executor.ts` | 使用Edge/Chrome无头浏览器爬取 |
+| **内容提取** |
+| 直接选择器模式 | ✅ | `get-text-executor.ts` | 用户指定CSS选择器提取内容 |
+| 自动检测模式（max-text） | ✅ | `get-text-executor.ts` | AI算法自动找到页面主要内容 |
+| 文本密度评分 | ✅ | `get-text-executor.ts` | 基于文本长度+密度的动态权重评分 |
+| 权重调整滑块 | ✅ | `NodeConfigContent.vue` | 用户可调整文本长度vs密度的比例 |
+| **元素选取** |
+| 元素选取器 | ✅ | `browser-view-manager.ts` | 鼠标悬停选取DOM元素 |
+| 多层元素导航 | ✅ | `browser-view-manager.ts` | 使用↑↓箭头键选取父/子元素 |
+| 详细信息面板 | ✅ | `browser-view-manager.ts` | 显示选中元素的selector/内容/xpath |
+| 进度提示球 | ✅ | `browser-view-manager.ts` | 3秒悬停进度提示，粘附光标 |
+| 智能检测 | ✅ | `browser-view-manager.ts` | 区分用户查看详情vs选取其他元素 |
+| 全局键盘事件 | ✅ | `browser-view-manager.ts` | 支持Esc/Enter在任意窗口激活 |
+| **浏览器配置** |
+| Edge自动检测 | ✅ | `get-text-executor.ts` | Windows系统自动检测Edge位置 |
+| Chrome自动检测 | ✅ | `get-text-executor.ts` | 自动检测Chrome安装路径 |
+| 手动路径配置 | ✅ | `AdvancedSettingsDrawer.vue` | 用户手动指定浏览器路径 |
+| 路径优先级 | ✅ | `get-text-executor.ts` | 用户配置 > Edge > Chrome |
+| 配置持久化 | ✅ | `workflow.store.ts` | localStorage保存用户配置 |
+| **数据输出** |
+| 统一的输出格式 | ✅ | `get-text-executor.ts` | 标准化JSON结果（title/content/url/engine） |
+| 元数据记录 | ✅ | `get-text-executor.ts` | 记录执行时间、引擎类型、选择器信息 |
+| **IPC通信** |
+| 工作流执行接口 | ✅ | `workflow-handlers.ts` | `workflow:execute-node` |
+| 浏览器检测接口 | ✅ | `workflow-handlers.ts` | `workflow:detect-browsers` |
+| 路径配置接口 | ✅ | `workflow-handlers.ts` | `workflow:set-browser-path / get-browser-path` |
+| **状态管理** |
+| 工作流Store | ✅ | `workflow.store.ts` | Pinia多实例工作流状态 |
+| 浏览器配置状态 | ✅ | `workflow.store.ts` | 用户浏览器路径配置 |
+| 执行结果缓存 | ✅ | `workflow.store.ts` | 节点执行输出结果存储 |
+
+---
+
+### 🔧 高级模式核心技术栈
+
+#### **前端框架**
+- **VueFlow**: 节点编辑器库
+  - Background: 网格背景
+  - Controls: 缩放/重置控制
+  - MiniMap: 导航小地图
+- **Element Plus**: UI组件库
+  - ElButton, ElForm, ElInput, ElTag, ElRadio, ElAlert
+  - ElMessage: 用户反馈
+- **Pinia**: 状态管理
+  - 多工作流实例支持
+  - localStorage持久化
+
+#### **后端执行引擎**
+- **BrowserView**: Electron原生渲染
+  - 完整JavaScript执行
+  - 动态内容爬取
+  - Cookie会话保持
+  
+- **Cheerio**: 轻量级HTML解析
+  - 高性能静态解析
+  - CSS选择器支持
+  
+- **Puppeteer-core**: 浏览器自动化
+  - 无头Chrome/Edge运行
+  - Anti-detection伪装
+  - Session复用
+
+#### **智能内容检测**
+- 文本密度算法：`density = textLength / childElementCount`
+- 动态权重评分：`score = length * w1 + density * 1000 * w2`
+- 用户可调权重范围：0-100%
+
+---
+
+### 📋 工作流执行流程
+
+```
+用户界面
+  ↓
+1. 创建工作流节点（配置爬取引擎、选择器、权重）
+  ↓
+2. 点击执行节点或双击打开配置抽屉
+  ↓
+3. 获取当前URL和浏览器配置
+  ↓
+4. 根据引擎类型选择执行器
+  ├─ BrowserView: 直接在webContents执行JS
+  ├─ Cheerio: HTTP请求 + 正则解析
+  └─ Puppeteer: 启动Edge/Chrome headless实例
+  ↓
+5. 提取内容
+  ├─ 如果设置了选择器: 直接querySelector
+  └─ 如果使用max-text: 遍历候选元素计算最优分
+  ↓
+6. 返回结果
+  {
+    title: { text, length, selector },
+    content: { text, length, selector },
+    url: string,
+    engine: string,
+    duration: number
+  }
+  ↓
+7. 在Store中缓存结果，UI显示执行完成
+```
+
+---
+
+### 🎯 高级模式设计决策
+
+#### **决策1：多引擎设计**
+**问题**：不同网站有不同特性（动态/静态、防爬/开放）
+
+**解决**：
+- BrowserView：适合防爬、需要JavaScript、较小规模
+- Cheerio：适合开放API、静态内容、高并发
+- Puppeteer：适合中等规模爬虫、需要anti-detection
+
+**扩展性**：添加新引擎只需实现`execute`接口
+
+---
+
+#### **决策2：CDPConfirm双路径**
+**问题**：元素选取器在反爬网站（起点中文网等）无法正常工作
+
+**解决**：
+- **路径A**: 普通网站 - 注入JS，直接点击确认
+- **路径B**: 反爬网站 - 使用Chrome DevTools Protocol，绕过JS检测
+
+---
+
+#### **决策3：浏览器配置优先级**
+**问题**：用户电脑可能同时有Edge和Chrome，需要灵活选择
+
+**优先级**：
+1. 用户手动配置（最高优先级）
+2. Windows自带Edge（稳定，无需安装）
+3. 系统Chrome（备用方案）
+
+---
+
+### 🔄 已知限制与改进方向
+
+| 限制 | 原因 | 改进计划 |
+|------|------|--------|
+| 单线程Puppeteer | 多实例竞争资源 | 迭代Future：实现浏览器连接池 |
+| 无状态爬虫 | 每次重新登录 | 迭代Future：Session持久化 |
+| 简单内容检测 | 算法相对基础 | 迭代Future：ML模型优化 |
+| 无错误恢复 | 中断即失败 | 迭代Future：断点续爬 |
+
+---
+
+### 📁 高级模式文件结构
+
+```
+AdvancedMode/
+├── WorkflowCanvas.vue              # VueFlow画布容器
+├── NodeConfigContent.vue           # 节点配置表单
+├── AdvancedSettingsDrawer.vue      # 浏览器配置抽屉（新增）
+├── Nodes/
+│   └── GetTextNode.vue             # 获取文本节点组件
+├── types.ts                        # TypeScript类型定义
+└── index.ts                        # 模块导出
+
+工作流执行器/
+├── executors/
+│   └── get-text-executor.ts        # 文本提取执行器（支持3引擎）
+└── types.ts                        # 执行器类型定义
+
+IPC处理器/
+├── workflow-handlers.ts            # 工作流IPC处理
+└── browser-view-manager.ts         # 浏览器管理+元素选取
+
+状态管理/
+└── workflow.store.ts              # Pinia工作流状态（含浏览器配置）
 ```
 
 ---

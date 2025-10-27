@@ -57,55 +57,65 @@
         </el-select>
       </div>
       
-      <!-- 中间：工具按钮组 -->
-      <div class="toolbar-tools">
+      <!-- 中间：工具按钮组（🔥 响应式自适应） -->
+      <div ref="toolbarToolsRef" class="toolbar-tools">
         <!-- 智能模式按钮 -->
         <template v-if="currentMode === 'smart'">
-          <div
-            class="tool-item"
-            :class="{ disabled: !isBatchSelected }"
+          <el-button
+            size="small"
+            class="tool-button"
+            :class="{ 'icon-only': isNarrow }"
+            :disabled="!isBatchSelected"
             @click="handleMatchChapters"
           >
             <el-icon><Aim /></el-icon>
-            <span>智能匹配章节列表</span>
-          </div>
+            <span v-if="!isNarrow" class="button-text">智能匹配章节列表</span>
+          </el-button>
           
-          <div
-            class="tool-item"
-            :class="{ disabled: !isBatchSelected }"
+          <el-button
+            size="small"
+            class="tool-button"
+            :class="{ 'icon-only': isNarrow }"
+            :disabled="!isBatchSelected"
             @click="handleScrapeChapters"
           >
             <el-icon><Download /></el-icon>
-            <span>爬取章节</span>
-          </div>
+            <span v-if="!isNarrow" class="button-text">爬取章节</span>
+          </el-button>
           
-          <div
-            class="tool-item"
+          <el-button
+            size="small"
+            class="tool-button"
+            :class="{ 'icon-only': isNarrow }"
             @click="handleOpenSettings"
           >
             <el-icon><Setting /></el-icon>
-            <span>设置</span>
-          </div>
+            <span v-if="!isNarrow" class="button-text">设置</span>
+          </el-button>
         </template>
 
         <!-- 高级模式按钮 -->
         <template v-else-if="currentMode === 'advanced'">
-          <div
-            class="tool-item"
-            :class="{ disabled: !isBatchSelected }"
+          <el-button
+            size="small"
+            class="tool-button"
+            :class="{ 'icon-only': isNarrow }"
+            :disabled="!isBatchSelected"
             @click="handleRunWorkflow"
           >
             <el-icon><VideoPlay /></el-icon>
-            <span>启动工作流</span>
-          </div>
+            <span v-if="!isNarrow" class="button-text">启动工作流</span>
+          </el-button>
           
-          <div
-            class="tool-item"
+          <el-button
+            size="small"
+            class="tool-button"
+            :class="{ 'icon-only': isNarrow }"
             @click="handleOpenSettings"
           >
             <el-icon><Setting /></el-icon>
-            <span>设置</span>
-          </div>
+            <span v-if="!isNarrow" class="button-text">设置</span>
+          </el-button>
         </template>
 
         <!-- 内部空白区域撑满 -->
@@ -385,6 +395,13 @@ const isBatchSelected = computed(() => selectedBatchId.value && selectedBatchId.
 // 🆕 创建批次对话框
 const createBatchDialogVisible = ref(false)
 const showSettingsDrawer = ref(false) // 🔥 高级设置抽屉显示状态
+
+// 🔥 响应式Toolbar宽度检测
+const toolbarToolsRef = ref<HTMLElement | null>(null)
+const toolbarWidth = ref(0)
+
+// 根据宽度判断是否显示文字（阈值：600px）
+const isNarrow = computed(() => toolbarWidth.value < 600)
 const batchFormRef = ref<FormInstance>()
 const batchForm = ref<CreateNovelBatchParams>({
   name: '',
@@ -985,11 +1002,18 @@ const scrapeLightMode = async (chaptersToScrape: Chapter[]): Promise<void> => {
 }
 
 /**
- * 打开设置抽屉（🔥 修改为打开高级设置）
+ * 打开设置抽屉（根据当前模式决定打开哪个抽屉）
  */
 const handleOpenSettings = (): void => {
-  showSettingsDrawer.value = true
-  console.log(`[NovelScraper ${props.tabId}] Opening advanced settings drawer`)
+  if (currentMode.value === 'advanced') {
+    // 🔥 高级模式 → 打开高级设置抽屉（浏览器环境配置）
+    showSettingsDrawer.value = true
+    console.log(`[NovelScraper ${props.tabId}] Opening advanced settings drawer`)
+  } else {
+    // 智能模式 → 打开原来的设置抽屉
+    emit('open-drawer', 'settings')
+    console.log(`[NovelScraper ${props.tabId}] Opening smart mode settings drawer`)
+  }
 }
 
 /**
@@ -1043,6 +1067,13 @@ const handleNodeClick = (event: NodeMouseEvent): void => {
   })
 }
 
+// 🔥 更新Toolbar宽度
+const updateToolbarWidth = () => {
+  if (toolbarToolsRef.value) {
+    toolbarWidth.value = toolbarToolsRef.value.offsetWidth
+  }
+}
+
 // 🔥 生命周期：挂载时记录日志并加载批次列表
 onMounted(() => {
   console.log(`[NovelScraper ${props.tabId}] Mounted`, {
@@ -1057,6 +1088,10 @@ onMounted(() => {
   // 🔥 初始化工作流实例
   workflowStore.getOrCreateInstance(props.tabId, selectedBatchId.value)
   console.log(`[NovelScraper ${props.tabId}] Workflow instance initialized`)
+  
+  // 🔥 初始化Toolbar宽度监听
+  updateToolbarWidth()
+  window.addEventListener('resize', updateToolbarWidth)
 })
 
 // 🔥 生命周期：卸载时记录日志（状态已经自动同步到Store）
@@ -1066,6 +1101,9 @@ onUnmounted(() => {
     matchedChapters: matchedChapters.value.length,
     scrapedChapters: scrapedChapters.value.length
   })
+  
+  // 🔥 移除Toolbar宽度监听
+  window.removeEventListener('resize', updateToolbarWidth)
 })
 </script>
 
@@ -1133,17 +1171,18 @@ onUnmounted(() => {
 }
 
 // 中间工具按钮组
+// 🔥 工具按钮组（响应式自适应）
 .toolbar-tools {
   display: flex;
-  gap: 6px;
+  gap: 0px;
   padding: 3px 6px;
   background: var(--el-fill-color-light);
   border-radius: 4px;
-  height: 32px; // 固定高度
   flex: 1; // 自动伸缩填满剩余空间
   align-items: center;
   margin-left: 8px; // 与左侧分组的间距
   min-width: 0; // 允许收缩
+  overflow: hidden; // 🔥 防止按钮溢出
 
   // 内部空白撑满
   .toolbar-spacer {
@@ -1152,35 +1191,37 @@ onUnmounted(() => {
   }
 }
 
-.tool-item {
+// 🔥 工具按钮（自适应图标/文字）
+.tool-button {
+  // 默认状态：图标 + 文字
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   padding: 6px 12px;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 4px;
   font-size: 13px;
-  color: var(--el-text-color-regular);
-  cursor: pointer;
-  transition: all 0.2s;
-  user-select: none;
+  white-space: nowrap;
+  transition: all 0.3s ease;
   
-  &:hover {
-    border-color: var(--el-color-primary);
-    color: var(--el-color-primary);
-    background: var(--el-color-primary-light-9);
+  // 图标始终显示
+  .el-icon {
+    flex-shrink: 0;
   }
   
-  &:active {
-    transform: translateY(1px);
+  // 文字可以隐藏
+  .button-text {
+    transition: opacity 0.3s ease;
+    font-size: var(--el-font-size-base); // 14px
+    line-height: 1.5;
   }
   
-  // 🆕 禁用状态
-  &.disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    pointer-events: none;
+  // 🔥 仅图标模式（窄屏时）
+  &.icon-only {
+    padding: px;
+    min-width: 32px;
+    
+    .button-text {
+      display: none;
+    }
   }
 }
 
