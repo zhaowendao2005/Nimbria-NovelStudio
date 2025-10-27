@@ -1,5 +1,7 @@
 <template>
   <div class="node-config-content">
+    <!-- 🔥 get-text 节点配置 -->
+    <template v-if="props.node?.type === 'get-text'">
     <!-- 🔥 节点配置区域 -->
     <div class="config-section">
       <div class="section-title">
@@ -237,6 +239,139 @@
         <pre>{{ JSON.stringify(outputData, null, 2) }}</pre>
       </div>
     </div>
+    </template>
+    
+    <!-- 🔥 get-links 节点配置 -->
+    <template v-else-if="props.node?.type === 'get-links'">
+    <!-- 配置区 -->
+    <div class="config-section">
+      <div class="section-title">
+        <el-icon><Setting /></el-icon>
+        <span>节点配置</span>
+      </div>
+      
+      <el-form :model="linksFormData" label-width="100px" size="default">
+        <el-form-item label="容器选择器">
+          <el-input
+            v-model="linksFormData.containerSelector"
+            placeholder="如: .chapter-list, #catalog"
+            @change="handleLinksConfigChange"
+          >
+            <template #append>
+              <el-button
+                @click="handlePickLinksContainer"
+                :type="isLinksPickerActive ? 'primary' : ''"
+              >
+                <el-icon><Aim /></el-icon>
+                {{ isLinksPickerActive ? '选择中' : '选取' }}
+              </el-button>
+            </template>
+          </el-input>
+          <template #extra>
+            <span class="form-tip">包含所有链接的容器元素（可选）</span>
+          </template>
+        </el-form-item>
+        
+        <el-form-item label="过滤关键词">
+          <el-input
+            v-model="linksFormData.filterKeywords"
+            type="textarea"
+            :rows="2"
+            placeholder="首页, 书架, 投票, 打赏"
+            @change="handleLinksConfigChange"
+          />
+          <template #extra>
+            <span class="form-tip">黑名单关键词（逗号分隔），匹配标题或URL</span>
+          </template>
+        </el-form-item>
+        
+        <el-form-item>
+          <el-button type="primary" @click="handleTestExecute" :loading="isExecuting">
+            <el-icon><VideoPlay /></el-icon>
+            测试执行
+          </el-button>
+        </el-form-item>
+      </el-form>
+    </div>
+    
+    <!-- 🔥 执行结果区域 -->
+    <div v-if="hasOutput" class="output-section">
+      <div class="section-title">
+        <el-icon><Document /></el-icon>
+        <span>执行结果</span>
+        <el-tag :type="outputData?.success ? 'success' : 'danger'" size="small">
+          {{ outputData?.success ? '成功' : '失败' }}
+        </el-tag>
+      </div>
+      
+      <!-- 视图切换 -->
+      <el-segmented v-model="viewMode" :options="viewOptions" block />
+      
+      <!-- 渲染视图 -->
+      <div v-if="viewMode === 'render'" class="render-view">
+        <template v-if="outputData?.success && outputData.output">
+          <!-- 元数据卡片 -->
+          <el-card shadow="never" class="metadata-card">
+            <div class="meta-row">
+              <span class="meta-label">引擎:</span>
+              <el-tag type="primary" size="small">browserview</el-tag>
+            </div>
+            <div class="meta-row" v-if="outputData.output.duration">
+              <span class="meta-label">耗时:</span>
+              <span class="meta-value">{{ outputData.output.duration }}ms</span>
+            </div>
+            <div class="meta-row" v-if="outputData.output.url">
+              <span class="meta-label">源页面:</span>
+              <el-link :href="outputData.output.url" target="_blank" type="primary" class="meta-link">
+                {{ outputData.output.url }}
+              </el-link>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">链接总数:</span>
+              <el-tag size="small" type="success">{{ filteredLinks.length }}</el-tag>
+            </div>
+          </el-card>
+          
+          <!-- 🔥 链接表格（支持删除行） -->
+          <el-table :data="filteredLinks" stripe size="small" max-height="400">
+            <el-table-column type="index" label="序号" width="60" />
+            <el-table-column prop="title" label="标题" min-width="200" />
+            <el-table-column prop="url" label="链接" min-width="300">
+              <template #default="{ row }">
+                <el-link :href="row.url" target="_blank">{{ row.url }}</el-link>
+              </template>
+            </el-table-column>
+            <!-- 🔥 操作列 -->
+            <el-table-column label="操作" width="80" align="center">
+              <template #default="{ $index }">
+                <el-button
+                  link
+                  type="danger"
+                  size="small"
+                  @click="handleDeleteLink($index)"
+                >
+                  删除
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </template>
+        
+        <!-- 错误信息 -->
+        <el-alert
+          v-else-if="outputData?.error"
+          type="error"
+          :title="outputData.error"
+          :closable="false"
+        />
+      </div>
+      
+      <!-- JSON视图 -->
+      <div v-else-if="viewMode === 'json'" class="json-view">
+        <pre>{{ JSON.stringify(outputData, null, 2) }}</pre>
+      </div>
+    </div>
+    </template>
     
     <!-- 空状态 -->
     <div v-else class="empty-output">
@@ -274,6 +409,7 @@ const emit = defineEmits<Emits>()
 
 // ==================== 表单数据 ====================
 
+// get-text 表单数据
 const formData = ref({
   selector: '',
   titleSelector: '',
@@ -283,6 +419,15 @@ const formData = ref({
   densityWeight: 70  // 🔥 默认70%密度权重，30%长度权重
 })
 
+// 🔥 get-links 表单数据
+const linksFormData = ref({
+  containerSelector: '',
+  filterKeywords: '首页, 书架, 投票, 打赏'
+})
+
+// 🔥 本地过滤后的链接数据（用于支持删除功能）
+const filteredLinks = ref<Array<{ title: string; url: string }>>([])
+
 // 🔥 元素选取监听器引用（用于清理）
 interface ElementSelectedData {
   tabId: string
@@ -290,17 +435,20 @@ interface ElementSelectedData {
 }
 let contentPickerHandler: ((data: ElementSelectedData) => void) | null = null
 let titlePickerHandler: ((data: ElementSelectedData) => void) | null = null
+let linksPickerHandler: ((data: ElementSelectedData) => void) | null = null
 
 // 🔥 选取器激活状态
 const isContentPickerActive = ref(false)
 const isTitlePickerActive = ref(false)
+const isLinksPickerActive = ref(false)
 
 // 🔥 监听Esc键取消事件
 const pickerCancelledListener = (data: { tabId: string; reason: string }) => {
   console.log('[NodeConfigContent] 📥 Picker cancelled event received:', data, 'current tabId:', props.tabId)
   console.log('[NodeConfigContent] 🔍 Current active states:', {
     isContentPickerActive: isContentPickerActive.value,
-    isTitlePickerActive: isTitlePickerActive.value
+    isTitlePickerActive: isTitlePickerActive.value,
+    isLinksPickerActive: isLinksPickerActive.value
   })
   
   if (data.tabId !== props.tabId) {
@@ -313,12 +461,15 @@ const pickerCancelledListener = (data: { tabId: string; reason: string }) => {
   // 清理状态
   contentPickerHandler = null
   titlePickerHandler = null
+  linksPickerHandler = null
   isContentPickerActive.value = false
   isTitlePickerActive.value = false
+  isLinksPickerActive.value = false
   
   console.log('[NodeConfigContent] ✨ Picker state cleared successfully:', {
     isContentPickerActive: isContentPickerActive.value,
-    isTitlePickerActive: isTitlePickerActive.value
+    isTitlePickerActive: isTitlePickerActive.value,
+    isLinksPickerActive: isLinksPickerActive.value
   })
 }
 
@@ -336,15 +487,19 @@ onUnmounted(() => {
   if (titlePickerHandler) {
     titlePickerHandler = null
   }
+  if (linksPickerHandler) {
+    linksPickerHandler = null
+  }
   
   // 清理激活状态
   isContentPickerActive.value = false
   isTitlePickerActive.value = false
+  isLinksPickerActive.value = false
 })
 
-// 监听节点变化，更新表单
+// 监听节点变化，更新表单 (get-text)
 watch(() => props.node, (newNode) => {
-  if (newNode && newNode.data) {
+  if (newNode && newNode.data && newNode.type === 'get-text') {
     formData.value = {
       selector: newNode.data.selector || '',
       titleSelector: '', // 章节标题选择器存在workflow实例中
@@ -355,6 +510,23 @@ watch(() => props.node, (newNode) => {
     }
   }
 }, { immediate: true })
+
+// 🔥 监听节点变化，更新表单 (get-links)
+watch(() => props.node, (newNode) => {
+  if (newNode && newNode.data && newNode.type === 'get-links') {
+    linksFormData.value = {
+      containerSelector: newNode.data.config?.containerSelector || '',
+      filterKeywords: newNode.data.config?.filterKeywords || '首页, 书架, 投票, 打赏'
+    }
+  }
+}, { immediate: true })
+
+// 🔥 监听执行结果，同步到本地链接列表
+watch(() => props.output?.output, (newOutput) => {
+  if (newOutput && newOutput.links) {
+    filteredLinks.value = JSON.parse(JSON.stringify(newOutput.links))  // 深拷贝
+  }
+}, { deep: true })
 
 // ==================== 执行状态 ====================
 
@@ -544,6 +716,95 @@ const handlePickTitleElement = async () => {
     })
     titlePickerHandler = null
   }
+}
+
+/**
+ * 🔥 get-links 配置变更
+ */
+const handleLinksConfigChange = () => {
+  emit('update-node', {
+    config: {
+      containerSelector: linksFormData.value.containerSelector,
+      filterKeywords: linksFormData.value.filterKeywords
+    }
+  })
+}
+
+/**
+ * 🔥 选取链接容器
+ */
+const handlePickLinksContainer = async () => {
+  try {
+    // 双态切换：如果已激活，则停止
+    if (isLinksPickerActive.value) {
+      await window.nimbria.searchScraper.stopElementPicker(props.tabId)
+      linksPickerHandler = null
+      isLinksPickerActive.value = false
+      
+      // @ts-expect-error - ElMessage类型定义过于严格
+      ElMessage({
+        type: 'info' as const,
+        message: '已退出选取模式'
+      })
+      return
+    }
+    
+    // 启动选取模式
+    if (linksPickerHandler) {
+      linksPickerHandler = null
+    }
+    
+    // 创建新的监听器
+    linksPickerHandler = (data: ElementSelectedData) => {
+      if (data.tabId !== props.tabId) return
+      if (!linksPickerHandler) return
+      
+      const selector = data.element.selector
+      linksFormData.value.containerSelector = selector
+      emit('update-node', { config: linksFormData.value })
+      
+      // @ts-expect-error - ElMessage类型定义过于严格
+      ElMessage({
+        type: 'success' as const,
+        message: `已选择容器: ${selector}`
+      })
+      
+      void window.nimbria.searchScraper.stopElementPicker(props.tabId)
+      linksPickerHandler = null
+      isLinksPickerActive.value = false
+    }
+    
+    window.nimbria.searchScraper.onElementSelected(linksPickerHandler)
+    await window.nimbria.searchScraper.startElementPicker(props.tabId, 'get-links')
+    isLinksPickerActive.value = true
+    
+    // @ts-expect-error - ElMessage类型定义过于严格
+    ElMessage({
+      type: 'info' as const,
+      message: '请点击包含链接的容器元素'
+    })
+  } catch (error) {
+    console.error('[NodeConfig] Failed to pick links container:', error)
+    isLinksPickerActive.value = false
+    // @ts-expect-error - ElMessage类型定义过于严格
+    ElMessage({
+      type: 'error' as const,
+      message: '选取容器失败'
+    })
+    linksPickerHandler = null
+  }
+}
+
+/**
+ * 🔥 删除链接行
+ */
+const handleDeleteLink = (index: number) => {
+  filteredLinks.value.splice(index, 1)
+  // @ts-expect-error - ElMessage类型定义过于严格
+  ElMessage({
+    type: 'success' as const,
+    message: '已删除该链接'
+  })
 }
 
 /**

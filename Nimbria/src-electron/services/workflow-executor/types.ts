@@ -80,7 +80,9 @@ export interface GetLinksOutput {
     url: string
   }>
   count: number
-  engine: ScraperEngine
+  url: string                      // 页面URL
+  engine: ScraperEngine            // 使用的引擎
+  duration?: number                // 执行耗时（ms）
 }
 
 /**

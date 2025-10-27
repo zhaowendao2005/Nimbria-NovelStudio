@@ -6,6 +6,7 @@ import type { IpcMainInvokeEvent } from 'electron'
 import { ipcMain } from 'electron'
 import { getBrowserViewManager } from './search-scraper-handlers'
 import { GetTextExecutor } from '../../services/workflow-executor/executors/get-text-executor'
+import { GetLinksExecutor } from '../../services/workflow-executor/executors/get-links-executor'
 import type { 
   WorkflowNode, 
   WorkflowExecutionContext, 
@@ -54,13 +55,8 @@ export function setupWorkflowHandlers(): void {
         }
         
         case 'get-links': {
-          // TODO: 实现GetLinksExecutor
-          return {
-            nodeId: request.node.id,
-            success: false,
-            error: 'GetLinks executor not implemented yet',
-            executedAt: Date.now()
-          }
+          const executor = new GetLinksExecutor(browserViewManager)
+          return await executor.execute(request.node, request.context, request.input)
         }
         
         case 'operation': {

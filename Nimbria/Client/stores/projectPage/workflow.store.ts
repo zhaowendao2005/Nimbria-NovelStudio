@@ -58,18 +58,32 @@ export const useWorkflowStore = defineStore('workflow', () => {
       id: tabId,
       batchId,
       nodes: [
-        // 🔥 默认创建一个测试节点
+        // 🔥 默认节点：获取文本
         {
           id: nanoid(),
           type: 'get-text',
           position: { x: 100, y: 100 },
-          dragHandle: '.node-drag-handle', // 🔥 指定拖拽手柄
+          dragHandle: '.node-drag-handle',
           data: {
             label: '获取文本',
             selector: 'body',
             config: {
               strategy: 'direct',
               removeSelectors: 'script, style, nav, header, footer'
+            }
+          }
+        },
+        // 🔥 默认节点：获取链接
+        {
+          id: nanoid(),
+          type: 'get-links',
+          position: { x: 400, y: 100 },
+          dragHandle: '.node-drag-handle',
+          data: {
+            label: '获取链接',
+            config: {
+              containerSelector: '',
+              filterKeywords: '首页, 书架, 投票, 打赏'
             }
           }
         }

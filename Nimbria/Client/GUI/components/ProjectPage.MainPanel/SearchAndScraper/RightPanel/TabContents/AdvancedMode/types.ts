@@ -41,6 +41,21 @@ export interface GetTextNodeData extends WorkflowNodeData {
 }
 
 /**
+ * 🔥 获取链接节点配置
+ */
+export interface GetLinksNodeConfig {
+  containerSelector?: string       // 容器选择器
+  filterKeywords?: string          // 黑名单关键词（逗号分隔）
+}
+
+/**
+ * 🔥 获取链接节点数据
+ */
+export interface GetLinksNodeData extends WorkflowNodeData {
+  config: GetLinksNodeConfig
+}
+
+/**
  * 工作流节点（VueFlow格式）
  */
 export type WorkflowNode = Node<WorkflowNodeData>
@@ -72,6 +87,15 @@ export interface GetTextNodeOutput {
   engine?: ScraperEngine           // 实际使用的引擎
   duration?: number                // 执行耗时（ms）
   error?: string                   // 错误信息
+}
+
+/**
+ * 🔥 获取链接节点执行结果
+ */
+export interface GetLinksNodeOutput {
+  links: Array<{ title: string; url: string }>
+  count: number
+  sourceUrl: string
 }
 
 /**

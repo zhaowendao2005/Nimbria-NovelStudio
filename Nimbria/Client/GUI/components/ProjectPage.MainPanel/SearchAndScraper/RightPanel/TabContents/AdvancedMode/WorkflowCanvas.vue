@@ -24,6 +24,11 @@
       <template #node-get-text="nodeProps">
         <GetTextNode v-bind="nodeProps" />
       </template>
+      
+      <!-- 🔥 自定义节点：获取链接 -->
+      <template #node-get-links="nodeProps">
+        <GetLinksNode v-bind="nodeProps" />
+      </template>
     </VueFlow>
   </div>
 </template>
@@ -36,6 +41,7 @@ import { Controls } from '@vue-flow/controls'
 import { MiniMap } from '@vue-flow/minimap'
 import type { Node, Edge, NodeMouseEvent } from '@vue-flow/core'
 import GetTextNode from './Nodes/GetTextNode.vue'
+import GetLinksNode from './Nodes/GetLinksNode.vue'
 
 interface Props {
   nodes: Node[]

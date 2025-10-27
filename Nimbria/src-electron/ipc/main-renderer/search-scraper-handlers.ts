@@ -259,7 +259,7 @@ export function setupSearchScraperHandlers(): void {
   // 开始元素选取
   ipcMain.handle('search-scraper:start-element-picker', (
     event: IpcMainInvokeEvent,
-    request: { tabId: string }
+    request: { tabId: string; nodeType?: 'get-text' | 'get-links' }
   ): { success: boolean } => {
     if (!browserViewManager) {
       return { success: false }
@@ -271,7 +271,7 @@ export function setupSearchScraperHandlers(): void {
     }
     
     try {
-      browserViewManager.startElementPicker(request.tabId, window)
+      browserViewManager.startElementPicker(request.tabId, window, request.nodeType)
       return { success: true }
     } catch (error) {
       console.error('[SearchAndScraper] Failed to start element picker:', error)

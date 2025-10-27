@@ -662,8 +662,8 @@ contextBridge.exposeInMainWorld('nimbria', {
       ipcRenderer.invoke('search-scraper:get-zoom-factor', { tabId }),
     
     // 元素选取
-    startElementPicker: (tabId: string) => 
-      ipcRenderer.invoke('search-scraper:start-element-picker', { tabId }),
+    startElementPicker: (tabId: string, nodeType?: 'get-text' | 'get-links') => 
+      ipcRenderer.invoke('search-scraper:start-element-picker', { tabId, nodeType }),
     stopElementPicker: (tabId: string) => 
       ipcRenderer.invoke('search-scraper:stop-element-picker', { tabId }),
     

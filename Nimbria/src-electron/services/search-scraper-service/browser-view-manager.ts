@@ -378,7 +378,7 @@ export class BrowserViewManager {
   /**
    * 开始元素选取模式
    */
-  public startElementPicker(tabId: string, window: BrowserWindow): void {
+  public startElementPicker(tabId: string, window: BrowserWindow, nodeType: 'get-text' | 'get-links' = 'get-text'): void {
     const instance = this.views.get(tabId)
     if (!instance) {
       throw new Error(`View ${tabId} not found`)
@@ -401,7 +401,7 @@ export class BrowserViewManager {
         console.log(`[BrowserViewManager] CDP channel injected for ${tabId}`)
     
     // 注入元素选取脚本
-    const pickerScript = this.getElementPickerScript(tabId, window)
+    const pickerScript = this.getElementPickerScript(tabId, window, nodeType)
         return instance.view.webContents.executeJavaScript(pickerScript)
       })
       .then(() => {
@@ -810,11 +810,21 @@ export class BrowserViewManager {
   /**
    * 生成元素选取脚本
    */
-  private getElementPickerScript(tabId: string, window: BrowserWindow): string {
+  private getElementPickerScript(tabId: string, window: BrowserWindow, nodeType: string): string {
     return `
       (function() {
         // 防止重复注入
         if (window.__nimbriaElementPicker) {
+          console.log('[ElementPicker] Already initialized');
+          return;
+        }
+        
+        // 🔥 注入节点类型常量
+        const NODE_TYPE = '${nodeType}';
+        console.log('[ElementPicker] Node type:', NODE_TYPE);
+        
+        // 继续原有的初始化代码
+        if (false) {
           console.log('[ElementPicker] Already initialized');
           return;
         }
@@ -1000,10 +1010,38 @@ export class BrowserViewManager {
           };
         }
         
+        // 🔥 根据节点类型提取预览内容
+        function getNodeSpecificPreview(element) {
+          if (NODE_TYPE === 'get-links') {
+            // 提取链接预览
+            const allLinks = Array.from(element.querySelectorAll('a'))
+              .filter(a => a.href && a.textContent?.trim());
+            
+            return {
+              type: 'links',
+              data: allLinks.slice(0, 5).map(a => ({
+                title: a.textContent.trim().substring(0, 30),
+                url: a.href
+              })),
+              totalCount: allLinks.length
+            };
+          } else if (NODE_TYPE === 'get-text') {
+            // 提取文本预览
+            const text = element.textContent || '';
+            return {
+              type: 'text',
+              data: text.trim().substring(0, 200),
+              totalLength: text.length
+            };
+          }
+          return null;
+        }
+        
         // 更新详细信息框内容
         function updateDetailBox(element) {
           const summary = getElementSummary(element);
           const path = getHierarchyPath(element);
+          const preview = getNodeSpecificPreview(element);  // 🔥 获取预览
           
           // 🔥 提前计算并缓存选择器（防止后续DOM变化影响）
           cachedSelector = getSelector(element);
@@ -1019,6 +1057,7 @@ export class BrowserViewManager {
             textLength: summary.textLength,
             childrenCount: summary.childrenCount,
             xpath: getXPath(element),
+            preview: preview,  // 🔥 缓存预览
             timestamp: Date.now()
           };
           console.log('[ElementPicker] 💾 Cached element info:', cachedElementInfo);
@@ -1080,6 +1119,40 @@ export class BrowserViewManager {
                 <span style="color: #409EFF;">文本预览:</span>
                 <div style="color: #ddd; margin-top: 4px; padding: 6px; background: rgba(255,255,255,0.05); border-radius: 4px; font-size: 11px; max-height: 60px; overflow: auto;">
                   \${summary.textPreview}
+                </div>
+              </div>
+            \`;
+          }
+          
+          // 🔥 根据节点类型渲染预览区
+          if (preview?.type === 'links') {
+            html += \`
+              <div style="margin: 8px 0; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 8px;">
+                <div style="color: #409EFF; font-weight: bold;">🔗 链接预览</div>
+                <div style="color: #909399; font-size: 11px;">
+                  总计 \${preview.totalCount} 个链接，预览前5个
+                </div>
+                <div style="max-height: 120px; overflow: auto; margin-top: 4px;">
+                  \${preview.data.map((link, i) => \`
+                    <div style="margin: 4px 0; padding: 4px; background: rgba(255,255,255,0.05); border-radius: 3px;">
+                      <div style="color: #67C23A; font-size: 11px; font-weight: bold;">
+                        \${i + 1}. \${link.title}
+                      </div>
+                      <div style="color: #909399; font-size: 10px; word-break: break-all;">
+                        \${link.url}
+                      </div>
+                    </div>
+                  \`).join('')}
+                </div>
+              </div>
+            \`;
+          } else if (preview?.type === 'text') {
+            html += \`
+              <div style="margin: 8px 0; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 8px;">
+                <div style="color: #409EFF; font-weight: bold;">📝 文本预览</div>
+                <div style="color: #909399; font-size: 11px;">总计 \${preview.totalLength} 字符</div>
+                <div style="color: #ddd; padding: 6px; background: rgba(255,255,255,0.05); border-radius: 4px; font-size: 11px; max-height: 100px; overflow: auto; margin-top: 4px;">
+                  \${preview.data}
                 </div>
               </div>
             \`;
