@@ -1115,6 +1115,51 @@ export interface NimbriaWindowAPI {
      * 监听元素选取
      */
     onElementSelected(callback: (data: { tabId: string; element: any }) => void): void
+    
+    /**
+     * 监听选取器取消事件（Esc键）
+     */
+    onPickerCancelled(callback: (data: { tabId: string; reason: string }) => void): void
+  }
+
+  /**
+   * 🔥 Workflow 工作流 API
+   * 
+   * 提供工作流节点的执行功能
+   */
+  workflow: {
+    /**
+     * 执行单个节点
+     */
+    executeNode(request: {
+      node: {
+        id: string
+        type: string
+        data: {
+          label: string
+          selector?: string
+          config?: {
+            engine?: 'browserview' | 'cheerio' | 'puppeteer'
+            strategy?: 'direct' | 'max-text'
+            removeSelectors?: string
+            [key: string]: any
+          }
+        }
+      }
+      context: {
+        tabId: string
+        currentUrl?: string
+      }
+      input?: any
+    }): Promise<{
+      nodeId: string
+      success: boolean
+      output?: any
+      error?: string
+      executedAt: number
+      engine?: 'browserview' | 'cheerio' | 'puppeteer'
+      duration?: number
+    }>
   }
 
   /**

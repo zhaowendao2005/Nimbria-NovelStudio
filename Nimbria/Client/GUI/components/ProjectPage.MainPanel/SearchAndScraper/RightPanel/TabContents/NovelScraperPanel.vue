@@ -50,36 +50,63 @@
             label="智能模式"
             value="smart"
           />
+          <el-option
+            label="高级模式"
+            value="advanced"
+          />
         </el-select>
       </div>
       
       <!-- 中间：工具按钮组 -->
       <div class="toolbar-tools">
-        <div
-          class="tool-item"
-          :class="{ disabled: !isBatchSelected }"
-          @click="handleMatchChapters"
-        >
-          <el-icon><Aim /></el-icon>
-          <span>智能匹配章节列表</span>
-        </div>
-        
-        <div
-          class="tool-item"
-          :class="{ disabled: !isBatchSelected }"
-          @click="handleScrapeChapters"
-        >
-          <el-icon><Download /></el-icon>
-          <span>爬取章节</span>
-        </div>
-        
-        <div
-          class="tool-item"
-          @click="handleOpenSettings"
-        >
-          <el-icon><Setting /></el-icon>
-          <span>设置</span>
-        </div>
+        <!-- 智能模式按钮 -->
+        <template v-if="currentMode === 'smart'">
+          <div
+            class="tool-item"
+            :class="{ disabled: !isBatchSelected }"
+            @click="handleMatchChapters"
+          >
+            <el-icon><Aim /></el-icon>
+            <span>智能匹配章节列表</span>
+          </div>
+          
+          <div
+            class="tool-item"
+            :class="{ disabled: !isBatchSelected }"
+            @click="handleScrapeChapters"
+          >
+            <el-icon><Download /></el-icon>
+            <span>爬取章节</span>
+          </div>
+          
+          <div
+            class="tool-item"
+            @click="handleOpenSettings"
+          >
+            <el-icon><Setting /></el-icon>
+            <span>设置</span>
+          </div>
+        </template>
+
+        <!-- 高级模式按钮 -->
+        <template v-else-if="currentMode === 'advanced'">
+          <div
+            class="tool-item"
+            :class="{ disabled: !isBatchSelected }"
+            @click="handleRunWorkflow"
+          >
+            <el-icon><VideoPlay /></el-icon>
+            <span>启动工作流</span>
+          </div>
+          
+          <div
+            class="tool-item"
+            @click="handleOpenSettings"
+          >
+            <el-icon><Setting /></el-icon>
+            <span>设置</span>
+          </div>
+        </template>
 
         <!-- 内部空白区域撑满 -->
         <div class="toolbar-spacer"></div>
@@ -137,6 +164,78 @@
         
         <!-- 🔥 章节摘要区域 -->
         <div class="content-section chapter-summary-section">
+          <div class="section-header">
+            <h3>已爬取章节</h3>
+            <span class="chapter-count">共 {{ scrapedChapters.length }} 章</span>
+          </div>
+          <div class="section-body">
+            <ChapterSummarySection
+              :chapters="scrapedChapters"
+              @view-detail="handleViewDetail"
+            />
+          </div>
+        </div>
+      </div>
+      
+      <!-- 🔥 高级模式内容 -->
+      <div v-else-if="currentMode === 'advanced'" class="advanced-mode-content">
+        <!-- 🔥 工作流配置区域 -->
+        <div class="content-section workflow-config-section">
+          <div class="section-header">
+            <h3>工作流配置</h3>
+            <div class="header-tools">
+              <el-button size="small" @click="handleClearWorkflow">
+                <el-icon><Delete /></el-icon>
+                清空
+              </el-button>
+            </div>
+          </div>
+          <div class="section-body workflow-viewport">
+            <div class="viewport-container">
+              <!-- 🔥 VueFlow画布 -->
+              <WorkflowCanvas
+                :nodes="workflowNodes"
+                :edges="workflowEdges"
+                @update:nodes="handleNodesUpdate"
+                @update:edges="handleEdgesUpdate"
+                @node-click="handleNodeClick"
+              />
+            </div>
+          </div>
+        </div>
+        
+        <!-- 🔥 匹配章节列表（复用智能模式组件） -->
+        <div class="content-section chapter-list-section" :class="{ disabled: !isBatchSelected }">
+          <div class="section-header">
+            <h3>匹配章节列表</h3>
+            <div class="header-tools">
+              <el-switch
+                v-model="urlPrefixEnabled"
+                size="small"
+                active-text="URL前缀"
+              />
+              <el-input
+                v-if="urlPrefixEnabled"
+                v-model="urlPrefix"
+                size="small"
+                placeholder="https://example.com"
+                style="width: 200px; margin-left: 8px"
+              />
+            </div>
+          </div>
+          <div class="section-body">
+            <ChapterListSection
+              :chapters="matchedChapters"
+              :url-prefix="urlPrefix"
+              :url-prefix-enabled="urlPrefixEnabled"
+              @update:url-prefix="urlPrefix = $event"
+              @update:url-prefix-enabled="urlPrefixEnabled = $event"
+            />
+          </div>
+        </div>
+        
+        <!-- 🔥 已爬取章节（复用智能模式组件） -->
+        <div class="content-section chapter-summary-section" :class="{ disabled: !isBatchSelected }">
           <div class="section-header">
             <h3>已爬取章节</h3>
             <span class="chapter-count">共 {{ scrapedChapters.length }} 章</span>
@@ -212,15 +311,19 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { Aim, Download, Setting, Refresh } from '@element-plus/icons-vue'
+import { Aim, Download, Setting, Refresh, VideoPlay, Delete } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useSearchAndScraperStore } from '@stores/projectPage/searchAndScraper'
+import { useWorkflowStore } from '@stores/projectPage/workflow.store'
 import { SearchAndScraperService } from '@service/SearchAndScraper'
 import { ScraperStorageService } from '@service/SearchAndScraper/scraper-storage.service'
 import ChapterListSection from './SmartMode/ChapterListSection.vue'
 import ChapterSummarySection from './SmartMode/ChapterSummarySection.vue'
+import WorkflowCanvas from './AdvancedMode/WorkflowCanvas.vue'
 import type { ScrapedChapter, Chapter } from '@stores/projectPage/searchAndScraper/searchAndScraper.types'
 import type { NovelBatch, CreateNovelBatchParams, SaveMatchedChaptersResult } from '@service/SearchAndScraper/types'
+import type { WorkflowNode, WorkflowEdge } from './AdvancedMode/types'
+import type { NodeMouseEvent } from '@vue-flow/core'
 
 /**
  * NovelScraperPanel 组件
@@ -238,14 +341,29 @@ interface Props {
 
 interface Emits {
   (e: 'open-drawer', content: string): void
+  (e: 'open-node-config', data: { nodeId: string; tabId: string }): void
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 const store = useSearchAndScraperStore()
+const workflowStore = useWorkflowStore()
 
 // 🔥 ChapterListSection 组件引用
 const chapterListRef = ref<InstanceType<typeof ChapterListSection> | null>(null)
+
+// ==================== 🔥 高级模式：工作流状态 ====================
+
+// 工作流节点和边
+const workflowNodes = computed(() => {
+  const workflowInstance = workflowStore.getInstance(props.tabId)
+  return workflowInstance?.nodes || []
+})
+
+const workflowEdges = computed(() => {
+  const workflowInstance = workflowStore.getInstance(props.tabId)
+  return workflowInstance?.edges || []
+})
 
 // 🔥 从Store获取当前实例的状态（保证多例独立性）
 const instance = computed(() => store.getInstance(props.tabId))
@@ -672,7 +790,7 @@ const scrapeBrowserMode = async (chaptersToScrape: Chapter[]): Promise<void> => 
             projectPath,
             {
               matchedChapterId: chapter.id,  // 需要从matched_chapters获取ID
-              batchId: selectedBatchId.value!,
+              batchId: selectedBatchId.value,
               title: result.chapter.title,
               url: chapter.url,
               content: result.chapter.content,
@@ -813,11 +931,11 @@ const scrapeLightMode = async (chaptersToScrape: Chapter[]): Promise<void> => {
           const matchedChapter = chaptersToScrape.find(ch => ch.url === r.chapter.url)
           return {
             matchedChapterId: matchedChapter?.id || '',
-            batchId: selectedBatchId.value!,
+            batchId: selectedBatchId.value,
             title: r.chapter.title,
             url: r.chapter.url,
-            content: r.content!,
-            summary: ScraperStorageService.generateSummary(r.content!),
+            content: r.content || '',
+            summary: ScraperStorageService.generateSummary(r.content || ''),
             scrapeDuration: 1000  // 轻量模式没有单独计时，使用默认值
           }
         })
@@ -835,9 +953,7 @@ const scrapeLightMode = async (chaptersToScrape: Chapter[]): Promise<void> => {
       )
       
       // @ts-expect-error - ElMessage类型定义问题
-      ElMessage.success({ 
-        message: `爬取完成！成功爬取 ${saveResult.successCount}/${chaptersToScrape.length} 章，已保存到数据库` 
-      })
+      ElMessage.success({ message: `爬取完成！成功爬取 ${saveResult.successCount}/${chaptersToScrape.length} 章，已保存到数据库` })
       console.log(`[NovelScraper ${props.tabId}] Light mode scrape completed:`, saveResult)
       
       // 🔥 刷新批次数据
@@ -869,6 +985,57 @@ const handleOpenSettings = (): void => {
   console.log(`[NovelScraper ${props.tabId}] Opening settings drawer`)
 }
 
+/**
+ * 🔥 高级模式：启动工作流
+ */
+const handleRunWorkflow = (): void => {
+  if (!isBatchSelected.value) {
+    // @ts-expect-error - ElMessage类型定义问题
+    ElMessage.warning({ message: '请先选择或创建一个批次' })
+    return
+  }
+  
+  // TODO: 实现工作流执行逻辑
+  // @ts-expect-error - ElMessage类型定义问题
+  ElMessage.info({ message: '工作流功能开发中...' })
+  console.log(`[NovelScraper ${props.tabId}] Starting workflow...`)
+}
+
+/**
+ * 🔥 高级模式：清空工作流
+ */
+const handleClearWorkflow = (): void => {
+  workflowStore.clearWorkflow(props.tabId)
+  // @ts-expect-error - ElMessage类型定义问题
+  ElMessage.success({ message: '工作流已清空' })
+  console.log(`[NovelScraper ${props.tabId}] Workflow cleared`)
+}
+
+/**
+ * 🔥 高级模式：节点变更
+ */
+const handleNodesUpdate = (nodes: WorkflowNode[]): void => {
+  workflowStore.updateNodes(props.tabId, nodes)
+}
+
+/**
+ * 🔥 高级模式：边变更
+ */
+const handleEdgesUpdate = (edges: WorkflowEdge[]): void => {
+  workflowStore.updateEdges(props.tabId, edges)
+}
+
+/**
+ * 🔥 高级模式：节点点击（通知父组件打开配置抽屉）
+ */
+const handleNodeClick = (event: NodeMouseEvent): void => {
+  console.log(`[NovelScraper ${props.tabId}] Node clicked:`, event.node.id)
+  emit('open-node-config', {
+    nodeId: event.node.id,
+    tabId: props.tabId
+  })
+}
+
 // 🔥 生命周期：挂载时记录日志并加载批次列表
 onMounted(() => {
   console.log(`[NovelScraper ${props.tabId}] Mounted`, {
@@ -879,6 +1046,10 @@ onMounted(() => {
   
   // 🆕 加载批次列表
   void loadBatches()
+  
+  // 🔥 初始化工作流实例
+  workflowStore.getOrCreateInstance(props.tabId, selectedBatchId.value)
+  console.log(`[NovelScraper ${props.tabId}] Workflow instance initialized`)
 })
 
 // 🔥 生命周期：卸载时记录日志（状态已经自动同步到Store）
@@ -1022,6 +1193,13 @@ onUnmounted(() => {
   padding: 16px;
 }
 
+.advanced-mode-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+
 // ==================== 🔥 卡片区域（参考DocParser） ====================
 .content-section {
   display: flex;
@@ -1109,5 +1287,45 @@ onUnmounted(() => {
   color: var(--el-text-color-primary);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+// ==================== 🔥 高级模式：工作流视口 ====================
+.workflow-config-section {
+  min-height: 500px; // 🔥 固定高度，给VueFlow留出空间
+}
+
+.workflow-viewport {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.viewport-container {
+  position: relative;
+  width: 100%;
+  height: 450px; // 🔥 固定高度，VueFlow将在这里渲染
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--el-bg-color-page);
+}
+
+.vueflow-placeholder {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  gap: 16px;
+  
+  .placeholder-tip {
+    font-size: 14px;
+    color: var(--el-text-color-secondary);
+    text-align: center;
+    margin: 0;
+  }
 }
 </style>

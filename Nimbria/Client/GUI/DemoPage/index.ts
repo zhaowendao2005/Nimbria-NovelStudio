@@ -9,6 +9,9 @@ export * from './TestPage'
 // LlmTranslate 导出
 export * from './LlmTranslate'
 
+// VueFlowTest 导出
+export * from './VueFlowTest'
+
 // 页面注册Promise（用于等待注册完成）
 let registrationPromise: Promise<void> | null = null
 
@@ -46,6 +49,18 @@ export function registerDemoPages(): Promise<void> {
           component: () => import('./LlmTranslate/LlmTranslatePage.vue'),
           showInDrawer: true,
           tags: ['llm', 'translate', 'batch', 'demo']
+        },
+        {
+          id: 'vueflow-test-page',
+          name: 'VueFlow 依赖测试',
+          title: 'VueFlow Dependency Test',
+          description: '阶段0测试：验证VueFlow依赖是否正确安装和工作',
+          category: 'demo',
+          icon: 'Connection',
+          tabType: 'vueflowtest',
+          component: () => import('./VueFlowTest/VueFlowTestPage.vue'),
+          showInDrawer: true,
+          tags: ['vueflow', 'workflow', 'test', 'stage0']
         }
         // 未来可以在这里添加更多Demo页面
       ])

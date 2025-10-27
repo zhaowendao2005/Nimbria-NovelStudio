@@ -29,6 +29,14 @@
           >
             启动 LLM翻译
           </el-button>
+          
+          <el-button 
+            type="warning" 
+            @click="openVueFlowTestPage"
+            :icon="Connection"
+          >
+            VueFlow测试
+          </el-button>
         </div>
       </div>
       
@@ -62,7 +70,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Document, ArrowRight, Promotion } from '@element-plus/icons-vue'
+import { Document, ArrowRight, Promotion, Connection } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { CustomPageAPI } from '../../../../../Service/CustomPageManager'
 import type { CustomPageConfig } from '../../../../../Service/CustomPageManager'
@@ -173,6 +181,43 @@ const openLlmTranslatePage = async () => {
     ElMessage({
       type: 'error',
       message: `打开LLM批量翻译失败：${errorMessage}`
+    })
+  }
+}
+
+// 直接启动VueFlowTestPage（阶段0测试）
+const openVueFlowTestPage = async () => {
+  console.log('[DemoPageDrawer] Opening VueFlowTestPage directly')
+  
+  try {
+    // 先确保页面已注册
+    console.log('[DemoPageDrawer] Ensuring pages are registered...')
+    const { ensureRegistration } = await import('@demo')
+    await ensureRegistration()
+    console.log('[DemoPageDrawer] Pages registered, now opening...')
+    
+    // 使用CustomPageAPI打开VueFlowTestPage
+    const instance = await CustomPageAPI.open('vueflow-test-page')
+    
+    if (instance) {
+      ElMessage({
+        type: 'success',
+        message: '✅ 阶段0测试：VueFlow测试页已打开'
+      })
+      // 关闭抽屉
+      visible.value = false
+    } else {
+      ElMessage({
+        type: 'error',
+        message: '❌ 无法打开VueFlow测试页'
+      })
+    }
+  } catch (error) {
+    console.error('[DemoPageDrawer] Failed to open VueFlowTestPage:', error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    ElMessage({
+      type: 'error',
+      message: `❌ 打开VueFlow测试页失败：${errorMessage}`
     })
   }
 }

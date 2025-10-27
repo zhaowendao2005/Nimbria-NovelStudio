@@ -691,7 +691,42 @@ contextBridge.exposeInMainWorld('nimbria', {
     },
     onElementSelected: (callback: (data: { tabId: string; element: any }) => void) => {
       ipcRenderer.on('search-scraper:element-selected', (_event, data) => callback(data))
+    },
+    
+    /**
+     * 监听选取器取消事件（Esc键）
+     */
+    onPickerCancelled: (callback: (data: { tabId: string; reason: string }) => void) => {
+      ipcRenderer.on('search-scraper:picker-cancelled', (_event, data) => callback(data))
     }
+  },
+
+  // 🔥 Workflow 工作流 API
+  workflow: {
+    /**
+     * 执行单个节点
+     */
+    executeNode: (request: {
+      node: {
+        id: string
+        type: string
+        data: {
+          label: string
+          selector?: string
+          config?: {
+            engine?: 'browserview' | 'cheerio' | 'puppeteer'
+            strategy?: 'direct' | 'max-text'
+            removeSelectors?: string
+            [key: string]: any
+          }
+        }
+      }
+      context: {
+        tabId: string
+        currentUrl?: string
+      }
+      input?: any
+    }) => ipcRenderer.invoke('workflow:execute-node', request)
   },
 
   // 🔥 事件通信 API

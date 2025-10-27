@@ -81,6 +81,23 @@ const routes: RouteRecordRaw[] = [
       }
     ]
   },
+
+  // 🔧 VueFlow 依赖测试路由（阶段 0 测试）
+  {
+    path: '/vueflow-test',
+    component: () => import('layouts/MainLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'vueflow-test',
+        component: () => import('@demo/VueFlowTest/VueFlowTestPage.vue'),
+        meta: {
+          title: 'VueFlow 依赖测试',
+          requiresAuth: false
+        }
+      }
+    ]
+  },
   
   // 404 错误页面
   {

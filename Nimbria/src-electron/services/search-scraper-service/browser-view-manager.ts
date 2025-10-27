@@ -19,6 +19,7 @@ export class BrowserViewManager {
   private views = new Map<string, BrowserViewInstance>()
   private session: Session
   private lightScraper: LightModeScraper
+  private elementPickerKeyListeners = new Map<string, (event: Electron.Event, input: Electron.Input) => void>()
   
   constructor(session: Session) {
     this.session = session
@@ -123,6 +124,19 @@ export class BrowserViewManager {
         } catch (error) {
           console.error(`[BrowserViewManager] Failed to parse element selection data:`, error)
         }
+      }
+      
+      // 🔥 处理取消事件
+      if (message.startsWith('__NIMBRIA_PICKER_CANCELLED__')) {
+        try {
+          const jsonStr = message.replace('__NIMBRIA_PICKER_CANCELLED__', '').trim()
+          const data = JSON.parse(jsonStr)
+          // 发送到渲染进程
+          window.webContents.send('search-scraper:picker-cancelled', data)
+          console.log(`[BrowserViewManager] Picker cancelled event sent:`, data)
+        } catch (error) {
+          console.error(`[BrowserViewManager] Failed to parse cancel data:`, error)
+        }
       } else if (message.startsWith('__NIMBRIA_ZOOM_REQUEST__')) {
         try {
           const jsonStr = message.replace('__NIMBRIA_ZOOM_REQUEST__', '').trim()
@@ -196,6 +210,13 @@ export class BrowserViewManager {
     
     if (instance.isVisible) {
       window.removeBrowserView(instance.view)
+    }
+    
+    // 🔥 清理键盘监听器
+    const keyListener = this.elementPickerKeyListeners.get(tabId)
+    if (keyListener) {
+      window.webContents.removeListener('before-input-event', keyListener)
+      this.elementPickerKeyListeners.delete(tabId)
     }
     
     // 销毁 webContents
@@ -352,12 +373,47 @@ export class BrowserViewManager {
       .catch(error => {
         console.error(`[BrowserViewManager] Failed to inject picker script:`, error)
       })
+    
+    // 🔥 设置全局键盘事件监听（解决焦点问题）
+    const keyListener = (_event: Electron.Event, input: Electron.Input) => {
+      // 只处理按键按下事件
+      if (input.type !== 'keyDown') return
+      
+      // 只处理元素选择器相关的按键
+      const relevantKeys = ['ArrowUp', 'ArrowDown', 'Enter', 'Escape']
+      if (!relevantKeys.includes(input.key)) return
+      
+      // 转发按键事件到BrowserView
+      const forwardScript = `
+        if (window.__nimbriaElementPicker) {
+          const event = new KeyboardEvent('keydown', {
+            key: '${input.key}',
+            code: '${input.code}',
+            bubbles: true,
+            cancelable: true
+          });
+          document.dispatchEvent(event);
+        }
+      `
+      
+      instance.view.webContents.executeJavaScript(forwardScript).catch(err => {
+        console.error('[BrowserViewManager] Failed to forward key event:', err)
+      })
+    }
+    
+    // 保存监听器引用
+    this.elementPickerKeyListeners.set(tabId, keyListener)
+    
+    // 在主窗口上监听键盘事件
+    window.webContents.on('before-input-event', keyListener)
+    
+    console.log(`[BrowserViewManager] 🎹 Global keyboard listener enabled for ${tabId}`)
   }
   
   /**
    * 停止元素选取模式
    */
-  public stopElementPicker(tabId: string, _window: BrowserWindow): void {
+  public stopElementPicker(tabId: string, window: BrowserWindow): void {
     const instance = this.views.get(tabId)
     if (!instance) {
       throw new Error(`View ${tabId} not found`)
@@ -377,6 +433,14 @@ export class BrowserViewManager {
       .catch(error => {
         console.error(`[BrowserViewManager] Failed to stop picker:`, error)
       })
+    
+    // 🔥 移除全局键盘事件监听
+    const keyListener = this.elementPickerKeyListeners.get(tabId)
+    if (keyListener) {
+      window.webContents.removeListener('before-input-event', keyListener)
+      this.elementPickerKeyListeners.delete(tabId)
+      console.log(`[BrowserViewManager] 🎹 Global keyboard listener removed for ${tabId}`)
+    }
   }
   
   /**
@@ -612,9 +676,21 @@ export class BrowserViewManager {
           return;
         }
         
-        console.log('[ElementPicker] Initializing...');
+        console.log('[ElementPicker] Initializing Enhanced Element Picker...');
         
-        // 创建高亮overlay
+        // ============ 状态管理 ============
+        let currentElement = null;
+        let cachedSelector = null; // 🔥 缓存计算好的选择器，防止DOM变化影响
+        let cachedElementInfo = null; // 🔥 缓存完整的元素信息（新系统用，详细框确认时发送）
+        let navigationMode = false; // 层级导航模式
+        let hoverTimer = null;
+        let hoverProgress = 0;
+        let detailBoxVisible = false;
+        let lastMouseX = 0, lastMouseY = 0;
+        
+        // ============ DOM 元素创建 ============
+        
+        // 高亮框
         const overlay = document.createElement('div');
         overlay.id = '__nimbria-picker-overlay';
         overlay.style.cssText = \`
@@ -622,43 +698,94 @@ export class BrowserViewManager {
           pointer-events: none;
           border: 2px solid #409EFF;
           background: rgba(64, 158, 255, 0.1);
-          z-index: 999999;
-          transition: all 0.1s ease;
+          z-index: 999998;
+          transition: all 0.2s ease;
         \`;
         document.body.appendChild(overlay);
         
-        // 当前高亮的元素
-        let currentElement = null;
+        // 进度球（跟随光标）
+        const progressBall = document.createElement('div');
+        progressBall.id = '__nimbria-progress-ball';
+        progressBall.style.cssText = \`
+          position: fixed;
+          left: 0;
+          top: 0;
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          background: conic-gradient(#409EFF 0deg, #409EFF 0deg, transparent 0deg);
+          border: 2px solid rgba(64, 158, 255, 0.3);
+          z-index: 999999;
+          opacity: 0;
+          transition: opacity 0.3s;
+          pointer-events: none;
+          transform: translate(-50%, -50%);
+        \`;
+        const progressInner = document.createElement('div');
+        progressInner.style.cssText = \`
+          position: absolute;
+          inset: 3px;
+          background: rgba(0, 0, 0, 0.6);
+          border-radius: 50%;
+        \`;
+        progressBall.appendChild(progressInner);
+        document.body.appendChild(progressBall);
+        
+        // 详细信息框
+        const detailBox = document.createElement('div');
+        detailBox.id = '__nimbria-detail-box';
+        detailBox.style.cssText = \`
+          position: absolute;
+          width: 320px;
+          max-height: 220px;
+          background: rgba(0, 0, 0, 0.92);
+          color: #fff;
+          font-size: 12px;
+          font-family: 'Consolas', 'Monaco', monospace;
+          padding: 12px;
+          border-radius: 8px;
+          overflow: auto;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+          z-index: 1000000;
+          backdrop-filter: blur(8px);
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.3s;
+          line-height: 1.5;
+        \`;
+        document.body.appendChild(detailBox);
+        
+        // ============ 工具函数 ============
         
         // 生成CSS选择器路径
         function getSelector(element) {
           if (element.id) return '#' + element.id;
           
           let path = [];
-          while (element.parentElement) {
-            let selector = element.tagName.toLowerCase();
-            if (element.className) {
-              const classes = Array.from(element.classList).filter(c => !c.startsWith('__nimbria'));
+          let current = element;
+          while (current && current.parentElement) {
+            let selector = current.tagName.toLowerCase();
+            if (current.className) {
+              const classes = Array.from(current.classList).filter(c => !c.startsWith('__nimbria'));
               if (classes.length > 0) {
-                selector += '.' + classes.join('.');
+                selector += '.' + classes.slice(0, 2).join('.');
               }
             }
             
             // 添加nth-child
-            let sibling = element;
+            let sibling = current;
             let nth = 1;
             while (sibling.previousElementSibling) {
               sibling = sibling.previousElementSibling;
-              if (sibling.tagName === element.tagName) nth++;
+              if (sibling.tagName === current.tagName) nth++;
             }
-            if (nth > 1 || element.nextElementSibling) {
+            if (nth > 1 || current.nextElementSibling) {
               selector += \`:nth-child(\${nth})\`;
             }
             
             path.unshift(selector);
-            element = element.parentElement;
+            current = current.parentElement;
             
-            // 限制路径长度
             if (path.length >= 6) break;
           }
           
@@ -670,47 +797,218 @@ export class BrowserViewManager {
           if (element.id) return '//*[@id="' + element.id + '"]';
           
           const parts = [];
-          while (element && element.nodeType === Node.ELEMENT_NODE) {
+          let current = element;
+          while (current && current.nodeType === Node.ELEMENT_NODE) {
             let index = 0;
-            let sibling = element.previousSibling;
+            let sibling = current.previousSibling;
             while (sibling) {
-              if (sibling.nodeType === Node.ELEMENT_NODE && sibling.nodeName === element.nodeName) {
+              if (sibling.nodeType === Node.ELEMENT_NODE && sibling.nodeName === current.nodeName) {
                 index++;
               }
               sibling = sibling.previousSibling;
             }
             
-            const tagName = element.nodeName.toLowerCase();
+            const tagName = current.nodeName.toLowerCase();
             const pathIndex = index ? \`[\${index + 1}]\` : '';
             parts.unshift(tagName + pathIndex);
-            element = element.parentNode;
+            current = current.parentNode;
           }
           
           return parts.length ? '/' + parts.join('/') : '';
         }
         
-        // 鼠标移动事件
-        function handleMouseMove(e) {
-          const element = e.target;
-          if (element.id === '__nimbria-picker-overlay') return;
-          
-          currentElement = element;
-          const rect = element.getBoundingClientRect();
-          
-          overlay.style.left = (rect.left + window.scrollX) + 'px';
-          overlay.style.top = (rect.top + window.scrollY) + 'px';
-          overlay.style.width = rect.width + 'px';
-          overlay.style.height = rect.height + 'px';
+        // 获取元素层级路径
+        function getHierarchyPath(element) {
+          const path = [];
+          let current = element;
+          while (current && current !== document.body) {
+            let label = current.tagName.toLowerCase();
+            if (current.id) label += '#' + current.id;
+            else if (current.className) {
+              const classes = Array.from(current.classList).filter(c => !c.startsWith('__nimbria'));
+              if (classes.length > 0) label += '.' + classes[0];
+            }
+            path.unshift(label);
+            current = current.parentElement;
+          }
+          path.unshift('body');
+          return path;
         }
         
-        // 点击事件
-        function handleClick(e) {
-          e.preventDefault();
+        // 获取元素摘要
+        function getElementSummary(element) {
+          const text = element.textContent || '';
+          const textPreview = text.trim().substring(0, 80).replace(/\\n/g, ' ');
+          const childrenCount = element.children.length;
+          
+          return {
+            tagName: element.tagName.toLowerCase(),
+            id: element.id || '',
+            classList: element.className ? Array.from(element.classList).filter(c => !c.startsWith('__nimbria')).join(' ') : '',
+            textPreview: textPreview + (text.length > 80 ? '...' : ''),
+            textLength: text.length,
+            childrenCount: childrenCount,
+            attributes: Array.from(element.attributes).reduce((acc, attr) => {
+              if (!attr.name.startsWith('__nimbria')) {
+                acc[attr.name] = attr.value.substring(0, 50);
+              }
+              return acc;
+            }, {})
+          };
+        }
+        
+        // 更新详细信息框内容
+        function updateDetailBox(element) {
+          const summary = getElementSummary(element);
+          const path = getHierarchyPath(element);
+          
+          // 🔥 提前计算并缓存选择器（防止后续DOM变化影响）
+          cachedSelector = getSelector(element);
+          console.log('[ElementPicker] 🎯 Cached selector:', cachedSelector);
+          
+          // 🔥 构建并缓存完整的元素信息（用于详细框确认时直接发送）
+          cachedElementInfo = {
+            selector: cachedSelector,
+            tagName: summary.tagName,
+            id: summary.id || undefined,
+            classList: summary.classList ? summary.classList.split(' ').filter(Boolean) : undefined,
+            textContent: summary.textPreview || undefined,
+            textLength: summary.textLength,
+            childrenCount: summary.childrenCount,
+            xpath: getXPath(element),
+            timestamp: Date.now()
+          };
+          console.log('[ElementPicker] 💾 Cached element info:', cachedElementInfo);
+          
+          let html = \`
+            <div style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.2);">
+              <div style="color: #409EFF; font-weight: bold; margin-bottom: 4px;">📍 层级路径</div>
+              <div style="color: #aaa; font-size: 11px; word-break: break-all;">
+                \${path.map((p, i) => i === path.length - 1 ? \`<span style="color: #67C23A; font-weight: bold;">\${p}</span>\` : p).join(' > ')}
+              </div>
+            </div>
+            
+            <div style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.2);">
+              <div style="color: #409EFF; font-weight: bold; margin-bottom: 4px;">🎯 CSS选择器</div>
+              <div style="color: #67C23A; margin-top: 4px; padding: 6px; background: rgba(255,255,255,0.05); border-radius: 4px; font-size: 11px; word-break: break-all; font-family: 'Consolas', monospace;">
+                \${cachedSelector}
+              </div>
+            </div>
+            
+            <div style="margin-bottom: 6px;">
+              <span style="color: #409EFF;">标签:</span> 
+              <span style="color: #E6A23C;">&lt;\${summary.tagName}&gt;</span>
+            </div>
+          \`;
+          
+          if (summary.id) {
+            html += \`
+              <div style="margin-bottom: 6px;">
+                <span style="color: #409EFF;">ID:</span> 
+                <span style="color: #67C23A;">\${summary.id}</span>
+              </div>
+            \`;
+          }
+          
+          if (summary.classList) {
+            html += \`
+              <div style="margin-bottom: 6px;">
+                <span style="color: #409EFF;">Class:</span> 
+                <span style="color: #F56C6C; word-break: break-all;">\${summary.classList}</span>
+              </div>
+            \`;
+          }
+          
+          html += \`
+            <div style="margin-bottom: 6px;">
+              <span style="color: #409EFF;">子元素:</span> 
+              <span style="color: #fff;">\${summary.childrenCount} 个</span>
+            </div>
+            
+            <div style="margin-bottom: 6px;">
+              <span style="color: #409EFF;">文本长度:</span> 
+              <span style="color: #fff;">\${summary.textLength} 字符</span>
+            </div>
+          \`;
+          
+          if (summary.textPreview) {
+            html += \`
+              <div style="margin-bottom: 6px;">
+                <span style="color: #409EFF;">文本预览:</span>
+                <div style="color: #ddd; margin-top: 4px; padding: 6px; background: rgba(255,255,255,0.05); border-radius: 4px; font-size: 11px; max-height: 60px; overflow: auto;">
+                  \${summary.textPreview}
+                </div>
+              </div>
+            \`;
+          }
+          
+          // 🔥 添加确认按钮（不依赖页面事件，直接使用缓存数据）
+          html += \`
+            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.3);">
+              <button id="__nimbria-confirm-btn" style="
+                width: 100%;
+                padding: 10px 16px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: bold;
+                box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+                transition: all 0.2s ease;
+              " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.6)';" onmouseout="this.style.transform=''; this.style.boxShadow='0 2px 8px rgba(102, 126, 234, 0.4)';">
+                ✅ 确认选择此元素
+              </button>
+            </div>
+            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.2); color: #909399; font-size: 11px; text-align: center;">
+              💡 提示: ↑↓ 导航层级 | Enter/点按钮 确认 | Esc 退出
+            </div>
+          \`;
+          
+          detailBox.innerHTML = html;
+          
+          // 🔥 绑定确认按钮的点击事件（使用 setTimeout 确保DOM已渲染）
+          setTimeout(() => {
+            const confirmBtn = document.getElementById('__nimbria-confirm-btn');
+            if (confirmBtn) {
+              confirmBtn.onclick = (e) => {
           e.stopPropagation();
+                e.preventDefault();
+                console.log('[ElementPicker] 🎯 Confirm button clicked!');
+                confirmSelection();
+              };
+            }
+          }, 0);
+        }
+        
+        // 🔥 确认选择（智能判断：新系统用缓存，老系统实时计算）
+        function confirmSelection() {
+          console.log('[ElementPicker] 🎯 confirmSelection called');
           
-          if (!currentElement || currentElement.id === '__nimbria-picker-overlay') return;
+          if (!currentElement) {
+            console.warn('[ElementPicker] ⚠️ No current element!');
+            return;
+          }
           
-          const elementInfo = {
+          if (currentElement.id?.startsWith('__nimbria')) {
+            console.warn('[ElementPicker] ⚠️ Cannot select internal element');
+            return;
+          }
+          
+          let elementInfo;
+          
+          // 🔥 智能判断：如果有缓存信息（新系统/详细框模式），直接使用；否则实时计算（老系统/直接点击）
+          if (cachedElementInfo) {
+            // 新系统路径：使用详细框中已解析的信息
+            elementInfo = {
+              ...cachedElementInfo,
+              timestamp: Date.now() // 更新时间戳
+            };
+            console.log('[ElementPicker] ✅ Using cached element info (新系统):', elementInfo);
+          } else {
+            // 老系统路径：实时计算元素信息
+            elementInfo = {
             selector: getSelector(currentElement),
             tagName: currentElement.tagName.toLowerCase(),
             id: currentElement.id || undefined,
@@ -719,38 +1017,285 @@ export class BrowserViewManager {
             xpath: getXPath(currentElement),
             timestamp: Date.now()
           };
+            console.log('[ElementPicker] ✅ Calculated element info (老系统):', elementInfo);
+          }
           
-          console.log('[ElementPicker] Element selected:', elementInfo);
-          
-          // 发送到主进程（通过自定义事件）
-          document.dispatchEvent(new CustomEvent('__nimbria-element-selected', {
-            detail: { tabId: '${tabId}', element: elementInfo }
+          // 🔥 发送到主进程（必须是单个字符串！）
+          console.log('__NIMBRIA_ELEMENT_SELECTED__ ' + JSON.stringify({
+            tabId: '${tabId}',
+            element: elementInfo
           }));
+          
+          console.log('[ElementPicker] 🚀 Data sent to main process!');
         }
         
-        // 监听自定义事件并通过console发送数据
-        document.addEventListener('__nimbria-element-selected', (e) => {
-          // 通过console.log传递数据到主进程
-          console.log('__NIMBRIA_ELEMENT_SELECTED__', JSON.stringify(e.detail));
+        // 定位详细信息框
+        function positionDetailBox(element) {
+          const rect = element.getBoundingClientRect();
+          const boxWidth = 320;
+          const boxMaxHeight = 220;
+          const margin = 12;
+          
+          let left, top;
+          
+          // 优先右侧
+          if (rect.right + margin + boxWidth <= window.innerWidth) {
+            left = rect.right + margin;
+            top = rect.top;
+          }
+          // 左侧
+          else if (rect.left - margin - boxWidth >= 0) {
+            left = rect.left - margin - boxWidth;
+            top = rect.top;
+          }
+          // 下方
+          else if (rect.bottom + margin + boxMaxHeight <= window.innerHeight) {
+            left = Math.max(0, Math.min(rect.left, window.innerWidth - boxWidth));
+            top = rect.bottom + margin;
+          }
+          // 上方
+          else {
+            left = Math.max(0, Math.min(rect.left, window.innerWidth - boxWidth));
+            top = Math.max(0, rect.top - margin - boxMaxHeight);
+          }
+          
+          detailBox.style.left = (left + window.scrollX) + 'px';
+          detailBox.style.top = (top + window.scrollY) + 'px';
+        }
+        
+        // 更新高亮框位置
+        function updateOverlayPosition(element) {
+          if (!element) return;
+          
+          const rect = element.getBoundingClientRect();
+          overlay.style.left = (rect.left + window.scrollX) + 'px';
+          overlay.style.top = (rect.top + window.scrollY) + 'px';
+          overlay.style.width = rect.width + 'px';
+          overlay.style.height = rect.height + 'px';
+        }
+        
+        // 更新进度球位置（跟随光标，右下偏移）
+        function updateProgressBallPosition(clientX, clientY) {
+          progressBall.style.left = (clientX + 20) + 'px';
+          progressBall.style.top = (clientY + 20) + 'px';
+        }
+        
+        // 更新进度球
+        function updateProgressBall(progress) {
+          const deg = progress * 3.6; // 0-100 -> 0-360
+          progressBall.style.background = \`conic-gradient(#409EFF 0deg, #409EFF \${deg}deg, transparent \${deg}deg)\`;
+        }
+        
+        // 开始悬停计时
+        function startHoverTimer() {
+          clearHoverTimer();
+          hoverProgress = 0;
+          progressBall.style.opacity = '0.7';
+          
+          const startTime = Date.now();
+          const duration = 3000;
+          
+          hoverTimer = setInterval(() => {
+            const elapsed = Date.now() - startTime;
+            hoverProgress = Math.min(100, (elapsed / duration) * 100);
+            updateProgressBall(hoverProgress);
+            
+            if (hoverProgress >= 100) {
+              clearHoverTimer();
+              showDetailBox();
+            }
+          }, 50);
+        }
+        
+        // 清除悬停计时
+        function clearHoverTimer() {
+          if (hoverTimer) {
+            clearInterval(hoverTimer);
+            hoverTimer = null;
+          }
+          progressBall.style.opacity = '0';
+          hoverProgress = 0;
+          updateProgressBall(0);
+        }
+        
+        // 显示详细信息框
+        function showDetailBox() {
+          if (!currentElement) return;
+          
+          updateDetailBox(currentElement);
+          positionDetailBox(currentElement);
+          detailBox.style.opacity = '1';
+          detailBox.style.pointerEvents = 'auto';
+          detailBoxVisible = true;
+        }
+        
+        // 隐藏详细信息框
+        function hideDetailBox() {
+          detailBox.style.opacity = '0';
+          detailBox.style.pointerEvents = 'none';
+          detailBoxVisible = false;
+        }
+        
+        // ============ 事件处理 ============
+        
+        // 鼠标移动事件
+        function handleMouseMove(e) {
+          // 忽略我们自己创建的元素
+          if (e.target.id && e.target.id.startsWith('__nimbria')) return;
+          
+          // 更新进度球位置（跟随光标）
+          updateProgressBallPosition(e.clientX, e.clientY);
+          
+          const dx = e.clientX - lastMouseX;
+          const dy = e.clientY - lastMouseY;
+          lastMouseX = e.clientX;
+          lastMouseY = e.clientY;
+          
+          // 导航模式下不响应鼠标移动
+          if (navigationMode) return;
+          
+          // 检测鼠标是否在详细框内
+          if (detailBoxVisible) {
+            const detailRect = detailBox.getBoundingClientRect();
+            const inDetailBox = e.clientX >= detailRect.left && 
+                              e.clientX <= detailRect.right &&
+                              e.clientY >= detailRect.top && 
+                              e.clientY <= detailRect.bottom;
+            
+            if (inDetailBox) {
+              // 鼠标在详细框内，保持显示
+              return;
+            }
+            
+            // 检测是否在向详细框移动
+            const currentRect = currentElement.getBoundingClientRect();
+            const distToDetail = Math.min(
+              Math.abs(e.clientX - detailRect.left),
+              Math.abs(e.clientX - detailRect.right),
+              Math.abs(e.clientY - detailRect.top),
+              Math.abs(e.clientY - detailRect.bottom)
+            );
+            
+            // 如果距离详细框很近且在移动，保持显示
+            if (distToDetail < 50) {
+              return;
+            }
+          }
+          
+          // 切换到新元素
+          if (e.target !== currentElement) {
+            currentElement = e.target;
+            cachedElementInfo = null; // 🔥 清空缓存，等待新元素的详细框显示
+            updateOverlayPosition(currentElement);
+            hideDetailBox();
+            startHoverTimer();
+          }
+        }
+        
+        // 键盘事件
+        function handleKeyDown(e) {
+          if (!currentElement) return;
+          
+          // 上键 - 选择父元素
+          if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (currentElement.parentElement && currentElement.parentElement !== document.body) {
+              currentElement = currentElement.parentElement;
+              updateOverlayPosition(currentElement);
+              updateDetailBox(currentElement);
+              navigationMode = true;
+              clearHoverTimer();
+              showDetailBox();
+            }
+          }
+          
+          // 下键 - 选择第一个子元素
+          else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (currentElement.children.length > 0) {
+              currentElement = currentElement.children[0];
+              updateOverlayPosition(currentElement);
+              updateDetailBox(currentElement);
+              navigationMode = true;
+              clearHoverTimer();
+              showDetailBox();
+            }
+          }
+          
+          // Enter - 确认选择（使用缓存的选择器）
+          else if (e.key === 'Enter') {
+            e.preventDefault();
+            console.log('[ElementPicker] ⌨️ Enter key pressed, confirming selection...');
+            confirmSelection();
+          }
+          
+          // Esc - 退出选取器
+          else if (e.key === 'Escape') {
+            e.preventDefault();
+            console.log('[ElementPicker] ⌨️ Escape key pressed, destroying picker...');
+            console.log('[ElementPicker] 🔍 tabId:', '${tabId}');
+            
+            // 🔥 先派发取消事件（必须在destroy之前！）
+            console.log('[ElementPicker] 📄 Dispatching cancel event with tabId: ${tabId}');
+            document.dispatchEvent(new CustomEvent('__nimbria-picker-cancelled', {
+              detail: { tabId: '${tabId}', reason: 'escape' }
+            }));
+            console.log('[ElementPicker] ✅ Cancel event dispatched');
+            
+            // 然后销毁选取器
+            if (window.__nimbriaElementPicker) {
+              window.__nimbriaElementPicker.destroy();
+              delete window.__nimbriaElementPicker;
+            }
+            
+            console.log('[ElementPicker] 🎉 Picker fully destroyed');
+          }
+        }
+        
+        // 点击事件（简化：直接调用 confirmSelection）
+        function handleClick(e) {
+          console.log('[ElementPicker] 🖱️ Click event fired!', {
+            target: e.target,
+            currentElement: currentElement,
+            navigationMode: navigationMode
+          });
+          
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // 🔥 直接调用 confirmSelection（统一处理逻辑）
+          confirmSelection();
+        }
+        
+        // 监听取消事件（用于 Esc 键）
+        document.addEventListener('__nimbria-picker-cancelled', (e) => {
+          console.log('[ElementPicker] 📥 Cancel event received!', e.detail);
+          console.log('__NIMBRIA_PICKER_CANCELLED__ ' + JSON.stringify(e.detail));
         });
         
-        // 绑定事件
+        // ============ 绑定事件 ============
         document.addEventListener('mousemove', handleMouseMove, true);
         document.addEventListener('click', handleClick, true);
+        document.addEventListener('keydown', handleKeyDown, true);
         
-        // 清理函数
+        // ============ 清理函数 ============
         window.__nimbriaElementPicker = {
           destroy: function() {
+            clearHoverTimer();
             document.removeEventListener('mousemove', handleMouseMove, true);
             document.removeEventListener('click', handleClick, true);
-            if (overlay.parentElement) {
-              overlay.parentElement.removeChild(overlay);
-            }
-            console.log('[ElementPicker] Destroyed');
+            document.removeEventListener('keydown', handleKeyDown, true);
+            
+            if (overlay.parentElement) overlay.parentElement.removeChild(overlay);
+            if (progressBall.parentElement) progressBall.parentElement.removeChild(progressBall);
+            if (detailBox.parentElement) detailBox.parentElement.removeChild(detailBox);
+            
+            console.log('[ElementPicker] Enhanced picker destroyed');
           }
         };
         
-        console.log('[ElementPicker] Initialized successfully');
+        console.log('[ElementPicker] Enhanced picker initialized successfully');
+        console.log('[ElementPicker] 💡 使用 ↑↓ 键导航元素层级, Enter 确认选择, Esc 退出');
       })();
     `
   }

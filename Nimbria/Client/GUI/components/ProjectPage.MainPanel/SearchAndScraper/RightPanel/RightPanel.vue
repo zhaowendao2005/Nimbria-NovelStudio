@@ -20,6 +20,7 @@
         v-else-if="activeTabId === 'novel-scraper'"
         :tab-id="props.tabId"
         @open-drawer="handleOpenDrawer"
+        @open-node-config="handleOpenNodeConfig"
       />
       
       <!-- 占位 -->
@@ -38,8 +39,13 @@
       :width="500"
       :min-width-percent="70"
     >
-      <!-- 动态内容 - 传递 tabId -->
-      <component :is="drawerContent" v-if="drawerContent" :tab-id="props.tabId" />
+      <!-- 动态内容 - 传递 tabId 和其他数据 -->
+      <component 
+        :is="drawerContent" 
+        v-if="drawerContent" 
+        :tab-id="props.tabId"
+        :node-id="nodeConfigData?.nodeId"
+      />
     </RightDrawer>
   </div>
 </template>
@@ -52,6 +58,7 @@ import ElementPickerPanel from './TabContents/ElementPickerPanel.vue'
 import NovelScraperPanel from './TabContents/NovelScraperPanel.vue'
 import RightDrawer from './RightDrawer.vue'
 import SettingsContent from './DrawerContents/SettingsContent.vue'
+import NodeConfigDrawerContent from './DrawerContents/NodeConfigDrawerContent.vue'
 import type { TabItem } from './types'
 
 /**
@@ -90,6 +97,9 @@ const drawerVisible = ref(false)
 const drawerTitle = ref('抽屉')
 const drawerContent = ref<Component | null>(null)
 
+// 🔥 节点配置抽屉的数据
+const nodeConfigData = ref<{ nodeId: string; tabId: string } | null>(null)
+
 /**
  * 处理标签页点击
  */
@@ -116,6 +126,18 @@ const handleOpenDrawer = (contentType: string): void => {
       drawerContent.value = null
   }
   
+  drawerVisible.value = true
+}
+
+/**
+ * 🔥 打开节点配置抽屉
+ */
+const handleOpenNodeConfig = (data: { nodeId: string; tabId: string }): void => {
+  console.log('[RightPanel] Opening node config drawer:', data)
+  
+  nodeConfigData.value = data
+  drawerTitle.value = '节点配置'
+  drawerContent.value = NodeConfigDrawerContent
   drawerVisible.value = true
 }
 

@@ -16,6 +16,13 @@ const browserSessionManager = new BrowserSessionManager()
 let browserViewManager: BrowserViewManager | null = null
 
 /**
+ * 🔥 导出BrowserViewManager getter（供workflow-handlers使用）
+ */
+export function getBrowserViewManager(): BrowserViewManager | null {
+  return browserViewManager
+}
+
+/**
  * 设置 SearchAndScraper IPC 处理器
  */
 export function setupSearchScraperHandlers(): void {
