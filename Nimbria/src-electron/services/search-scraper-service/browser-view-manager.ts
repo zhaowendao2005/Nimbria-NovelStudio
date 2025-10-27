@@ -420,12 +420,25 @@ export class BrowserViewManager {
       const relevantKeys = ['ArrowUp', 'ArrowDown', 'Enter', 'Escape']
       if (!relevantKeys.includes(input.key)) return
       
-      // 转发按键事件到BrowserView
+      // 🔥 调试日志：显示修饰键状态
+      console.log('[BrowserViewManager] Key event:', {
+        key: input.key,
+        shift: input.shift,
+        control: input.control,
+        alt: input.alt,
+        meta: input.meta
+      })
+      
+      // 转发按键事件到BrowserView（包含修饰键状态）
       const forwardScript = `
         if (window.__nimbriaElementPicker) {
           const event = new KeyboardEvent('keydown', {
             key: '${input.key}',
             code: '${input.code}',
+            shiftKey: ${input.shift || false},
+            ctrlKey: ${input.control || false},
+            altKey: ${input.alt || false},
+            metaKey: ${input.meta || false},
             bubbles: true,
             cancelable: true
           });
@@ -1417,8 +1430,16 @@ export class BrowserViewManager {
         function handleKeyDown(e) {
           if (!currentElement) return;
           
-          // 上键 - 选择父元素
-          if (e.key === 'ArrowUp') {
+          // 🔥 调试：显示接收到的键盘事件
+          console.log('[ElementPicker] Key event received:', {
+            key: e.key,
+            shiftKey: e.shiftKey,
+            ctrlKey: e.ctrlKey,
+            altKey: e.altKey
+          });
+          
+          // 🔥 Shift + 上键 - 选择父元素
+          if (e.key === 'ArrowUp' && e.shiftKey) {
             e.preventDefault();
             if (currentElement.parentElement && currentElement.parentElement !== document.body) {
               currentElement = currentElement.parentElement;
@@ -1430,8 +1451,8 @@ export class BrowserViewManager {
             }
           }
           
-          // 下键 - 选择第一个子元素
-          else if (e.key === 'ArrowDown') {
+          // 🔥 Shift + 下键 - 选择第一个子元素
+          else if (e.key === 'ArrowDown' && e.shiftKey) {
             e.preventDefault();
             if (currentElement.children.length > 0) {
               currentElement = currentElement.children[0];
@@ -1440,6 +1461,42 @@ export class BrowserViewManager {
               navigationMode = true;
               clearHoverTimer();
               showDetailBox();
+            }
+          }
+          
+          // 🔥 单独上键 - 切换到上一个同级元素
+          else if (e.key === 'ArrowUp' && !e.shiftKey) {
+            e.preventDefault();
+            const parent = currentElement.parentElement;
+            if (parent) {
+              const siblings = Array.from(parent.children);
+              const currentIndex = siblings.indexOf(currentElement);
+              if (currentIndex > 0) {
+                currentElement = siblings[currentIndex - 1];
+                updateOverlayPosition(currentElement);
+                updateDetailBox(currentElement);
+                navigationMode = true;
+                clearHoverTimer();
+                showDetailBox();
+              }
+            }
+          }
+          
+          // 🔥 单独下键 - 切换到下一个同级元素
+          else if (e.key === 'ArrowDown' && !e.shiftKey) {
+            e.preventDefault();
+            const parent = currentElement.parentElement;
+            if (parent) {
+              const siblings = Array.from(parent.children);
+              const currentIndex = siblings.indexOf(currentElement);
+              if (currentIndex < siblings.length - 1) {
+                currentElement = siblings[currentIndex + 1];
+                updateOverlayPosition(currentElement);
+                updateDetailBox(currentElement);
+                navigationMode = true;
+                clearHoverTimer();
+                showDetailBox();
+              }
             }
           }
           
@@ -1516,7 +1573,7 @@ export class BrowserViewManager {
         };
         
         console.log('[ElementPicker] Enhanced picker initialized successfully');
-        console.log('[ElementPicker] 💡 使用 ↑↓ 键导航元素层级, Enter 确认选择, Esc 退出');
+        console.log('[ElementPicker] 💡 ↑↓ 切换同级元素, Shift+↑↓ 切换层级, Enter 确认, Esc 退出');
       })();
     `
   }

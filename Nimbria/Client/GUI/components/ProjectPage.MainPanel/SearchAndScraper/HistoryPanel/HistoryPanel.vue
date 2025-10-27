@@ -259,17 +259,19 @@ const handleItemClick = (item: BrowseHistoryItem): void => {
   justify-content: flex-end;
   z-index: 2000;
   padding: 50px 20px 20px 20px; // 给toolbar留出空间
+  overflow: hidden; // 🔥 防止内容溢出
 }
 
 .history-panel {
   width: 400px;
-  max-height: calc(100vh - 70px);
+  height: 100%; // 🔥 跟随父容器高度
+  max-height: none; // 🔥 移除最大高度限制
   background: var(--el-bg-color);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: hidden; // 🔥 确保内容不溢出边界
 }
 
 // ==================== 头部 ====================
