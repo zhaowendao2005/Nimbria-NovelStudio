@@ -306,6 +306,11 @@
         </template>
       </el-dialog>
     </teleport>
+    
+    <!-- 🔥 高级设置抽屉 -->
+    <AdvancedSettingsDrawer
+      v-model:visible="showSettingsDrawer"
+    />
   </div>
 </template>
 
@@ -320,6 +325,7 @@ import { ScraperStorageService } from '@service/SearchAndScraper/scraper-storage
 import ChapterListSection from './SmartMode/ChapterListSection.vue'
 import ChapterSummarySection from './SmartMode/ChapterSummarySection.vue'
 import WorkflowCanvas from './AdvancedMode/WorkflowCanvas.vue'
+import AdvancedSettingsDrawer from './AdvancedMode/AdvancedSettingsDrawer.vue'
 import type { ScrapedChapter, Chapter } from '@stores/projectPage/searchAndScraper/searchAndScraper.types'
 import type { NovelBatch, CreateNovelBatchParams, SaveMatchedChaptersResult } from '@service/SearchAndScraper/types'
 import type { WorkflowNode, WorkflowEdge } from './AdvancedMode/types'
@@ -378,6 +384,7 @@ const isBatchSelected = computed(() => selectedBatchId.value && selectedBatchId.
 
 // 🆕 创建批次对话框
 const createBatchDialogVisible = ref(false)
+const showSettingsDrawer = ref(false) // 🔥 高级设置抽屉显示状态
 const batchFormRef = ref<FormInstance>()
 const batchForm = ref<CreateNovelBatchParams>({
   name: '',
@@ -978,11 +985,11 @@ const scrapeLightMode = async (chaptersToScrape: Chapter[]): Promise<void> => {
 }
 
 /**
- * 打开设置抽屉
+ * 打开设置抽屉（🔥 修改为打开高级设置）
  */
 const handleOpenSettings = (): void => {
-  emit('open-drawer', 'settings')
-  console.log(`[NovelScraper ${props.tabId}] Opening settings drawer`)
+  showSettingsDrawer.value = true
+  console.log(`[NovelScraper ${props.tabId}] Opening advanced settings drawer`)
 }
 
 /**

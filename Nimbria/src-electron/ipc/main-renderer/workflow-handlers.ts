@@ -93,6 +93,83 @@ export function setupWorkflowHandlers(): void {
     }
   })
   
+  // ==================== 浏览器配置 ====================
+  
+  /**
+   * 🔥 自动检测可用的Chromium浏览器（Edge/Chrome）
+   */
+  ipcMain.handle('workflow:detect-browsers', async (): Promise<{
+    success: boolean
+    browsers?: Array<{
+      name: string
+      type: 'edge' | 'chrome'
+      path: string
+    }>
+    error?: string
+  }> => {
+    try {
+      const browsers = GetTextExecutor.detectAllBrowsers()
+      console.log(`[WorkflowHandlers] Detected ${browsers.length} browser(s):`, browsers)
+      
+      return {
+        success: true,
+        browsers
+      }
+    } catch (error) {
+      console.error('[WorkflowHandlers] Browser detection failed:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  })
+  
+  /**
+   * 🔥 设置用户配置的浏览器路径
+   */
+  ipcMain.handle('workflow:set-browser-path', async (
+    _event: IpcMainInvokeEvent,
+    { path }: { path: string | null }
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      GetTextExecutor.setUserBrowserPath(path)
+      console.log(`[WorkflowHandlers] User browser path set to: ${path || '(auto-detect)'}`)
+      
+      return { success: true }
+    } catch (error) {
+      console.error('[WorkflowHandlers] Failed to set browser path:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  })
+  
+  /**
+   * 🔥 获取用户配置的浏览器路径
+   */
+  ipcMain.handle('workflow:get-browser-path', async (): Promise<{
+    success: boolean
+    path?: string | null
+    error?: string
+  }> => {
+    try {
+      const path = (global as any).userBrowserPath || null
+      console.log(`[WorkflowHandlers] Current user browser path: ${path || '(auto-detect)'}`)
+      
+      return {
+        success: true,
+        path
+      }
+    } catch (error) {
+      console.error('[WorkflowHandlers] Failed to get browser path:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  })
+  
   console.log('[WorkflowHandlers] Workflow IPC handlers registered successfully')
 }
 

@@ -25,6 +25,11 @@ export const useWorkflowStore = defineStore('workflow', () => {
    */
   const instances = ref<Map<string, WorkflowInstance>>(new Map())
   
+  /**
+   * 🔥 用户配置的浏览器路径（用于Puppeteer）
+   */
+  const browserExecutablePath = ref<string | null>(null)
+  
   // ==================== Getters ====================
   
   /**
@@ -259,9 +264,44 @@ export const useWorkflowStore = defineStore('workflow', () => {
     }
   }
   
+  /**
+   * 🔥 设置浏览器路径
+   */
+  function setBrowserExecutablePath(path: string | null): void {
+    browserExecutablePath.value = path
+    
+    // 持久化到本地存储
+    if (path) {
+      localStorage.setItem('nimbria_browser_path', path)
+    } else {
+      localStorage.removeItem('nimbria_browser_path')
+    }
+    
+    // 同步到后端
+    void window.nimbria.workflow.setBrowserPath(path)
+    
+    console.log(`[WorkflowStore] Browser path set to: ${path || '(auto-detect)'}`)
+  }
+  
+  /**
+   * 🔥 加载浏览器路径
+   */
+  function loadBrowserExecutablePath(): void {
+    const saved = localStorage.getItem('nimbria_browser_path')
+    if (saved) {
+      browserExecutablePath.value = saved
+      void window.nimbria.workflow.setBrowserPath(saved)
+      console.log(`[WorkflowStore] Loaded browser path: ${saved}`)
+    }
+  }
+  
+  // 🔥 初始化时加载浏览器路径
+  loadBrowserExecutablePath()
+  
   return {
     // State
     instances,
+    browserExecutablePath,
     
     // Getters
     getInstance,
@@ -279,7 +319,9 @@ export const useWorkflowStore = defineStore('workflow', () => {
     setTitleSelector,
     clearWorkflow,
     deleteInstance,
-    exportWorkflow
+    exportWorkflow,
+    setBrowserExecutablePath,
+    loadBrowserExecutablePath
   }
 })
 

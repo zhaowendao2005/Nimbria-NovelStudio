@@ -726,7 +726,25 @@ contextBridge.exposeInMainWorld('nimbria', {
         currentUrl?: string
       }
       input?: any
-    }) => ipcRenderer.invoke('workflow:execute-node', request)
+    }) => ipcRenderer.invoke('workflow:execute-node', request),
+    
+    /**
+     * 🔥 自动检测可用的Chromium浏览器（Edge/Chrome）
+     */
+    detectBrowsers: () => 
+      ipcRenderer.invoke('workflow:detect-browsers'),
+    
+    /**
+     * 🔥 设置用户配置的浏览器路径
+     */
+    setBrowserPath: (path: string | null) => 
+      ipcRenderer.invoke('workflow:set-browser-path', { path }),
+    
+    /**
+     * 🔥 获取用户配置的浏览器路径
+     */
+    getBrowserPath: () => 
+      ipcRenderer.invoke('workflow:get-browser-path')
   },
 
   // 🔥 事件通信 API

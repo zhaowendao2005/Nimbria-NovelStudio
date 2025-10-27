@@ -71,11 +71,11 @@
                 </span>
               </div>
             </el-option>
-            <el-option label="Puppeteer（强大）" value="puppeteer" disabled>
+            <el-option label="Puppeteer（强大）" value="puppeteer">
               <div style="display: flex; flex-direction: column;">
                 <span>Puppeteer（强大）</span>
                 <span style="font-size: 12px; color: var(--el-text-color-secondary);">
-                  独立浏览器，功能最强，资源占用高（开发中）
+                  独立浏览器，复用Session，绕过反爬，资源占用高
                 </span>
               </div>
             </el-option>

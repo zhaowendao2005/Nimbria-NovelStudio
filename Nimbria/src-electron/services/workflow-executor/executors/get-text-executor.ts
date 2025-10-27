@@ -13,8 +13,13 @@ import type {
 } from '../types'
 import axios from 'axios'
 import { load } from 'cheerio'
+import puppeteer from 'puppeteer-core'
+import type { Browser } from 'puppeteer-core'
+import { existsSync } from 'fs'
 
 export class GetTextExecutor implements NodeExecutor {
+  private puppeteerBrowser: Browser | null = null
+  
   constructor(
     private browserViewManager: BrowserViewManager
   ) {}
@@ -50,8 +55,8 @@ export class GetTextExecutor implements NodeExecutor {
           output = await this.executeWithCheerio(node, context, url)
           break
         case 'puppeteer':
-          // TODO: Puppeteer实现
-          throw new Error('Puppeteer engine not implemented yet')
+          output = await this.executeWithPuppeteer(node, context, url)
+          break
         default:
           throw new Error(`Unknown engine: ${String(engine)}`)
       }
@@ -356,6 +361,425 @@ export class GetTextExecutor implements NodeExecutor {
       url,
       engine: 'cheerio'
     }
+  }
+
+  /**
+   * 🔥 使用 Puppeteer 引擎执行（适用于防爬网站）
+   */
+  private async executeWithPuppeteer(
+    node: WorkflowNode,
+    context: WorkflowExecutionContext,
+    url: string
+  ): Promise<GetTextOutput> {
+    const { selector, config } = node.data
+    const strategy = config?.strategy || 'max-text'
+    const removeSelectors = config?.removeSelectors || 'script, style, nav, header, footer, aside, iframe'
+    const titleSelector = config?.titleSelector || 'h1, title'
+
+    console.log(`[PuppeteerExecutor] 🚀 Starting Puppeteer execution`)
+    console.log(`[PuppeteerExecutor] URL: ${url}`)
+    console.log(`[PuppeteerExecutor] Strategy: ${strategy}`)
+    console.log(`[PuppeteerExecutor] Selector: ${selector}`)
+
+    try {
+      // 1. 🔥 初始化 Puppeteer Browser（如果还没有）
+      if (!this.puppeteerBrowser) {
+        await this.initPuppeteerBrowser()
+      }
+
+      // 2. 🔥 从 BrowserView 获取 cookies（模拟真人 session）
+      const cookies = await this.getCookiesFromBrowserView(context.tabId)
+      console.log(`[PuppeteerExecutor] ✅ Got ${cookies.length} cookies from BrowserView`)
+
+      // 3. 创建新页面
+      const page = await this.puppeteerBrowser!.newPage()
+      console.log(`[PuppeteerExecutor] ✅ New page created`)
+
+      try {
+        // 4. 🔥 设置 User-Agent（模拟真人）
+        await page.setUserAgent(
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+        )
+
+        // 5. 🔥 注入 cookies
+        if (cookies.length > 0) {
+          await page.setCookie(...cookies)
+          console.log(`[PuppeteerExecutor] ✅ Cookies injected`)
+        }
+
+        // 6. 🔥 禁用 webdriver 检测
+        await page.evaluateOnNewDocument(() => {
+          Object.defineProperty(navigator, 'webdriver', {
+            get: () => false
+          })
+          // 伪装 Chrome 特征
+          // @ts-ignore - 浏览器环境注入
+          window.chrome = { runtime: {} }
+        })
+
+        // 7. 导航到页面
+        console.log(`[PuppeteerExecutor] ⏳ Navigating to ${url}...`)
+        await page.goto(url, {
+          waitUntil: 'domcontentloaded', // 只等待 DOM 加载，不等完整资源
+          timeout: 30000
+        })
+        console.log(`[PuppeteerExecutor] ✅ Page loaded`)
+
+        // 8. 🔥 移除干扰元素
+        await page.evaluate((selectors) => {
+          document.querySelectorAll(selectors).forEach(el => el.remove())
+        }, removeSelectors)
+
+        // 9. 🔥 提取内容（与 BrowserView 逻辑一致）
+        const result = await page.evaluate(({ strategy: strat, contentSelector, titleSel, densityWeightPercent }) => {
+          let contentText = ''
+          let actualContentSelector = ''
+          let titleText = ''
+          let actualTitleSelector = ''
+
+          // 提取标题
+          const titleElem = document.querySelector(titleSel)
+          if (titleElem) {
+            titleText = (titleElem.textContent || '').trim()
+            actualTitleSelector = titleSel
+          } else {
+            titleText = document.title || ''
+            actualTitleSelector = 'document.title'
+          }
+
+          // 提取内容
+          if (strat === 'max-text') {
+            const densityWeight = densityWeightPercent / 100
+            const lengthWeight = 1 - densityWeight
+            
+            let maxScore = 0
+            let maxText = ''
+            let maxElem: HTMLElement | null = null
+
+            const candidates = document.querySelectorAll<HTMLElement>('div, article, section, main')
+            candidates.forEach(elem => {
+              const elemText = elem.textContent || ''
+              const textLength = elemText.trim().length
+              const tagCount = elem.querySelectorAll('*').length || 1
+              const density = textLength / tagCount
+              const score = textLength * lengthWeight + density * 1000 * densityWeight
+              
+              if (textLength > 500 && score > maxScore) {
+                maxScore = score
+                maxText = elemText
+                maxElem = elem
+              }
+            })
+
+            contentText = maxText.trim()
+            
+            if (maxElem) {
+              const elem = maxElem as HTMLElement
+              const tagName = elem.tagName.toLowerCase()
+              const id = elem.id
+              const className = Array.from(elem.classList)[0]
+              
+              if (id) {
+                actualContentSelector = `${tagName}#${id}`
+              } else if (className) {
+                actualContentSelector = `${tagName}.${className}`
+              } else {
+                actualContentSelector = `${tagName} (auto-detected)`
+              }
+            }
+          } else if (contentSelector) {
+            const elem = document.querySelector(contentSelector)
+            if (elem) {
+              contentText = (elem.textContent || '').trim()
+              actualContentSelector = contentSelector
+            }
+          }
+
+          return {
+            titleText,
+            actualTitleSelector,
+            contentText,
+            actualContentSelector
+          }
+        }, {
+          strategy,
+          contentSelector: selector || '',
+          titleSel: titleSelector,
+          densityWeightPercent: config?.densityWeight ?? 70
+        })
+
+        console.log(`[PuppeteerExecutor] ✅ Content extracted:`)
+        console.log(`  - Title: ${result.titleText.substring(0, 50)}...`)
+        console.log(`  - Content length: ${result.contentText.length}`)
+        console.log(`  - Content selector: ${result.actualContentSelector}`)
+
+        return {
+          title: {
+            text: result.titleText,
+            length: result.titleText.length,
+            selector: result.actualTitleSelector
+          },
+          content: {
+            text: result.contentText,
+            length: result.contentText.length,
+            selector: result.actualContentSelector
+          },
+          url,
+          engine: 'puppeteer'
+        }
+
+      } finally {
+        // 10. 关闭页面（释放资源）
+        await page.close()
+        console.log(`[PuppeteerExecutor] ✅ Page closed`)
+      }
+
+    } catch (error) {
+      console.error(`[PuppeteerExecutor] ❌ Execution failed:`, error)
+      throw error
+    }
+  }
+
+  /**
+   * 🔥 初始化 Puppeteer Browser（使用Edge/Chrome headless模式）
+   */
+  private async initPuppeteerBrowser(): Promise<void> {
+    if (this.puppeteerBrowser) return
+    
+    console.log(`[PuppeteerExecutor] 🚀 Initializing Puppeteer browser...`)
+    
+    try {
+      // 🔥 获取浏览器路径（用户配置 > Edge > Chrome）
+      const executablePath = await this.getBrowserPath()
+      
+      console.log(`[PuppeteerExecutor] Using browser at: ${executablePath}`)
+      
+      // 🔥 启动浏览器（headless模式，后台运行）
+      this.puppeteerBrowser = await puppeteer.launch({
+        headless: true, // ← 后台运行，不显示窗口
+        executablePath,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-web-security',
+          '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0'
+        ]
+      })
+      
+      console.log(`[PuppeteerExecutor] ✅ Browser launched successfully`)
+    } catch (error) {
+      console.error(`[PuppeteerExecutor] ❌ Failed to launch browser:`, error)
+      throw error
+    }
+  }
+  
+  /**
+   * 🔥 获取浏览器路径（统一优先级）
+   */
+  private async getBrowserPath(): Promise<string> {
+    // 1️⃣ 用户手动配置（最高优先级）
+    const userPath = await this.getUserConfiguredBrowserPath()
+    if (userPath && existsSync(userPath)) {
+      console.log('[Puppeteer] 使用用户配置:', userPath)
+      return userPath
+    }
+    
+    // 2️⃣ 自动检测Edge（Windows自带）
+    try {
+      const edgePath = GetTextExecutor.detectEdge()
+      console.log('[Puppeteer] 使用Edge:', edgePath)
+      return edgePath
+    } catch {}
+    
+    // 3️⃣ 自动检测Chrome（备用）
+    try {
+      const chromePath = GetTextExecutor.detectChrome()
+      console.log('[Puppeteer] 使用Chrome:', chromePath)
+      return chromePath
+    } catch {}
+    
+    throw new Error('未找到可用的Chromium浏览器（Edge/Chrome）')
+  }
+  
+  /**
+   * 从配置获取用户手动设置的路径
+   */
+  private async getUserConfiguredBrowserPath(): Promise<string | null> {
+    // 从全局变量获取（后续会通过IPC从前端传递）
+    return (global as any).userBrowserPath || null
+  }
+  
+  /**
+   * 🔥 自动检测所有可用浏览器（供前端调用）
+   */
+  static detectAllBrowsers(): Array<{
+    name: string
+    type: 'edge' | 'chrome'
+    path: string
+  }> {
+    const browsers: Array<{
+      name: string
+      type: 'edge' | 'chrome'
+      path: string
+    }> = []
+    
+    // 检测Edge
+    try {
+      const edgePath = this.detectEdge()
+      browsers.push({
+        name: 'Microsoft Edge',
+        type: 'edge',
+        path: edgePath
+      })
+    } catch {}
+    
+    // 检测Chrome
+    try {
+      const chromePath = this.detectChrome()
+      browsers.push({
+        name: 'Google Chrome',
+        type: 'chrome',
+        path: chromePath
+      })
+    } catch {}
+    
+    return browsers
+  }
+  
+  /**
+   * 🔥 检测Edge
+   */
+  static detectEdge(): string {
+    const paths = [
+      'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+      'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+      (process.env['PROGRAMFILES(X86)'] || '') + '\\Microsoft\\Edge\\Application\\msedge.exe',
+      (process.env['PROGRAMFILES'] || '') + '\\Microsoft\\Edge\\Application\\msedge.exe'
+    ]
+    
+    for (const path of paths) {
+      if (path && existsSync(path)) return path
+    }
+    
+    throw new Error('Edge not found')
+  }
+  
+  /**
+   * 🔥 检测Chrome
+   */
+  static detectChrome(): string {
+    const { platform } = process
+    
+    const pathsMap = {
+      win32: [
+        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+        (process.env.LOCALAPPDATA || '') + '\\Google\\Chrome\\Application\\chrome.exe',
+        (process.env['PROGRAMFILES'] || '') + '\\Google\\Chrome\\Application\\chrome.exe',
+        (process.env['PROGRAMFILES(X86)'] || '') + '\\Google\\Chrome\\Application\\chrome.exe'
+      ],
+      darwin: [
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+      ],
+      linux: [
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable',
+        '/usr/bin/chromium',
+        '/usr/bin/chromium-browser'
+      ]
+    }
+    
+    const platformPaths = pathsMap[platform as keyof typeof pathsMap] || []
+    
+    for (const path of platformPaths) {
+      if (path && existsSync(path)) return path
+    }
+    
+    throw new Error('Chrome not found')
+  }
+
+  /**
+   * 🔥 从 BrowserView 获取 cookies（模拟真人 session）
+   */
+  private async getCookiesFromBrowserView(tabId: string): Promise<Array<{
+    name: string
+    value: string
+    domain: string
+    path: string
+    expires: number
+    httpOnly: boolean
+    secure: boolean
+    sameSite: 'Strict' | 'Lax' | 'None'
+  }>> {
+    try {
+      // @ts-expect-error - 访问 private 属性
+      const viewInstance = this.browserViewManager.views.get(tabId)
+      if (!viewInstance) {
+        console.warn(`[PuppeteerExecutor] ⚠️ BrowserView not found for tab ${tabId}`)
+        return []
+      }
+
+      const dbg = viewInstance.view.webContents.debugger
+
+      // 附加 debugger（如果还没附加）
+      if (!dbg.isAttached()) {
+        dbg.attach('1.3')
+      }
+
+      // 🔥 通过 CDP 获取 cookies
+      const result = await dbg.sendCommand('Network.getAllCookies') as {
+        cookies: Array<{
+          name: string
+          value: string
+          domain: string
+          path: string
+          expires?: number
+          httpOnly?: boolean
+          secure?: boolean
+          sameSite?: string
+        }>
+      }
+      
+      // 转换为 Puppeteer 格式
+      return result.cookies.map((cookie) => ({
+        name: cookie.name,
+        value: cookie.value,
+        domain: cookie.domain,
+        path: cookie.path,
+        expires: cookie.expires || -1,
+        httpOnly: cookie.httpOnly || false,
+        secure: cookie.secure || false,
+        sameSite: (cookie.sameSite as 'Strict' | 'Lax' | 'None') || 'Lax'
+      }))
+
+    } catch (error) {
+      console.error(`[PuppeteerExecutor] ❌ Failed to get cookies:`, error)
+      return []
+    }
+  }
+
+  /**
+   * 🔥 清理资源
+   */
+  async cleanup(): Promise<void> {
+    if (this.puppeteerBrowser) {
+      try {
+        // 🔥 关闭浏览器（launch模式）
+        await this.puppeteerBrowser.close()
+        console.log(`[PuppeteerExecutor] ✅ Browser closed`)
+      } catch (error) {
+        console.error(`[PuppeteerExecutor] Error during cleanup:`, error)
+      }
+      this.puppeteerBrowser = null
+    }
+  }
+  
+  /**
+   * 🔥 设置用户配置的浏览器路径（由IPC调用）
+   */
+  static setUserBrowserPath(path: string | null): void {
+    (global as any).userBrowserPath = path
   }
 }
 

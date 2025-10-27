@@ -114,16 +114,36 @@ export class BrowserViewManager {
     
     // 监听console消息（用于接收元素选取信息和缩放请求）
     view.webContents.on('console-message', (_event, _level, message) => {
+      // 🔥 处理 CDP 确认请求（新系统：详细框确认）
+      if (message.startsWith('__NIMBRIA_CDP_CONFIRM__')) {
+        try {
+          const jsonStr = message.replace('__NIMBRIA_CDP_CONFIRM__', '').trim()
+          const data = JSON.parse(jsonStr)
+          console.log(`[BrowserViewManager] 🔥 CDP confirm request received:`, data)
+          
+          // 调用 CDP 方法
+          this.confirmSelectionWithCDP(data.tabId, data.selector, window)
+            .catch(error => {
+              console.error(`[BrowserViewManager] CDP confirmation failed:`, error)
+            })
+        } catch (error) {
+          console.error(`[BrowserViewManager] Failed to parse CDP confirm data:`, error)
+        }
+        return
+      }
+      
+      // 🔥 老系统：直接点击（使用 console.log 传输）
       if (message.startsWith('__NIMBRIA_ELEMENT_SELECTED__')) {
         try {
           const jsonStr = message.replace('__NIMBRIA_ELEMENT_SELECTED__', '').trim()
           const data = JSON.parse(jsonStr)
           // 发送到渲染进程
           window.webContents.send('search-scraper:element-selected', data)
-          console.log(`[BrowserViewManager] Element selected event sent:`, data)
+          console.log(`[BrowserViewManager] Element selected event sent (老系统):`, data)
         } catch (error) {
           console.error(`[BrowserViewManager] Failed to parse element selection data:`, error)
         }
+        return
       }
       
       // 🔥 处理取消事件
@@ -364,9 +384,26 @@ export class BrowserViewManager {
       throw new Error(`View ${tabId} not found`)
     }
     
+    // 🔥 先注入 CDP 确认通道（用于详细框确认）
+    const cdpChannelScript = `
+      window.__nimbriaConfirmWithCDP = function(selector) {
+        console.log('[ElementPicker] 🚀 Requesting CDP confirmation for:', selector);
+        console.log('__NIMBRIA_CDP_CONFIRM__ ' + JSON.stringify({
+          tabId: '${tabId}',
+          selector: selector
+        }));
+      };
+      console.log('[ElementPicker] ✅ CDP channel initialized');
+    `
+    
+    instance.view.webContents.executeJavaScript(cdpChannelScript)
+      .then(() => {
+        console.log(`[BrowserViewManager] CDP channel injected for ${tabId}`)
+    
     // 注入元素选取脚本
     const pickerScript = this.getElementPickerScript(tabId, window)
-    instance.view.webContents.executeJavaScript(pickerScript)
+        return instance.view.webContents.executeJavaScript(pickerScript)
+      })
       .then(() => {
         console.log(`[BrowserViewManager] Element picker started for ${tabId}`)
       })
@@ -440,6 +477,112 @@ export class BrowserViewManager {
       window.webContents.removeListener('before-input-event', keyListener)
       this.elementPickerKeyListeners.delete(tabId)
       console.log(`[BrowserViewManager] 🎹 Global keyboard listener removed for ${tabId}`)
+    }
+  }
+  
+  /**
+   * 🔥 使用 CDP 确认元素选择（不依赖页面 JS，适用于防爬网站）
+   */
+  public async confirmSelectionWithCDP(tabId: string, selector: string, window: BrowserWindow): Promise<void> {
+    const instance = this.views.get(tabId)
+    if (!instance) {
+      throw new Error(`View ${tabId} not found`)
+    }
+    
+    const dbg = instance.view.webContents.debugger
+    
+    try {
+      console.log(`[CDP] 🚀 Starting CDP confirmation for selector: ${selector}`)
+      
+      // 附加 debugger（如果还没附加）
+      if (!dbg.isAttached()) {
+        dbg.attach('1.3')
+        console.log(`[CDP] ✅ Debugger attached`)
+      }
+      
+      // 启用 DOM domain
+      await dbg.sendCommand('DOM.enable')
+      console.log(`[CDP] ✅ DOM domain enabled`)
+      
+      // 获取文档根节点
+      const { root } = await dbg.sendCommand('DOM.getDocument', {
+        depth: -1,
+        pierce: true
+      })
+      console.log(`[CDP] ✅ Document root obtained, nodeId: ${root.nodeId}`)
+      
+      // 使用缓存的选择器查询元素
+      const { nodeId } = await dbg.sendCommand('DOM.querySelector', {
+        nodeId: root.nodeId,
+        selector: selector
+      })
+      
+      if (!nodeId) {
+        console.error('[CDP] ❌ Element not found with selector:', selector)
+        return
+      }
+      console.log(`[CDP] ✅ Element found, nodeId: ${nodeId}`)
+      
+      // 获取元素的详细信息
+      const [
+        { outerHTML },
+        { attributes },
+        { node: model }
+      ] = await Promise.all([
+        dbg.sendCommand('DOM.getOuterHTML', { nodeId }),
+        dbg.sendCommand('DOM.getAttributes', { nodeId }),
+        dbg.sendCommand('DOM.describeNode', { nodeId })
+      ])
+      console.log(`[CDP] ✅ Element details obtained`)
+      
+      // 获取文本内容
+      const { object } = await dbg.sendCommand('DOM.resolveNode', { nodeId })
+      const { result } = await dbg.sendCommand('Runtime.callFunctionOn', {
+        objectId: object.objectId,
+        functionDeclaration: 'function() { return { text: this.textContent, length: this.textContent.length }; }'
+      })
+      console.log(`[CDP] ✅ Text content obtained:`, result.value)
+      
+      // 解析 attributes 数组为对象
+      const attrObj: Record<string, string> = {}
+      for (let i = 0; i < attributes.length; i += 2) {
+        attrObj[attributes[i]] = attributes[i + 1]
+      }
+      
+      // 生成简化的 XPath
+      let xpath = ''
+      if (attrObj['id']) {
+        xpath = `//*[@id="${attrObj['id']}"]`
+      } else {
+        xpath = `//${model.nodeName.toLowerCase()}`
+      }
+      
+      // 构建元素信息
+      const elementInfo = {
+        selector: selector,
+        tagName: model.nodeName.toLowerCase(),
+        id: attrObj['id'] || undefined,
+        classList: attrObj['class']?.split(' ').filter(Boolean) || undefined,
+        textContent: result.value?.text?.substring(0, 100) || undefined,
+        xpath: xpath,
+        timestamp: Date.now()
+      }
+      
+      console.log('[CDP] ✅ Element info constructed via CDP:', elementInfo)
+      
+      // 🔥 直接通过主进程 IPC 发送到渲染进程
+      window.webContents.send('search-scraper:element-selected', {
+        tabId,
+        element: elementInfo
+      })
+      
+      console.log('[CDP] 🚀 Element selected event sent to renderer')
+      
+    } catch (error) {
+      console.error('[CDP] ❌ Failed to confirm selection:', error)
+    } finally {
+      // 保持 debugger 附加状态，以便后续使用
+      // debugger.detach()
     }
   }
   
@@ -982,7 +1125,7 @@ export class BrowserViewManager {
           }, 0);
         }
         
-        // 🔥 确认选择（智能判断：新系统用缓存，老系统实时计算）
+        // 🔥 确认选择（智能判断：新系统用CDP，老系统用console.log）
         function confirmSelection() {
           console.log('[ElementPicker] 🎯 confirmSelection called');
           
@@ -996,19 +1139,23 @@ export class BrowserViewManager {
             return;
           }
           
-          let elementInfo;
-          
-          // 🔥 智能判断：如果有缓存信息（新系统/详细框模式），直接使用；否则实时计算（老系统/直接点击）
-          if (cachedElementInfo) {
-            // 新系统路径：使用详细框中已解析的信息
-            elementInfo = {
-              ...cachedElementInfo,
-              timestamp: Date.now() // 更新时间戳
-            };
-            console.log('[ElementPicker] ✅ Using cached element info (新系统):', elementInfo);
+          // 🔥 智能判断：如果有缓存信息（新系统/详细框模式），使用CDP；否则用console.log（老系统/直接点击）
+          if (cachedElementInfo && cachedSelector) {
+            // 新系统路径：通过 CDP 确认（不依赖页面 JS）
+            console.log('[ElementPicker] ✅ Using CDP path (新系统)');
+            console.log('[ElementPicker] 🔥 Cached selector:', cachedSelector);
+            
+            // 调用预先注入的 CDP 通道函数
+            if (window.__nimbriaConfirmWithCDP) {
+              window.__nimbriaConfirmWithCDP(cachedSelector);
+            } else {
+              console.error('[ElementPicker] ❌ CDP channel not available!');
+            }
           } else {
-            // 老系统路径：实时计算元素信息
-            elementInfo = {
+            // 老系统路径：实时计算并通过 console.log 传输
+            console.log('[ElementPicker] ✅ Using console.log path (老系统)');
+          
+          const elementInfo = {
             selector: getSelector(currentElement),
             tagName: currentElement.tagName.toLowerCase(),
             id: currentElement.id || undefined,
@@ -1017,15 +1164,16 @@ export class BrowserViewManager {
             xpath: getXPath(currentElement),
             timestamp: Date.now()
           };
+          
             console.log('[ElementPicker] ✅ Calculated element info (老系统):', elementInfo);
-          }
-          
-          // 🔥 发送到主进程（必须是单个字符串！）
-          console.log('__NIMBRIA_ELEMENT_SELECTED__ ' + JSON.stringify({
-            tabId: '${tabId}',
-            element: elementInfo
+            
+            // 🔥 发送到主进程（必须是单个字符串！）
+            console.log('__NIMBRIA_ELEMENT_SELECTED__ ' + JSON.stringify({
+              tabId: '${tabId}',
+              element: elementInfo
           }));
-          
+        }
+        
           console.log('[ElementPicker] 🚀 Data sent to main process!');
         }
         
