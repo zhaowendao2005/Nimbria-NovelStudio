@@ -1169,6 +1169,36 @@ export interface NimbriaWindowAPI {
    */
 
   /**
+   * LinkNodeView API
+   * 链接节点视图 - 使用Sigma.js可视化章节链接
+   */
+  linkNodeView: {
+    /**
+     * 打开链接节点视图窗口
+     */
+    openWindow(request: {
+      links: Array<{ id: string; title: string; url: string }>
+      tabId: string
+      projectPath: string
+    }): Promise<{
+      success: boolean
+      windowId?: number
+      transferId?: string
+      error?: { message: string }
+    }>
+
+    /**
+     * 删除链接（同步到主窗口）
+     */
+    deleteLinks(request: { tabId: string; linkIds: string[] }): void
+
+    /**
+     * 监听删除同步事件
+     */
+    onSyncDelete(callback: (data: { tabId: string; linkIds: string[] }) => void): void
+  }
+
+  /**
    * 监听 IPC 事件
    * @param channel 事件频道名称
    * @param callback 事件回调函数

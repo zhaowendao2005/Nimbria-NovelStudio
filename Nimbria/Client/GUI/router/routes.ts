@@ -82,6 +82,17 @@ const routes: RouteRecordRaw[] = [
     ]
   },
 
+  // 🔥 LinkNodeView 独立窗口路由（纯净窗口，只有标题栏和内容）
+  {
+    path: '/link-node-view',
+    name: 'link-node-view',
+    component: () => import('components/ProjectPage.MainPanel/SearchAndScraper/RightPanel/TabContents/AdvancedMode/LinkNodeViewWindow.vue'),
+    meta: {
+      title: '链接节点视图',
+      requiresAuth: false
+    }
+  },
+
   // 🔧 VueFlow 依赖测试路由（阶段 0 测试）
   {
     path: '/vueflow-test',

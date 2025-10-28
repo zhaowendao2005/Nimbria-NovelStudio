@@ -290,6 +290,15 @@
             <el-icon><VideoPlay /></el-icon>
             测试执行
           </el-button>
+          <el-button 
+            type="warning" 
+            @click="handleOpenLinkNodeView"
+            :disabled="!hasLinksOutput"
+            style="margin-left: 8px;"
+          >
+            <el-icon><Connection /></el-icon>
+            节点视图
+          </el-button>
         </el-form-item>
       </el-form>
     </div>
@@ -390,8 +399,15 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Setting, Aim, VideoPlay, Document, Search } from '@element-plus/icons-vue'
+import { Setting, Aim, VideoPlay, Document, Search, Connection } from '@element-plus/icons-vue'
 import type { WorkflowNode, NodeExecutionResult, ScraperEngine } from './types'
+
+// LinkItem 类型定义（临时内联，避免导入问题）
+interface LinkItem {
+  id: string
+  title: string
+  url: string
+}
 
 interface Props {
   node: WorkflowNode | null
@@ -539,6 +555,31 @@ const hasOutput = computed(() => {
 const outputData = computed(() => {
   return props.output
 })
+
+// ==================== LinkNodeView 相关 ====================
+
+// 判断是否有链接输出
+const hasLinksOutput = computed(() => {
+  return props.node?.type === 'get-links' && 
+         props.output?.success === true && 
+         Array.isArray((props.output.output as { links?: unknown[] }).links) &&
+         (props.output.output as { links: unknown[] }).links.length > 0
+})
+
+// 为NodeView准备的链接数据
+const linksForNodeView = computed((): LinkItem[] => {
+  if (!hasLinksOutput.value) return []
+  
+  const outputLinks = (props.output!.output as { links: Array<{ title: string; url: string }> }).links
+  return outputLinks.map((link, index) => ({
+    id: `link-${index}-${Date.now()}`,
+    title: link.title,
+    url: link.url
+  }))
+})
+
+// 当前项目路径（从某处获取，这里暂时使用空字符串）
+const currentProjectPath = ref('')
 
 // ==================== 视图模式 ====================
 
@@ -812,6 +853,33 @@ const handleDeleteLink = (index: number) => {
  */
 const handleTestExecute = () => {
   emit('execute-node')
+}
+
+/**
+ * 打开 LinkNodeView 独立窗口
+ */
+const handleOpenLinkNodeView = async () => {
+  if (!hasLinksOutput.value) {
+    ElMessage.warning('请先执行节点以获取链接数据')
+    return
+  }
+  
+  try {
+    const result = await window.nimbria.linkNodeView.openWindow({
+      links: linksForNodeView.value,
+      tabId: props.tabId,
+      projectPath: currentProjectPath.value
+    })
+
+    if (result.success) {
+      ElMessage.success('节点视图窗口已打开')
+    } else {
+      ElMessage.error('打开失败: ' + result.error?.message)
+    }
+  } catch (error) {
+    console.error('[NodeConfigContent] Open link node view failed:', error)
+    ElMessage.error('打开节点视图失败')
+  }
 }
 </script>
 

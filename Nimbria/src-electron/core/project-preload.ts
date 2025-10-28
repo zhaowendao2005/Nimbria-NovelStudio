@@ -747,6 +747,32 @@ contextBridge.exposeInMainWorld('nimbria', {
       ipcRenderer.invoke('workflow:get-browser-path')
   },
 
+  // LinkNodeView API
+  linkNodeView: {
+    /**
+     * 打开链接节点视图窗口
+     */
+    openWindow: (request: {
+      links: Array<{ id: string; title: string; url: string }>
+      tabId: string
+      projectPath: string
+    }) => 
+      ipcRenderer.invoke('link-node-view:open-window', request),
+    
+    /**
+     * 删除链接（同步到主窗口）
+     */
+    deleteLinks: (request: { tabId: string; linkIds: string[] }) =>
+      ipcRenderer.send('link-node-view:delete-links', request),
+    
+    /**
+     * 监听删除同步事件
+     */
+    onSyncDelete: (callback: (data: { tabId: string; linkIds: string[] }) => void) => {
+      ipcRenderer.on('link-node-view:sync-delete', (_event, data) => callback(data))
+    }
+  },
+
   // 🔥 事件通信 API
   on: (channel: string, callback: (...args: unknown[]) => void) => {
     ipcRenderer.on(channel, (_event, ...args) => callback(...args))
